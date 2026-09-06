@@ -289,10 +289,17 @@ static func reachable_segments(host: Node, from_point: Vector2) -> Array[TopSeg]
 		for seg in tops:
 			if reached.has(seg):
 				continue
-			if _can_hop(cur, seg) or _can_hook(cur, seg, anchors):
+			if _can_hop(cur, seg) or _can_hook(cur, seg, anchors) or _same_lift(cur, seg):
 				reached.append(seg)
 				queue.append(seg)
 	return reached
+
+
+## Riding a lift: its start and end decks are one place.
+static func _same_lift(a: TopSeg, b: TopSeg) -> bool:
+	var a_lift := a.owner_name.get_slice("@", 0)
+	var b_lift := b.owner_name.get_slice("@", 0)
+	return a.owner_name.contains("@") and b.owner_name.contains("@") and a_lift == b_lift
 
 
 static func is_reachable(host: Node, from_point: Vector2, target: Vector2) -> bool:
