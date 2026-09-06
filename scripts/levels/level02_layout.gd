@@ -68,11 +68,12 @@ const TOXIN_TINT := Color(1.0, 1.25, 0.55)
 const TORCH_TINT := Color(0.62, 0.88, 0.9)
 const NEST_SHAFT_POS := Vector2(176, 306)
 const NEST_HALL_POS := Vector2(1664, 306)
-## 碑文精灵 36 高、锚点偏 (-6,-6)：feet_y - 30 让碑底正好落在台面上。
-const STELE_A_POS := Vector2(264, 290)
+## 碑文原点在碑底：直接放在台面 y 上。
+const STELE_A_POS := Vector2(264, 320)
 ## 第二块碑藏在锈门上方的壁龛里：只有乘吊台上去、再往左跳一步的人读得到。
-const STELE_D_POS := Vector2(1800, 178)
-const PLATE_POS := Vector2(1008, 264)
+const STELE_D_POS := Vector2(1800, 208)
+## 压板精灵 10 高、偏 -2：台面 y - 6 让板面平贴台面（与第一关 314/320 同约定）。
+const PLATE_POS := Vector2(1008, 258)
 const DOOR_C_POS := Vector2(1120, 256)
 const GATE_D_POS := Vector2(1808, 256)
 const LIFT_C_POS := Vector2(1392, 296)
@@ -227,8 +228,13 @@ func _build_props(props: Node2D, hooks: Node2D) -> void:
 	exit.flag_id = "undercroft_done"
 	exit.captions = PackedStringArray([
 		"钟声从更深处传来。锈墓还没醒透。",
-		"—— 锈墓・贰 · 沉钟地窟 · 完 ——",
+		"门后是风——地窟通到了地面上的锈城。",
 	])
+	# 沉钟门通向第三关（锈城街巷）；注册表里没有下一关时退回「章节结局」。
+	var next_id := GameContext.next_level_id("level02")
+	if next_id != "" and GameContext.LEVELS.has(next_id):
+		exit.target_scene = GameContext.LEVELS[next_id]
+		exit.spawn = ChapterLayout.entry_spawn_of(next_id)
 	props.add_child(exit)
 
 
@@ -265,10 +271,10 @@ func _build_decor(host: Node2D) -> void:
 		decor.add_child(torch)
 	for pos in VINES:
 		_sprite(decor, VINE_TEX, pos, Color(0.9, 1.0, 0.9, 0.95))
-	_sprite(decor, ARCH_TEX, Vector2(24, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95))
-	_sprite(decor, ARCH_TEX, Vector2(1216, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95))
-	_sprite(decor, RUBBLE_TEX, Vector2(560, FLOOR_Y - 30.0 + 32.0), Color.WHITE)
-	_sprite(decor, RUBBLE_TEX, Vector2(1980, FLOOR_Y - 30.0), Color.WHITE)
+	_sprite(decor, ARCH_TEX, Vector2(24, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95), true)
+	_sprite(decor, ARCH_TEX, Vector2(1216, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95), true)
+	_sprite(decor, RUBBLE_TEX, Vector2(560, FLOOR_Y - 30.0 + 32.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(1980, FLOOR_Y - 30.0), Color.WHITE, true)
 	var signs := Node2D.new()
 	signs.name = "Waymarks"
 	signs.z_index = 2
@@ -287,15 +293,21 @@ func _build_decor(host: Node2D) -> void:
 	host.add_child(zone)
 
 
-func _sprite(parent: Node2D, path: String, pos: Vector2, tint: Color) -> void:
+## `grounded`: the sprite's bottom edge is its foot line (LevelSanity checks it
+## stands on a platform). Hanging vines are not grounded.
+func _sprite(parent: Node2D, path: String, pos: Vector2, tint: Color, grounded: bool = false) -> void:
 	if not ResourceLoader.exists(path):
 		return
+	var tex := load(path) as Texture2D
 	var spr := Sprite2D.new()
-	spr.texture = load(path) as Texture2D
+	spr.texture = tex
 	spr.centered = false
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.position = pos
 	spr.modulate = tint
+	if grounded:
+		spr.set_meta("feet", pos + Vector2(float(tex.get_width()) * 0.5, float(tex.get_height())))
+		spr.add_to_group("grounded")
 	parent.add_child(spr)
 
 

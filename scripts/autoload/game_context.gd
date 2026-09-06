@@ -6,13 +6,44 @@ const PRESENTATION_PATH := "res://scenes/ui/GamePresentation.tscn"
 ## First level; also the fallback whenever a save names an unknown scene.
 const WORLD_PATH := "res://scenes/levels/Level01_Static.tscn"
 const LEVEL02_PATH := "res://scenes/levels/Level02_Undercroft.tscn"
-## Every authored level keyed by its save id. Level01 predates ids, so its
-## save paths stay bare ("Props/EmberNest"); later levels prefix theirs
-## ("level02:Props/EmberNest") so identical node names never collide.
+## Every authored level keyed by its save id, in play order. Level01 predates
+## ids, so its save paths stay bare ("Props/EmberNest"); later levels prefix
+## theirs ("level02:Props/EmberNest") so identical node names never collide.
 const LEVELS := {
 	"level01": WORLD_PATH,
 	"level02": LEVEL02_PATH,
+	"level03": "res://scenes/levels/Level03_RustTown.tscn",
+	"level04": "res://scenes/levels/Level04_Cathedral.tscn",
+	"level05": "res://scenes/levels/Level05_Workshop.tscn",
+	"level06": "res://scenes/levels/Level06_NightGraveyard.tscn",
+	"level07": "res://scenes/levels/Level07_BellTower.tscn",
+	"level08": "res://scenes/levels/Level08_SlagDepths.tscn",
+	"level09": "res://scenes/levels/Level09_Ramparts.tscn",
+	"level10": "res://scenes/levels/Level10_ForgeCore.tscn",
 }
+const LEVEL_ORDER: Array[String] = [
+	"level01", "level02", "level03", "level04", "level05",
+	"level06", "level07", "level08", "level09", "level10",
+]
+## ChapterLayout scripts for the data-driven chapters (level03+).
+const LAYOUTS := {
+	"level03": "res://scripts/levels/chapters/level03_layout.gd",
+	"level04": "res://scripts/levels/chapters/level04_layout.gd",
+	"level05": "res://scripts/levels/chapters/level05_layout.gd",
+	"level06": "res://scripts/levels/chapters/level06_layout.gd",
+	"level07": "res://scripts/levels/chapters/level07_layout.gd",
+	"level08": "res://scripts/levels/chapters/level08_layout.gd",
+	"level09": "res://scripts/levels/chapters/level09_layout.gd",
+	"level10": "res://scripts/levels/chapters/level10_layout.gd",
+}
+
+
+## The level after `id` in play order, or "" for the last one.
+static func next_level_id(id: String) -> String:
+	var i := LEVEL_ORDER.find(id)
+	if i < 0 or i + 1 >= LEVEL_ORDER.size():
+		return ""
+	return LEVEL_ORDER[i + 1]
 ## Level the presentation shell instantiates next. route_scene() sets it.
 static var pending_world_path: String = WORLD_PATH
 static var _blocked_through_frame: int = -1

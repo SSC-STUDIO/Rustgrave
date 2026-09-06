@@ -11,7 +11,9 @@ const STELE_TEX := "res://assets/env/statue_keeper.png"
 func _ready() -> void:
 	super._ready()
 	prompt = "E 辨认碑文"
-	ensure_sprite(STELE_TEX, Vector2(28, 36), Vector2(-6, -6), Palette.RUST_DARK, Rect2(0, 0, 32, 40))
+	# 原点 = 碑底中点，摆在台面 y 上就是站着。旧偏移 (-6,-6) 让 36px 高的碑有 30px
+	# 埋进地里，三块碑都只露一个头。
+	ensure_sprite(STELE_TEX, Vector2(28, 36), Vector2(-14, -36), Palette.RUST_DARK, Rect2(0, 0, 32, 40))
 
 
 func get_prompt(_actor: Node) -> String:

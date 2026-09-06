@@ -122,6 +122,9 @@ static func plant_texture(parent: Node2D, tex: Texture2D, path: String, feet: Ve
 		var pivot := Node2D.new()
 		pivot.name = "Sway_%s" % path.get_file().get_basename()
 		pivot.position = Vector2(feet.x + w * 0.5, feet.y)
+		if in_world_space(parent):
+			pivot.set_meta("feet", pivot.position)
+			pivot.add_to_group("grounded")
 		parent.add_child(pivot)
 		spr.position = Vector2(-w * 0.5, -h)
 		pivot.add_child(spr)
@@ -138,5 +141,20 @@ static func plant_texture(parent: Node2D, tex: Texture2D, path: String, feet: Ve
 		return spr
 	var land := float(opaque_bottom_px(tex) + 1) * scale
 	spr.position = Vector2(feet.x, feet.y - land)
+	if in_world_space(parent):
+		spr.set_meta("feet", Vector2(feet.x + w * 0.5, feet.y))
+		spr.add_to_group("grounded")
 	parent.add_child(spr)
 	return spr
+
+
+## Play-layer decor stands on platforms and is checked by LevelSanity; foliage
+## planted into a Parallax2D / CanvasLayer silhouette strip lives in scroll
+## space and is not.
+static func in_world_space(node: Node) -> bool:
+	var cursor := node
+	while cursor != null:
+		if cursor is Parallax2D or cursor is CanvasLayer:
+			return false
+		cursor = cursor.get_parent()
+	return true

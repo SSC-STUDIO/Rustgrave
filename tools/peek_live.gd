@@ -30,10 +30,20 @@ func _ready() -> void:
 		get_tree().quit(2)
 		return
 	var level_id := "level01"
+	var out_dir := OUT
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--level="):
 			level_id = arg.trim_prefix("--level=")
-	var table: Dictionary = SPOTS_L2 if level_id == "level02" else SPOTS
+		elif arg.begins_with("--out="):
+			out_dir = arg.trim_prefix("--out=")
+	var table: Dictionary = SPOTS
+	if level_id == "level02":
+		table = SPOTS_L2
+	elif level_id != "level01":
+		# Chapters: one spot per 640px screen unless --spots gives numbers.
+		table = {}
+		for i in 6:
+			table["x%d" % (320 + i * 640)] = float(320 + i * 640)
 	var spots: Array = table.keys()
 	var hold := 4.0
 	var lit := false
@@ -55,12 +65,12 @@ func _ready() -> void:
 			active = true
 	if GameContext.LEVELS.has(level_id):
 		GameContext.pending_world_path = GameContext.LEVELS[level_id]
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
 	win.size = Vector2i(1920, 1080)
 	win.position = Vector2i(-12000, -12000)
-	SaveData.save_path = OUT + "/peek_save.cfg"
+	SaveData.save_path = out_dir + "/peek_save.cfg"
 	SaveData.delete_save()
 	var presentation := PRESENTATION.instantiate()
 	add_child(presentation)
@@ -94,16 +104,20 @@ func _ready() -> void:
 	if level_id != "level01":
 		suffix = "_" + level_id + suffix
 	for spot in spots:
-		if not table.has(spot):
+		var x: float
+		if table.has(spot):
+			x = table[spot]
+		elif String(spot).is_valid_float():
+			x = float(spot)
+		else:
 			printerr("peek_live: unknown spot ", spot)
 			continue
-		var x: float = table[spot]
 		camera.global_position = Vector2(x, 220)
 		camera.force_update_scroll()
 		player.global_position = Vector2(x - 120.0, 320)
 		await get_tree().create_timer(hold).timeout
 		await RenderingServer.frame_post_draw
 		var image := win.get_texture().get_image()
-		var err := image.save_png("%s/live_%s%s.png" % [OUT, spot, suffix])
+		var err := image.save_png("%s/live_%s%s.png" % [out_dir, spot, suffix])
 		print("PEEK ", spot, suffix, " saved=", err == OK)
 	get_tree().quit(0)

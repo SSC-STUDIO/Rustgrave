@@ -101,23 +101,25 @@ func test_bell_door_ends_the_chapter() -> void:
 	var level := await _live_level()
 	var player := get_tree().get_first_node_in_group("player") as Player
 	var exit := level.get_node("Props/BellDoor") as LevelExit
+	eq(exit.target_scene, GameContext.LEVELS["level03"], "the bell door leads on to the rust town")
 	player.global_position = exit.global_position + Vector2(-16, 0)
 	var previous_path := SaveData.save_path
 	SaveData.save_path = "user://test_level02_finale.cfg"
 	exit.interact(player)
 	await flush(2)
-	ok(Director.playing, "finale captions are playing")
+	ok(Director.playing, "door captions are playing")
 	Director.abort()
 	await flush(3)
 	ok(SaveData.has_flag("undercroft_done"), "chapter flag is written")
 	# last_fade_target is written when the fade-out completes, not when it starts.
 	for i in 120:
-		if Director.last_fade_target == LevelExit.TITLE_PATH:
+		if Director.last_fade_target == GameContext.LEVELS["level03"]:
 			break
 		await flush(1)
-	eq(Director.last_fade_target, LevelExit.TITLE_PATH, "finale returns to the title")
-	ok(SaveData.load_game(), "the finale left a save")
-	eq(SaveData.saved_scene(), GameContext.LEVEL02_PATH, "continue reopens the undercroft at the bell door")
+	eq(Director.last_fade_target, GameContext.LEVELS["level03"], "the door fades into level03")
+	ok(SaveData.load_game(), "the door left a save")
+	eq(SaveData.saved_scene(), GameContext.LEVELS["level03"], "continue reopens level03 at its entry")
+	eq(SaveData.data["player"]["pos"], ChapterLayout.entry_spawn_of("level03"))
 	SaveData.delete_save()
 	SaveData.save_path = previous_path
 

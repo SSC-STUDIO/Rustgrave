@@ -13,6 +13,9 @@ const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 @export var captions: PackedStringArray = []
 ## 走过这扇门时点亮的剧情旗标（为空则不写）。
 @export var flag_id: String = ""
+## 需要先点亮的旗标（例如 Boss 死亡）；没点亮时门锁着，只给提示。
+@export var requires_flag: String = ""
+@export var locked_prompt: String = "门还锁着"
 
 var _used := false
 
@@ -23,16 +26,24 @@ func _ready() -> void:
 	ensure_sprite(DOOR_TEX, DOOR_SIZE, Vector2(-DOOR_SIZE.x * 0.5, -DOOR_SIZE.y), Palette.IRON)
 
 
+func is_locked() -> bool:
+	return requires_flag != "" and not SaveData.has_flag(requires_flag)
+
+
 func can_interact(_actor: Node) -> bool:
 	return not _used
 
 
 func get_prompt(_actor: Node) -> String:
-	return prompt
+	return locked_prompt if is_locked() else prompt
 
 
 func interact(actor: Node) -> void:
 	if _used or not actor is Player:
+		return
+	if is_locked():
+		Sfx.play(&"ui_denied", 0.04, -4.0)
+		GameEvents.announcement.emit(locked_prompt)
 		return
 	_used = true
 	Sfx.play(&"gate")

@@ -132,14 +132,14 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var exit := props.get_node_or_null("BellDoor") as LevelExit
 	ok(exit != null, "the bell door ends the level")
 	if exit != null:
-		eq(exit.target_scene, "", "bell door is a stage finale, not a hop to another level")
+		eq(exit.target_scene, GameContext.LEVELS["level03"], "bell door hops to level03")
 		eq(exit.flag_id, "undercroft_done")
 		ok(_standing_on(rects, exit.position), "exit door stands on FloorD")
 	var door := props.get_node_or_null("Door") as ArenaDoor
 	var plate := props.get_node_or_null("Plate") as PressurePlate
 	ok(door != null and plate != null)
 	ok(plate.activated.is_connected(door.open_door), "plate opens the door")
-	ok(_standing_on(rects, plate.position), "plate rests on the spitter ledge")
+	ok(_standing_on(rects, plate.position + Vector2(12, 8)), "plate rests on the spitter ledge")
 	ok(_standing_on(rects, door.position + Vector2(0, 64)), "door foot meets the floor")
 	var gate := props.get_node_or_null("RustyGate")
 	ok(gate != null, "heat forge gate before the bell hall")
