@@ -25,9 +25,9 @@ const ENEMIES: Array = [
 	["Skeleton1", "skeleton", Vector2(312, 320)],
 	["Skeleton2", "skeleton", Vector2(720, 80)],
 	["Spitter1", "spitter", Vector2(848, 80)],
-	["Ghost1", "ghost", Vector2(560, -32)],
-	["Demon1", "flying_demon", Vector2(808, -48)],
-	["Ghost2", "ghost", Vector2(840, -244)],
+	["Ghost1", "ghost", Vector2(576, 32), {"wake_range": 160.0}],
+	["Demon1", "flying_demon", Vector2(848, -272)],
+	["Ghost2", "ghost", Vector2(808, -192)],
 	["Spitter2", "spitter", Vector2(848, -400)],
 	["Demon2", "flying_demon", Vector2(608, -496)],
 ]
@@ -82,7 +82,7 @@ func build(host: Node2D) -> void:
 		"钟楼背后，运渣井还通着。", "热风从井下顶上来。",
 	]), "level07_done", "level08", TOP_Y)
 	for e in ENEMIES:
-		enemy(host, e[0], e[1], e[2])
+		enemy(host, e[0], e[1], e[2], e[3] if e.size() > 3 else {})
 	for feet in [Vector2(80, 320), Vector2(656, 80), Vector2(784, -160), Vector2(656, -400), Vector2(1232, TOP_Y)]:
 		torch(host, feet.x, feet.y, Color(0.8, 0.82, 1.0))
 	for feet in [Vector2(520, 80), Vector2(888, -160), Vector2(520, -400), Vector2(1056, TOP_Y)]:

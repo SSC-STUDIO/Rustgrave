@@ -54,6 +54,15 @@ func test_four_lifts_have_clear_shafts_and_boardable_ends() -> void:
 		ok(LevelSanity._can_hop(board, a), "boards from lower landing")
 		ok(LevelSanity._can_hop(b, land), "steps onto upper landing")
 
+func test_middle_checkpoint_is_safe_after_restore() -> void:
+	var host := _build()
+	var player := await spawn_player(host, Vector2(544, -160))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "lower and upper enemies cannot attack the restored checkpoint")
+	for name_ in ["Ghost1", "Ghost2"]:
+		var ghost := host.get_node("Enemies/" + name_) as GhostEnemy
+		eq(ghost.state(), GhostEnemy.State.DORMANT, name_ + " waits on its authored combat floor")
+
 func test_lift_carries_player_up_and_middle_plate_opens_gate() -> void:
 	var host := _build()
 	for enemy in host.get_node("Enemies").get_children(): enemy.set_physics_process(false)
