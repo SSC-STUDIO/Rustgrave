@@ -139,7 +139,7 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var plate := props.get_node_or_null("Plate") as PressurePlate
 	ok(door != null and plate != null)
 	ok(plate.activated.is_connected(door.open_door), "plate opens the door")
-	ok(_standing_on(rects, plate.position + Vector2(12, 8)), "plate rests on the spitter ledge")
+	ok(LevelSanity.standing_on(LevelSanity.top_segments(host), LevelSanity.feet_of(plate)) != null, "plate rests on the spitter ledge")
 	ok(_standing_on(rects, door.position + Vector2(0, 64)), "door foot meets the floor")
 	var gate := props.get_node_or_null("RustyGate")
 	ok(gate != null, "heat forge gate before the bell hall")

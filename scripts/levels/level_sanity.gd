@@ -95,7 +95,7 @@ static func top_segments(host: Node) -> Array[TopSeg]:
 			var p := node as SolidPlatform
 			# Walls / ceilings are solids you cannot stand on top of usefully; skip
 			# anything thinner than 24px wide or whose top is at/above the ceiling line.
-			if p.size.x < 24.0:
+			if p.size.x < 24.0 or String(p.name).begins_with("Ceiling") or p.has_meta("non_walkable"):
 				continue
 			segs.append(TopSeg.new(p.global_position.x, p.global_position.x + p.size.x, p.global_position.y, String(p.name)))
 		elif node is MovingPlatform:
@@ -272,7 +272,7 @@ static func _check_toxin_pools(host: Node, solids: Array[Rect2], tops: Array[Top
 
 ## Platforms reachable from `from_point` by walking, single jumps, drops and
 ## hookshot pulls. Returns the set of TopSeg reached (by index into top_segments).
-static func reachable_segments(host: Node, from_point: Vector2) -> Array[TopSeg]:
+static func reachable_segments(host: Node, from_point: Vector2, allow_hook: bool = true) -> Array[TopSeg]:
 	var tops := top_segments(host)
 	var anchors: Array[Vector2] = []
 	for node in _descendants(host):
@@ -289,7 +289,7 @@ static func reachable_segments(host: Node, from_point: Vector2) -> Array[TopSeg]
 		for seg in tops:
 			if reached.has(seg):
 				continue
-			if _can_hop(cur, seg) or _can_hook(cur, seg, anchors) or _same_lift(cur, seg):
+			if _can_hop(cur, seg) or (allow_hook and _can_hook(cur, seg, anchors)) or _same_lift(cur, seg):
 				reached.append(seg)
 				queue.append(seg)
 	return reached
@@ -302,8 +302,8 @@ static func _same_lift(a: TopSeg, b: TopSeg) -> bool:
 	return a.owner_name.contains("@") and b.owner_name.contains("@") and a_lift == b_lift
 
 
-static func is_reachable(host: Node, from_point: Vector2, target: Vector2) -> bool:
-	for seg in reachable_segments(host, from_point):
+static func is_reachable(host: Node, from_point: Vector2, target: Vector2, allow_hook: bool = true) -> bool:
+	for seg in reachable_segments(host, from_point, allow_hook):
 		if target.x >= seg.x0 - FOOT_X_PAD and target.x <= seg.x1 + FOOT_X_PAD and absf(target.y - seg.y) <= FOOT_SLACK_DOWN + 40.0:
 			return true
 	return false

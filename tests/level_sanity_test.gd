@@ -71,16 +71,17 @@ func test_exit_and_checkpoints_are_reachable_from_spawn() -> void:
 		if level == null:
 			continue
 		var spawn := _spawn_of(level)
+		var allow_hook := not GameContext.LAYOUTS.has(id)
 		ok(spawn != Vector2.INF, "%s spawns a knight" % id)
 		for nest in get_tree().get_nodes_in_group("ember_nests"):
 			var feet := LevelSanity.feet_of(nest)
-			ok(LevelSanity.is_reachable(level, spawn, feet), "%s: nest %s is reachable from spawn" % [id, nest.name])
+			ok(LevelSanity.is_reachable(level, spawn, feet, allow_hook), "%s: nest %s is reachable from spawn" % [id, nest.name])
 		var goals: Array[Node2D] = []
 		for node in LevelSanity._descendants(level):
-			if node is LevelExit or node is ForgeHeart:
+			if node is LevelExit or node is ForgeHeart or (not allow_hook and (node is PressurePlate or node is RustyGate)):
 				goals.append(node as Node2D)
 		ok(not goals.is_empty(), "%s has an exit or a forge heart" % id)
 		for goal in goals:
-			ok(LevelSanity.is_reachable(level, spawn, LevelSanity.feet_of(goal)), "%s: %s is reachable from spawn" % [id, goal.name])
+			ok(LevelSanity.is_reachable(level, spawn, LevelSanity.feet_of(goal), allow_hook), "%s: %s is reachable from spawn without optional abilities" % [id, goal.name])
 		level.free()
 		await flush(1)

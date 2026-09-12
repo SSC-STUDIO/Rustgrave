@@ -457,15 +457,16 @@ func finish(host: Node2D) -> void:
 	var backdrop := ThemeBackdrop.new()
 	backdrop.name = "Backdrop"
 	host.add_child(backdrop)
-	backdrop.build(host, theme())
+	backdrop.build(host, theme(), camera_top())
 	if indoors():
 		var zone := AtmosphereZone.new()
 		zone.name = "IndoorZone"
 		zone.zone = WorldClock.Zone.INDOORS
 		var shape := RectangleShape2D.new()
-		shape.size = Vector2(float(east_limit()) + 64.0, 720.0)
+		var zone_top := minf(-320.0, float(camera_top()) - 64.0)
+		shape.size = Vector2(float(east_limit()) + 64.0, 464.0 - zone_top)
 		var col := CollisionShape2D.new()
 		col.shape = shape
-		col.position = Vector2(float(east_limit()) * 0.5, 40.0)
+		col.position = Vector2(float(east_limit()) * 0.5, (zone_top + 464.0) * 0.5)
 		zone.add_child(col)
 		host.add_child(zone)

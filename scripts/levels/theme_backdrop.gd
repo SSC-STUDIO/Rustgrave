@@ -89,7 +89,7 @@ static func is_indoor_theme(theme_id: String) -> bool:
 	return bool((THEMES.get(theme_id, {}) as Dictionary).get("indoors", true))
 
 
-func build(host: Node2D, theme_id: String) -> void:
+func build(host: Node2D, theme_id: String, camera_top: float = -48.0) -> void:
 	if theme_id == "graveyard":
 		_build_graveyard(host)
 		return
@@ -112,7 +112,18 @@ func build(host: Node2D, theme_id: String) -> void:
 		backdrop.add_child(void_rect)
 	var i := 0
 	for layer_def in theme.get("layers", []):
-		_add_layer(backdrop, "Layer%d" % i, layer_def)
+		var layer := _add_layer(backdrop, "Layer%d" % i, layer_def)
+		if layer != null and _indoors and camera_top < -320.0:
+			# Stack authored wall panels along tall shafts, retaining horizontal parallax.
+			var original := layer.get_node("Sprite") as Sprite2D
+			var height := original.get_rect().size.y * original.scale.y
+			var count := ceili((400.0 - camera_top) / height) + 1
+			for row in range(-count, 2):
+				if row == 0:
+					continue
+				var panel := original.duplicate() as Sprite2D
+				panel.position.y += row * height
+				layer.add_child(panel)
 		i += 1
 	var tint := host.get_node_or_null("MoodTint") as CanvasModulate
 	if tint == null:
