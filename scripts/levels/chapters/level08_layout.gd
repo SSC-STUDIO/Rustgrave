@@ -164,16 +164,16 @@ func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
 		var x0: float = f[1]
 		var x1: float = f[2]
-		floor_strip(host, String(f[0]), x0, x1, "moss", x0 > 0.0, x1 < float(EAST_LIMIT), FLOOR_Y, GROUND_TONE)
+		floor_strip(host, String(f[0]), x0, x1, "stone", x0 > 0.0, x1 < float(EAST_LIMIT), FLOOR_Y, GROUND_TONE)
 	for p in PITS:
 		_slag_pit(host, String(p[0]), p[1], p[2])
 	for s in STEPS:
-		step(host, String(s[0]), s[1], s[2], "moss_float", GROUND_TONE)
-	platform(host, "SlagPillar", PILLAR_POS, PILLAR_SIZE, "moss", true, true, GROUND_TONE)
+		step(host, String(s[0]), s[1], s[2], "floating", GROUND_TONE)
+	platform(host, "SlagPillar", PILLAR_POS, PILLAR_SIZE, "stone", true, true, GROUND_TONE)
 	for g in GEARS:
 		var octagon := gear(host, String(g[0]), g[1], g[2])
 		octagon.modulate = LIFT_TONE
-	enclose(host, "moss", CEILING_Y, -1.0, 0.0, GROUND_TONE)
+	enclose(host, "stone", CEILING_Y, -1.0, 0.0, GROUND_TONE)
 	var lift_a := lift(host, "LiftA", LIFT_A_POS, LIFT_A_TRAVEL, LIFT_PERIOD, LIFT_WIDTH, 0.0)
 	lift_a.modulate = LIFT_TONE
 	var lift_b := lift(host, "LiftB", LIFT_B_POS, LIFT_B_TRAVEL, LIFT_PERIOD, LIFT_WIDTH, LIFT_B_PHASE)
@@ -185,7 +185,7 @@ func _build_terrain(host: Node2D) -> void:
 func _slag_pit(host: Node2D, pit_name: String, x0: float, x1: float) -> ToxinPool:
 	var bed_y := FLOOR_Y + PIT_DEPTH
 	platform(host, pit_name + "Bed", Vector2(x0, bed_y), Vector2(x1 - x0, FLOOR_Y + 80.0 - bed_y),
-			"moss", false, false, GROUND_TONE)
+			"stone", false, false, GROUND_TONE)
 	return toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0), Vector2(x1 - x0, 32.0), SLAG_TINT)
 
 
@@ -210,11 +210,17 @@ func _build_enemies(host: Node2D) -> void:
 func _build_decor(host: Node2D) -> void:
 	for x in TORCHES:
 		torch(host, x, FLOOR_Y, TORCH_TINT)
-	for x in VINES:
+	# 旧缆减半，染成炉渣锈色；地面用干石/石板，支柱用工字梁。
+	var cable_xs: Array = []
+	for i in range(VINES.size()):
+		if i % 2 == 0:
+			cable_xs.append(VINES[i])
+	for x in cable_xs:
 		hanging(host, "vine", Vector2(x, CEILING_Y + 32.0), VINE_TINT)
 	for x in ARCHES:
-		prop(host, "arch", Vector2(x, FLOOR_Y), 1.0, ARCH_TINT)
-	for x in RUBBLE:
-		prop(host, "rubble", Vector2(x, FLOOR_Y), 1.0, RUBBLE_TINT)
+		prop(host, "slab", Vector2(x, FLOOR_Y), 1.15, ARCH_TINT)
+	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]
+	for i in range(RUBBLE.size()):
+		prop(host, rubble_keys[i % rubble_keys.size()], Vector2(RUBBLE[i], FLOOR_Y), 1.0, RUBBLE_TINT)
 	for x in COLUMNS:
-		prop(host, "column", Vector2(x, FLOOR_Y), 1.0, COLUMN_TINT)
+		prop(host, "beam_bolts", Vector2(x, FLOOR_Y), 1.2, COLUMN_TINT)
