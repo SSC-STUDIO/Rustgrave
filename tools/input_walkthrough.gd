@@ -405,17 +405,19 @@ func _verify_progress_reload() -> bool:
 			await _frames(3)
 			_ui(&"ui_accept")
 			if not await _wait_world(): return false
-			if not _check_restored_progress(): return false
+			# Continue restores the saved interaction position; death uses the
+			# nest's respawn point. Momentum may put those a few pixels apart.
+			if not _check_restored_progress((SaveData.data["player"]["pos"] as Vector2).x): return false
 			_record("continue_verified")
 			return true
 	_fail("pause menu did not return to title")
 	return false
 
 
-func _check_restored_progress() -> bool:
+func _check_restored_progress(expected_x: float = 1536.0) -> bool:
 	var player := _player()
 	var world := GameContext.world_root(player)
-	return _require(absf(player.position.x - 1536.0) < 12.0, "reload preserves east nest checkpoint") \
+	return _require(absf(player.position.x - expected_x) < 12.0, "reload preserves east nest checkpoint") \
 		and _require(_basic_abilities or player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "tether survives reload") \
 		and _require(_basic_abilities or player.inventory.has_ability(AbilityIds.EMBER_STEP), "ember step survives reload") \
 		and _require(_basic_abilities or SaveData.is_consumed("Pickups/EmberCore"), "ember pickup record survives") \
