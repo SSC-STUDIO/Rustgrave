@@ -17,6 +17,9 @@ enum State { DORMANT, APPEAR, HAUNT, ATTACK, VANISH, GONE }
 ## 一次实体追猎的时长；到点就散雾重定位。
 @export var haunt_time: float = 6.5
 @export var gone_time: float = 1.2
+## Optional encounter bounds; defaults preserve unrestricted haunt routes.
+@export var arena_left: float = -INF
+@export var arena_right: float = INF
 ## 重新凝出时落在骑士背后这么远。
 const REPHASE_OFFSET := 88.0
 const REPHASE_HEIGHT := 26.0
@@ -160,11 +163,12 @@ func _tick_state(delta: float) -> void:
 			_timer -= delta
 			if _timer <= 0.0:
 				_rephase(player)
+	global_position.x = clampf(global_position.x, arena_left + 12.0, arena_right - 12.0)
 
 
 func _player() -> Player:
 	var p := get_tree().get_first_node_in_group("player") as Player
-	if p == null or p.health.current <= 0:
+	if p == null or p.health.current <= 0 or p.global_position.x < arena_left or p.global_position.x > arena_right:
 		return null
 	return p
 

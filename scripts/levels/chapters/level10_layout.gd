@@ -65,7 +65,7 @@ const EXIT_LOCKED_PROMPT := "梦魇还在喘。门不开。"
 const EXIT_CAPTIONS: Array = ["炉心复燃。", "锈退成铁，铁记起火。", "—— 锈墓・完 ——"]
 
 ## [name, kind, pos]；落地敌人给脚点，飞行/穿墙敌人给悬停中心。
-## 火骷髅与梦魇由别的 agent 制作，场景不在时会被跳过（push_warning）。
+## 回廊敌人的活动限制在门前，余烬巢和梦魇竞技场不受前一战追击干扰。
 ## 幽魂一只守渣河西岸、一只守东岸落点；火骷髅悬在渣河上空（避开骷髅柱的脸，别叠成两张骷髅）。
 const ENEMIES: Array = [
 	["Ghost1", "ghost", Vector2(424, 232)],
@@ -149,7 +149,7 @@ func _build_enemies(host: Node2D) -> void:
 			if not SaveData.has_flag("nightmare_dead"):
 				enemy(host, String(e[0]), String(e[1]), e[2], {"arena_left": ARENA_X0, "arena_right": ARENA_X1})
 		else:
-			enemy(host, String(e[0]), String(e[1]), e[2])
+			enemy(host, String(e[0]), String(e[1]), e[2], {"arena_left": 300.0, "arena_right": 832.0})
 
 
 func _build_decor(host: Node2D) -> void:

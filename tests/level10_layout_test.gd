@@ -33,6 +33,19 @@ func _build() -> Node2D:
 	level.build(host)
 	return host
 
+func test_arena_checkpoint_and_boss_room_exclude_corridor_pursuers() -> void:
+	var host := _build()
+	var player := await spawn_player(host, Vector2(880, 300))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "boss checkpoint is safe while resting")
+	player.position = Vector2(820, 320)
+	await flush(90)
+	player.position = Vector2(1180, 288)
+	await flush(420)
+	for enemy in host.get_node("Enemies").get_children():
+		if enemy.name == "Nightmare": continue
+		ok(enemy.position.x <= 832, "corridor pursuer stays outside the boss arena")
+
 
 func _solids(host: Node2D) -> Array[SolidPlatform]:
 	var out: Array[SolidPlatform] = []
