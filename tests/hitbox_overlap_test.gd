@@ -36,3 +36,23 @@ func _shape(area: Area2D) -> void:
 	rectangle.size = Vector2(24, 24)
 	collision.shape = rectangle
 	area.add_child(collision)
+
+
+func test_lethal_contact_can_spawn_loot_after_overlap_queries() -> void:
+	var arena := Node2D.new()
+	add_child(arena)
+	var victim := (load("res://scenes/enemies/SpitterEnemy.tscn") as PackedScene).instantiate() as SpitterEnemy
+	victim.name = "LootVictim"
+	victim.position = Vector2(320, 0)
+	arena.add_child(victim)
+	var box := Hitbox.new()
+	box.damage = 99
+	_shape(box)
+	box.position = Vector2(200, -20)
+	arena.add_child(box)
+	await flush(3)
+	box.arm()
+	box.position = Vector2(320, -20)
+	await flush(12)
+	ok(not is_instance_valid(victim), "real lethal overlap removes the enemy")
+	ok(arena.get_node_or_null("TetherDrop_LootVictim") is CorePickup, "death safely creates a pickup collision area")

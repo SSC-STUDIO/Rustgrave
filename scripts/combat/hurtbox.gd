@@ -21,7 +21,9 @@ func _ready() -> void:
 	monitoring = true
 	collision_layer = 32 # hurtbox
 	collision_mask = 8 | 16 # player_hitbox + projectile
-	area_entered.connect(_on_area_entered)
+	# Death can spawn loot and remove collision areas. Deliver contact damage
+	# after the physics server has finished flushing its overlap queries.
+	area_entered.connect(_on_area_entered, CONNECT_DEFERRED)
 	var owner_node := get_node_or_null(damage_owner_path)
 	if owner_node:
 		_health = owner_node.get_node_or_null("Health") as Health
@@ -56,6 +58,8 @@ func _apply_knockback(attacker: Node) -> void:
 
 
 func _on_area_entered(area: Area2D) -> void:
+	if not is_instance_valid(area):
+		return
 	if area is Projectile:
 		var projectile := area as Projectile
 		if projectile.team == team:
