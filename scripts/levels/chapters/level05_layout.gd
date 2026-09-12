@@ -222,27 +222,27 @@ func _build_enemies(host: Node2D) -> void:
 ## -------------------------------------------------------------------- decor --
 
 func _build_decor(host: Node2D) -> void:
-	# A 入口车间：来路的门洞、壁炬、碎石。
-	prop(host, "door_arch", Vector2(96, FLOOR_Y))
+	# A 入口车间：金属梁、壁炬、干石渣（不再用苔门拱/教堂柱）。
+	prop(host, "beam_bolts", Vector2(96, FLOOR_Y), 1.0, Color(0.75, 0.7, 0.65))
 	torch(host, 440.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "rubble", Vector2(456, FLOOR_Y))
-	# B 淬火槽：坑沿石栏，走道下的壁炬（火焰在走道底下 16px），台阶靠着一根大柱。
-	prop(host, "balustrade", Vector2(728, FLOOR_Y))
+	prop(host, "rubble_dry", Vector2(456, FLOOR_Y))
+	# B 淬火槽：坑沿钢板，走道栏改短梁；支柱用带螺栓的工字梁。
+	prop(host, "plate", Vector2(728, FLOOR_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 760.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "balustrade", Vector2(840, WALK_Y))
-	prop(host, "rubble", Vector2(900, FLOOR_Y))
-	prop(host, "column", Vector2(990, FLOOR_Y))
-	# D 压板塔：巢边壁炬、盲门洞、碎石；压板台上一段石栏；走廊尽头一根大柱。
+	prop(host, "beam_narrow", Vector2(840, WALK_Y), 1.0, Color(0.72, 0.66, 0.58))
+	prop(host, "rubble_dry_b", Vector2(900, FLOOR_Y))
+	prop(host, "beam", Vector2(990, FLOOR_Y), 1.15, Color(0.68, 0.58, 0.5))
+	# D 压板塔：巢边壁炬、金属门板、干渣；走廊尽头工字梁。
 	torch(host, 1688.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "balustrade", Vector2(1736, DECK_Y))
-	prop(host, "door_arch", Vector2(1760, FLOOR_Y))
-	prop(host, "rubble", Vector2(1808, FLOOR_Y))
-	prop(host, "column", Vector2(1990, FLOOR_Y))
-	# F 锈门与运渣道：落点碎石、台阶靠柱、走道西端石栏、锈门前壁炬。
-	prop(host, "rubble", Vector2(2536, FLOOR_Y))
-	prop(host, "column", Vector2(2672, FLOOR_Y))
-	prop(host, "balustrade", Vector2(2856, WALK_Y))
+	prop(host, "beam_narrow", Vector2(1736, DECK_Y), 1.0, Color(0.72, 0.66, 0.58))
+	prop(host, "metal_panel", Vector2(1760, FLOOR_Y), 1.2, Color(0.7, 0.6, 0.52))
+	prop(host, "rubble_dry_c", Vector2(1808, FLOOR_Y))
+	prop(host, "beam_bolts", Vector2(1990, FLOOR_Y), 1.1, Color(0.68, 0.58, 0.5))
+	# F 锈门与运渣道。
+	prop(host, "rubble_dry", Vector2(2536, FLOOR_Y))
+	prop(host, "beam", Vector2(2672, FLOOR_Y), 1.15, Color(0.68, 0.58, 0.5))
+	prop(host, "plate", Vector2(2856, WALK_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 2832.0, FLOOR_Y, TORCH_TINT)
-	# 顶板垂下的旧缆：少量，避开吊台链子扫过的范围。
-	for x in [300.0, 600.0, 1560.0, 2090.0, 2596.0]:
+	# 顶板垂下的旧缆：仍用窄藤条资源，但染成锈缆色，数量更少。
+	for x in [300.0, 1560.0, 2596.0]:
 		hanging(host, "vine", Vector2(x, 0), CABLE_TINT)
