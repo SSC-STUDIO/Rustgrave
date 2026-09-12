@@ -88,6 +88,21 @@ func test_metadata_matches_the_registry() -> void:
 	eq(GameContext.next_level_id(level.level_id()), "level05")
 
 
+func test_fallen_player_can_climb_back_to_choir_from_east() -> void:
+	var host := _build()
+	for enemy in host.get_node("Enemies").get_children(): enemy.set_physics_process(false)
+	var player := await spawn_player(host, Vector2(1144, 300))
+	player.controller.extra_jumps_unlocked = false
+	Input.action_press("move_left")
+	Input.action_press("jump")
+	await flush(26)
+	Input.action_release("jump")
+	Input.action_release("move_left")
+	ok(player.position.y < 290, "a single jump reaches the recovery step from the trapped side")
+	await flush(20)
+	ok(player.is_on_floor() and player.position.y < 290, "the recovery step catches the player")
+
+
 func test_step_chains_are_single_jumps() -> void:
 	var host := _build()
 	var rects := _rects(host)

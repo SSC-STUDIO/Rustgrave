@@ -52,6 +52,7 @@ const STEPS: Array = [
 const BLOCKS: Array = [
 	["ChoirStep1", Vector2(976, 288), Vector2(48, 32)],
 	["ChoirStep2", Vector2(1056, 256), Vector2(48, 64)],
+	["ChoirRecoveryStep", Vector2(1104, 288), Vector2(32, 32)],
 	["ChoirLoft", Vector2(1136, 224), Vector2(160, 32)],
 	["PulpitStep", Vector2(1728, 288), Vector2(48, 32)],
 	["Pulpit", Vector2(1776, 256), Vector2(64, 64)],
