@@ -2,7 +2,7 @@
 
 2D 像素风 Metroidvania。你是废料堆里复燃的 **余烬骑士**，扛着过重的锯齿巨剑，在死去的机械文明地下陵墓里探索。
 
-本仓库是 **Godot 4 + GDScript** 的可玩垂直切片 + 完整设计文档，对应五步创意包（视觉 / GDD / 美术规格 / 程序 / 音频）。角色为像素帧动画（Fantasy Knight / Gothicvania 系敌人），环境为 ansimuz Gothicvania 素材，音效为 Kenney CC0 音频。
+本仓库是 **Godot 4 + GDScript** 的十章像素动作冒险，附完整设计文档（视觉 / GDD / 美术规格 / 程序 / 音频）。角色为像素帧动画（Fantasy Knight / Gothicvania 系敌人），环境为 ansimuz Gothicvania 素材，音效为 Kenney CC0 音频。
 
 ## 打开项目
 
@@ -40,6 +40,8 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 
 喷吐者死亡后会掉 **钩锁核**。东侧高台有 **余烬核**（要钩上去）。两核同槽会点亮组合技。
 
+第一关选择「熄灭」会播放提前结局；选择「复燃」进入后续章节：沉钟地窟 → 锈城街巷 → 圣殿中庭 → 齿轮工坊 → 墓园夜雨 → 钟楼 → 熔渣深渊 → 锈城城墙 → 炉心深处。主线使用单跳、冲刺和热锻；钩锁、二段跳供可选探索。钟楼有四段升降吊台和三个余烬巢。终关梦魇进入半血第二阶段，击杀后不再随死亡或继续游戏刷新；终局门保存完成状态，字幕后返回标题。
+
 ## 已实现 / 仅文档
 
 **已经能玩**
@@ -49,7 +51,7 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 - 判定帧弹反投射物（判定统一在 `MeleeCombat`）；弹反减毒并点燃 2 秒共鸣
 - 毒素即燃料：档位越高越锋利，满溢掉血；净化是卸武装
 - 锈核共鸣：窑+系绳=熔钩，窑+余烬=爆燃斩，系绳+余烬=摆荡步
-- 飞怪、喷吐者、碎甲者、齿轮盾卫 + 东端刽子手 Boss（半血二阶段）与复燃/熄灭双结局
+- 飞魔、幽魂、喷吐者、碎甲者、齿轮盾卫、起身骸骨、火骷髅，以及刽子手 / 梦魇两位分阶段 Boss
 - 过场：Director 淡变/字幕/镜头托管（苏醒、初毒、初核、初弹反、Boss、结局）
 - 像素帧动画角色：玩家 Fantasy Knight，敌人 Hell Beast / Hell Hound / Undead Executioner（`CharFrames` + `FrameAnimSprite` 逐帧驱动）
 - Gothicvania 环境：无缝视差背景、远山/近山/前景分层、双皮肤平台、腐液毒池、剪影层与漂雾
@@ -73,7 +75,9 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 
 | 文件 | 内容 |
 | --- | --- |
-| `docs/architecture.md` | 代码结构速查（Autoload、Level01 拆分、玩家子节点） |
+| `docs/architecture.md` | 代码结构速查（Autoload、章节铺设、存档、玩家子节点） |
+| `docs/level_authoring.md` | 关卡制作规则、几何检查与验证流程 |
+| `docs/acceptance.md` | 测试、真实输入与截图验收记录 |
 | `docs/GDD.md` | 完整中文设计文档 |
 | `docs/gdd-prompt.md` | 第二步 GDD 英文 Prompt 原文 |
 | `docs/visual-prompt.md` | 第一步视觉 Prompt（可喂 Midjourney/SD） |
@@ -134,8 +138,8 @@ Zero-dependency unit/integration suite lives in `tests/`. No GUT/plugin install 
 # import once after pulling
 & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --headless --path . --import
 
-# run the full suite (exit code 0 = green)
-& "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --headless --path . res://tests/run_tests.tscn
+# run the full suite with isolated saves and engine-error detection
+& ./tools/run_tests.ps1 -TimeoutSeconds 300
 ```
 
 - Discovery is automatic: drop a file named `tests/*_test.gd`, extend `TestCase` (`tests/test_case.gd`), write methods starting with `test_`.
@@ -146,7 +150,8 @@ Zero-dependency unit/integration suite lives in `tests/`. No GUT/plugin install 
 真实流程验收：
 
 ```powershell
-& ./tools/run_input_acceptance.ps1 -Rendered
+& ./tools/run_input_acceptance.ps1 -Campaign -Rendered
+& ./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Ending rekindle -Rendered
 ```
 
-该脚本只使用正常移动、跳跃、攻击、交互和菜单输入，覆盖能力获取、Boss、死亡后余烬巢复活、退出继续及复燃/熄灭两种结局。视觉矩阵使用 `run_render_acceptance.ps1`，属于离屏/窗口渲染检查，不替代真实通关证据。
+该脚本只使用正常移动、跳跃、攻击、交互和菜单输入，使用独立 APPDATA 与存档。`-Campaign` 验证十章流程，`-BasicAbilities` 跳过钩锁与余烬核的装备；`-Fast` 用固定物理步长加速调试。`-ResumeSave <隔离存档>` 只用于从已有真实输入检查点复现问题，不能替代新游戏全程验收。实际通过记录见 `docs/acceptance.md`。视觉矩阵 `run_render_acceptance.ps1` 与关卡机位工具 `run_peek_live.ps1` 用于渲染检查。

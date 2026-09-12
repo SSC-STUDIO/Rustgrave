@@ -1,6 +1,6 @@
 # 关卡制作手册（章节关卡 level03–level10）
 
-本手册面向并行制作关卡的 agent。**只改属于你的文件**；共享文件（`scripts/levels/chapter_layout.gd`、`theme_backdrop.gd`、`level_sanity.gd`、`game_context.gd`、任何敌人/道具脚本、`Level01/02`）一律不要动——需要新能力就在最终报告里写出来。
+本手册说明现有章节的制作与维护约定。修改前检查工作区；每个独立功能验证后单独提交，只暂存对应文件。公共逻辑修改须同时检查已有章节与存档兼容性。
 
 ## 0. 世界观速览
 
@@ -19,13 +19,13 @@ Rustgrave（锈墓）：炉火熄灭之后，地下之城沉入岩层，一切�
 | level09 | Level09_Ramparts | 锈墓・玖 — 锈城城墙 | town（室外） | 城墙上的长路，风大，跳跃与飞行敌人 |
 | level10 | Level10_ForgeCore | 锈墓・拾 — 炉心深处 | forge（室内） | 终关：梦魇 Boss，之后是终局门 |
 
-## 1. 你拥有的文件
+## 1. 关卡文件
 
-- `scripts/levels/chapters/levelNN_layout.gd` —— 关卡本体（已有占位，整个替换掉）。**不要加 `class_name`**。
-- `tests/levelNN_layout_test.gd` —— 你的关卡专属测试（新建）。文件名必须是 `levelNN_layout_test.gd`。
+- `scripts/levels/chapters/levelNN_layout.gd` —— 已完成的关卡本体。**不要加 `class_name`**。
+- `tests/levelNN_layout_test.gd` —— 关卡专属测试。
 - 截图输出目录 `screenshots/peek/levelNN/`（工具会建）。
 
-场景文件 `scenes/levels/LevelNN_*.tscn` 已经指向你的 layout，不用改。**不要新增图片素材、不要运行 `godot --import`、不要 git commit**。
+场景文件 `scenes/levels/LevelNN_*.tscn` 已经指向对应 layout。沿用现有像素素材；新增文件需要时运行 Godot 导入。
 
 ## 2. 写法
 
@@ -71,12 +71,12 @@ func build(host: Node2D) -> void:
 	finish(host)                                           # 背景 + 室内区，最后调
 ```
 
-所有助手都在 `scripts/levels/chapter_layout.gd`，先读一遍。可用敌人键：`spitter`（喷吐者，落地，射弹）、`scrapper`（碎铁犬，落地，冲锋）、`gear_shield`（齿盾卫，落地，正面免伤）、`flying_demon`（飞行）、`ghost`（幽魂，穿墙，从背后凝出）、`executioner`（第一关 Boss，慎用）、`skeleton`（骸骨，落地，从土里起来——正在制作，现在会被跳过）、`fire_skull`（火骷髅，飞行——正在制作）、`nightmare_boss`（终关 Boss——正在制作，只给 level10）。平台皮肤：`ground`（草顶土）、`floating`（教堂浮石）、`stone`（石板路）、`moss` / `moss_float`（青苔砖）；`tone` 参数可整体调色（熔炉关可把 moss 压成琥珀：`Color(1.0, 0.8, 0.6)`）。
+共用的铺设函数都在 `scripts/levels/chapter_layout.gd`，先读一遍。可用敌人键：`spitter`（喷吐者，落地，射弹）、`scrapper`（碎铁犬，落地，冲锋）、`gear_shield`（齿盾卫，落地，正面免伤）、`flying_demon`（飞行）、`ghost`（幽魂，穿墙，从背后凝出）、`executioner`（第一关 Boss，慎用）、`skeleton`（骸骨，落地，从土里起来，起身期间无判定）、`fire_skull`（火骷髅，悬停、蓄势、扑击）、`nightmare_boss`（终关两阶段 Boss，只给 level10）。平台皮肤：`ground`（草顶土）、`floating`（教堂浮石）、`stone`（石板路）、`moss` / `moss_float`（青苔砖）；`tone` 参数可整体调色（熔炉关可把 moss 压成琥珀：`Color(1.0, 0.8, 0.6)`）。
 
 ## 3. 硬规则（`level_sanity_test` 会拒绝）
 
 1. 地面顶 y = 320；镜头下界 400，所以**不要把可走的地面放在 y > 384**。
-2. 台阶链：单跳 **上升 ≤ 32px、横跨 ≤ 72px**；下落可以跨更远（每下落 2px 多跨 1px，最多 160）。出口与**每个**余烬巢必须从出生点按这个规则可达（钩锁锚点算可借力：锚点在起跳台面上方 ≤250px，落点台面在锚点下方 ≤110px、横向 ≤96px）。
+2. 台阶链：单跳 **上升 ≤ 32px、横跨 ≤ 72px**；下落可以跨更远（每下落 2px 多跨 1px，最多 160）。出口、**每个**余烬巢和必需压板必须从出生点按这个规则可达。`LevelSanity.is_reachable(..., allow_hook)` 默认 `true` 兼容旧检查；第 3–10 关主线检查显式传 `false`。可选钩锁路线单独检查（锚点在起跳面上方 ≤250px，落台在锚点下方 ≤110px、横向 ≤96px）。跳距按平台边缘计算，顶板不算可站立的主线路面。
 3. 所有落地物（巢、碑、压板、门、锈门、出口、路牌、`prop()` 装饰、落地敌人）脚下必须有台面（顶面 −3..+8px 内）。飞行敌人不能嵌在实体里。同类敌人间距 ≥ 24px。
 4. 毒池必须躺在坑里（用 `toxin_pit()` 最省事），坑两侧要能一跳（≤32px）爬出来。
 5. 锈核拾取只能悬在台面上方 ≤64px，或钩锁锚点 96px 内。
@@ -94,21 +94,24 @@ func build(host: Node2D) -> void:
 
 ## 5. 工作流
 
-1. 读 `scripts/levels/chapter_layout.gd`、`scripts/levels/chapters/level02_layout.gd`（第二关，真实范例）和本手册。
+1. 读 `scripts/levels/chapter_layout.gd`、`scripts/levels/level02_layout.gd`（第二关范例）和本手册。
 2. 写你的 layout。
 3. 体检（只看你这一关）：
    `$env:RUSTGRAVE_LEVEL_FILTER='levelNN'; powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter level_sanity -TimeoutSeconds 240`
    看输出里 `[FAIL]` 下面的每一条，修到 `OK`。
 4. 你的专属测试：`powershell ... tools/run_tests.ps1 -CaseFilter levelNN_layout`（用 `Level02` 的 `tests/level02_layout_test.gd` 作范本：在一个加了 `game_world` 组、`scene_file_path` 指向你场景的空 `Node2D` 上 `load("res://scripts/levels/chapters/levelNN_layout.gd").new().build(host)`，断言你的关键台阶链、机关接线、敌人落点）。
 5. 看图：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_peek_live.ps1 -Level levelNN -OutDir screenshots/peek/levelNN -Spots 320,960,1600,2240,2880 -Hold 2 -Lit`（`-Spots` 给镜头中心 x，一屏 640 宽；`-Active` 让敌人动起来）。用读文件工具打开 PNG 逐张看：有没有悬空、埋地、遮挡、空荡、颜色打架。改完再截。
-6. 结束时报告：关卡结构一句话、敌人/机关清单、体检与专属测试结果、截图路径、以及你**想要但没有的**共享能力（不要自己加）。
+6. 运行全量测试及正常输入验收，检查跌落脱困、入口、机关、难点、存档点与出口。每个完整改动验证后立即 Git 提交；记录实际结果和截图路径。
 
 ## 6. 常见坑
 
-- `.tscn` 里不能写 `#` 注释（你不该碰 .tscn）。
+- `.tscn` 里不能写 `#` 注释。
 - GDScript 常量不能被子类覆写，所以元数据用函数。
 - 压板 `plate_door()` 的第一个位置是压板**所在台面的脚点**（函数自己减 6）；门位置是门的**左上角**（门 16×64，底在 y+64，所以地面上的门 y=256）。
 - `nest(host, name, x, feet_y)` 的 feet_y 是台面 y（巢原点会自动上移 14）。
 - 出生点 `entry_spawn()` 下方必须有地面（可以是掉落进来，但别掉进毒池）。
+- 几何可达不是实际通关证据。实心高台东侧需要回程石阶；毒池上方踏点要留出至少 32px 的坑底头部净空。第四关唱诗台、第五关淬火槽的回归测试覆盖这两类困路。
+- 检查点安全要实际运行敌人 AI 验证：骑士在巢旁静止至少 6 秒，确认不会唤醒相邻战斗区。钟楼入口骸骨使用 96px 唤醒距离；中层幽魂分属上下层，避免穿墙追到复活点。
+- 高层使用 16px 薄台面，避免填充实体堵住下层。钟楼镜头上界为 −832、顶板为 −800、出口台面为 −640；室内区域和背景必须覆盖全高。用 `run_peek_live.ps1 -Level level07 -CamY -650` 检查塔顶。
 - 出口门 48 宽、64 高，`x` 是门底中点；别贴着右墙（留 ≥ 80px）。
 - PowerShell 5.1 对中文很不友好：不要用 `Set-Content`/`Out-File` 改含中文的文件，用编辑工具。
