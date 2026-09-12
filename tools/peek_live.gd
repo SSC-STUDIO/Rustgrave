@@ -31,11 +31,14 @@ func _ready() -> void:
 		return
 	var level_id := "level01"
 	var out_dir := OUT
+	var cam_y := 220.0
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--level="):
 			level_id = arg.trim_prefix("--level=")
 		elif arg.begins_with("--out="):
 			out_dir = arg.trim_prefix("--out=")
+		elif arg.begins_with("--cam_y="):
+			cam_y = float(arg.trim_prefix("--cam_y="))
 	var table: Dictionary = SPOTS
 	if level_id == "level02":
 		table = SPOTS_L2
@@ -112,12 +115,14 @@ func _ready() -> void:
 		else:
 			printerr("peek_live: unknown spot ", spot)
 			continue
-		camera.global_position = Vector2(x, 220)
+		camera.global_position = Vector2(x, cam_y)
 		camera.force_update_scroll()
-		player.global_position = Vector2(x - 120.0, 320)
+		# Park the knight at the camera height (vertical levels): floor y when cam_y is default.
+		player.global_position = Vector2(x - 120.0, 320.0 if is_equal_approx(cam_y, 220.0) else cam_y + 100.0)
 		await get_tree().create_timer(hold).timeout
 		await RenderingServer.frame_post_draw
 		var image := win.get_texture().get_image()
-		var err := image.save_png("%s/live_%s%s.png" % [out_dir, spot, suffix])
+		var tag := "" if is_equal_approx(cam_y, 220.0) else "_y%d" % int(cam_y)
+		var err := image.save_png("%s/live_%s%s%s.png" % [out_dir, spot, tag, suffix])
 		print("PEEK ", spot, suffix, " saved=", err == OK)
 	get_tree().quit(0)

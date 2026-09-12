@@ -9,7 +9,9 @@ param(
     [string]$Level = '',
     # Output folder relative to the workspace (default screenshots/peek). Give each
     # concurrent caller its own folder, e.g. screenshots/peek/level05.
-    [string]$OutDir = 'screenshots/peek'
+    [string]$OutDir = 'screenshots/peek',
+    # Camera centre y (default 220 = the ground floor view). Vertical levels: e.g. -200.
+    [double]$CamY = 220.0
 )
 # Live peek: clock running, one PNG per camera spot in $OutDir.
 # Complements run_render_acceptance.ps1 (which freezes time for fixtures).
@@ -26,6 +28,7 @@ if ($Night) { $arguments += @('--night') }
 if ($Active) { $arguments += @('--active') }
 if ($Weather) { $arguments += @('--weather=' + $Weather) }
 if ($Level) { $arguments += @('--level=' + $Level) }
+if ($CamY -ne 220.0) { $arguments += @('--cam_y=' + $CamY) }
 $stdoutFile = Join-Path $outputDir 'stdout.log'
 $stderrFile = Join-Path $outputDir 'stderr.log'
 $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
