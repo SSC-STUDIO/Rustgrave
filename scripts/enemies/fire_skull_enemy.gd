@@ -9,6 +9,8 @@ enum State { PATROL, HUNT, LUNGE, RETREAT }
 @export var hunt_speed: float = 70.0
 @export var contact_range: float = 26.0
 @export var retreat_time: float = 0.9
+@export var arena_left: float = -INF
+@export var arena_right: float = INF
 
 const SKULL_CHAR := "fire_skull"
 ## 96×112 画布里骷髅实体偏左下（中心约在 (44, 68)）；0.7 缩放后把实体中心补回节点原点。
@@ -167,6 +169,7 @@ func _begin_retreat(player: Player) -> void:
 
 
 func _update_facing() -> void:
+	global_position.x = clampf(global_position.x, arena_left + 12.0, arena_right - 12.0)
 	if velocity.x > FACE_DEADZONE:
 		_facing = 1.0
 	elif velocity.x < -FACE_DEADZONE:
