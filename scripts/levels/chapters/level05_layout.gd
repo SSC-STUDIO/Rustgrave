@@ -37,8 +37,8 @@ const SIGN_A_POS := Vector2(352, 320)
 
 ## B 淬火槽
 const PIT_B := Vector2(480, 688)
-const GEAR_B1 := Vector2(536, 312)
-const GEAR_B2 := Vector2(616, 312)
+const GEAR_B1 := Vector2(536, 304)
+const GEAR_B2 := Vector2(616, 304)
 const FLOOR_B := Vector2(688, 1152)
 const WALK_B := Rect2(720, 208, 160, 16)
 ## 从东往西爬：地面 → 296 → 264 → 232 → 走道 208。

@@ -96,6 +96,17 @@ func test_metadata_names_the_workshop() -> void:
 	ok(layout.entry_spawn().x < 200.0, "the knight enters from the west")
 
 
+func test_quench_pit_has_headroom_below_both_gear_stones() -> void:
+	var host := _build()
+	for enemy in host.get_node("Enemies").get_children(): enemy.set_physics_process(false)
+	var player := await spawn_player(host, Vector2(504, 348))
+	Input.action_press("move_right")
+	await flush(96)
+	Input.action_release("move_right")
+	ok(player.position.x > 640, "a fallen knight walks beneath both stones without getting trapped")
+	ok(player.health.current > 0, "the short recovery crossing is survivable")
+
+
 func test_lifts_board_and_land_within_one_hop() -> void:
 	var host := _build()
 	var floor_b := _rect_named(host, "FloorB")
