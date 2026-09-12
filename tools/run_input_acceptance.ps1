@@ -1,11 +1,15 @@
 param(
     [ValidateSet('rekindle', 'snuff', 'both')][string]$Ending = 'both',
     [switch]$Rendered,
+    [switch]$Campaign,
+    [switch]$BasicAbilities,
+    [switch]$Fast,
+    [string]$ResumeSave = '',
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe'
 )
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
-$runDir = Join-Path $workspace ('screenshots\acceptance\input-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$runDir = Join-Path $workspace ('screenshots\acceptance\input-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 $endings = if ($Ending -eq 'both') { @('rekindle', 'snuff') } else { @($Ending) }
 # Engine ERROR lines that matter. Godot's GL backend reports leaked texture/RID
@@ -19,10 +23,22 @@ foreach ($kind in $endings) {
     $stdoutPath = Join-Path $runDir ($kind + '-stdout.log')
     $stderrPath = Join-Path $runDir ($kind + '-stderr.log')
     $userdata = Join-Path $runDir ($kind + '-userdata')
+    if ($ResumeSave) {
+        if (-not $Campaign -or $kind -ne 'rekindle') { throw 'ResumeSave requires Campaign and Ending rekindle' }
+        $resumeData = Join-Path $userdata 'Godot\app_userdata\Rustgrave'
+        New-Item -ItemType Directory -Force -Path $resumeData | Out-Null
+        Copy-Item -LiteralPath $ResumeSave -Destination (Join-Path $resumeData 'input_walkthrough_rekindle.cfg')
+    }
     $arguments = @('--path', ('"' + $workspace + '"'))
     if (-not $Rendered) { $arguments += '--headless' }
     else { $arguments += @('--windowed', '--position', '-12000,-12000', '--resolution', '1920x1080') }
-    $arguments += @('res://scenes/tools/InputWalkthrough.tscn', '--', ('--ending=' + $kind))
+    if ($Fast) { $arguments += @('--fixed-fps', '60') }
+    $scene = if ($Campaign -and $kind -eq 'rekindle') { 'res://scenes/tools/CampaignWalkthrough.tscn' } else { 'res://scenes/tools/InputWalkthrough.tscn' }
+    $arguments += @($scene, '--', ('--ending=' + $kind))
+    if ($Campaign) { $arguments += '--campaign' }
+    if ($BasicAbilities) { $arguments += '--basic-abilities' }
+    if ($ResumeSave) { $arguments += '--resume' }
+    if ($Fast) { $arguments += '--fast' }
     $previousAppData = $env:APPDATA
     try {
         $env:APPDATA = $userdata
@@ -31,7 +47,8 @@ foreach ($kind in $endings) {
     $started = [DateTime]::UtcNow
     while (-not $process.WaitForExit(250)) {
         $errorText = Get-Content -LiteralPath $stderrPath -Raw
-        if ((Get-RealErrors $errorText).Count -gt 0 -or ([DateTime]::UtcNow - $started).TotalSeconds -gt 270) {
+        $timeoutSeconds = if ($Campaign) { 1830 } else { 270 }
+        if ((Get-RealErrors $errorText).Count -gt 0 -or ([DateTime]::UtcNow - $started).TotalSeconds -gt $timeoutSeconds) {
             Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $process.Id) | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
             if (-not $process.HasExited) { $process.Kill() }
             throw ('Input acceptance failed or timed out. See ' + $runDir)

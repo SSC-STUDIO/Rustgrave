@@ -17,6 +17,9 @@ var _dash_cd := 0
 var _rendered := false
 var _frame_ms: Array[float] = []
 var _last_frame_usec := 0
+var _campaign := false
+var _basic_abilities := false
+var _skip_captions := true
 
 
 func _ready() -> void:
@@ -35,6 +38,9 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--ending="):
 			_ending = arg.trim_prefix("--ending=")
+		elif arg == "--campaign": _campaign = true
+		elif arg == "--basic-abilities": _basic_abilities = true
+		elif arg == "--fast": Engine.max_fps = 0
 	SaveData.save_path = "user://input_walkthrough_%s.cfg" % _ending
 	GameEvents.player_died.connect(func() -> void: _deaths += 1)
 	# Keep the driver beside the real current scene while all normal scene
@@ -50,11 +56,11 @@ func _process(_delta: float) -> void:
 	_last_frame_usec = now
 	if _failed:
 		return
-	if Time.get_ticks_msec() - _started > 240000:
-		_fail("walkthrough exceeded four minutes")
+	if Time.get_ticks_msec() - _started > (1800000 if _campaign else 240000):
+		_fail("walkthrough exceeded its time budget")
 	if not _errors.errors().is_empty():
 		_fail("engine error: " + _errors.errors()[0])
-	if Director.playing and not get_tree().paused and Time.get_ticks_msec() - _last_skip > 180:
+	if _skip_captions and Director.playing and not get_tree().paused and Time.get_ticks_msec() - _last_skip > 180:
 		_last_skip = Time.get_ticks_msec()
 		_ui(&"ui_accept")
 
@@ -82,12 +88,13 @@ func _run() -> void:
 	if not await _walk_to(790.0, true): return
 	if not await _fight_spitter(): return
 	if not await _walk_to(812.0, false): return
-	await _tap(&"interact")
-	if not await _wait_world(): return
-	await _tap(&"socket_1")
-	if not await _wait_world(): return
-	if not _require(_player().inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "spitter tether drop equipped"): return
-	_record("spitter_tether")
+	if not _basic_abilities:
+		await _tap(&"interact")
+		if not await _wait_world(): return
+		await _tap(&"socket_1")
+		if not await _wait_world(): return
+		if not _require(_player().inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "spitter tether drop equipped"): return
+		_record("spitter_tether")
 	if not await _walk_to(904.0, false): return
 	if not await _walk_to(1050.0, false): return
 	await _frames(20)
@@ -103,8 +110,9 @@ func _run() -> void:
 	if not _require(not is_instance_valid(world.get_node_or_null("Props/RustyGate")), "rust gate melted through E"): return
 	_record("rust_gate")
 	if not await _walk_to(1430.0, false): return
-	if not await _grapple_ember(): return
-	_record("grapple_ember")
+	if not _basic_abilities:
+		if not await _grapple_ember(): return
+		_record("grapple_ember")
 	if not await _walk_to(1640.0, false): return
 	if not await _walk_to(1536.0, false): return
 	await _tap(&"interact")
@@ -125,6 +133,7 @@ func _run() -> void:
 	if _ending == "rekindle":
 		# 复燃不回标题：陵墓醒来，骑士落进第二关。走到第一个存档点、过第一段毒水。
 		if not await _descend_into_undercroft(): return
+		if not await _after_undercroft(): return
 		print("[WALKTHROUGH PASS] %s; %d deaths; normal input only" % [_ending, _deaths])
 		_write_result(true)
 		get_tree().quit(0)
@@ -148,6 +157,10 @@ func _run() -> void:
 
 func _player() -> Player:
 	return get_tree().get_first_node_in_group("player") as Player
+
+
+func _after_undercroft() -> bool:
+	return true
 
 
 func _descend_into_undercroft() -> bool:
@@ -403,9 +416,9 @@ func _check_restored_progress() -> bool:
 	var player := _player()
 	var world := GameContext.world_root(player)
 	return _require(absf(player.position.x - 1536.0) < 12.0, "reload preserves east nest checkpoint") \
-		and _require(player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "tether survives reload") \
-		and _require(player.inventory.has_ability(AbilityIds.EMBER_STEP), "ember step survives reload") \
-		and _require(SaveData.is_consumed("Pickups/EmberCore"), "ember pickup record survives") \
+		and _require(_basic_abilities or player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "tether survives reload") \
+		and _require(_basic_abilities or player.inventory.has_ability(AbilityIds.EMBER_STEP), "ember step survives reload") \
+		and _require(_basic_abilities or SaveData.is_consumed("Pickups/EmberCore"), "ember pickup record survives") \
 		and _require(SaveData.is_consumed("Props/RustyGate"), "melted gate record survives") \
 		and _require(world.get_node_or_null("Props/RustyGate") == null, "melted gate stays absent") \
 		and _require(world.get_node("Props/Door").is_open, "pressure plate door stays open") \
@@ -441,8 +454,10 @@ func _grapple_ember() -> bool:
 
 
 func _frames(count: int) -> void:
-	for i in count:
+	var elapsed := 0.0
+	while elapsed < count:
 		await get_tree().physics_frame
+		elapsed += Engine.time_scale
 
 
 func _tap(action: StringName) -> void:
@@ -509,6 +524,10 @@ func _fail(message: String) -> void:
 func _write_result(passed: bool) -> void:
 	var result := {"passed": passed, "ending": _ending, "input_only": true,
 		"milestones": _records, "engine_errors": Array(_errors.errors()), "deaths": _deaths}
+	result["campaign"] = _campaign
+	result["basic_abilities"] = _basic_abilities
+	result["resumed"] = "--resume" in OS.get_cmdline_user_args()
+	result["fixed_fps_accelerated"] = "--fast" in OS.get_cmdline_user_args()
 	result["rendered"] = _rendered
 	result["renderer"] = RenderingServer.get_current_rendering_method()
 	if not _frame_ms.is_empty():
@@ -517,7 +536,7 @@ func _write_result(passed: bool) -> void:
 		for sample in _frame_ms: total += sample
 		result["frame_timing"] = {"samples": _frame_ms.size(), "mean_ms": total / _frame_ms.size(),
 			"p95_ms": _frame_ms[int((_frame_ms.size() - 1) * 0.95)], "max_ms": _frame_ms.back(),
-			"scope": "1080p native offscreen window, 60 FPS cap; PNG encoding excluded"}
+			"scope": "1080p offscreen window; PNG encoding excluded; " + ("accelerated fixed 60 Hz simulation" if "--fast" in OS.get_cmdline_user_args() else "60 FPS cap")}
 	var output := FileAccess.open("user://walkthrough_%s.json" % _ending, FileAccess.WRITE)
 	if output: output.store_string(JSON.stringify(result, "\t"))
 
