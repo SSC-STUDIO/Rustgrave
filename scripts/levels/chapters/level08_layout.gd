@@ -103,11 +103,11 @@ const ENEMIES: Array = [
 	["Ghost1", "ghost", Vector2(1064, 236), {}],
 	["Spitter1", "spitter", Vector2(1152, 288), {}],
 	["Spitter2", "spitter", Vector2(2040, 256), {}],
-	["FireSkull1", "fire_skull", Vector2(2192, 240), {}],
-	["FireSkull2", "fire_skull", Vector2(2256, 224), {}],
-	["FireSkull3", "fire_skull", Vector2(2328, 240), {}],
-	["FireSkull4", "fire_skull", Vector2(2400, 224), {}],
-	["GearShield1", "gear_shield", Vector2(2512, 320), {"patrol_range": 32.0}],
+	["FireSkull1", "fire_skull", Vector2(2192, 240), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2160.0, "arena_right": 2320.0}],
+	["FireSkull2", "fire_skull", Vector2(2256, 224), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2160.0, "arena_right": 2320.0}],
+	["FireSkull3", "fire_skull", Vector2(2328, 240), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2288.0, "arena_right": 2416.0}],
+	["FireSkull4", "fire_skull", Vector2(2400, 224), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2288.0, "arena_right": 2416.0}],
+	["GearShield1", "gear_shield", Vector2(2512, 320), {"patrol_range": 8.0, "aggro_range": 48.0}],
 ]
 const TORCHES: Array = [384.0, 940.0, 1472.0, 1848.0, 2312.0, 2480.0, 2992.0]
 const VINES: Array = [232.0, 560.0, 720.0, 1312.0, 1624.0, 2008.0, 2240.0, 2704.0, 2944.0]

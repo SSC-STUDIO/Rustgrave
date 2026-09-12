@@ -44,6 +44,15 @@ func _build() -> Node2D:
 	_layout().build(host)
 	return host
 
+func test_sluice_approach_and_gate_checkpoint_are_outside_skull_ambush() -> void:
+	var host := _build()
+	var player := await spawn_player(host, Vector2(2440, 300))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "gate nest has a safe recovery window")
+	for enemy in host.get_node("Enemies").get_children():
+		if str(enemy.name).begins_with("FireSkull"):
+			ok(enemy.position.x >= 2160 and enemy.position.x <= 2404, "skulls remain between sluice and safe landing")
+
 
 func _rect(host: Node2D, plat_name: String) -> Rect2:
 	var node := host.get_node_or_null("Platforms/" + plat_name)
