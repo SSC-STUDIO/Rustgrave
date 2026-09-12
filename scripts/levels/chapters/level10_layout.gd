@@ -116,18 +116,18 @@ func build(host: Node2D) -> void:
 
 
 func _build_terrain(host: Node2D) -> void:
-	floor_strip(host, "FloorEntry", 0.0, SLAG_X0, "moss", false, true, FLOOR_Y, TONE)
+	floor_strip(host, "FloorEntry", 0.0, SLAG_X0, "stone", false, true, FLOOR_Y, TONE)
 	# 熔渣河手工铺（toxin_pit 不吃 tone，坑底会露出一截青苔色）。
 	platform(host, "SlagBed", Vector2(SLAG_X0, SLAG_BED_Y),
-			Vector2(SLAG_X1 - SLAG_X0, FLOOR_Y + 80.0 - SLAG_BED_Y), "moss", false, false, TONE)
+			Vector2(SLAG_X1 - SLAG_X0, FLOOR_Y + 80.0 - SLAG_BED_Y), "stone", false, false, TONE)
 	toxin(host, "SlagPool", Vector2(SLAG_X0, SLAG_BED_Y - 16.0), Vector2(SLAG_X1 - SLAG_X0, 32.0), SLAG_TINT)
 	for s in SLAG_STONES:
-		step(host, String(s[0]), s[1], float(s[2]), "moss_float", STONE_TONE)
+		step(host, String(s[0]), s[1], float(s[2]), "floating", STONE_TONE)
 	# 门前厅 + 竞技场 + 终局门共用一块地：竞技场必须是连续平地，Boss 来回冲锋。
-	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "moss", true, false, FLOOR_Y, TONE)
-	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "moss", true, true, STONE_TONE)
-	platform(host, "PerchEast", PERCH_EAST_POS, PERCH_SIZE, "moss", true, true, STONE_TONE)
-	enclose(host, "moss", CEILING_Y, -1.0, 0.0, TONE)
+	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "stone", true, false, FLOOR_Y, TONE)
+	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "stone", true, true, STONE_TONE)
+	platform(host, "PerchEast", PERCH_EAST_POS, PERCH_SIZE, "stone", true, true, STONE_TONE)
+	enclose(host, "stone", CEILING_Y, -1.0, 0.0, TONE)
 
 
 func _build_props(host: Node2D) -> void:
@@ -155,12 +155,14 @@ func _build_enemies(host: Node2D) -> void:
 func _build_decor(host: Node2D) -> void:
 	for x in TORCHES:
 		torch(host, float(x), FLOOR_Y, TORCH_TINT)
+	# 炉心支柱改工字梁；骷髅柱与祭坛保留作为终关符号。
 	for x in COLUMNS:
-		prop(host, "column", Vector2(float(x), FLOOR_Y), 1.0, PLATE_TINT)
+		prop(host, "beam", Vector2(float(x), FLOOR_Y), 1.25, PLATE_TINT)
 	prop(host, "skull_column", Vector2(SKULL_COLUMN_X, FLOOR_Y), 1.0, PLATE_TINT)
 	_altar(host, ALTAR_FEET, ALTAR_TINT)
-	for x in RUBBLE:
-		prop(host, "rubble", Vector2(float(x), FLOOR_Y), 1.0, TONE)
+	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]
+	for i in range(RUBBLE.size()):
+		prop(host, rubble_keys[i % rubble_keys.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
 
 
 ## 炉心祭坛：终局门旁的背景墙板，残芯的所在。顶 64px 是素墙，走 RuinPlate 塌成残垣，
