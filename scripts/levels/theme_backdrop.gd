@@ -23,14 +23,16 @@ const THEMES := {
 			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
 		],
 	},
-	# 熔炉：同一套地窟墙，压成琥珀色；底色偏赭。
+	# 熔炉：工业剪影压成琥珀色（不再用城堡尖窗内景，避免和圣殿撞脸）。
 	"forge": {
 		"indoors": true,
 		"void": Color(0.09, 0.04, 0.025),
 		"mood": Color(0.95, 0.74, 0.56),
 		"layers": [
-			{"path": CASTLE_INTERIOR, "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(1.0, 0.78, 0.6)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.28, 0.16, 0.1, 0.9), "repeat": 352.0},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0003_bg.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1.0, 0.78, 0.62)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0002_far-buildings.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color(0.92, 0.62, 0.48)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0001_buildings.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color(0.78, 0.48, 0.36)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0000_foreground.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(0.55, 0.28, 0.18, 0.85)},
 		],
 	},
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。

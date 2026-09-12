@@ -53,6 +53,16 @@ const DECOR := {
 	"altar": "res://assets/env/bg_altar.png",           # 祭坛墙板（背景，接地）
 	"window": "res://assets/env/bg_wall_window.png",    # 尖窗墙板（背景，接地）
 	"skull_column": "res://assets/env/bg_column_skulls.png", # 骷髅柱（背景，接地）
+	# 工业/熔炉：Kenney Request pack + 干石渣（避免苔拱/教堂柱串味）
+	"beam": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beam.png",
+	"beam_bolts": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamBolts.png",
+	"beam_narrow": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamNarrow.png",
+	"metal_panel": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/metal.png",
+	"rubble_dry": "res://assets/env/rubble_a.png",
+	"rubble_dry_b": "res://assets/env/rubble_b.png",
+	"rubble_dry_c": "res://assets/env/rubble_c.png",
+	"slab": "res://assets/env/slab_a.png",
+	"plate": "res://assets/env/plate_stone.png",
 	"statue": "res://assets/env/statue_keeper.png",     # 守墓者石像，接地
 	"grave_cross": "res://assets/env/grave_cross.png",  # 十字墓碑，接地
 	"door_arch": "res://assets/env/door_arch.png",      # 32×64 石门洞（装饰），接地
