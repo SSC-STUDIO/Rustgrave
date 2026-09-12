@@ -107,8 +107,16 @@ func _continue_round_trip(id: String) -> bool:
 	_ui(&"ui_accept")
 	if not await _await_scene(GameContext.LEVELS[id]): return false
 	if not _require(_player().position.distance_to(checkpoint) < 20, "continue restores saved checkpoint"): return false
+	await _settle_fade()
 	_record(id + "_continue")
 	return true
+
+func _settle_fade() -> void:
+	for i in 120:
+		if not Director.is_fading():
+			await _frames(2)
+			return
+		await _frames(1)
 
 func _segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
@@ -246,8 +254,12 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 		if absf(p.position.y - y) > 40: return false
 		_steer(x)
 		var spitter_close := false
+		var skeleton_ahead := false
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if enemy is SpitterEnemy and not enemy._dead and absf(enemy.position.y - p.position.y) < 14 and absf(enemy.position.x - p.position.x) < 64: spitter_close = true
+			if enemy is EnemyBase and not enemy._dead and enemy.has_method("is_risen") and enemy.is_risen():
+				var dx: float = enemy.position.x - p.position.x
+				if absf(dx) < 70 and dx * (x - p.position.x) > 0 and absf(enemy.position.y - p.position.y) < 35: skeleton_ahead = true
 		if fight or spitter_close or absf(x - p.position.x) > 96:
 			_combat(absf(x - p.position.x) > 96)
 		else:
@@ -256,7 +268,7 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 		for gate in _world().get_node("Props").get_children():
 			if gate is RustyGate and LevelSanity.feet_of(gate).distance_to(p.position) < 42:
 				_set_action(&"interact", i % 30 == 0)
-		_set_action(&"jump", p.is_on_wall() and i % 36 < 20)
+		_set_action(&"jump", (p.is_on_wall() or skeleton_ahead) and i % 36 < 24)
 		await _frames(1)
 	_release()
 	return false
@@ -298,6 +310,9 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			if hold_ground:
 				_move(side if p.controller.facing != side else 0.0)
 			attack = distance < 48 and p.controller.facing == side and _fight_tick % 20 == 0
+			# Committing to a swing slows the knight and prevents the dash that
+			# clears a skeleton's contact bite. Jump/dash past it while travelling.
+			if threat.has_method("is_risen") and not hold_ground: attack = false
 			dash = allow_dash and distance < 38 and _fight_tick % 6 == 0
 		elif allow_dash and not threat is SpitterEnemy:
 			var behind := threat.position.x + 28 - p.position.x
@@ -386,13 +401,14 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 
 func _nightmare() -> bool:
 	if not await _navigate(Vector2(1668, 320)): return false
-	_record("nightmare_phase_one")
 	_step = "nightmare_combat"
+	var first_phase_recorded := false
 	var phase_recorded := false
 	for i in 14400:
 		if SaveData.has_flag("nightmare_dead"):
 			_release()
 			await _frames(90)
+			await _settle_fade()
 			_record("nightmare_slain")
 			if not await _nightmare_death_reload(): return false
 			if not await _continue_round_trip("level10"): return false
@@ -407,6 +423,9 @@ func _nightmare() -> bool:
 		if p.position.x < 1100:
 			if not await _navigate(Vector2(1668, 320)): return false
 			continue
+		if not first_phase_recorded and not boss.is_enraged() and absf(boss.position.x - p.position.x) < 160:
+			_record("nightmare_phase_one")
+			first_phase_recorded = true
 		if boss.is_enraged() and not phase_recorded:
 			_record("nightmare_phase_two")
 			phase_recorded = true
@@ -447,6 +466,7 @@ func _nightmare_death_reload() -> bool:
 		if p != null and p.get_instance_id() != actor_id and p.health.current > 0 and GameContext.gameplay_input_enabled():
 			_release()
 			if not _require(SaveData.has_flag("nightmare_dead") and _world().get_node_or_null("Enemies/Nightmare") == null, "Nightmare remains absent after death"): return false
+			await _settle_fade()
 			_record("nightmare_death_reload_verified")
 			return true
 		if p != null and p.health.current > 0 and GameContext.gameplay_input_enabled():
