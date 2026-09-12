@@ -63,6 +63,16 @@ func test_middle_checkpoint_is_safe_after_restore() -> void:
 		var ghost := host.get_node("Enemies/" + name_) as GhostEnemy
 		eq(ghost.state(), GhostEnemy.State.DORMANT, name_ + " waits on its authored combat floor")
 
+func test_entry_checkpoint_does_not_wake_the_first_ambush() -> void:
+	var host := _build()
+	var player := await spawn_player(host, Vector2(176, 320))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "entry nest permits a quiet rest")
+	var skeleton = host.get_node("Enemies/Skeleton1")
+	eq(skeleton.state(), skeleton.State.BURIED)
+	player.position.x = 240
+	ok(await wait_until(func() -> bool: return skeleton.state() != skeleton.State.BURIED), "walking toward the lift still wakes the ambush")
+
 func test_lift_carries_player_up_and_middle_plate_opens_gate() -> void:
 	var host := _build()
 	for enemy in host.get_node("Enemies").get_children(): enemy.set_physics_process(false)

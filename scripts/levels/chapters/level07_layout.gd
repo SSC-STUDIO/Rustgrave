@@ -22,7 +22,7 @@ const PLATE_FEET := Vector2(720, -160)
 const DOOR_POS := Vector2(480, -224)
 const EXIT_POS := Vector2(1184, TOP_Y)
 const ENEMIES: Array = [
-	["Skeleton1", "skeleton", Vector2(312, 320)],
+	["Skeleton1", "skeleton", Vector2(312, 320), {"wake_range": 96.0}],
 	["Skeleton2", "skeleton", Vector2(720, 80)],
 	["Spitter1", "spitter", Vector2(848, 80)],
 	["Ghost1", "ghost", Vector2(576, 32), {"wake_range": 160.0}],
