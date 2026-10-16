@@ -5,7 +5,12 @@ extends Control
 const SKY := preload("res://assets/env/parallax_sky_px.png")
 const MOUNTAINS := preload("res://assets/env/parallax_far_mountains_px.png")
 const GRAVES := preload("res://assets/env/parallax_graveyard_px.png")
-const KNIGHT := preload("res://assets/characters/player_fantasy_knight/idle/idle_0.png")
+const KNIGHT := [
+	preload("res://assets/characters/player_fantasy_knight/idle/idle_0.png"),
+	preload("res://assets/characters/player_fantasy_knight/idle/idle_1.png"),
+	preload("res://assets/characters/player_fantasy_knight/idle/idle_2.png"),
+	preload("res://assets/characters/player_fantasy_knight/idle/idle_3.png"),
+]
 const FONT := preload("res://assets/fonts/fusion-pixel-12px-proportional-zh_hans.ttf")
 const INK := Color("100e18")
 const IRON := Color("39303c")
@@ -67,17 +72,20 @@ func _relic() -> void:
 		var x := float(i * 21 - 32)
 		var y := 277.0 + sin(i * 3.1) * 12.0
 		draw_polygon(PackedVector2Array([Vector2(x, 320), Vector2(x + 5, y), Vector2(x + 26, y - 7), Vector2(x + 35, 320)]), PackedColorArray([Color("24202a")]))
-	# Oversized rusted blade; its three sockets will carry the voices below.
+	# Oversized serrated blade; two sockets match the knight's actual sword.
 	# The origin also needs the canvas scale when drawing into the native UI.
 	draw_set_transform(Vector2(388, 205) * size / Vector2(640, 360), -0.48, size / Vector2(640, 360))
 	draw_polygon(PackedVector2Array([Vector2(-20, -99), Vector2(0, -130), Vector2(20, -99), Vector2(17, 72), Vector2(-17, 72)]), PackedColorArray([Color("553c3d")]))
 	draw_polygon(PackedVector2Array([Vector2(-13, -96), Vector2(0, -119), Vector2(0, 68), Vector2(-13, 68)]), PackedColorArray([Color("8b6356")]))
+	for i in 6:
+		var y := float(-88 + i * 23)
+		draw_polygon(PackedVector2Array([Vector2(19, y), Vector2(28, y + 5), Vector2(17, y + 16)]), PackedColorArray([Color("684838")]))
 	for i in 23:
 		var x := float((i * 7) % 26 - 13)
 		var y := float((i * 37) % 165 - 95)
 		draw_rect(Rect2(x, y, 3 + i % 3, 2), RUST if i % 3 == 0 else IRON)
-	for i in 3:
-		var p := Vector2(0, -60 + i * 42)
+	for i in 2:
+		var p := Vector2(0, -48 + i * 58)
 		draw_rect(Rect2(p - Vector2(9, 10), Vector2(18, 20)), INK)
 		draw_rect(Rect2(p - Vector2(6, 7), Vector2(12, 14)), RUST)
 		draw_rect(Rect2(p - Vector2(2, 4), Vector2(4, 8)), Color("f09250").lerp(EMBER, (sin(age * 1.8 + i) + 1) * 0.5))
@@ -101,8 +109,9 @@ func _grave() -> void:
 		draw_rect(Rect2(x, y - 33, 7, 60), Color("29232e"))
 		draw_rect(Rect2(x - 10, y - 24, 28, 6), Color("29232e"))
 	# Texture stays at integer scale; a slow ember breath lights the wake.
-	var knight_size := KNIGHT.get_size() * 3.0
-	draw_texture_rect(KNIGHT, Rect2(Vector2(370, 286) - knight_size * Vector2(0.5, 1.0), knight_size), false, Color("c6b4ac"))
+	var frame: Texture2D = KNIGHT[int(age * 5.0) % KNIGHT.size()]
+	var knight_size := frame.get_size() * 3.0
+	draw_texture_rect(frame, Rect2(Vector2(370, 286) - knight_size * Vector2(0.5, 1.0), knight_size), false, Color("c6b4ac"))
 	for i in range(5, 0, -1):
 		draw_circle(Vector2(365, 275), i * 5, Color(1.0, 0.35, 0.12, 0.012 * (sin(age * 2) + 1.4)))
 	for i in 5:
@@ -154,16 +163,19 @@ func _motes(falling: bool) -> void:
 
 func _card() -> void:
 	var boss := shot == "boss"
-	draw_rect(Rect2(0, 0, 640, 360), Color(0.035, 0.02, 0.04, 0.24 if boss else 0.52))
-	var y := 220.0 if boss else 142.0
-	draw_rect(Rect2(0, y - 29, 640, 79), Color(0.04, 0.025, 0.05, 0.88))
-	var extent := 190.0 * smoothstep(0.0, 0.65, age)
-	draw_line(Vector2(320 - extent, y - 29), Vector2(320 + extent, y - 29), RUST)
-	draw_line(Vector2(320 - extent, y + 50), Vector2(320 + extent, y + 50), RUST)
-	_center_text(subheading, y - 10, 10, Color("c89372"))
-	_center_text(heading, y + 21, 22, Color("f5dfbd"))
+	draw_rect(Rect2(0, 0, 640, 360), Color(0.035, 0.02, 0.04, 0.08 if boss else 0.52))
+	# The boss flourish occupies the sky beside the health HUD. Combat remains
+	# live: feet, ground hazards and attack telegraphs must stay visible.
+	var y := 78.0 if boss else 142.0
+	var center_x := 410.0 if boss else 320.0
+	draw_rect(Rect2(200 if boss else 0, y - 29, 420 if boss else 640, 79), Color(0.04, 0.025, 0.05, 0.88))
+	var extent := (155.0 if boss else 190.0) * smoothstep(0.0, 0.65, age)
+	draw_line(Vector2(center_x - extent, y - 29), Vector2(center_x + extent, y - 29), RUST)
+	draw_line(Vector2(center_x - extent, y + 50), Vector2(center_x + extent, y + 50), RUST)
+	_center_text(subheading, y - 10, 10, Color("c89372"), center_x)
+	_center_text(heading, y + 21, 22, Color("f5dfbd"), center_x)
 	for side in [-1, 1]:
-		var p := Vector2(320 + side * (extent + 9), y + 10)
+		var p := Vector2(center_x + side * (extent + 9), y + 10)
 		draw_polygon(PackedVector2Array([p + Vector2(0, -4), p + Vector2(4, 0), p + Vector2(0, 4), p + Vector2(-4, 0)]), PackedColorArray([EMBER]))
 	if boss:
 		_motes(false)
@@ -174,6 +186,6 @@ func _text(value: String, pos: Vector2, font_size: int, color: Color) -> void:
 	draw_string(FONT, pos, value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
-func _center_text(value: String, y: float, font_size: int, color: Color) -> void:
+func _center_text(value: String, y: float, font_size: int, color: Color, center_x: float = 320.0) -> void:
 	var width := FONT.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	_text(value, Vector2((640 - width) * 0.5, y), font_size, color)
+	_text(value, Vector2(center_x - width * 0.5, y), font_size, color)

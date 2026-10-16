@@ -79,9 +79,19 @@ func _wake() -> void:
 	SaveData.mark_flag(flag)
 	var steps: Array = [
 		{"kind": "lock"},
-		{"kind": "caption", "text": layout.title(), "hold": 1.8},
+		chapter_card(layout.title()),
 	]
 	if layout.wake_line() != "":
 		steps.append({"kind": "caption", "text": layout.wake_line(), "hold": 2.0})
 	steps.append({"kind": "unlock"})
 	Director.play(steps)
+
+
+## Chapter metadata remains the source of truth; cards do not invent story flags.
+static func chapter_card(chapter_title: String) -> Dictionary:
+	var parts := chapter_title.split("—", false, 1)
+	return {
+		"kind": "tableau", "id": "chapter", "seconds": 2.6,
+		"title": String(parts[1]).strip_edges() if parts.size() > 1 else chapter_title,
+		"subtitle": String(parts[0]).strip_edges() if parts.size() > 1 else "锈 墓",
+	}

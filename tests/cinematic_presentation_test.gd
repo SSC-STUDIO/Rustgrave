@@ -89,3 +89,43 @@ func test_queued_cutscene_replaces_the_opening_without_leaking_a_tableau() -> vo
 	await wait_until(func() -> bool: return not presentation.front.visible, 120)
 	ok(not presentation.front.visible)
 	ok(not presentation.back.visible)
+
+
+func test_timed_chapter_card_holds_input_then_yields_to_story() -> void:
+	var lines: Array[String] = []
+	var on_step := func(_i: int, step: Dictionary) -> void:
+		if step.get("kind", "") == "caption":
+			lines.append(String(step.get("text", "")))
+	Director.step_started.connect(on_step)
+	var card := ChapterLevel.chapter_card("锈墓・贰 — 沉钟地窟")
+	Director.play([{"kind": "lock"}, card, {"kind": "caption", "text": "钟在数人。", "hold": 0.1}, {"kind": "unlock"}])
+	eq(presentation.front.heading, "沉钟地窟")
+	eq(presentation.front.subheading, "锈墓・贰")
+	ok(Director.is_input_locked())
+	await flush(2)
+	eq(lines.size(), 0, "story does not start under the chapter card")
+	Director.skip_step()
+	eq(lines, ["钟在数人。"], "one continue advances to the story")
+	eq(presentation.active_shot, "", "card dissolves when the narrative resumes")
+	Director.step_started.disconnect(on_step)
+
+
+func test_boss_flourish_never_locks_live_combat_and_abort_clears_it() -> void:
+	GameEvents.boss_appeared.emit("锈 墓 梦 魇 · 无 主 之 马", 16, 16)
+	eq(presentation.active_shot, "boss")
+	eq(presentation.front.heading, "锈墓梦魇")
+	ok(not Director.is_input_locked(), "boss title cannot steal combat controls")
+	ok(not Director.playing, "boss title does not enqueue a story")
+	Director.abort()
+	ok(not presentation.front.visible, "abort also cleans standalone boss titles")
+	GameEvents.boss_appeared.emit("炉约刽子手 · 铸渣残躯", 13, 13)
+	GameEvents.boss_defeated.emit()
+	eq(presentation.active_shot, "", "defeat immediately dismisses the name card")
+
+
+func test_boss_title_times_out_without_a_director_sequence() -> void:
+	GameEvents.boss_appeared.emit("锈墓梦魇", 16, 16)
+	var hidden := await wait_until(func() -> bool: return not presentation.front.visible, 250)
+	ok(hidden, "standalone title expires and dissolves without needing finished")
+	ok(not presentation.back.visible)
+	ok(not presentation.skip_button.visible)

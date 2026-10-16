@@ -43,6 +43,8 @@ func _ready() -> void:
 	prompt_layer.add_child(skip_button)
 	Director.step_started.connect(_on_step)
 	Director.finished.connect(_on_finished)
+	GameEvents.boss_appeared.connect(_on_boss_appeared)
+	GameEvents.boss_defeated.connect(_on_boss_defeated)
 
 
 func _make_canvas() -> Control:
@@ -89,6 +91,7 @@ func dismiss(immediate: bool = false) -> void:
 	if immediate:
 		front.visible = false
 		_leaving = false
+		skip_button.visible = false
 
 
 func _on_step(_index: int, step: Dictionary) -> void:
@@ -99,6 +102,24 @@ func _on_step(_index: int, step: Dictionary) -> void:
 			dismiss()
 		else:
 			show_shot(id, String(step.get("title", "")), String(step.get("subtitle", "")))
+	elif kind == "caption" and active_shot == "chapter":
+		dismiss()
+
+
+func _on_boss_appeared(title: String, current_hp: int, _max_hp: int) -> void:
+	# Combat owns the encounter and announces once. This flourish never changes
+	# aggro, health, saves, input locks or the boss's punish windows.
+	if current_hp <= 0 or (active_shot != "" and active_shot != "boss"):
+		return
+	var parts := title.split("·", false, 1)
+	var heading := String(parts[0]).replace(" ", "")
+	var subtitle := String(parts[1]).strip_edges() if parts.size() > 1 else "守 芯 者"
+	show_shot("boss", heading, subtitle)
+
+
+func _on_boss_defeated() -> void:
+	if active_shot == "boss":
+		dismiss()
 
 
 func _on_finished() -> void:

@@ -160,8 +160,7 @@ func is_fading() -> bool:
 ## 正在淡变时不丢第二次请求：只保留最后一个目标，当前淡出结束后切过去。
 func fade_to(scene: String, duration: float = FADE_DEFAULT) -> void:
 	# 切场必须掐掉进行中的过场，否则 lock/字幕会跟着 Autoload 进下一幕。
-	if playing:
-		abort()
+	abort()
 	if _fading:
 		_queued_fade_path = scene
 		_queued_fade_duration = duration
@@ -250,6 +249,9 @@ func skip_step() -> void:
 
 func abort() -> void:
 	_aborting = true
+	var presentation := get_node_or_null("CinematicPresentation")
+	if presentation != null:
+		presentation.dismiss(true)
 	_skip_to_end = false
 	_script_skip_queue.clear()
 	_set_lock(false)
@@ -323,6 +325,11 @@ func _play_fx_step(step: Dictionary) -> void:
 		return
 	var id := String(step.get("id", ""))
 	var pos := _fx_anchor()
+	var target = step.get("target")
+	if target is Node2D and is_instance_valid(target):
+		pos = target.global_position
+	elif target is Vector2:
+		pos = target
 	match id:
 		"ember_rise":
 			for _i in 4:
@@ -366,6 +373,14 @@ func _run_step(step: Dictionary) -> void:
 			_advance()
 		"wait":
 			_begin_wait(_seconds_of(step), "wait")
+		"tableau":
+			# Presentation listens to step_started. Timed cards retain the same
+			# lock, pause and skip semantics as the rest of the Director sequence.
+			if step.has("seconds"):
+				_begin_wait(_seconds_of(step), "tableau")
+			else:
+				_finish_step(step)
+				_advance()
 		"caption":
 			if _caption != null:
 				_caption.enqueue(String(step.get("text", "")),

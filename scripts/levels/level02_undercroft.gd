@@ -70,7 +70,7 @@ func _wake() -> void:
 	SaveData.mark_flag("l2_wake")
 	Director.play([
 		{"kind": "lock"},
-		{"kind": "caption", "text": LEVEL_TITLE, "hold": 1.8},
+		ChapterLevel.chapter_card(LEVEL_TITLE),
 		{"kind": "caption", "text": "苔水底下有东西在数你的脚步。", "hold": 2.0},
 		{"kind": "unlock"},
 	])

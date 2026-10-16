@@ -58,7 +58,7 @@ func _ready() -> void:
 	# Check the narrow mobile design size using the same presentation binding.
 	win.size = Vector2i(640, 360)
 	await get_tree().process_frame
-	Director.play([{"kind": "tableau", "id": "furnace"}, {"kind": "wait", "seconds": 1.8}])
+	Director.play([{"kind": "tableau", "id": "furnace"}, {"kind": "wait", "seconds": 3.0}])
 	await Director.finished
 	await get_tree().create_timer(0.8).timeout
 	Director.abort()
