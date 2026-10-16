@@ -16,12 +16,16 @@ const COMBO_WINDUP := [0.18, 0.14, 0.30]
 const COMBO_ACTIVE := [0.12, 0.12, 0.17]
 const COMBO_RECOVERY := [0.26, 0.20, 0.46]
 const COMBO_DAMAGE := [1, 1, 2]
+const ATTACK_BUFFER_TIME := 0.16
+const LINK_EARLY_TIME := 0.12
 
 var _state: State = State.IDLE
 var _timer: float = 0.0
 var _cooldown: float = 0.0
 var _combo_index: int = 0
 var _link_buffered: bool = false
+var _attack_buffer: float = 0.0
+var _ignore_attack_until_release := false
 
 @onready var hitbox: Hitbox = $Hitbox
 @onready var sword: Node2D = get_node_or_null("../Visual/Sword") as Node2D
@@ -39,6 +43,48 @@ func _ready() -> void:
 		hitbox.damage = damage
 		hitbox.team = &"player"
 		hitbox.monitoring = false
+	var hp := get_parent().get_node_or_null("Health") as Health
+	if hp != null:
+		hp.died.connect(cancel_attack)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED:
+		clear_attack_buffer()
+
+
+## Pause/cutscene boundaries discard queued presses, including a held button.
+func clear_attack_buffer() -> void:
+	_attack_buffer = 0.0
+	_link_buffered = false
+	_ignore_attack_until_release = Input.is_action_pressed("attack")
+
+
+func cancel_attack() -> void:
+	clear_attack_buffer()
+	_state = State.IDLE
+	_combo_index = 0
+	_timer = 0.0
+	if hitbox != null:
+		hitbox.monitoring = false
+	_set_lock(false)
+
+
+## One press queues at most one slash, without shortening any committed phase.
+func request_attack() -> bool:
+	if _host_locked() or get_tree().paused or _ignore_attack_until_release:
+		return false
+	if _state == State.IDLE:
+		if start_swing():
+			_attack_buffer = 0.0
+		else:
+			_attack_buffer = ATTACK_BUFFER_TIME
+		return true
+	if _combo_index < 2 and (_state == State.RECOVERY \
+			or (_state == State.ACTIVE and _timer <= LINK_EARLY_TIME + 0.00001)):
+		_link_buffered = true
+		return true
+	return false
 
 
 func _on_hitbox_area_entered(area: Area2D) -> void:
@@ -71,7 +117,7 @@ func is_busy() -> bool:
 
 
 func is_parry_window() -> bool:
-	return _state == State.ACTIVE
+	return _state == State.ACTIVE and not _host_locked()
 
 
 func _physics_process(delta: float) -> void:
@@ -81,16 +127,22 @@ func _physics_process(delta: float) -> void:
 ## Advance the swing state machine by one frame.
 ## Public so tests (and future AI/input shims) can drive it without Input.
 func tick(delta: float) -> void:
+	if _host_locked():
+		cancel_attack()
+		return
+	_attack_buffer = maxf(0.0, _attack_buffer - delta)
 	if _cooldown > 0.0:
 		_cooldown = maxf(0.0, _cooldown - delta)
+	if not Input.is_action_pressed("attack"):
+		_ignore_attack_until_release = false
+	if Input.is_action_just_pressed("attack"):
+		request_attack()
 
 	match _state:
 		State.IDLE:
 			_rest_sword(delta)
-			if _host_locked():
-				return
-			if Input.is_action_just_pressed("attack"):
-				start_swing()
+			if _attack_buffer > 0.0 and start_swing():
+				_attack_buffer = 0.0
 		State.WINDUP:
 			_timer -= delta
 			_tween_sword(-1.35 if _combo_index >= 2 else -0.9, delta, 14.0)
@@ -103,9 +155,6 @@ func tick(delta: float) -> void:
 				_begin_recovery()
 		State.RECOVERY:
 			_timer -= delta
-			# Chain window: another press during recovery queues the next hit.
-			if _combo_index < 2 and Input.is_action_just_pressed("attack"):
-				_link_buffered = true
 			_tween_sword(0.38, delta, 8.0)
 			if _timer <= 0.0:
 				if _link_buffered and _combo_index < 2:
@@ -129,7 +178,7 @@ func _process(_delta: float) -> void:
 
 ## Attempt a slash bypassing the input layer. Returns false while busy/cooldown.
 func start_swing() -> bool:
-	if _state != State.IDLE or _cooldown > 0.0:
+	if _state != State.IDLE or _cooldown > 0.0 or _host_locked():
 		return false
 	_begin_windup()
 	return true
@@ -148,6 +197,7 @@ func phase_name() -> String:
 
 
 func _begin_windup() -> void:
+	_link_buffered = false
 	_state = State.WINDUP
 	_timer = float(COMBO_WINDUP[_combo_index])
 	_set_lock(true)
@@ -182,14 +232,16 @@ func _begin_active() -> void:
 
 func _host_locked() -> bool:
 	var host := get_parent()
-	return host is Player and (host as Player).cutscene_locked
+	if host is Player:
+		var knight := host as Player
+		return knight.cutscene_locked or knight.health.current <= 0
+	return false
 
 
 func _begin_recovery() -> void:
 	_state = State.RECOVERY
 	_timer = float(COMBO_RECOVERY[_combo_index])
 	_cooldown = cooldown
-	_link_buffered = false
 	if hitbox:
 		hitbox.monitoring = false
 
