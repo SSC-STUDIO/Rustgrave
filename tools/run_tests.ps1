@@ -1,12 +1,15 @@
 param(
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe',
     [string]$CaseFilter = '',
-    [int]$TimeoutSeconds = 180
+    [int]$TimeoutSeconds = 180,
+    [string]$ArtifactsDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
-$runDir = Join-Path $env:TEMP ('Rustgrave-tests-' + [guid]::NewGuid().ToString('N'))
+$runDir = if ($ArtifactsDir) { [IO.Path]::GetFullPath($ArtifactsDir) } else {
+    Join-Path $env:TEMP ('Rustgrave-tests-' + [guid]::NewGuid().ToString('N'))
+}
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 $stdoutPath = Join-Path $runDir 'stdout.log'
 $stderrPath = Join-Path $runDir 'stderr.log'
@@ -55,6 +58,16 @@ Write-Output ('Test artifacts: ' + $runDir)
 # Also catch errors before the scene/logger could load, and require completion.
 $hasErrors = ($stdout + "`n" + $stderr) -match '(?m)^(?:SCRIPT ERROR|ERROR|\[ENGINE ERROR\]):?'
 $completed = $stdout -match '(?m)^OK .+\d+/\d+ passed; 0 engine errors'
+$passed = -not ($timedOut -or $exitCode -ne 0 -or $hasErrors -or -not $completed)
+$summary = [ordered]@{
+    passed = $passed
+    timed_out = $timedOut
+    exit_code = $exitCode
+    engine_errors = $hasErrors
+    completed = $completed
+    case_filter = $CaseFilter
+}
+[IO.File]::WriteAllText((Join-Path $runDir 'summary.json'), ($summary | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 if ($timedOut -or $exitCode -ne 0 -or $hasErrors -or -not $completed) {
     if ($timedOut) { Write-Output ('[FAIL] process timeout after ' + $TimeoutSeconds + ' seconds') }
     exit 1

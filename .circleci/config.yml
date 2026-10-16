@@ -1,0 +1,49 @@
+version: 2.1
+
+jobs:
+  godot-tests:
+    machine:
+      image: windows-server-2022-gui:current
+    shell: powershell.exe -ExecutionPolicy Bypass
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - run:
+          name: Install verified Godot 4.7.1
+          command: |
+            & ./tools/install_godot_ci.ps1
+      - run:
+          name: Import game resources
+          no_output_timeout: 5m
+          command: |
+            $ErrorActionPreference = 'Stop'
+            New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+            $engine = Join-Path $env:TEMP 'Rustgrave-Godot-4.7.1/Godot_v4.7.1-stable_win64_console.exe'
+            $process = Start-Process -FilePath $engine -ArgumentList '--headless', '--path', '.', '--import' -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput artifacts/import-stdout.log -RedirectStandardError artifacts/import-stderr.log
+            Get-Content artifacts/import-stdout.log
+            Get-Content artifacts/import-stderr.log
+            $exitCode = $process.ExitCode
+            if ($null -eq $exitCode) { $exitCode = 0 }
+            $log = (Get-Content artifacts/import-stdout.log -Raw) + (Get-Content artifacts/import-stderr.log -Raw)
+            if ($exitCode -ne 0 -or $log -match '(?m)^(SCRIPT ERROR|ERROR):' -or -not (Test-Path .godot/global_script_class_cache.cfg)) { exit 1 }
+      - run:
+          name: Run complete isolated regression suite
+          no_output_timeout: 6m
+          command: |
+            $engine = Join-Path $env:TEMP 'Rustgrave-Godot-4.7.1/Godot_v4.7.1-stable_win64_console.exe'
+            & ./tools/run_tests.ps1 -GodotExe $engine -TimeoutSeconds 300 -ArtifactsDir artifacts/tests
+      - store_artifacts:
+          path: artifacts/import-stdout.log
+      - store_artifacts:
+          path: artifacts/import-stderr.log
+      - store_artifacts:
+          path: artifacts/tests/stdout.log
+      - store_artifacts:
+          path: artifacts/tests/stderr.log
+      - store_artifacts:
+          path: artifacts/tests/summary.json
+
+workflows:
+  gameplay-regression:
+    jobs:
+      - godot-tests
