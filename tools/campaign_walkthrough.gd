@@ -53,6 +53,8 @@ func _after_undercroft() -> bool:
 			var node := _world().get_node_or_null("Props/" + goal.name)
 			if node == null: continue
 			var is_exit := node is LevelExit
+			# Interacting may replace the scene and free the exit immediately.
+			var has_ending_choice: bool = is_exit and n == 10 and node.get("ending_choice") == true
 			var is_plate := node is PressurePlate
 			var is_gate := node is RustyGate
 			if is_exit and n == 10:
@@ -65,6 +67,10 @@ func _after_undercroft() -> bool:
 			if not is_plate:
 				await _tap(&"interact")
 				await _frames(12)
+				if has_ending_choice:
+					if not _require(Director.choice_hold, "final ending menu opens through interact"): return false
+					_ui(&"ui_accept") # Default final choice: give the sword.
+					await _frames(12)
 			else:
 				await _frames(12)
 			_record(id + "_" + goal.name)
@@ -430,15 +436,6 @@ func _nightmare() -> bool:
 			_record("nightmare_phase_two")
 			phase_recorded = true
 		var dx: float = boss.position.x - p.position.x
-		if boss.is_enraged():
-			# Leave the perch, jump through the charge and punish its recovery.
-			var behind: float = boss.position.x + 34 - p.position.x
-			_move(signf(behind) if absf(behind) > 6 else (-1.0 if p.controller.facing != -1 else 0.0))
-			_set_action(&"jump", i % 42 < 24)
-			_set_action(&"dash", dx > 0 and dx < 100 and i % 30 == 0)
-			_set_action(&"attack", absf(dx) < 60 and i % 12 == 0)
-			await _frames(1)
-			continue
 		var nearby_enemy := absf(dx) < 72
 		for e in _world().get_node("Enemies").get_children():
 			if e is EnemyBase and not e._dead and e.position.distance_to(p.position) < 72:

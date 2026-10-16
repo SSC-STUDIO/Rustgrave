@@ -115,7 +115,14 @@ func _run() -> void:
 		_record("grapple_ember")
 	if not await _walk_to(1640.0, false): return
 	if not await _walk_to(1536.0, false): return
-	await _tap(&"interact")
+	# Let contact queries and any introductory lock settle before interacting.
+	for attempt in 4:
+		if SaveData.last_lit_nest().ends_with("EmberNestEast"): break
+		if not await _wait_world(): return
+		if not await _walk_to(1536.0, false): return
+		await _frames(8)
+		print("[CHECKPOINT] attempt=%d player=%s focus=%s" % [attempt, _player().position, _player().sensor.get_focus()])
+		await _tap(&"interact")
 	if not _require(SaveData.last_lit_nest().ends_with("EmberNestEast"), "east checkpoint is reachable"): return
 	_record("east_checkpoint")
 	if not await _walk_to(1885.0, false): return
