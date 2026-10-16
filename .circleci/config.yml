@@ -19,6 +19,9 @@ jobs:
             $ErrorActionPreference = 'Stop'
             New-Item -ItemType Directory -Force -Path artifacts | Out-Null
             $engine = Join-Path $env:TEMP 'Rustgrave-Godot-4.7.1/Godot_v4.7.1-stable_win64_console.exe'
+            # First boot can resolve preload dependencies only after resource import.
+            $bootstrap = Start-Process -FilePath $engine -ArgumentList '--headless', '--path', '.', '--import' -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput artifacts/bootstrap-stdout.log -RedirectStandardError artifacts/bootstrap-stderr.log
+            if ($null -ne $bootstrap.ExitCode -and $bootstrap.ExitCode -ne 0) { exit 1 }
             $process = Start-Process -FilePath $engine -ArgumentList '--headless', '--path', '.', '--import' -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput artifacts/import-stdout.log -RedirectStandardError artifacts/import-stderr.log
             Get-Content artifacts/import-stdout.log
             Get-Content artifacts/import-stderr.log
@@ -32,6 +35,10 @@ jobs:
           command: |
             $engine = Join-Path $env:TEMP 'Rustgrave-Godot-4.7.1/Godot_v4.7.1-stable_win64_console.exe'
             & ./tools/run_tests.ps1 -GodotExe $engine -TimeoutSeconds 300 -ArtifactsDir artifacts/tests
+      - store_artifacts:
+          path: artifacts/bootstrap-stdout.log
+      - store_artifacts:
+          path: artifacts/bootstrap-stderr.log
       - store_artifacts:
           path: artifacts/import-stdout.log
       - store_artifacts:

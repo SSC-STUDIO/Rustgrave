@@ -165,15 +165,15 @@ func test_arena_is_one_flat_run_with_only_end_perches() -> void:
 		if child is ToxinPool:
 			var r := (child as ToxinPool).surface_rect()
 			ok(not _overlaps_arena(r.position.x, r.end.x), "%s stays out of the arena" % child.name)
-	# nothing grounded but background columns inside the arena (nothing to mislead a landing)
-	var column_tex := load(ChapterLayout.DECOR["column"]) as Texture2D
+	# Background columns or forge beams never imply an extra landing surface.
+	var support_textures := [load(ChapterLayout.DECOR["column"]), load(ChapterLayout.DECOR["beam"])]
 	for node in host.get_node("Decor").get_children():
 		if not node.is_in_group("grounded"):
 			continue
 		var feet: Vector2 = node.get_meta("feet")
 		if feet.x > LAYOUT.ARENA_X0 + 48.0 and feet.x < LAYOUT.ARENA_X1 - 48.0:
-			ok(node is Sprite2D and (node as Sprite2D).texture == column_tex,
-					"grounded decor at %.0f inside the arena is a background column" % feet.x)
+			ok(node is Sprite2D and (node as Sprite2D).texture in support_textures,
+					"grounded decor at %.0f inside the arena is a background support" % feet.x)
 	ok(LAYOUT.BOSS_POS.x > LAYOUT.ARENA_X0 + 200.0 and LAYOUT.BOSS_POS.x < LAYOUT.ARENA_X1 - 200.0, "the Nightmare waits well inside the arena")
 	almost(LAYOUT.BOSS_POS.y, 320.0, 0.01, "the Nightmare stands on the arena floor")
 
