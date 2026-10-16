@@ -75,7 +75,11 @@ func deflect(_by: Node2D) -> void:
 	damage = 2
 	var aim := -velocity.normalized()
 	if source != null and is_instance_valid(source):
-		aim = (source.global_position - global_position).normalized()
+		# Character origins sit at their feet. Aiming there sends reflected
+		# bolts into the floor before reaching a grounded enemy's hurtbox.
+		var target := source.get_node_or_null("Hurtbox") as Node2D
+		var target_position := target.global_position if target != null else source.global_position
+		aim = (target_position - global_position).normalized()
 	velocity = aim * maxf(velocity.length() * 1.55, 210.0)
 	_update_visual()
 

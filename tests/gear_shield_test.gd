@@ -9,7 +9,7 @@ func _spawn(arena: Node2D, x: float) -> GearShieldEnemy:
 	var g := SCENE.instantiate() as GearShieldEnemy
 	g.position = Vector2(x, -20)
 	arena.add_child(g)
-	await flush(2)
+	await flush(24)
 	return g
 
 
