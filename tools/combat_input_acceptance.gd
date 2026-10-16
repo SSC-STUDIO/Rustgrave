@@ -8,6 +8,7 @@ const CAPTIONS := {&"move_left": "←", &"move_right": "→", &"attack": "斩",
 	&"dash": "冲", &"jump": "跳"}
 var _held: Dictionary = {}
 var _touch := false
+var _mouse := false
 var _pad: CanvasLayer
 var _arena: Node2D
 var _knight: Player
@@ -18,6 +19,7 @@ var _label: Label
 
 func _ready() -> void:
 	_touch = "--touch" in OS.get_cmdline_user_args()
+	_mouse = "--mouse" in OS.get_cmdline_user_args()
 	_errors = preload("res://tests/error_collector.gd").new()
 	OS.add_logger(_errors)
 	SaveData.save_path = "user://combat-input-fixture.cfg"
@@ -90,6 +92,11 @@ func _set_action(action: StringName, down: bool) -> void:
 			get_viewport().push_input(event, true)
 			return
 		ok(false, "touch button found: " + String(action))
+	elif _mouse and action == &"attack":
+		var event := InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = down
+		Input.parse_input_event(event)
 	else:
 		var event := InputEventKey.new()
 		event.physical_keycode = ACTION_KEYS[action]
@@ -234,7 +241,8 @@ func _finish() -> void:
 	var engine_errors: PackedStringArray = _errors.errors()
 	var passed := failure_count() == 0 and engine_errors.is_empty()
 	var report := {"passed": passed, "input_only_after_fixture_spawn": true,
-		"touch_events": _touch, "rendered": DisplayServer.get_name() != "headless",
+		"touch_events": _touch, "mouse_events": _mouse,
+		"rendered": DisplayServer.get_name() != "headless",
 		"failures": failures(), "engine_errors": engine_errors, "records": _records}
 	var file := FileAccess.open("user://combat_input.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "\t"))

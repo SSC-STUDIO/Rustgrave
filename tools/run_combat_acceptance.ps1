@@ -1,11 +1,13 @@
 param(
     [switch]$Touch,
+    [switch]$Mouse,
     [switch]$Headless,
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe'
 )
 $ErrorActionPreference = 'Stop'
+if ($Touch -and $Mouse) { throw 'Choose Touch or Mouse input, not both' }
 $workspace = Split-Path -Parent $PSScriptRoot
-$mode = if ($Touch) { 'touch' } else { 'keyboard' }
+$mode = if ($Touch) { 'touch' } elseif ($Mouse) { 'mouse' } else { 'keyboard' }
 $runDir = Join-Path $workspace ('screenshots/acceptance/combat-' + $mode + '-' + (Get-Date -Format yyyyMMdd-HHmmss-fff))
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 $arguments = @('--path', ('"' + $workspace + '"'), '--fixed-fps', '60')
@@ -13,6 +15,7 @@ if ($Headless) { $arguments += '--headless' }
 else { $arguments += @('--windowed', '--position', '-12000,-12000', '--resolution', '1280x720') }
 $arguments += 'res://scenes/tools/CombatInputAcceptance.tscn'
 if ($Touch) { $arguments += @('--', '--touch') }
+elseif ($Mouse) { $arguments += @('--', '--mouse') }
 $oldAppData = $env:APPDATA
 try {
     $env:APPDATA = Join-Path $runDir 'userdata'
