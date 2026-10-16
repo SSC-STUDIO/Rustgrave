@@ -202,7 +202,9 @@ func _enter_stagger() -> void:
 func _is_from_front(attacker: Node) -> bool:
 	var side: float
 	if attacker is Projectile:
-		side = (attacker as Projectile).velocity.x
+		# An incoming bolt travels *toward* us: its velocity is opposite
+		# the side it arrived from. Position can already overlap our centre.
+		side = -(attacker as Projectile).velocity.x
 	elif attacker is Node2D:
 		side = (attacker as Node2D).global_position.x - global_position.x
 	else:

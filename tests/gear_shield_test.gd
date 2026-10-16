@@ -72,7 +72,7 @@ func test_deflected_bolt_staggers_shield_open() -> void:
 	const PROJ := preload("res://scenes/combat/Projectile.tscn")
 	var bolt := PROJ.instantiate() as Projectile
 	# A deflected bolt flying back at the guard from the guarded (left) side.
-	bolt.setup(g.global_position + Vector2(40, -20), Vector2.LEFT, 200.0, &"player", g)
+	bolt.setup(g.global_position + Vector2(-40, -20), Vector2.RIGHT, 200.0, &"player", g)
 	arena.add_child(bolt)
 	await flush(1)
 	g.hurtbox.receive_hit(1, bolt)
@@ -121,3 +121,52 @@ func test_bolt_spawns_in_the_enemy_world() -> void:
 				found = true
 				ok(child.get_world_2d() == g.get_world_2d(), "bolt shares the enemy World2D")
 	ok(found, "bolt was parented under WorldEffects")
+
+
+func test_real_slash_reflects_front_bolts_and_opens_both_shield_facings() -> void:
+	for side in [-1, 1]:
+		var arena := Node2D.new()
+		add_child(arena)
+		build_floor(arena)
+		var g := await _spawn(arena, 320.0)
+		g.set_physics_process(false)
+		_enter_guard(g, side)
+		var player := await spawn_player(arena, Vector2(320 + side * 110, -24))
+		player.set_physics_process(false)
+		player.melee.set_physics_process(false)
+		player.controller.facing = -side
+		player.melee.scale.x = -side
+		player.melee.start_swing()
+		for i in 12:
+			player.melee.tick(1.0 / 60.0)
+		ok(player.melee.is_parry_window())
+		var bolt := preload("res://scenes/combat/Projectile.tscn").instantiate() as Projectile
+		arena.add_child(bolt)
+		bolt.setup(player.global_position + Vector2(-side * 28, -18),
+				Vector2(side, 0), 80.0, &"enemy", g)
+		var opened := await wait_until(func() -> bool: return g._state == g.State.STAGGER, 120)
+		ok(opened, "real sword/bolt/guard collision opens facing %d" % side)
+		eq(g.health.current, g.health.max_hp, "front reflection staggers without HP damage")
+		ok(not g._blocking)
+		arena.queue_free()
+		await flush(2)
+
+
+func test_real_back_bolts_damage_both_shield_facings() -> void:
+	for side in [-1, 1]:
+		var arena := Node2D.new()
+		add_child(arena)
+		build_floor(arena)
+		var g := await _spawn(arena, 320.0)
+		g.set_physics_process(false)
+		_enter_guard(g, side)
+		var bolt := preload("res://scenes/combat/Projectile.tscn").instantiate() as Projectile
+		arena.add_child(bolt)
+		bolt.setup(g.global_position + Vector2(-side * 70, -18),
+				Vector2(side, 0), 140.0, &"player", null)
+		var hit := await wait_until(func() -> bool: return g.health.current < g.health.max_hp, 90)
+		ok(hit, "rear bolt lands behind facing %d" % side)
+		eq(g.health.current, g.health.max_hp - 1)
+		eq(g._state, g.State.BLOCK, "rear hit does not count as shield stagger")
+		arena.queue_free()
+		await flush(2)
