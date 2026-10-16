@@ -28,6 +28,7 @@ const GALLOP_FPS := 12.0
 const BOSS_TITLE := "锈 墓 梦 魇 · 无 主 之 马"
 const MAX_HP := 16
 const WINDUP_TINT := Color(1.3, 0.78, 0.72)
+const DIRECTION_LOCK_TIME := 0.2
 const CHARGE_KNOCKBACK := Vector2(120.0, -80.0)
 ## 没墙也没骑士时的冲锋上限，防止一路跑出关。
 const CHARGE_MAX_TIME := 3.0
@@ -55,6 +56,7 @@ var _enraged := false
 var _charges := 0
 var _since_neigh := 0
 var _skulls_spawned := 0
+var _direction_locked := false
 
 @onready var visual: Node2D = $Visual
 @onready var hitbox: Hitbox = $Hitbox
@@ -138,9 +140,12 @@ func _tick_state(delta: float) -> void:
 				_enter_windup()
 		State.WINDUP:
 			velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
-			if player != null:
+			if player != null and not _direction_locked:
 				_face_player(player)
 			_timer -= delta
+			if _timer <= DIRECTION_LOCK_TIME and not _direction_locked:
+				_direction_locked = true
+				Sfx.play(&"land", 0.0, -8.0)
 			if _timer <= 0.0:
 				_begin_charge()
 		State.CHARGE:
@@ -191,6 +196,7 @@ func _pick_next_move(player: Player) -> void:
 func _enter_windup() -> void:
 	_state = State.WINDUP
 	_timer = windup_time
+	_direction_locked = false
 	hitbox.disarm()
 	_apply_tint()
 

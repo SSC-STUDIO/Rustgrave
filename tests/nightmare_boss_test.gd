@@ -165,3 +165,31 @@ func test_arena_edges_stop_charges_and_bound_summons() -> void:
 	boss.health.take_damage(99)
 	await flush(2)
 	eq(_skulls(arena).size(), 0, "killing the boss dismisses its summons")
+
+
+func test_final_windup_locks_the_same_direction_as_the_charge() -> void:
+	var arena := Node2D.new()
+	add_child(arena)
+	build_floor(arena)
+	var player := await spawn_player(arena)
+	player.set_physics_process(false)
+	var boss = _spawn(arena, Vector2(600, 0))
+	boss.set_physics_process(false)
+	boss._facing = -1.0
+	boss._enter_windup()
+	boss._tick_state(0.3)
+	player.global_position.x = 800.0
+	boss._tick_state(0.1)
+	eq(boss._facing, 1.0, "tracks early movement")
+	boss._tick_state(0.11)
+	ok(boss._direction_locked, "locks with 190ms left")
+	player.global_position.x = 400.0
+	boss._tick_state(0.1)
+	eq(boss._facing, 1.0, "late crossing cannot reverse telegraph")
+	boss._tick_state(0.1)
+	eq(boss.state(), boss.State.CHARGE)
+	eq(boss._dir, 1.0)
+	boss._enter_rest()
+	boss._pick_next_move(player)
+	ok(not boss._direction_locked, "next attack reacquires the player")
+	eq(boss._facing, -1.0)

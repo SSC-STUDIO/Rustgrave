@@ -4,10 +4,18 @@ extends GearShieldEnemy
 
 signal slain
 
+enum SlashPhase { NONE, ACTIVE, RECOVERY }
+const SLASH_WINDUP := 0.52
+const SLASH_ACTIVE := 0.16
+const SLASH_RECOVERY := 0.65
+
 var _enraged := false
 var _slash_next := false
 var _slash_cd := 0.0
 var _intro_announced := false
+var _slash_phase: SlashPhase = SlashPhase.NONE
+var _slash_timer := 0.0
+var _slash_box: Hitbox
 
 
 func is_enraged() -> bool:
@@ -23,7 +31,8 @@ func _enemy_ready() -> void:
 	aggro_range = 360.0
 	if _anim != null:
 		if CharFrames.available(EXEC_CHAR, "attack"):
-			_anim.register("slash", CharFrames.anim(EXEC_CHAR, "attack"), 12.0, false, EXEC_POS)
+			var frames := CharFrames.anim(EXEC_CHAR, "attack")
+			_anim.register("slash", frames, float(frames.size()) / (SLASH_WINDUP + SLASH_ACTIVE), false, EXEC_POS)
 		if CharFrames.available(EXEC_CHAR, "skill"):
 			_anim.register("skill", CharFrames.anim(EXEC_CHAR, "skill"), 10.0, false, EXEC_POS)
 
@@ -65,10 +74,49 @@ func _tick_block(delta: float) -> void:
 	super._tick_block(delta)
 
 
+func _tick_state(delta: float) -> void:
+	if _dead:
+		return
+	if _slash_phase == SlashPhase.NONE:
+		super._tick_state(delta)
+		return
+	velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
+	_slash_timer -= delta
+	if _slash_timer > 0.0:
+		return
+	if _slash_phase == SlashPhase.ACTIVE:
+		_clear_slash_box()
+		_slash_phase = SlashPhase.RECOVERY
+		_slash_timer = SLASH_RECOVERY
+		_set_blocking(false)
+		_kill_flicker()
+		_refresh_indicator()
+	else:
+		_slash_phase = SlashPhase.NONE
+		_state = State.BLOCK
+		_slash_cd = 1.6 if _enraged else 2.1
+		_shoot_timer = shoot_interval
+		_set_blocking(true)
+
+
+func _clear_slash_box() -> void:
+	if is_instance_valid(_slash_box):
+		_slash_box.disarm()
+		_slash_box.queue_free()
+	_slash_box = null
+
+
+func _enter_stagger() -> void:
+	_slash_next = false
+	_slash_phase = SlashPhase.NONE
+	_clear_slash_box()
+	super._enter_stagger()
+
+
 func _begin_slash() -> void:
 	_slash_next = true
 	_state = State.CHARGE
-	_timer = 0.52
+	_timer = SLASH_WINDUP
 	_set_blocking(true)
 	_flicker_slash()
 	if _anim != null and _anim.has_anim("slash"):
@@ -76,8 +124,12 @@ func _begin_slash() -> void:
 
 
 func _update_anim() -> void:
-	if _slash_next and _anim != null and _anim.has_anim("slash"):
+	if (_slash_next or _slash_phase == SlashPhase.ACTIVE) and _anim != null and _anim.has_anim("slash"):
 		_anim.play("slash")
+		return
+	if _slash_phase == SlashPhase.RECOVERY and _anim != null:
+		_anim.set_fps("idle", 3.0)
+		_anim.play("idle")
 		return
 	super._update_anim()
 
@@ -93,10 +145,8 @@ func _tick_charge(delta: float) -> void:
 	if _timer <= 0.0:
 		_do_slash()
 		_slash_next = false
-		_slash_cd = 1.6 if _enraged else 2.1
-		_state = State.BLOCK
-		_shoot_timer = shoot_interval
-		_refresh_indicator()
+		_slash_phase = SlashPhase.ACTIVE
+		_slash_timer = SLASH_ACTIVE
 
 
 ## 挥斧前摇：余烬脉冲，和射弹蓄力的毒橙闪区分开，0.52s 窗更可读。
@@ -113,6 +163,7 @@ func _do_slash() -> void:
 	if _dead:
 		return
 	var box := Hitbox.new()
+	_slash_box = box
 	box.damage = 2
 	box.team = &"enemy"
 	box.knockback = Vector2(float(_shield_facing) * 110.0, -28.0)
@@ -128,13 +179,11 @@ func _do_slash() -> void:
 	box.global_position = global_position + Vector2(float(_shield_facing) * 22.0, -18.0)
 	box.arm(Vector2(float(_shield_facing) * 110.0, -28.0))
 	Sfx.play(&"swing")
-	get_tree().create_timer(0.16).timeout.connect(func() -> void:
-		if is_instance_valid(box):
-			box.queue_free()
-	)
 
 
 func _fire() -> void:
+	if _dead or _slash_phase != SlashPhase.NONE:
+		return
 	super._fire()
 	if not _enraged:
 		return
@@ -154,6 +203,9 @@ func _fire() -> void:
 
 
 func _on_died() -> void:
+	_slash_next = false
+	_slash_phase = SlashPhase.NONE
+	_clear_slash_box()
 	slain.emit()
 	_death_burst(CharFrames.anim(EXEC_CHAR, "death"), 14.0,
 			_shield_facing == 1, EXEC_DEATH_BASELINE, "刽子手跪进炉灰里")
