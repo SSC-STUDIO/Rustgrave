@@ -38,6 +38,10 @@ var _letter_top: ColorRect
 var _letter_bot: ColorRect
 var _letter_amount: float = 0.0
 var _letter_target: float = 0.0
+## play(..., true) 时，一次 ui_accept 结束当前这条剧本并解锁，队列里的下一条照常接上。
+var _skip_to_end: bool = false
+var _script_skip_queue: Array = []
+var _aborting: bool = false
 const LETTER_BAR := 32.0
 const LETTER_SPEED := 3.4
 
@@ -45,6 +49,7 @@ const LETTER_SPEED := 3.4
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_overlay()
+	add_child(preload("res://scripts/ui/cinematic_presentation.gd").new())
 
 
 func _build_overlay() -> void:
@@ -131,6 +136,14 @@ func is_input_locked() -> bool:
 	return _locked
 
 
+func is_suspended() -> bool:
+	return _suspended
+
+
+func skips_whole_script() -> bool:
+	return _skip_to_end
+
+
 func suspend() -> void:
 	_suspended = true
 
@@ -185,14 +198,19 @@ func fade_in(duration: float = FADE_DEFAULT) -> void:
 	_fade_tween.tween_callback(_on_fade_in_done)
 
 
-func play(script: Array) -> void:
+## skip_to_end：这一条剧本接受一次 ui_accept 就跳到结尾并解锁。默认仍是逐拍跳过。
+func play(script: Array, skip_to_end: bool = false) -> void:
 	if playing:
 		if _script_queue.size() >= PLAY_QUEUE_MAX:
 			var dropped: Array = _script_queue.pop_front()
+			if not _script_skip_queue.is_empty():
+				_script_skip_queue.pop_front()
 			push_warning("Director: play queue full (%d), dropped oldest script (%d steps)" \
 					% [PLAY_QUEUE_MAX, dropped.size()])
 		_script_queue.append(script.duplicate())
+		_script_skip_queue.append(skip_to_end)
 		return
+	_skip_to_end = skip_to_end
 	_queue = script.duplicate()
 	_index = -1
 	playing = true
@@ -202,8 +220,23 @@ func play(script: Array) -> void:
 	_advance()
 
 
+func is_aborting() -> bool:
+	return _aborting
+
+
 func skip_step() -> void:
 	if not playing or _suspended or get_tree().paused:
+		return
+	if _skip_to_end:
+		var cam := _camera()
+		if cam != null:
+			cam.release()
+		if _caption != null:
+			_caption.clear()
+		_waiting = false
+		_wait_kind = ""
+		_queue.clear()
+		_finish_play()
 		return
 	if _wait_kind == "caption" and _caption != null and _caption.is_busy():
 		_caption.skip()
@@ -216,6 +249,9 @@ func skip_step() -> void:
 
 
 func abort() -> void:
+	_aborting = true
+	_skip_to_end = false
+	_script_skip_queue.clear()
 	_set_lock(false)
 	var cam := _camera()
 	if cam != null:
@@ -232,6 +268,7 @@ func abort() -> void:
 	playing = false
 	if was:
 		finished.emit()
+	_aborting = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -281,6 +318,41 @@ func _seconds_of(step: Dictionary, fallback: float = 0.3) -> float:
 	return float(step.get("seconds", step.get("sec", fallback)))
 
 
+func _play_fx_step(step: Dictionary) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var id := String(step.get("id", ""))
+	var pos := _fx_anchor()
+	match id:
+		"ember_rise":
+			for _i in 4:
+				Fx.burst(&"spark", pos + Vector2(randf_range(-36.0, 36.0), randf_range(0.0, 16.0)), -PI * 0.5)
+		"ash_fall":
+			for _i in 4:
+				Fx.burst(&"dust", pos + Vector2(randf_range(-40.0, 40.0), -24.0), PI * 0.5)
+				Fx.burst(&"rust", pos + Vector2(randf_range(-20.0, 20.0), -12.0), PI * 0.5)
+		"heart_pulse":
+			Fx.burst(&"ring", pos + Vector2(0.0, -16.0))
+			Juice.flash(Color(1.0, 0.46, 0.22, 0.34), 160)
+		"shock_ring":
+			Fx.burst(&"ring", pos)
+		_:
+			pass
+
+
+func _fx_anchor() -> Vector2:
+	var tree := get_tree()
+	if tree == null:
+		return Vector2.ZERO
+	var player := tree.get_first_node_in_group("player") as Node2D
+	if player != null:
+		return player.global_position
+	var cam := _camera()
+	if cam != null:
+		return cam.global_position
+	return Vector2.ZERO
+
+
 func _run_step(step: Dictionary) -> void:
 	var kind := _kind_of(step)
 	match kind:
@@ -318,6 +390,9 @@ func _run_step(step: Dictionary) -> void:
 			Sfx.play(StringName(step.get("id", "ui_select")))
 			_finish_step(step)
 			_advance()
+		"fx":
+			_play_fx_step(step)
+			_begin_wait(float(step.get("seconds", 0.6)), "fx")
 		"anim":
 			_play_anim(step)
 			_begin_wait(_seconds_of(step, 0.2), "anim")
@@ -347,13 +422,20 @@ func _finish_step(step: Dictionary) -> void:
 
 
 func _finish_play() -> void:
+	var presentation := get_node_or_null("CinematicPresentation")
+	if presentation != null:
+		presentation.dismiss()
 	playing = false
 	_waiting = false
 	_wait_kind = ""
+	_skip_to_end = false
 	# 队列里还有下一条：保持 lock，避免两段过场之间漏一帧输入/灌毒/AI。
 	if not _script_queue.is_empty():
 		var next: Array = _script_queue.pop_front()
-		play(next)
+		var skip := false
+		if not _script_skip_queue.is_empty():
+			skip = bool(_script_skip_queue.pop_front())
+		play(next, skip)
 		return
 	_set_lock(false)
 	set_letterbox(false)

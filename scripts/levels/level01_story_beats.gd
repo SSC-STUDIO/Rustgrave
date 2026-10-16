@@ -3,6 +3,8 @@ extends Node
 ## One-shot Level01 Director scripts. Listens to GameEvents + east-wing signals;
 ## flags live on SaveData so a reload does not replay the same caption.
 
+const Opening := preload("res://scripts/levels/opening_cinematic.gd")
+
 var _host: Node
 var _player: Player
 var _boss: ExecutionerBoss
@@ -45,16 +47,27 @@ func try_wake() -> void:
 		if not Director.playing:
 			GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
 		return
+	# 开场只在全新一局、醒来之前。继续、死亡重进、已经醒过都直接进原来的醒来。
+	if Opening.try_start(_play_wake):
+		SaveData.mark_flag("wake")
+		return
 	SaveData.mark_flag("wake")
+	_play_wake()
+
+
+func _play_wake() -> void:
+	if not is_inside_tree():
+		return
 	var nest: Node = null
-	if _host != null:
+	if _host != null and is_instance_valid(_host):
 		nest = _host.get_node_or_null("Props/EmberNest")
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "insert"},
 		{"kind": "cam_focus", "target": nest, "duration": 0.2},
 		{"kind": "wait", "seconds": 0.25},
-		{"kind": "caption", "text": "炉灭之后，循环变成了锈。", "hold": 1.5},
+		{"kind": "fx", "id": "ember_rise", "seconds": 0.7},
+		{"kind": "caption", "text": "你不是被选中的。刮锈的偶，自己先锈透了。", "hold": 1.8},
 		{"kind": "cam_focus", "target": _player, "duration": 0.55},
 		{"kind": "wait", "seconds": 0.2},
 		{"kind": "cam_release"},
@@ -72,7 +85,8 @@ func on_boss_gate(body: Node) -> void:
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "gate"},
 		{"kind": "cam_focus", "target": _boss, "duration": 0.55},
-		{"kind": "caption", "text": "炉约的刽子手还守着残芯。", "hold": 1.6},
+		{"kind": "fx", "id": "shock_ring", "seconds": 0.4},
+		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.8},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
 	])
@@ -91,7 +105,8 @@ func on_boss_slain() -> void:
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "insert"},
 		{"kind": "cam_focus", "target": heart, "duration": 0.7},
-		{"kind": "caption", "text": "残芯还在跳。你可以把剑送进去。", "hold": 1.7},
+		{"kind": "fx", "id": "heart_pulse", "seconds": 0.55},
+		{"kind": "caption", "text": "残芯还在跳。你可以把它熄掉，也可以答应往下问一次。", "hold": 1.9},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
 	])
@@ -107,7 +122,7 @@ func _on_toxin_story(current: float, _maximum: float) -> void:
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "cam_focus", "target": pool, "duration": 0.4},
-		{"kind": "caption", "text": "它吃肺，也吃记忆。也吃你的剑。", "hold": 1.6},
+		{"kind": "caption", "text": "它曾是冷却剂。吃肺，也把记忆淬进剑里。", "hold": 1.6},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
 	])
@@ -119,7 +134,7 @@ func _on_core_story(_core: Resource) -> void:
 	SaveData.mark_flag("core")
 	Director.play([
 		{"kind": "lock"},
-		{"kind": "caption", "text": "前人的残响。嵌进剑里，它才肯说话。", "hold": 1.5},
+		{"kind": "caption", "text": "这不是战利品。是一个还没说完的职称。", "hold": 1.5},
 		{"kind": "unlock"},
 	])
 
@@ -130,7 +145,7 @@ func _on_insert_story(_ability_id: StringName) -> void:
 	SaveData.mark_flag("insert")
 	Director.play([
 		{"kind": "lock"},
-		{"kind": "caption", "text": "剑身热了一下。插座咬住了这枚核。", "hold": 1.4},
+		{"kind": "caption", "text": "插座咬住了。剑里有人清了清嗓子。", "hold": 1.4},
 		{"kind": "unlock"},
 	])
 
@@ -141,6 +156,6 @@ func _on_parry_story(_bolt: Node, _by: Node) -> void:
 	SaveData.mark_flag("parry")
 	Director.play([
 		{"kind": "lock"},
-		{"kind": "caption", "text": "打回去的不只是弹。锈也被你炼过了。", "hold": 1.6},
+		{"kind": "caption", "text": "打回去的是他们的火。锈被你炼过一次。", "hold": 1.6},
 		{"kind": "unlock"},
 	])
