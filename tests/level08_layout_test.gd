@@ -127,13 +127,13 @@ func test_ground_is_amber_and_pools_are_slag() -> void:
 		ok(plat != null, "%s exists" % f[0])
 		if plat == null:
 			continue
-		eq(plat.skin, "moss", "%s wears moss brick" % f[0])
+		eq(plat.skin, "stone", "%s wears forge stone" % f[0])
 		eq(plat.tone, tone, "%s is pressed to amber" % f[0])
 		almost(plat.position.y, FLOOR_Y, 0.01, "%s top is the floor line" % f[0])
 	var steps: Array = consts["STEPS"]
 	for s in steps:
 		var plat := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
-		ok(plat != null and plat.skin == "moss_float" and plat.tone == tone, "%s is an amber float stone" % s[0])
+		ok(plat != null and plat.skin == "floating" and plat.tone == tone, "%s is an amber forge platform" % s[0])
 	var pools: Array = []
 	for node in host.get_node("Props").get_children():
 		if node is ToxinPool:

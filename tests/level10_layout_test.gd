@@ -113,7 +113,7 @@ func test_slag_crossing_is_single_hops() -> void:
 		var stone := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
 		ok(stone != null, "%s exists" % s[0])
 		if stone != null:
-			eq(stone.skin, "moss_float", "%s is a floating stone" % s[0])
+			eq(stone.skin, "floating", "%s is a forge stepping stone" % s[0])
 			eq(stone.tone, LAYOUT.STONE_TONE, "%s wears the brighter footing tone" % s[0])
 	# the pit floor is one hop below the banks so a fall is survivable
 	var bed := host.get_node_or_null("Platforms/SlagBed") as SolidPlatform
