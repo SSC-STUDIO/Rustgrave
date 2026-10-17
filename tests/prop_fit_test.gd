@@ -182,8 +182,70 @@ func test_planted_props_are_allowed_grounded_and_integer_scaled() -> void:
 	ok(planted >= 80, "the layout audit covered the chapters (%d planted props)" % planted)
 
 
-## D. 室内远景盖住镜头上界：level05/08/10 + 圣殿/钟楼的中景不再是空的天。
-## 每层带 covers_top 元数据的 Parallax2D 都必须真的把 0..96px 的屏幕带铺满。
+## D. 接地装饰的「贴地」检查：摆在地面上的贴图，最后几行像素必须有真实不透明像素，
+## 不能是「画布还有几行、但内容已经空了」的透明/稀疏底边——那种图钉在脚点上会读成
+## 悬空（用户反馈的“完全悬空”一类：炉膛/骷髅炉口曾带着 tileset 底板与稀疏暗边，
+## 脚点踩在台面上、可见部分却离地 5–17px）。墙板类（window/gargoyle/…/column）是
+## z=-3 的背景浮雕，底边被 RuinPlate 削出残破轮廓，允许稀疏底边。
+const WALL_PLATE_KEYS := ["window", "gargoyle", "altar", "skull_column", "column",
+		"brick_house", "ruin_tower"]
+const SPARSE_ROWS_MAX := 1
+const SPARSE_ALPHA := 0.5
+
+
+func test_grounded_set_dressing_reaches_the_ground() -> void:
+	var checked := 0
+	var flagged: Array[String] = []
+	for level_id in GameContext.LAYOUTS:
+		var built := _build_layout(String(level_id))
+		if built.is_empty():
+			continue
+		var host: Node2D = built["host"]
+		var layout: ChapterLayout = built["layout"]
+		var theme_id: String = layout.theme()
+		var decor := host.get_node_or_null("Decor")
+		if decor != null:
+			for spr in _decor_sprites(decor):
+				if not spr.is_in_group("grounded"):
+					continue
+				var key := String(spr.get_meta("prop_key"))
+				if WALL_PLATE_KEYS.has(key) or FULL_BLEED.has(key):
+					continue
+				if spr.texture == null:
+					continue
+				checked += 1
+				var sparse := _sparse_bottom_rows(spr.texture, 3)
+				if sparse > SPARSE_ROWS_MAX:
+					flagged.append("%s/%s → %s (%d sparse bottom rows)" % [
+							level_id, key, spr.texture.resource_path.get_file(), sparse])
+		layout.free()
+		host.free()
+	ok(flagged.is_empty(), "grounded props visibly touch the ground: %s" % ", ".join(flagged))
+	ok(checked >= 40, "the grounding audit covered the chapters (%d props)" % checked)
+
+
+## 底部 `rows` 行里有几行「不透明像素 < 2」（= 内容已经空了的透明/稀疏底边）。
+func _sparse_bottom_rows(tex: Texture2D, rows: int) -> int:
+	var img := tex.get_image()
+	if img == null:
+		return 0
+	if img.is_compressed():
+		img.decompress()
+	var w := img.get_width()
+	var h := img.get_height()
+	var count := 0
+	for i in rows:
+		var y := h - 1 - i
+		var opaque := 0
+		for x in w:
+			if img.get_pixel(x, y).a > SPARSE_ALPHA:
+				opaque += 1
+		if opaque < 2:
+			count += 1
+	return count
+
+
+## E. 室内远景盖住镜头上界：level05/08/10 + 圣殿/钟楼的中景不再是空的天。
 func test_indoor_backdrops_cover_the_camera_top_band() -> void:
 	var seen := {}
 	for level_id in GameContext.LAYOUTS:
@@ -224,3 +286,103 @@ func test_indoor_backdrops_cover_the_camera_top_band() -> void:
 	for required in ["industrial", "forge", "forge_core"]:
 		ok(seen.has(required), "indoor theme '%s' was audited" % required)
 	ok(seen.size() >= 3, "at least the three reworked interiors were audited (%d)" % seen.size())
+
+
+## F. 地形贴图不得当装饰。
+## `SolidPlatform` 的切块（`*_slab_*.png` / `*_fill*.png` / `float_*`）是"平顶 + 断裂
+## 底边"的地台素材：单独种在墓地行里就是一块读不懂的方块（用户原话：「为什么总是有
+## 意义不明的方块摆在这里」）。需要塌落的石/锈结构时，用 `rubble_*`、`broken_machine`、
+## `girder_*` 这类有轮廓的道具，或让 `gen_theme_tiles.py` 把铺石板切碎成碎片变体。
+const TERRAIN_ART_MARKERS := ["_slab_", "float_", "_fill", "tile_"]
+
+
+func _is_terrain_art(path: String) -> bool:
+	if path == "":
+		return false
+	var file := path.get_file()
+	# slab_a/b/c 是 SolidPlatform 的铺地切块本体；slab.png（族变体，已切碎）不在此列。
+	if file.begins_with("slab_"):
+		return true
+	for marker in TERRAIN_ART_MARKERS:
+		if file.contains(marker):
+			return true
+	return false
+
+
+func test_decor_never_uses_terrain_slab_tiles() -> void:
+	# 1) 第一章手工装饰表（此前 iron_slab_a.png 就混在这里）。
+	for item in Level01Static.PLAY_DECOR:
+		var path := String(item[0])
+		var tex := _texture(path)
+		ok(tex != null, "PLAY_DECOR entry resolves (%s)" % path.get_file())
+		ok(not _is_terrain_art(path),
+				"PLAY_DECOR must not plant terrain slab art: %s" % path.get_file())
+	# 2) 每章 layout 实际种下的每件装饰。
+	var checked := 0
+	for level_id in GameContext.LAYOUTS:
+		var built := _build_layout(String(level_id))
+		if built.is_empty():
+			continue
+		var host: Node2D = built["host"]
+		var decor := host.get_node_or_null("Decor")
+		if decor != null:
+			for spr in _decor_sprites(decor):
+				if spr.texture == null:
+					continue
+				var path: String = spr.texture.resource_path
+				checked += 1
+				ok(not _is_terrain_art(path),
+						"%s: '%s' draws a prop, not terrain (%s)" % [
+								level_id, String(spr.get_meta("prop_key")), path.get_file()])
+		built["layout"].free()
+		host.free()
+	ok(checked >= 80, "the terrain-art audit covered the chapters (%d props)" % checked)
+
+
+## G. 剩下的「整块石板」类装饰（catalog 键 `slab`）必须是切碎后的碎片变体：
+## 不透明占比明显低于原铺石板（0.821），而且不再是「平顶贴图」。
+func test_slab_decor_variants_are_fractured() -> void:
+	var checked := 0
+	for theme_id in PropCatalog.THEME_PROPS:
+		if not PropCatalog.allowed(theme_id, "slab"):
+			continue
+		var path := PropCatalog.path_for("slab", theme_id)
+		var tex := _texture(path)
+		if tex == null:
+			continue
+		checked += 1
+		var img := tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		var w := img.get_width()
+		var h := img.get_height()
+		var opaque := 0
+		for y in h:
+			for x in w:
+				if img.get_pixel(x, y).a > 0.15:
+					opaque += 1
+		var ratio := float(opaque) / float(w * h)
+		ok(ratio < 0.72, "%s/slab is fractured rubble, not a paving tile (ratio %.2f, %s)"
+				% [theme_id, ratio, path.get_file()])
+		ok(not _is_sticker(tex), "%s/slab is not a sticker square" % theme_id)
+	ok(checked >= 5, "slab variants audited (%d)" % checked)
+
+
+## H. 碑文石的浮雕不能是小数缩放：0.875/0.9 会把像素边缘糊掉。
+func test_lore_stele_relief_is_drawn_at_one_x() -> void:
+	var scene := load("res://scenes/interactables/LoreStele.tscn") as PackedScene
+	ok(scene != null, "LoreStele scene loads")
+	if scene == null:
+		return
+	var stele := scene.instantiate() as LoreStele
+	add_child(stele)
+	await flush(2)
+	var fill := stele.get_node_or_null("Fill") as Sprite2D
+	ok(fill != null and fill.texture != null, "the stele has its relief sprite")
+	if fill != null:
+		ok(is_equal_approx(fill.scale.x, 1.0) and is_equal_approx(fill.scale.y, 1.0),
+				"stele relief is 1x (got %s)" % str(fill.scale))
+		if fill.region_enabled:
+			eq(Vector2(fill.region_rect.size), Vector2(32.0, 40.0),
+					"stele relief uses its 1:1 32×40 cut")
+	stele.queue_free()

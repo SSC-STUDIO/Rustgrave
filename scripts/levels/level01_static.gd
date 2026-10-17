@@ -41,6 +41,11 @@ const WAYMARKS := [
 ]
 ## 硬物只在玩法层：scale=1，脚钉 GROUND_TOP，无 WindSway。近景视差条不画碑。
 ## 位置是贴图左缘。路牌牌面是脚点 x-17 起、宽 35。两边不许叠。
+## 注意：**不要把 SolidPlatform 的地台贴图（*_slab_*.png / iron_slab_*.png）当装饰种**。
+## 它们是"平顶 + 断裂底边"的铺地素材，单独立在墓地行里就是一块读不懂的方块
+## （用户反馈的原图）。塌落的锈蚀结构用断梁 / 碎石 / 机械残骸这类有轮廓的道具。
+const DECOR_ROCK_PILE := "res://assets/env/gh_rock_pile.png"
+const DECOR_RUBBLE := "res://assets/env/rubble_c.png"
 const PLAY_DECOR := [
 	# 大灌木 49px，右缘 89，离「余烬」牌面（101 起）还有空。
 	[Level01Env.DECOR_BUSH_L_65, Vector2(40, 320), 1.0],
@@ -48,8 +53,10 @@ const PLAY_DECOR := [
 	# 枯树 76px，右缘 264。教学土丘从 228 起会挡住树干，树冠仍露在丘顶上面。
 	[Level01Env.DECOR_TREE_2_PX, Vector2(188, 320), 1.0],
 	[Level01Env.DECOR_STONE_3, Vector2(330, 320), 1.0],
-	# 坑东岸：碑在 548 附近，锈块贴着碑，再往东才是石和灌木。
-	[Level01Env.DECOR_RUST_BLOCK, Vector2(568, 320), 1.0],
+	# 坑东岸：碑在 548 附近；碑东侧塌着一堆墓土碎石
+	# （以前这里种的是 iron_slab 地台贴图，读作一块方碑）。
+	[DECOR_ROCK_PILE, Vector2(550, 320), 1.0],
+	[DECOR_RUBBLE, Vector2(586, 320), 1.0],
 	[Level01Env.DECOR_STONE_4, Vector2(624, 320), 1.0],
 	[Level01Env.DECOR_BUSH_S, Vector2(656, 320), 1.0],
 	[Level01Env.DECOR_GRAVE_CROSS, Vector2(700, 320), 1.0],

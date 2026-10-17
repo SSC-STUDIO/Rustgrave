@@ -169,6 +169,12 @@
   remapped to soot → warm ash → dust so the overcast is lit by the rust moon
   instead of fighting it. Outline, alpha and size are the authored ones; no pixel
   is hand-painted and no external file is fetched.
+- Ground contact for floor-standing carves (2026 follow-up to the user's floating-prop
+  report): `set_pieces()` additionally gives `gh_furnace` a generated pixel stand
+  (keeping its authored 32×96 canvas), stretches the `gh_skull_arch` legs to the canvas
+  foot and lifts `gh_rock_pile`'s sparse bottom fringe onto a stone base value, so the
+  visible silhouette touches the ground when the prop is pinned to a platform top.
+  Still procedural/palette-only, deterministic and idempotent; no source pixels removed.
 - Used: chapter 1 and chapter 6 (graveyard theme) backdrops, so the moon reads
   as a dull blood moon over violet-soot sky instead of candy magenta while the
   clouds belong to the same ash palette. The swap is gated on the graveyard

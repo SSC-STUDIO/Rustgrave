@@ -13,7 +13,9 @@ func _ready() -> void:
 	prompt = "E 辨认碑文"
 	# 原点 = 碑底中点，摆在台面 y 上就是站着。旧偏移 (-6,-6) 让 36px 高的碑有 30px
 	# 埋进地里，三块碑都只露一个头。
-	ensure_sprite(STELE_TEX, Vector2(28, 36), Vector2(-14, -36), Palette.RUST_DARK, Rect2(0, 0, 32, 40))
+	# 取 32×40 的 1:1 子矩形、按同尺寸绘制：scale 正好 1。以前 size=28×36 配 32×40
+	# 的 region，得到 0.875/0.9 的小数缩放，像素边缘会糊。
+	ensure_sprite(STELE_TEX, Vector2(32, 40), Vector2(-16, -40), Palette.RUST_DARK, Rect2(0, 0, 32, 40))
 
 
 func get_prompt(_actor: Node) -> String:

@@ -46,6 +46,8 @@ are missing, so the tools stays reproducible without becoming a boot dependency.
 Usage: python tools/gen_theme_tiles.py
 """
 import os
+import random
+import zlib
 
 from PIL import Image
 
@@ -551,6 +553,125 @@ def interior_backdrops():
         save_to(out_dir, name, saved)
 
 
+# Flat tileset backdrop of tiles.png / the toppled-tower layer.
+TILESET_KEYS = {
+    "gh_bones.png": (24, 18, 32),
+    "gh_skull_arch.png": (24, 18, 32),
+    "gh_rock_pile.png": (24, 18, 32),
+    "gh_furnace.png": (24, 18, 32),
+    "gh_ruin_tower.png": (30, 37, 45),
+}
+# Ground-contact base for the carved set pieces that are planted standing on a
+# floor (settlement braziers, slag furnace mouths, scrap heaps). The Gothic
+# Horror carves end 2-11 rows above the tile edge in near-black pixels; pinned
+# to a surface they read as hovering because the last *visible* row is up in the
+# air. Lifting only those sparse dark rows onto a warm stone value gives each
+# piece a base the eye can see touching the ground - no placement change.
+GROUND_BASE = (126, 68, 44)
+GROUND_BASE_KEYS = ("gh_furnace.png", "gh_skull_arch.png", "gh_rock_pile.png")
+
+
+def _luma255(r, g, b):
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _ground_contact(img, base=GROUND_BASE, k=0.72, bright=107.0):
+    out = img.copy()
+    px = out.load()
+    w, h = out.size
+    last_bright = -1
+    for y in range(h - 1, -1, -1):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a > 40 and _luma255(r, g, b) >= bright:
+                last_bright = y
+                break
+        if last_bright >= 0:
+            break
+    if last_bright < 0 or h - 1 - last_bright < 2:
+        return out
+    for y in range(last_bright + 1, h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a <= 40:
+                continue
+            px[x, y] = (int(r + (base[0] - r) * k), int(g + (base[1] - g) * k),
+                        int(b + (base[2] - b) * k), a)
+    return out
+
+
+def _ground_stretch(img, base=GROUND_BASE, k=0.72, bright=107.0):
+    """Column-wise contact: every column that already has some art above the last
+    bright row keeps a 1-2px 'leg' down to the canvas bottom, so the silhouette
+    itself touches the floor. Used for carved arches/heaps that end in thin legs."""
+    out = _ground_contact(img, base, k, bright)
+    px = out.load()
+    w, h = out.size
+    last_opaque = [y for y in range(h) if any(px[x, y][3] > 40 for x in range(w))]
+    if not last_opaque:
+        return out
+    cut = max(last_opaque) + 1
+    for x in range(w):
+        low = -1
+        for y in range(cut - 1, -1, -1):
+            if px[x, y][3] > 40:
+                low = y
+                break
+        if low < 0 or low >= h - 1:
+            continue
+        r, g, b, a = px[x, low]
+        shade = (int(r + (base[0] - r) * k), int(g + (base[1] - g) * k),
+                 int(b + (base[2] - b) * k))
+        for y in range(low + 1, h):
+            px[x, y] = shade + (255,)
+    return out
+
+
+def _furnace_plinth(img, base=GROUND_BASE):
+    """The Gothic Horror brazier ends in two thin swirl ornaments, so as a *floor*
+    brazier (settlement arena, workshop, slag hall) it has always read as hovering:
+    the visible bowl stops ~7px above the canvas foot and the tile below it was flat
+    backdrop. Draw a small pixel stand from the bowl down to the canvas bottom - same
+    palette, deterministic, no new source art - so the piece visibly stands on the
+    ground. The canvas keeps its authored 32x96 footprint (callers place it by both
+    top-left and bottom-pinned feet)."""
+    out = img.copy()
+    px = out.load()
+    w, h = out.size
+    last_bright = -1
+    for y in range(h - 1, -1, -1):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a > 40 and _luma255(r, g, b) >= 107.0:
+                last_bright = y
+                break
+        if last_bright >= 0:
+            break
+    if last_bright < 0 or last_bright >= h - 2:
+        return out
+    rim = (compact(base[0] + 34), compact(base[1] + 30), compact(base[2] + 22))
+    body = (compact(base[0] - 20), compact(base[1] - 16), compact(base[2] - 10))
+    foot = (compact(base[0] - 44), compact(base[1] - 32), compact(base[2] - 20))
+    cx = w // 2
+    stem_top = last_bright + 1
+    foot_top = h - 4
+    for y in range(stem_top, h):
+        if y < foot_top:
+            half = 4
+            col = rim if y == stem_top else body
+        else:
+            half = 7
+            col = rim if y == foot_top else (foot if y == h - 1 else body)
+        for x in range(cx - half, cx + half):
+            if 0 <= x < w:
+                px[x, y] = col + (255,)
+    return out
+
+
+def compact(v):
+    return max(0, min(255, int(v)))
+
+
 def set_pieces(h):
     pieces = {
         "gh_furnace.png": (272, 64, 32, 96),
@@ -560,21 +681,25 @@ def set_pieces(h):
         "gh_brick_house.png": (416, 0, 384, 176),
         "gh_ruin_tower.png": (784, 16, 256, 160),
     }
-    # Flat tileset backdrop of tiles.png / the toppled-tower layer.
-    keyed = {
-        "gh_bones.png": (24, 18, 32),
-        "gh_skull_arch.png": (24, 18, 32),
-        "gh_rock_pile.png": (24, 18, 32),
-        "gh_furnace.png": (24, 18, 32),
-        "gh_ruin_tower.png": (30, 37, 45),
-    }
     for name, (x, y, w, hh) in pieces.items():
         img = tile(h, x, y, w, hh)
-        if name in keyed:
-            img = _key_tileset_bg(img, keyed[name])
+        if name in TILESET_KEYS:
+            img = _key_tileset_bg(img, TILESET_KEYS[name])
+        if name == "gh_furnace.png":
+            # 保留 32×96 的画布：这个贴图既有「底边钉地」的挂法（TorchLight 炉膛），
+            # 也有「左上角定位」的旧摆法（level01 东翼余炉），两种都按 96 高算脚点。
+            # 抠底板后若裁掉底部会两种摆法各错一段，所以不裁，改为给炉子补一个像素炉座。
+            img = _ground_contact(img)
+            img = _furnace_plinth(img)
+            save(img, name)
+            continue
         bbox = img.getbbox()
         if bbox:
             img = img.crop(bbox)
+        if name == "gh_skull_arch.png":
+            img = _ground_contact(img)
+        elif name == "gh_rock_pile.png":
+            img = _ground_contact(img)
         if name == "gh_ruin_tower.png":
             img = gradient_map(img, TOWER_RAMP)
         save(img, name)
@@ -649,6 +774,71 @@ SKIP_PROPS = {
 }
 
 
+def _fracture_slab(img, seed):
+    """把 48×48 铺石板切成 3 块明显错位、顶部断裂的碎块。
+
+    素材本身是**地台贴图**（平顶 + 断裂底边）；原样当装饰竖在地上，玩家看到的是
+    "一块意义不明的方块"。切碎、削掉大部分平顶帽沿、错位并撑到底边之后，它读作
+    塌落的石板堆，不再是一块立着的方碑（用户反馈：为什么总是有意义不明的方块）。
+    """
+    rng = random.Random(seed)
+    w, h = img.size
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    bounds = [0, int(w * 0.34), int(w * 0.62), w]
+    gap = 2
+    for i in range(len(bounds) - 1):
+        x0, x1 = bounds[i], bounds[i + 1]
+        piece = img.crop((x0, 0, x1, h))
+        pw, ph = piece.size
+        # 每块都削掉一段平顶：落在墓土里的石板不会还顶着完整的铺地帽沿。
+        cut_top = rng.randint(8, 16)
+        piece = piece.crop((0, cut_top, pw, ph))
+        pw, ph = piece.size
+        px = piece.load()
+        # 上缘继续啃成锯齿；左右按行随机缺 0–3 列（不是直上直下的切缝，
+        # 否则三块碎片会读成"竖条纹"）；底缘按列啃 0–3px（仍撑地）。
+        for x in range(pw):
+            jag = rng.randint(0, 3)
+            for y in range(jag):
+                px[x, y] = (0, 0, 0, 0)
+            cut = rng.randint(0, 3) if rng.random() < 0.55 else 0
+            for y in range(ph - cut, ph):
+                px[x, y] = (0, 0, 0, 0)
+        for y in range(ph):
+            lcut = rng.randint(0, 3) if rng.random() < 0.65 else 0
+            rcut = rng.randint(0, 3) if rng.random() < 0.65 else 0
+            for x in range(lcut):
+                px[x, y] = (0, 0, 0, 0)
+            for x in range(max(0, pw - rcut), pw):
+                px[x, y] = (0, 0, 0, 0)
+        if rng.random() < 0.35:
+            # 偶发缺角：整块碎片被啃掉一个 3–5px 的角。
+            hole_w = rng.randint(3, 5)
+            hole_h = rng.randint(3, 5)
+            hx = rng.choice((0, pw - hole_w))
+            hy = rng.choice((0, ph - hole_h))
+            for y in range(hy, hy + hole_h):
+                for x in range(hx, hx + hole_w):
+                    px[x, y] = (0, 0, 0, 0)
+        ox = x0 + gap * i + rng.choice((-1, 0, 1))
+        # 每块底边贴地，允许 0–2px 的错落：碎块是散落在地面线附近的。
+        oy = h - ph - rng.choice((0, 0, 1, 2))
+        out.alpha_composite(piece, (max(0, min(w - pw, ox)), max(0, oy)))
+    # 底部再压一条碎石带：把几块竖片的脚连起来，读作"塌下来的墙脚"，
+    # 而不是立着一排互相分开的方碑。
+    band_h = rng.randint(6, 9)
+    band = img.crop((0, h - band_h, w, h))
+    bpx = band.load()
+    for x in range(w):
+        for y in range(rng.randint(0, 3)):
+            bpx[x, y] = (0, 0, 0, 0)
+    for x in range(w):
+        if rng.random() < 0.12:
+            bpx[x, 0] = (0, 0, 0, 0)
+    out.alpha_composite(band, (0, h - band_h))
+    return out
+
+
 def prop_variants():
     for family, ramp in PROP_RAMPS.items():
         out_dir = os.path.join(ENV, "props", family)
@@ -657,6 +847,9 @@ def prop_variants():
             if key in SKIP_PROPS.get(family, ()):
                 continue
             img = gradient_map_norm(load(os.path.join(ENV, src)), ramp)
+            # 「slab」是地台贴图，不是独立道具：派生时先切碎再入族色阶。
+            if key == "slab":
+                img = _fracture_slab(img, seed=zlib.crc32(family.encode("utf-8")))
             img.save(os.path.join(out_dir, key + ".png"))
         print("wrote props/%s" % family)
 
