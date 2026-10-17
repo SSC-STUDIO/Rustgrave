@@ -155,6 +155,36 @@ peek `--layers`/`-Win`、walkthrough 拾取重试。合并后全量回归与双�
 （第一章原方块处改为碎石堆）、`blockfix/live_1600_level05_lit.png`（切碎 slab）、
 `lead-1d/boss_02-gate-intro.png`（居中名号卡 + 炉膛落地）。
 
+### 阶段二 2A 补丁 2：毒池"雨滴感"与土层草影（用户复查）
+
+用户复查又指出两处"特效/布景放错位置"：
+
+1. **没下雨却有水面白点 + 落水效果是扩散的**（毒池截图）：
+   - 白点不是雨，而是毒池每 0.4s 冒的"气泡"用了 Kenney `20_magicbubbles` 彩色粒子
+     喷溅表，再缩到 0.06–0.1 倍——缩小后是一团乱码白点。改为 `Fx.ToxinBubble`：
+     程序化整数像素泡（1–3px，只向上飘，坐标取整），颜色跟池面/雾气一致
+     （第 4 章橙色冷却液也成立）；毒雾 `VAPOR_TINT` 也从灰白偏绿压暗，避免再被读成雨滴。
+   - 落水反馈原来是 8 点径向扩散环（读作声呐/涟漪向外）。改为**上溅水花**（入水方向
+     竖直、横向收束）+ 水面**横向**张开的 1px 亮线，寿命 0.22s；水花透明度随
+     `rain_opacity()` 衰减，雨停后不再留下全亮溅落（探针：薄雾下 splash/ripple 计数 0，
+     下雨 22/10，转薄雾 9s 后归零）。
+   - 证据：`screenshots/peek/pool-fx/pool_haze.png`（隔离池的近景：绿色气泡+绿雾，
+     无白点/无扩散环）；`screenshots/peek/weather-probe/`（薄雾/下雨/雨停三态）。
+2. **土层下面有移动的植物**：墓园主题的前景草剪影（`Foreground` 贴图 ×1.22 /
+   `ForegroundFringe` ×1.38）屏幕 y≈347–352，而横截面镜头的视口底边就是地面平台的
+   土壤剖面；深色草影扫过亮土被读成"土里长的植物"。该功能**整段删除**：
+   `theme_backdrop.gd` 不再创建墓园近景草板；`Level01_Static.tscn` 删除
+   `ParallaxForeground/Foreground` 节点与 `30_fore` 资源；`level01_parallax.gd`
+   删除 `FOREGROUND_PLATE`/`FRINGE_*` 常量、`_foreground`/`_fringe` 变量、
+   `_add_foreground_fringe()` 与两条 drift（不留"隐藏的死层"）。
+   `ParallaxForeground` 只保留贴地雾/雾幕，近景层次交给平台草皮顶与
+   `NearSilhouette` 树丛。证据：`screenshots/peek/nograss/`（1440p 底部土壤带
+   2.5× 提亮，level01 x≈800 与 level06 x≈960 均无草影），对照 `qa-fig3d/`（前）。
+
+回归：`weather_fx` 新增 2 条（雨停水花不可见、上溅方向/短促水面反馈），
+`toxin_bubbles` 新增 2 条（像素绘制不缩放贴图、只上浮且自毁），
+全量 **766/766 通过、0 engine errors**。
+
 ### 已知未验证
 
 - 真机触屏/刘海安全区：只验证了注入 insets 的数学与桌面强制触控渲染；Android 设备未实测。

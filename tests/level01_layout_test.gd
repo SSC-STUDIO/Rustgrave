@@ -654,14 +654,13 @@ func test_play_layer_and_fx_depths_stay_split() -> void:
 	ok(player != null, "level spawns a knight")
 	if player != null:
 		eq(player.z_index, 0, "the knight sits on the play canvas")
-	# 前景草（ParallaxForeground）在玩法层之上，但只画贴地草叶，不遮角色头部。
+	# 前景层（ParallaxForeground）在玩法层之上，但只保留贴地雾/雾幕：
+	# 原来的幕前草剪影贴在视口底边、扫过土壤剖面，被读成"土里长的移动植物"，
+	# 已整段删除（2026 用户复查）。
 	var front := level.get_node_or_null("ParallaxForeground") as CanvasLayer
-	ok(front != null and front.layer > 0, "foreground grass draws over the play canvas")
-	var fore := level.get_node_or_null("ParallaxForeground/Foreground") as Parallax2D
-	if fore != null:
-		var spr := fore.get_node_or_null("Sprite") as Sprite2D
-		if spr != null:
-			ok(spr.modulate.a <= 0.8, "foreground stays translucent (%.2f)" % spr.modulate.a)
+	ok(front != null and front.layer > 0, "the fog/veil foreground layer draws over the play canvas")
+	ok(level.get_node_or_null("ParallaxForeground/Foreground") == null,
+			"no grass plate slides under the soil cross-section")
 	# backdrop 永远在玩法层后面。
 	var backdrop := level.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	ok(backdrop != null and backdrop.layer < 0, "backdrop layer is negative")

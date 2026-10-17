@@ -93,16 +93,6 @@ const MOONBEAM_SPOTS := [
 	Vector3(512.0, 78.0, -4.0),
 ]
 
-## 前景草：作者板只有一条 624px 图样，镜头一推就看出同一丛草在滑。
-## 再挂一条裁片（312px 相位不同）+ 更快的 scroll，前景变成两层，脚下草不再齐步走。
-const FOREGROUND_PLATE := "res://assets/env/normalized/parallax_foreground_px.png"
-const FRINGE_NODE := "ForegroundFringe"
-const FRINGE_REGION := Rect2(96, 0, 312, 64)
-const FRINGE_Y := 347.0
-const FRINGE_SCROLL := Vector2(1.38, 0.2)
-const FRINGE_ALPHA := 0.42
-
-
 ## 云板派生后已是灰烬/暖尘色，只做一点暖白校正（不能再压蓝，否则雨天的云会发红）。
 ## 乘数由 Palette.EMBER_ASH 归一化到红通道 = 1 后向白 lerp，不引入调色板外裸色。
 ## 回落到原紫板时用旧提亮值，原板在品红天上仍然读得出。
@@ -123,8 +113,6 @@ var _moonbeams: Parallax2D
 var _fog_far: Parallax2D
 var _fog_near: Parallax2D
 var _sil_layer: Parallax2D
-var _foreground: Parallax2D
-var _fringe: Parallax2D
 var _ground_fog: Parallax2D
 var _fog_veil: ColorRect
 var _mood_tint: CanvasModulate
@@ -198,13 +186,12 @@ func build(host: Node2D, theme_id: String = GRAVEYARD_THEME) -> void:
 	if front != null:
 		if front is CanvasLayer:
 			(front as CanvasLayer).follow_viewport_enabled = false
-		# motion>1 只给幕前草。碑/石/土唇不进这张条，否则人一走坟自己在滑。
-		_foreground = front.get_node_or_null("Foreground") as Parallax2D
-		if _foreground != null:
-			cover_layer(_foreground)
+		# ParallaxForeground 只留贴地雾与雾幕。原来的两层"幕前草"剪影（屏幕
+		# y≈347–352）正好压在横截面镜头的土壤剖面上，深色草影扫过亮土会被读成
+		# "土里长出来的移动植物"（用户复查）；整段删除，近景层次交给平台草皮顶
+		# 与 NearSilhouette 树丛。
 		if fog_tex != null:
 			_ground_fog = _add_ground_fog(front, fog_tex)
-		_fringe = _add_foreground_fringe(front)
 		_fog_veil = _add_fog_veil(front)
 	# 全局微紫色调：把厚涂角色与紫色墓地轻轻拉到同一冷色轴上。
 	# CanvasModulate 与余烬巢 PointLight2D 叠在同一视口：夜里压暗，点光打出暖圈。
@@ -303,10 +290,6 @@ func _process(delta: float) -> void:
 		_fog_far.scroll_offset.x += drift * 18.0 * delta
 	if _fog_near != null:
 		_fog_near.scroll_offset.x += drift * 32.0 * delta
-	if _foreground != null:
-		_foreground.scroll_offset.x += drift * 56.0 * delta
-	if _fringe != null:
-		_fringe.scroll_offset.x += drift * 72.0 * delta
 	if _ground_fog != null:
 		_ground_fog.scroll_offset.x += drift * 24.0 * delta
 	_follow_atmosphere(delta)
@@ -504,34 +487,6 @@ func _add_moonbeams(backdrop: Node) -> Parallax2D:
 
 ## 前景第二层草：从作者前景板裁一段（相位与作者 624px 板不同），用更快的
 ## scroll 再铺一条暗锈色草缘。只动画面、不进玩法层、不改碰撞。
-func _add_foreground_fringe(front: Node) -> Parallax2D:
-	if not ResourceLoader.exists(FOREGROUND_PLATE):
-		return null
-	var tex := load(FOREGROUND_PLATE) as Texture2D
-	if tex == null:
-		return null
-	var atlas := AtlasTexture.new()
-	atlas.atlas = tex
-	atlas.region = FRINGE_REGION
-	var layer := Parallax2D.new()
-	layer.name = FRINGE_NODE
-	layer.scroll_scale = FRINGE_SCROLL
-	layer.follow_viewport = false
-	var spr := Sprite2D.new()
-	spr.name = "Sprite"
-	spr.texture = atlas
-	spr.centered = false
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.position = Vector2(0, FRINGE_Y)
-	var tint := Palette.RUST_SHADOW
-	tint.a = FRINGE_ALPHA
-	spr.modulate = tint
-	layer.add_child(spr)
-	cover_layer(layer)
-	front.add_child(layer)
-	return layer
-
-
 static func _additive_material() -> CanvasItemMaterial:
 	if _add_mat == null:
 		_add_mat = CanvasItemMaterial.new()

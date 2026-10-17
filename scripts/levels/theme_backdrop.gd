@@ -377,6 +377,11 @@ func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 		_add_plate(backdrop, "Far", sky_path, Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
 		_add_plate(backdrop, "Mid", mountain_path, Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
 		_add_plate(backdrop, "Hills", "res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), Vector2(0, 168), 1.85)
+	# Foreground CanvasLayer 只留给 GroundFog / FogVeil（贴地雾与雾幕）。离地最近的
+	# 「幕前草」剪影（Foreground / ForegroundFringe）在墓园主题里**整段删除**：
+	# 它们的屏幕 y 贴在视口底边（约 347–352），而横截面镜头的底边就是地面平台的土壤
+	# 剖面；深色草影扫过亮土会被读成「土里长出来的移动植物」（2026 用户复查）。
+	# 近景层次交给平台草皮顶和 NearSilhouette 树丛。
 	var front := host.get_node_or_null("ParallaxForeground") as CanvasLayer
 	if front == null:
 		front = CanvasLayer.new()
@@ -384,7 +389,6 @@ func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 		front.layer = 1
 		front.follow_viewport_enabled = false
 		host.add_child(front)
-		_add_plate(front, "Foreground", "res://assets/env/normalized/parallax_foreground_px.png", Vector2(1.22, 0.18), Vector2(0, 352), 1.0, Color(0.16, 0.12, 0.2, 0.78))
 	var extras := Level01Parallax.new()
 	extras.name = "ParallaxExtras"
 	host.add_child(extras)

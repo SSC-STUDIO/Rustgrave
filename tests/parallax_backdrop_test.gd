@@ -123,12 +123,13 @@ func test_extras_add_fog_silhouette_and_foreground_cover() -> void:
 		ok(sil.repeat_times >= Level01Parallax.MIN_REPEAT_TIMES)
 		almost(sil.repeat_size.x, Level01Parallax.SIL_SPAN, 0.01)
 	var front := level.get_node_or_null("ParallaxForeground") as CanvasLayer
-	ok(front != null and front.layer > 0, "foreground grass draws over the play canvas")
-	var fore := level.get_node_or_null("ParallaxForeground/Foreground") as Parallax2D
-	ok(fore != null, "foreground is a Parallax2D too")
-	if fore != null:
-		ok(fore.scroll_scale.x > 1.0, "foreground moves faster than the camera")
-		ok(fore.repeat_times >= Level01Parallax.MIN_REPEAT_TIMES, "foreground also repeats enough copies")
+	ok(front != null and front.layer > 0, "the fog/veil foreground layer draws over the play canvas")
+	# 幕前草（Foreground / ForegroundFringe）已删除：它压在土壤剖面上，
+	# 被玩家读成"土里长出来的移动植物"（2026 用户复查）。
+	ok(level.get_node_or_null("ParallaxForeground/Foreground") == null,
+			"no soil-sliding grass plate remains on the foreground layer")
+	ok(level.get_node_or_null("ParallaxForeground/ForegroundFringe") == null,
+			"no grass fringe remains either")
 	ok(level.get_node_or_null("MoodTint") is CanvasModulate)
 	ok(level.get_node_or_null("MoonFill") is DirectionalLight2D)
 	ok(level.get_node_or_null("WeatherFx") is WeatherFx)

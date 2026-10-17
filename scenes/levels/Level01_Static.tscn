@@ -20,7 +20,6 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/EmberNest.tscn" id="22_nest"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/ScrapperEnemy.tscn" id="23_scrapper"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/GearShieldEnemy.tscn" id="24_gearshield"]
-[ext_resource type="Texture2D" path="res://assets/env/normalized/parallax_foreground_px.png" id="30_fore"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/FlyingDemonEnemy.tscn" id="31_demon"]
 
 [node name="Level01_Static" type="Node2D" unique_id=445927691]
@@ -72,19 +71,6 @@ centered = false
 [node name="ParallaxForeground" type="CanvasLayer" parent="." unique_id=1686955435]
 layer = 1
 follow_viewport_enabled = false
-
-[node name="Foreground" type="Parallax2D" parent="ParallaxForeground" unique_id=41424141]
-scroll_scale = Vector2(1.22, 0.18)
-repeat_size = Vector2(624, 0)
-repeat_times = 4
-follow_viewport = false
-
-[node name="Sprite" type="Sprite2D" parent="ParallaxForeground/Foreground" unique_id=1939670683]
-modulate = Color(0.16, 0.12, 0.2, 0.78)
-texture_filter = 1
-position = Vector2(0, 352)
-texture = ExtResource("30_fore")
-centered = false
 
 [node name="Platforms" type="Node2D" parent="." unique_id=2097643483]
 
