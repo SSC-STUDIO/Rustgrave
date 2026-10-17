@@ -64,9 +64,12 @@ func test_beat_sheet_fits_the_budget_and_uses_only_known_step_kinds() -> void:
 		if step.get("kind", "") == "caption":
 			captions.append(String(step["text"]))
 	eq(captions, Opening.LINES, "situation, identity, anomaly, objective — in that order")
-	eq(Opening.LINES.size(), 4)
-	ok(Opening.LINES[2].contains("钟"), "the anomaly is the bell under the graves")
-	ok(Opening.LINES[3].contains("炉"), "the objective names the furnace")
+	eq(Opening.LINES.size(), 5, "five beats: situation, identity split into two captions, anomaly, objective")
+	ok(Opening.LINES[0].contains("剑"), "the situation beat names the sword")
+	ok(Opening.LINES[1].contains("选中"), "the identity beat (1/2) denies the chosen-one reading")
+	ok(Opening.LINES[2].contains("锈透"), "the identity beat (2/2) closes on the knight's own rot")
+	ok(Opening.LINES[3].contains("钟"), "the anomaly is the bell under the graves")
+	ok(Opening.LINES[4].contains("炉"), "the objective names the furnace")
 	var card: Dictionary = {}
 	for raw in steps:
 		if (raw as Dictionary).get("id", "") == "chapter":
@@ -125,7 +128,8 @@ func test_new_game_plays_the_beat_sheet_then_marks_seen_without_ending() -> void
 	eq(texts, Opening.LINES)
 	eq(fx_ids, ["rust_flake", "rust_flake", "plant", "bell_ring"])
 	eq(tableau_ids, ["chapter", "world"])
-	eq(tags, ["rouse", "stand", "pullback", "toll", "card", "handoff"])
+	# 身份拍的两个 tag 把镜头和坟群的回应绑在同一条字幕上。
+	eq(tags, ["rouse", "stand", "pullback", "grave_row", "toll", "card", "handoff"])
 	ok(SaveData.has_flag(Opening.FLAG))
 	ok(SaveData.has_flag("wake"), "wake is marked with the opening")
 	eq(SaveData.flags.count(Opening.FLAG), 1)
@@ -155,6 +159,38 @@ func test_skip_jumps_to_end_and_blocks_replay() -> void:
 	ok(not Opening.try_start(), "skipped opening does not replay")
 	ok(not Director.playing)
 	ok(Director.get_node("CinematicPresentation").hint_visible(), "a skipped opening still hands over with the prompt")
+
+
+## The hand-off is a moment, not a leftover: the prompt only appears once the script is
+## over (natural end or skip), and it carries the move keys the player just got back.
+func test_handoff_prompt_arrives_only_after_the_script_is_over() -> void:
+	var presentation := Director.get_node("CinematicPresentation")
+	ok(Opening.try_start())
+	ok(Director.playing, "the script is running")
+	ok(not presentation.hint_visible(), "no prompt while the piece still owns the screen")
+	# A skip ends it and hands over in the same frame.
+	_accept()
+	ok(not Director.playing)
+	ok(presentation.hint_visible(), "the hand-off prompt is up the moment control returns")
+	ok(presentation.hint_label.text == Opening.move_prompt(),
+			"the prompt reads from the player's own key bindings")
+
+
+## A death mid-piece aborts instead of finishing: no prompt, no seen flag, no music
+## hand-back that would leave the graveyard playing over the death stinger.
+func test_death_mid_piece_aborts_without_a_handoff() -> void:
+	ok(Opening.try_start())
+	ok(Director.playing)
+	ok(Director.is_input_locked())
+	Director.abort()
+	ok(not Director.playing, "abort ends the piece")
+	ok(not Director.is_input_locked(), "input is back")
+	ok(not SaveData.has_flag(Opening.FLAG), "an interrupted opening is not a seen opening")
+	ok(not SaveData.has_flag("wake"), "and does not mark the wake")
+	ok(not Director.get_node("CinematicPresentation").hint_visible(),
+			"no hand-off prompt for a piece that never finished")
+	ok(Opening.try_start(), "it can still play once the knight is alive again")
+	Director.abort()
 
 
 func test_abort_marks_neither_flag() -> void:
@@ -346,3 +382,68 @@ func test_move_prompt_hides_on_the_first_input_and_never_on_a_menu_press() -> vo
 	ok(presentation.hint_visible(), "a held key from before the prompt does not dismiss it")
 	Input.action_release("jump")
 	Director.hide_hint()
+
+
+## The hand-off prompt carries the keys and nothing else: the corridor pan already
+## showed the way east, so the line does not have to spell it out. The direction is
+## told by the camera and the objective light, not by text.
+func test_handoff_prompt_states_the_keys_and_leaves_the_direction_to_the_camera() -> void:
+	var prompt := Opening.move_prompt()
+	ok(prompt.contains("移动"), "the prompt names the move keys")
+	ok(prompt.contains("跳跃"), "the prompt names jump")
+	ok(not prompt.contains("东"), "the prompt does not spell out east; the pan already showed it")
+	ok(not prompt.contains("往"), "no compass words in the hand-off line")
+	# Touch devices get the same contract without keyboard labels.
+	var wants_overlay := TouchInput.wants_overlay()
+	if wants_overlay:
+		ok(prompt.contains("触控板"), "touch prompt names the pads")
+	else:
+		ok(not prompt.contains("触控板"), "keyboard prompt stays on key labels")
+
+
+## Every caption line must be short enough that the picture carries the beat and the
+## text only pins it. Long subtitle blocks are a sign the shot stopped telling the story.
+func test_lines_are_short_enough_for_the_picture_to_lead() -> void:
+	for line in Opening.LINES:
+		ok(String(line).length() <= 16, "line is a pin, not a paragraph: %s" % line)
+	ok(Opening.IDENTITY_ECHO.length() <= 12, "the identity echo is shorter still")
+	# The objective beat names the furnace and the ones below in the same breath.
+	ok(Opening.LINES[4].contains("炉") and Opening.LINES[4].contains("他们"),
+			"the objective names both the furnace and who has to be taken down")
+	# The identity beat says what the knight is, not what he must do.
+	ok(Opening.IDENTITY_ECHO.contains("偶"), "the identity echo calls the knight what he is")
+	# The anomaly is one sentence; the graves' answers are the picture.
+	ok(Opening.LINES[3].contains("钟") and Opening.LINES[3].contains("数"),
+			"the anomaly beat says the bell is counting")
+
+
+## The objective shot ends on the forge remnant at the corridor's end: the camera must
+## arrive closer than the wide establishing pull-back, and the heart's second pulse is
+## spaced so it reads as an answer from below the door, not one lamp flickering.
+func test_objective_shot_pushes_in_and_pulses_twice() -> void:
+	ok(Opening.ZOOM_ARRIVE < Opening.ZOOM_WIDE,
+			"the arrival shot is tighter than the identity pull-back")
+	ok(Opening.PAN_END_X > 1800.0, "the corridor pan ends deep in the east wing")
+	ok(Opening.HEART.x >= 2000.0, "the forge remnant sits at the east end of the map")
+	ok(Opening.HEART_SECOND_BEAT > 0.2 and Opening.HEART_SECOND_BEAT < 1.2,
+			"the heart's second beat is a delayed answer, not a double flicker")
+
+
+## The mystery beat is carried by the graves answering in order, so the pan must expose
+## a timing function that spreads them out and keeps them inside the travel.
+func test_grave_answers_stay_inside_the_pan_and_never_bunch_up() -> void:
+	var xs := Opening.grave_xs(null)
+	var times := Opening.pan_times(xs, Opening.PULLBACK_X, Opening.PAN_END_X, Opening.PAN_SECONDS)
+	eq(times.size(), xs.size(), "every fallback grave gets an answer inside the pan")
+	for i in range(1, times.size()):
+		ok(times[i] > times[i - 1], "answer %d lands strictly after the one before" % i)
+		ok(times[i] <= Opening.PAN_SECONDS + 0.001, "answer %d is inside the pan" % i)
+
+
+## The identity shot ends with the nearest graves answering under the knight: he reads
+## as one of the row, which is what the second line says without saying it.
+func test_identity_shot_ends_with_the_grave_row_answering() -> void:
+	ok(Opening.PULLBACK_X < 400.0, "the pull-back settles close to the western graves")
+	ok(Opening.GRAVE_XS.size() >= 5, "there is a row of graves to answer")
+	for x in Opening.GRAVE_XS:
+		ok(x > 0.0, "every grave stands in the world")

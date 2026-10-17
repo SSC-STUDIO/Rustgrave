@@ -7,12 +7,17 @@ extends RefCounted
 ## 分镜（秒；Director 步骤 + 一个只管镜头的 dolly，坟的回应挂在 dolly 的时间线上）：
 ##   0.0  处境  骑士趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
 ##   2.1  「剑先锈了。里面还有人。」
-##   3.7  身份  镜头退后，巢口飘起一缕火星  「你不是被选中的。刮锈的偶，自己先锈透了。」
+##   3.7  身份  镜头退后到巢与坟，巢口飘起一缕火星  「你不是被选中的。刮锈的偶，自己先锈透了。」
 ##   5.8  异象  地下一声钟：每座坟依次冒灰回应，镜头沿走廊往东推
 ##        「钟响了一声。底下有人在数。」
 ##   9.2  目标  走廊尽头残芯的光跳两下，刽子手立在门后  「炉还在下面。你得把他们带下去。」
 ##  10.3  章节卡；镜头在卡下切回骑士
 ##  13.0  交还操作；底部一行移动提示，第一次输入后消失
+##
+## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「剑里有人」靠火星从剑背
+## 应声而起（bell_ring fx），「坟在数人」靠每座坟依次冒灰（grave_answer），「炉在下面」
+## 靠镜头推近时残芯跳两下（heart_pulse + glow），「目标」则让刽子手真的立在门后 ——
+## 玩家先看见他要打谁，字幕才落到「把他们带下去」。
 ## 用到的 Director 步骤：lock unlock wait tableau caption cam_focus cam_release
 ## letterbox sfx fx。新 fx id：rust_flake plant bell_ring。
 
@@ -21,15 +26,20 @@ const WAKE_FLAG := "wake"
 const CHAPTER := "锈墓・壹 — 腐液回廊"
 const CARD_SECONDS := 2.2
 ## 整段（不跳过）的预算。测试按步骤估算，不许超。
-const MAX_SECONDS := 14.0
+const MAX_SECONDS := 14.5
 
-## 顺序 = 处境、身份、异象、目标。
+## 顺序 = 处境、身份、异象、目标。每句都短：画面讲长的，字幕只钉那一钉。
+## 第二句拆成两拍：先让镜头退到坟群（画面说「偶也是坟里的一座」），
+## 字幕才落「自己先锈透了」—— 文字永远比画面晚半步。
 const LINES: Array[String] = [
 	"剑先锈了。里面还有人。",
-	"你不是被选中的。刮锈的偶，自己先锈透了。",
+	"你不是被选中的。",
+	"刮锈的偶，自己先锈透了。",
 	"钟响了一声。底下有人在数。",
 	"炉还在下面。你得把他们带下去。",
 ]
+## 身份拍第二句的回声句：最短，最核心。
+const IDENTITY_ECHO := "刮锈的偶，自己先锈透了。"
 
 const KNIGHT_FALLBACK := Vector2(96, 290)
 const NEST_FALLBACK := Vector2(150, 306)
@@ -48,6 +58,9 @@ const ZOOM_ARRIVE := 1.25
 ## 倒放死亡动画：先趴着不动一会儿，再撑起来。
 const HOLD_FRAMES := 6
 const RISE_FPS := 8.0
+## 异象拍的坟声顺序：近的坟先应，越远越迟，最后一笔留给牌坊下的新坟。
+## 眼前目标拍：残芯跳第二下的间隔，和镜头推近的时长对齐。
+const HEART_SECOND_BEAT := 0.55
 
 static var _active := false
 static var _knight: Variant
@@ -73,10 +86,11 @@ static func should_play() -> bool:
 
 
 ## 一行移动提示：键位取玩家当前绑定，触控设备改说触控板。
+## 结尾不写「向东」两个字，交给刚看完的镜头 —— 走廊尽头的光已经指了路。
 static func move_prompt() -> String:
 	if TouchInput.wants_overlay():
-		return "左侧触控板移动 · 右侧按键跳跃 · 往东走"
-	return "%s / %s 移动 · %s 跳跃 · 往东走" % [
+		return "左侧触控板移动 · 右侧按键跳跃"
+	return "%s / %s 移动 · %s 跳跃" % [
 		Settings.key_label(&"move_left"), Settings.key_label(&"move_right"),
 		Settings.key_label(&"jump"),
 	]
@@ -99,13 +113,17 @@ static func steps() -> Array:
 		{"kind": "wait", "seconds": 0.55},
 		{"kind": "fx", "id": "plant", "target": knight, "seconds": 0.1, "tag": "stand"},
 		{"kind": "sfx", "id": "land", "db": -8.0},
+		# 处境：剑里的火星替「里面还有人」作证，字幕只是钉一下。
 		{"kind": "caption", "text": LINES[0], "hold": 1.1},
+		# 身份第一拍：镜头开始退，「你不是被选中的」跟着退。
 		{"kind": "caption", "text": LINES[1], "hold": 1.2, "tag": "pullback"},
+		# 身份第二拍：坟群应声亮起，偶也是其中一座 —— 这句等画面说完再落。
+		{"kind": "caption", "text": LINES[2], "hold": 1.0, "tag": "grave_row"},
 		{"kind": "sfx", "id": "bell_toll", "tag": "toll"},
 		{"kind": "fx", "id": "bell_ring", "target": knight, "seconds": 0.0},
-		{"kind": "caption", "text": LINES[2], "hold": 1.0},
+		{"kind": "caption", "text": LINES[3], "hold": 1.0},
 		{"kind": "wait", "seconds": 1.0},
-		{"kind": "caption", "text": LINES[3], "hold": 1.1},
+		{"kind": "caption", "text": LINES[4], "hold": 1.1},
 		{"kind": "wait", "seconds": 0.15},
 		card,
 		{"kind": "tableau", "id": "world"},
@@ -213,12 +231,15 @@ static func _on_step(_index: int, step: Dictionary) -> void:
 			_end_rise()
 		"pullback":
 			_begin_pullback()
+		"grave_row":
+			# 身份第二拍的字幕和坟群的回应同时起：文字晚半步，画面先说话。
+			if is_instance_valid(_dolly):
+				_grave_row_answer(_dolly.get_parent())
 		"toll":
 			_begin_pan()
 		"card":
 			Music.stinger(&"chapter")
 			_begin_return()
-
 
 ## 剑先锈了：骑士趴在地上，死亡动画倒放成「撑起来」。真实精灵先藏起来，结束或中断时必还原。
 static func _begin_rise() -> void:
@@ -264,6 +285,7 @@ static func _end_rise() -> void:
 
 
 ## 身份：镜头离开骑士退到巢与坟，巢口冒一缕火星，暖光呼吸一次 —— 「歇脚的地方」。
+## 退到位时骑士落在坟群边缘：他自己也是其中一座，字幕的「自己先锈透了」不用解释。
 static func _begin_pullback() -> void:
 	var cam := _camera()
 	var knight := _knight_node()
@@ -283,6 +305,24 @@ static func _begin_pullback() -> void:
 	var nest := _nest_pos()
 	Director.play_fx("ember_rise", nest)
 	CineFx.glow_pulse(world, nest + Vector2(6.0, -24.0), Color(1.0, 0.62, 0.28, 0.5), 1.8, 1.3)
+
+
+## 身份拍的最后一笔：骑士身边的几座坟依次回应，烘出「偶也是坟里的一座」。
+## 由第二句字幕的 tag 触发（grave_row），镜头停稳的同时坟开始应。
+static func _grave_row_answer(world: Node) -> void:
+	if world == null:
+		return
+	var xs := grave_xs(world)
+	var shown := 0
+	for x in xs:
+		if x > PULLBACK_X + 220.0:
+			continue
+		if shown >= 3:
+			break
+		shown += 1
+		var beat := world.create_tween()
+		beat.tween_interval(0.22 * float(shown - 1))
+		beat.tween_callback(Director.play_fx.bind("grave_answer", Vector2(x, GROUND_Y)))
 
 
 ## 异象 + 目标：钟声落下，镜头沿走廊匀速往东，坟一座座冒灰回应；到头时残芯跳两下。
@@ -321,8 +361,8 @@ static func _begin_pan() -> void:
 static func _grave_answers(x: float) -> void:
 	Director.play_fx("grave_answer", Vector2(x, GROUND_Y))
 
-
 ## 镜头到头：残芯的光跳两下（还没点燃，只是有东西在下面醒着），镜头缓缓推近。
+## 门后立着刽子手的剪影：目标先被看见，字幕「你得把他们带下去」才有落点。
 static func _arrive() -> void:
 	var cam := _camera()
 	if not is_instance_valid(_dolly):
@@ -331,9 +371,30 @@ static func _arrive() -> void:
 	if cam != null:
 		cam.focus(_dolly, ZOOM_ARRIVE, 0.7)
 	_pulse_heart(world)
+	# 第二下心跳压慢半拍：像隔着门传上来的，而不是同一盏灯在闪。
 	var beats := _dolly.create_tween()
-	beats.tween_interval(0.75)
+	beats.tween_interval(HEART_SECOND_BEAT)
 	beats.tween_callback(_pulse_heart.bind(world))
+	# 门后的剪影：玩家第一次看清「要去打谁」，比任何字幕都直接。
+	var gate := _gate_pos()
+	if gate != Vector2.INF:
+		CineFx.glow_pulse(world, gate + Vector2(0.0, -30.0),
+				Color(1.0, 0.45, 0.2, 0.34), 1.5, 1.1)
+		Director.play_fx("shock_ring", gate + Vector2(0.0, -30.0))
+
+
+## 刽子手门前的位置（Level01EastWing 把 BossGate 放在 x=1688，刽子手立在 x=1860）。
+## 真实场景里问不到就退回常量；这一下只是冷光，不牵动战斗。
+static func _gate_pos() -> Vector2:
+	if is_instance_valid(_dolly):
+		var world := _dolly.get_parent()
+		if world != null:
+			var props := world.get_node_or_null("Props") as Node2D
+			if props != null:
+				for child in props.get_children():
+					if child is ExecutionerBoss and (child as Node2D).position.y > 300.0:
+						return (child as Node2D).global_position
+	return Vector2(1860.0, GROUND_Y)
 
 
 static func _pulse_heart(world: Node) -> void:
@@ -360,6 +421,8 @@ static func _cut_to_knight() -> void:
 		return
 	_snap_camera_to_knight(cam)
 	cam.focus(_knight_node() if _knight_node() != null else _knight_pos(), 1.0, 0.25)
+	# 交还前的最后一拍：骑士自己抖落斗篷上的锈，镜头跟着他，不抢操作。
+	Director.play_fx("dust_puff", _knight_pos() + Vector2(0.0, -40.0))
 
 
 ## 镜头直接落回骑士身上，不从走廊尽头飞回来（跳过 / 中断 / 章节卡下的切回都用它）。
@@ -388,6 +451,8 @@ static func _on_script_finished() -> void:
 	Music.set_state(&"calm")
 	_knight = null
 	_nest = null
+	# 交接的那一下有个轻提示音：不看字幕也知道「现在轮到你了」。
+	Sfx.play(&"hint_show", 0.04, -6.0)
 	Director.show_hint(move_prompt())
 
 
