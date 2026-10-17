@@ -220,7 +220,9 @@ func _decorate_cathedral(host: Node2D) -> void:
 	_plant_ruin_plate(decor, "res://assets/env/bg_altar_cut.png", Vector2(2004, 128), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
 	_plant_torch(decor, Vector2(2064, 224))
 
-	_plant_env_sprite(decor, "res://assets/env/slab_a.png", Vector2(1710, 296), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
+	# 矮墩上的残石：以前这里是 48×48 的地台铺石板（平顶方块），
+	# 单独立在墓地行里读不懂；换成有轮廓的碎石，和旁边的 rubble_b 同一族。
+	_plant_env_sprite(decor, "res://assets/env/rubble_c.png", Vector2(1724, 296), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1810, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1990, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。

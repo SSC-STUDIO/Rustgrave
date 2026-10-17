@@ -219,9 +219,21 @@ func weather_regions() -> Array:
    新增派生逻辑必须保持该脚本幂等，并在 `assets/external/CREDITS.md` 记来源。
 4. **整数缩放**：`prop()` 的 scale 只能是 1.0；植被用 `assets/env/normalized/props/`
    的 1x 裁切键（`tree_1_px` / `tree_2_px` / `bush_l_px`），不能靠小数缩放把原图压小。
-5. **脚点/挂点**：接地装饰写 `feet`（底边中点，整数像素）；悬挂装饰只写 `hang_top`，
+5. **贴地的“可见底边”**：接地装饰除了 `feet` 落在台面上，贴图最后几行必须有真实不透明
+   像素（不能是“画布还有几行、内容已经空了”的透明/稀疏底边）。`gh_furnace`（炉膛/落地
+   锻炉）、`gh_skull_arch`（渣口）这类从 tiles.png 切出来的暗底刻件，由
+   `tools/gen_theme_tiles.py` 生成像素底座/柱脚拉到画布底；`prop_fit_test` 的
+   “grounded set dressing reaches the ground” 用例锁定这一点（墙板浮雕类豁免）。
+6. **脚点/挂点**：接地装饰写 `feet`（底边中点，整数像素）；悬挂装饰只写 `hang_top`，
    不加入 `grounded` 组。`prop()` 已经按「最后一行不透明像素」落脚，不要按画布底边算。
-6. **室内远景**（`ThemeBackdrop.THEMES`）：室内主题必须至少一层 `"covers_top": true`，
+7. **地形贴图不当装饰**：`SolidPlatform` 的切块（`slab_a/b/c`、`iron_slab_*`、
+   `*_fill*`、`float_*`、`tile_*`）是「平顶 + 断裂底边」的地台素材，单独种在场景里
+   就是一块读不懂的方块。要表现塌落的石墙/锈结构，用有轮廓的 `rubble_*`、
+   `broken_machine`、`girder_*`、`rock_pile`，或让 `tools/gen_theme_tiles.py`
+   把铺石板切成碎片（`slab` 键的族变体已由 `_fracture_slab()` 处理）。
+   `prop_fit_test` 的 `test_decor_never_uses_terrain_slab_tiles` 会同时检查第一章的
+   `PLAY_DECOR` 与各章实际种下的装饰。
+8. **室内远景**（`ThemeBackdrop.THEMES`）：室内主题必须至少一层 `"covers_top": true`，
    真的盖住 640×360 视口的顶部 96px（`wall_*` 平铺墙板或 `truss_*` 顶架）。
    竖井类（钟楼）用 `"tile": true` 的墙板，它的 region 覆盖全部镜头高度，不靠
    `repeat_times`；其它层仍必须 `repeat_times >= 4`。室内主题不加天气（`indoors: true`）。

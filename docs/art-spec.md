@@ -227,7 +227,13 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
    `RainGroundFx.z_index = 2`、`ToxinPool` 蒸汽 z=2 —— 都在角色之下，
    不遮挡轮廓。
 6. 判定形状（hurtbox / hitbox）与精灵无关，特效永不改变判定。
-7. 测试 `tests/theme_motes_test.gd`、`tests/weather_fx_test.gd`、
+7. **水与液体的反馈要有正确方向感**（用户报告「没下雨却有雨滴，而且怎么是扩散的」）：
+   - 雨滴落水：只画**上溅**的 1px 水花 + 沿水面**横向**张开的 1px 亮线（`WeatherFx.
+     WaterRipple`，寿命 ≤0.25 s），不做 8 点径向扩散环，也不长期残留。
+   - 水花强度跟雨势走（`rain_opacity()` 衰减时一起变暗），雨停后不得留下全亮溅落。
+   - 毒池冒泡用程序化整数像素泡（`Fx.ToxinBubble`，半径 1–2px、只向上漂、坐标取整），
+     **禁止**再把彩色粒子表缩放到 0.06–0.1 倍当气泡（缩小后是乱码白点，会被误读成雨）。
+8. 测试 `tests/theme_motes_test.gd`、`tests/weather_fx_test.gd`、
    `tests/world_atmosphere_test.gd` 锁定这些不变量。
 
 ## 世界历史细节（Set Dressing）

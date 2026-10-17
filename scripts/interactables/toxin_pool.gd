@@ -12,7 +12,7 @@ extends Area2D
 var _bodies: Array = []
 var _pool_size := Vector2(112, 32)
 
-const BUBBLE_INTERVAL := 0.4
+const BUBBLE_INTERVAL := 0.55
 var _bubble_accum := 0.0
 
 const SLUDGE_PATH := "res://assets/env/toxin_sludge.png"
@@ -31,9 +31,11 @@ var _hinted := false
 ## 毒雾丝：从液面缓升、随风偏移、加法混合的 2px 绿点簇。纯表现，不进物理。
 const VAPOR_INTERVAL := 0.45
 const VAPOR_MAX := 8
-const VAPOR_TINT := Color(0.55, 0.95, 0.62)
+## 毒雾：偏绿、偏暗的一团。以前往 Palette.FOG（灰白）混 40%，在夜里读成一簇
+## 悬在水面上的白点，被用户误认成"雨滴"；现在只留 14% 灰，主要靠绿雾发光。
+const VAPOR_TINT := Color(0.38, 0.70, 0.44)
 ## 峰值透明度：加法混合下 0.42 在夜里几乎读不出，0.62 是一缕能看见的雾。
-const VAPOR_PEAK_ALPHA := 0.62
+const VAPOR_PEAK_ALPHA := 0.54
 var _vapor: Node2D
 ## Optional recolour of the authored (green) sludge through the chapter grade shader:
 ## a 5-stop dark -> light ramp (e.g. the spec's orange coolant). Empty = authored colour.
@@ -241,7 +243,7 @@ func _physics_process(delta: float) -> void:
 	_bubble_accum += delta
 	if _bubble_accum >= BUBBLE_INTERVAL:
 		_bubble_accum -= BUBBLE_INTERVAL
-		Fx.toxin_bubbles(self, _bubble_rect())
+		Fx.toxin_bubbles(self, _bubble_rect(), _bubble_tint())
 
 
 func _prune_bodies() -> void:
@@ -264,10 +266,21 @@ func _maybe_hint() -> void:
 
 
 func _bubble_rect() -> Rect2:
+	# 从水面（甚至略高于水面）开始冒：气泡要在水线以上看得见，不能整段生命
+	# 都埋在暗色水体里——那样只剩水面下的绿色噪点。
 	return Rect2(
-		Vector2(4.0, _pool_size.y * 0.15),
-		Vector2(_pool_size.x - 8.0, _pool_size.y * 0.55)
+		Vector2(4.0, -2.0),
+		Vector2(_pool_size.x - 8.0, _pool_size.y * 0.40)
 	)
+
+
+## 气泡颜色跟液面一致：普通毒池是酸绿；第 4 章冷却液池通过 sludge ramp 的
+## vapour tint 变成橙色，气泡不能还是绿的。
+func _bubble_tint() -> Color:
+	var base := vapor_modulate
+	if base == Color.WHITE:
+		base = VAPOR_TINT
+	return base.lerp(Color.WHITE, 0.18)
 
 
 ## 一缕毒雾：3–5 个方点松散成簇，几乎垂直上升，只轻微摇摆；风只推一点点，
@@ -304,7 +317,7 @@ class Wisp extends Node2D:
 			cell.polygon = PackedVector2Array([
 				Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half),
 			])
-			cell.color = ToxinPool.VAPOR_TINT.lerp(Palette.FOG, randf() * 0.4)
+			cell.color = ToxinPool.VAPOR_TINT.lerp(Palette.FOG, randf() * 0.14)
 			cell.material = Fx.additive_mat()
 			var p := Vector2(randf_range(-4.0, 4.0), randf_range(-3.0, 1.0))
 			cell.position = p.round()

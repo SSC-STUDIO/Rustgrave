@@ -78,16 +78,29 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 	var spots: Array = SPOTS.get(level_id, DEFAULT_SPOTS)
+	# 测量时冻结 AI 与玩家物理：只量渲染/场景开销，避免"骑士被 Boss 打死→死亡重载
+	# 换场景"把探针节点一起释放（那会让本轮测量崩在 await 上）。
+	player.set_physics_process(false)
+	player.health.invincible = true
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.set_physics_process(false)
+		enemy.set_process(false)
 	var rows: Array = []
 	for x in spots:
 		if Time.get_ticks_msec() > deadline:
 			printerr("perf probe: deadline hit")
 			break
+		if not is_inside_tree():
+			printerr("perf probe: scene replaced, stopping")
+			break
 		camera.global_position = Vector2(x, 220.0)
 		camera.force_update_scroll()
 		camera.set_physics_process(false)
-		player.global_position = Vector2(x - 120.0, 320.0)
+		# 玩家停在安全区：镜头取景靠 camera，不让人走进 Boss 战场。
+		player.global_position = Vector2(96.0, 320.0)
 		await get_tree().create_timer(SETTLE_SECONDS).timeout
+		if not is_inside_tree():
+			break
 		# 丢弃 2 秒预热：首次进入镜头会触发贴图懒加载 / 着色器编译，
 		# 把它算进平均帧时间会得到"第一个机位总是最卡"的假结论。
 		var warm_until := Time.get_ticks_usec() + 2_000_000

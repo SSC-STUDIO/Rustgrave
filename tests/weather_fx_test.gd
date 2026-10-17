@@ -68,6 +68,48 @@ func test_water_hit_splashes_without_wet() -> void:
 	ok(fx.water_y_at(120.0) < 0.0, "dirt span is not a pool")
 
 
+## 用户报告「没下雨却有水花」：雨势退去时水花必须一起变暗，不能留下全亮残留。
+## 强度 0 = 雨已经停了，水花 alpha 应≈0（几何仍在，只是不可见）。
+func test_water_splash_fades_with_the_rain_strength() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var pool := ToxinPool.new()
+	pool.position = Vector2(400.0, 336.0)
+	host.add_child(pool)
+	pool.configure(Vector2(112.0, 32.0))
+	var fx := WeatherFx.new()
+	host.add_child(fx)
+	fx._on_water_hit(Vector2(456.0, 336.0), 0.0)
+	var ground := fx.ground_fx()
+	var splashes := ground.get_node_or_null("Splashes")
+	ok(splashes != null and splashes.get_child_count() >= 1, "dry hits still allocate (pool reuse)")
+	if splashes != null:
+		for child in splashes.get_children():
+			var spr := child as Sprite2D
+			ok(spr != null and spr.modulate.a <= 0.02,
+					"a stopped-rain splash is invisible (a=%.2f)" % (spr.modulate.a if spr else -1.0))
+
+
+## 落水只往上溅（单方向）：入水方向竖直，水花不该横向乱飞，更不该是径向扩散环。
+func test_water_splash_is_a_small_upward_fan() -> void:
+	var speck := WeatherFx.WaterSpeck.new(null)
+	add_child(speck)
+	speck.arm(1.0)
+	var launch: Vector2 = speck.get("_vel")
+	ok(launch.y < 0.0, "launch velocity points up from the surface (%.1f)" % launch.y)
+	ok(absf(launch.x) <= 12.0, "lateral fan stays narrow (%.1f)" % launch.x)
+	var y0 := speck.position.y
+	speck.tick(0.04)
+	ok(speck.position.y <= y0, "the first frame never pushes the spray down")
+	speck.queue_free()
+	# 涟漪寿命短、只在水平方向张开（不做 8 点径向环）。
+	var ring := WeatherFx.WaterRipple.new()
+	add_child(ring)
+	ring.arm(1.0)
+	ok(ring.get("_life") <= 0.25, "the surface impact read is short, not a lingering sonar ring")
+	ring.queue_free()
+
+
 func test_water_stops_rain_above_the_pit_floor() -> void:
 	var host := Node2D.new()
 	add_child(host)

@@ -20,7 +20,6 @@ const DECOR_TREE_1_PX := "res://assets/env/normalized/props/tree-1_48.png"
 const DECOR_TREE_2_PX := "res://assets/env/normalized/props/tree-2_46.png"
 const DECOR_BUSH_L_65 := "res://assets/env/normalized/props/bush-large_65.png"
 const DECOR_BUSH_L_62 := "res://assets/env/normalized/props/bush-large_62.png"
-const DECOR_RUST_BLOCK := "res://assets/env/iron_slab_a.png"
 
 enum Hardness { STEEL, STONE, TREE, BUSH }
 
