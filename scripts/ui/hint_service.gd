@@ -37,7 +37,9 @@ const TOP := 64.0
 ## 内置提示表。order 决定"教程回看"里的排序；title 是回看列表里的小标题。
 const CATALOG := {
 	&"peek": {"order": 0, "title": "目标与天气",
-			"text": "按住 Tab 查看目标与天气 · Esc 暂停 / 设置"},
+			"text": "按住 Tab 查看目标与天气 · Esc 暂停 / 设置",
+			# Touch sessions (on-screen pad): no keyboard keys in the wording.
+			"touch_text": "轻点状态带查看目标与天气 · Ⅱ 暂停 / 设置"},
 	&"swing": {"order": 10, "title": "挥砍",
 			"text": "挥砍中再按 {attack}：判定末段或收刀时衔接，可接三连"},
 	&"dash": {"order": 20, "title": "冲刺",
@@ -149,7 +151,10 @@ static func template_for(id: StringName, given: String = "") -> String:
 	if given != "":
 		return given
 	if CATALOG.has(id):
-		return String(CATALOG[id]["text"])
+		var entry: Dictionary = CATALOG[id]
+		if entry.has("touch_text") and TouchInput.wants_overlay():
+			return String(entry["touch_text"])
+		return String(entry["text"])
 	var cache: Variant = Settings.value(TEXT_CACHE_KEY, {})
 	if cache is Dictionary:
 		return String((cache as Dictionary).get(String(id), ""))
