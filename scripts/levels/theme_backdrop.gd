@@ -62,14 +62,22 @@ const THEMES := {
 		],
 	},
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。
+	# 冷石殿：板岩青灰石，暖光只来自烛台（不是第一章的锈红、第八章的炉橙，也不再是薰衣草紫）。
 	"cathedral": {
 		"indoors": true,
-		"void": Color(0.045, 0.04, 0.075),
-		"mood": Color(0.72, 0.7, 0.9),
+		"void": Color(0.035, 0.04, 0.05),
+		"mood": Color(0.84, 0.88, 0.96),
 		"layers": [
-			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.2, 0.17, 0.3, 0.9), "repeat": 448.0},
+			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color.WHITE, "region": Rect2(0, 0, 480, 168)},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.14, 0.16, 0.2, 0.9), "repeat": 448.0},
 		],
+		"grade": {
+			"ramp": [Color("#08090c"), Color("#1a1e25"), Color("#363d47"), Color("#6f7a86"), Color("#d3dade")],
+			"plates": {"Layer0": 0.85, "Layer1": 0.8},
+			"values": {"Layer0": 0.95, "Layer1": 1.0},
+			"play_ramp": [Color("#0d0e11"), Color("#2b3037"), Color("#555d66"), Color("#a3a9ab"), Color("#f4eee0")],
+			"play_amount": 0.7,
+		},
 	},
 	# 钟楼：竖井。橄榄色城砖墙双向平铺爬满整座塔（没有地面线，抬多高都不穿帮），
 	# 箭窗透冷光；地面一层再压一条殿墙。
@@ -121,6 +129,22 @@ const THEMES := {
 	},
 }
 
+## Level06 night graveyard reuses chapter 1's sky stack; this palette makes it a cold,
+## moonlit place (bone, ash, fog-teal) instead of a second rust dusk.
+const NIGHT_GRAVEYARD := {
+	"ramp": [Color("#080b10"), Color("#18222c"), Color("#2f4250"), Color("#68848c"), Color("#d2e0da")],
+	"plates": {"Far": 0.9, "Mid": 0.9, "Hills": 0.85, "SkyCloudsHigh": 0.85, "SkyCloudsLow": 0.85, "Foreground": 0.8},
+	"values": {"Far": 1.0, "Mid": 0.82, "Hills": 0.7, "SkyCloudsHigh": 0.95, "SkyCloudsLow": 0.9, "Foreground": 0.8},
+	"warm": Color(0.86, 1.0, 1.12),
+	"cloud_tint": Color(1.0, 1.1, 1.18),
+	"veil": Color(0.74, 0.82, 0.84),
+	"sil_tint": Color(0.08, 0.11, 0.13, 0.95),
+	"play_ramp": [Color("#0a0c0e"), Color("#1d2526"), Color("#3c4a47"), Color("#7e8f86"), Color("#dfe2d2")],
+	"play_amount": 0.72,
+}
+## Play-layer folders a ChapterLayout builds (see ChapterLayout.group / decor_layer).
+const PLAY_FOLDERS := ["Platforms", "Decor"]
+
 const BREATH_AMP := 0.03
 const BREATH_RATE := 0.35
 
@@ -165,6 +189,10 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 	for layer_def in theme.get("layers", []):
 		_add_layer(backdrop, "Layer%d" % i, layer_def)
 		i += 1
+	var grade: Dictionary = theme.get("grade", {})
+	if not grade.is_empty():
+		Level01Parallax.grade_plates(backdrop, grade)
+		Level01Parallax.grade_play_layer(host, grade, PLAY_FOLDERS)
 	# Do not copy these strips up a tall shaft. Each plate is a scene with its
 	# ground line on the bottom edge (hall at y=320, columns at y=336). A copy
 	# shifted by the texture height plants that same wall in the air.
@@ -212,11 +240,13 @@ func _build_graveyard(host: Node2D) -> void:
 		front.layer = 1
 		front.follow_viewport_enabled = false
 		host.add_child(front)
-		_add_plate(front, "Foreground", "res://assets/env/normalized/parallax_foreground_px.png", Vector2(1.22, 0.18), Vector2(0, 352), 1.0, Color(0.16, 0.12, 0.2, 0.78))
+		_add_plate(front, "Foreground", "res://assets/env/normalized/parallax_foreground_px.png", Vector2(1.22, 0.18), Vector2(0, 352), 1.0, Color(0.1, 0.13, 0.16, 0.78))
 	var extras := Level01Parallax.new()
 	extras.name = "ParallaxExtras"
+	extras.palette = NIGHT_GRAVEYARD
 	host.add_child(extras)
 	extras.build(host)
+	Level01Parallax.grade_play_layer(host, NIGHT_GRAVEYARD, PLAY_FOLDERS)
 
 
 func _add_plate(parent: Node, plate_name: String, path: String, scroll: Vector2, pos: Vector2, scale_k: float,
