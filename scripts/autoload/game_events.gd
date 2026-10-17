@@ -24,3 +24,8 @@ signal ending_chosen(kind: StringName)
 signal boss_appeared(boss_name: String, current_hp: int, max_hp: int)
 signal boss_hp_changed(current_hp: int, max_hp: int)
 signal boss_defeated
+## Shared staging signals. Emitters: ChapterLevel/Level01 (chapter_started), boss scripts
+## (boss_intro_started, boss_phase_changed). Listeners: Music, HUD hints, Director beats.
+signal chapter_started(level_id: String)
+signal boss_intro_started(boss_name: String)
+signal boss_phase_changed(boss_name: String, phase: int)

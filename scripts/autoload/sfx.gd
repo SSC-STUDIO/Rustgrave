@@ -94,8 +94,16 @@ func play(key: StringName, pitch_jitter: float = 0.08, volume_db: float = BASE_D
 			return
 
 
+## World-positioned one-shot (CONTRACT: callers pass the source's global_position;
+## the audio package attenuates / pans by distance to the camera). Until then it
+## behaves like play() so callers can adopt the API now.
+func play_at(key: StringName, _world_pos: Vector2, pitch_jitter: float = 0.08, volume_db: float = BASE_DB) -> void:
+	play(key, pitch_jitter, volume_db)
+
+
 ## Grounded walk cadence. Presentation only — callers already decided "moving".
-func tick_stride(moving: bool, wet: bool, delta: float) -> void:
+## `surface` (CONTRACT): &"stone" | &"dirt" | &"metal" | &"wet" | &"sludge"; unknown = stone.
+func tick_stride(moving: bool, wet: bool, delta: float, _surface: StringName = &"stone") -> void:
 	if DisplayServer.get_name() == "headless":
 		return
 	if not moving:
