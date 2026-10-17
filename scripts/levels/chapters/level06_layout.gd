@@ -27,6 +27,9 @@ const PIT_DEPTH := 32.0
 const PIT_BED_Y := FLOOR_Y + PIT_DEPTH
 ## 墓园里毒液保持原色（第一关同款）；地窟的酸黄绿是给青砖苔盖用的。
 const TOXIN_TINT := Color.WHITE
+## 墓园里不该出现教堂的淡紫石板。浮石仍是教堂浮石皮肤（测试锁定），但乘一道
+## 干土色：紫被压成湿石头的暖灰，和锈月/青草的环境色是一家。
+const SLAB_TONE := Color(0.98, 0.9, 0.62)
 
 ## [name, x0, x1, cap_left, cap_right]
 const FLOORS: Array = [
@@ -185,7 +188,7 @@ func _build_terrain(host: Node2D) -> void:
 	for m in MOUNDS:
 		platform(host, String(m[0]), m[1] as Vector2, m[2] as Vector2, "ground")
 	for s in STONES:
-		step(host, String(s[0]), s[1] as Vector2, float(s[2]), "floating")
+		step(host, String(s[0]), s[1] as Vector2, float(s[2]), "floating", SLAB_TONE)
 	walls(host, "ground")
 
 
@@ -218,14 +221,14 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "door_arch", Vector2(40, 320), 1.0, Color(0.62, 0.6, 0.72))
 	foliage(host, "bush_s", Vector2(112, 320), 1.0)
 	prop(host, "stone_1", Vector2(222, 320))
-	foliage(host, "tree_2", Vector2(296, 320), 0.55, true)
+	foliage(host, "tree_2_px", Vector2(296, 320), 1.0, true)
 	prop(host, "stone_3", Vector2(452, 320))
 	# ② 坟堆丛
-	foliage(host, "bush_l", Vector2(508, 320), 0.62)
+	foliage(host, "bush_l_px", Vector2(508, 320), 1.0)
 	prop(host, "grave_cross", Vector2(608, 288))
 	prop(host, "stone_4", Vector2(688, 320))
 	# 0.5 倍的树冠铺到 x≈859，会盖住 888 的十字墓。左脚收到石块东侧。
-	foliage(host, "tree_1", Vector2(712, 320), 0.5, true)
+	foliage(host, "tree_1_px", Vector2(712, 320), 1.0, true)
 	prop(host, "grave_cross", Vector2(888, 320))
 	# ④ 陵门：石墩 + 闸门 + 守墓者
 	prop(host, "stone_1", Vector2(1216, 320))
@@ -235,9 +238,9 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "stone_4", Vector2(1816, 288))
 	prop(host, "balustrade", Vector2(1900, 320))
 	# ⑥ 骸骨林：浮石压在老树的树冠上
-	foliage(host, "tree_1", Vector2(1996, 320), 0.6, true)
+	foliage(host, "tree_1_px", Vector2(1996, 320), 1.0, true)
 	prop(host, "stone_3", Vector2(2080, 320))
-	foliage(host, "tree_2", Vector2(2184, 320), 0.5, true)
+	foliage(host, "tree_2_px", Vector2(2184, 320), 1.0, true)
 	foliage(host, "bush_s", Vector2(2270, 320), 1.0)
 	# ⑧ 钟楼门
 	prop(host, "stone_2", Vector2(2632, 320))

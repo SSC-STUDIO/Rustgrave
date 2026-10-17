@@ -93,6 +93,8 @@ const ENEMIES: Array = [
 ## 也不竖 bg_wall_torch：那是室内墙板，会挡掉夜城远山。
 ## 装饰门洞（地窟出口 / 店门）：压暗以免读成机关闸门。
 const ARCH_TINT := Color(0.82, 0.8, 0.84)
+## 死城街上没有春天的新叶：灌木压成干枯的灰橄榄，别在锈砖上跳一块鲜绿。
+const DRY_BUSH := Color(0.72, 0.7, 0.5)
 
 
 func level_id() -> String:
@@ -197,26 +199,26 @@ func _build_enemies(host: Node2D) -> void:
 func _build_decor(host: Node2D) -> void:
 	# ① 街道：地窟门洞、一丛杂草、干石渣、水沟两岸的石栏。不用墓园树和苔石。
 	prop(host, "door_arch_town", Vector2(40, 320), 1.0, ARCH_TINT)
-	foliage(host, "bush_s", Vector2(368, 320), 1.0)
+	foliage(host, "bush_s", Vector2(368, 320), 1.0, false, DRY_BUSH)
 	prop(host, "rubble_dry", Vector2(464, 320))
 	prop(host, "balustrade_town", Vector2(520, 320))
 	prop(host, "balustrade_town", Vector2(760, 320))
 	# ② 屋顶下的街面：干石、店门洞、门前杂草
 	prop(host, "rubble_dry", Vector2(920, 320))
 	prop(host, "door_arch_town", Vector2(1072, 320), 1.0, ARCH_TINT)
-	foliage(host, "bush_s", Vector2(1108, 320), 1.0)
+	foliage(host, "bush_s", Vector2(1108, 320), 1.0, false, DRY_BUSH)
 	# ④ 广场：一栋还立着的砖屋当地标（压暗压冷，退到夜城后面），石栏和干石。
 	# 枯树、守墓者石像是墓园的，不搬到街上。
 	prop(host, "brick_house", Vector2(1660, 320), 1.0, Color(0.42, 0.46, 0.54))
 	prop(host, "balustrade_town", Vector2(1544, 320))
 	prop(host, "rubble_dry", Vector2(1656, 320))
-	prop(host, "rubble_dry_b", Vector2(1744, 320))
-	foliage(host, "bush_s", Vector2(1836, 320), 1.0)
+	prop(host, "rubble_dry_c", Vector2(1744, 320))
+	foliage(host, "bush_s", Vector2(1836, 320), 1.0, false, DRY_BUSH)
 	# ⑤ 窄巷：檐下是灰藤，不是鲜苔；巷底干石
 	hanging(host, "vine", Vector2(1960, 272), Color(0.4, 0.42, 0.4, 0.75))
 	hanging(host, "vine", Vector2(2200, 272), Color(0.4, 0.42, 0.4, 0.75))
 	prop(host, "rock_pile", Vector2(2064, 352), 1.0, Color(0.6, 0.62, 0.7))
 	# ⑥ 圣殿前阶：阶口杂草、干石、前台石栏
-	foliage(host, "bush_s", Vector2(2250, 320), 1.0)
+	foliage(host, "bush_s", Vector2(2250, 320), 1.0, false, DRY_BUSH)
 	prop(host, "rubble_dry", Vector2(2352, 288))
 	prop(host, "balustrade_town", Vector2(2528, 256))

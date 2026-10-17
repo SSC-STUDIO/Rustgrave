@@ -39,6 +39,9 @@ const VINE_TINT := Color(0.45, 0.22, 0.1, 0.85)
 const ARCH_TINT := Color(1.0, 0.8, 0.62)
 const RUBBLE_TINT := Color(1.0, 0.82, 0.64)
 const COLUMN_TINT := Color(0.62, 0.44, 0.32)
+## 历史机械件（Kenney 派生的 1x 铁/渣族副本）：压一档炉灰，别比地面还亮。
+const GIRDER_TINT := Color(0.86, 0.7, 0.58)
+const PIPE_TINT := Color(0.8, 0.66, 0.56)
 
 const ENTRY_SPAWN := Vector2(96, 300)
 
@@ -253,14 +256,19 @@ func _build_decor(host: Node2D) -> void:
 	for x in cable_xs:
 		hanging(host, "vine", Vector2(x, CEILING_Y + 32.0), VINE_TINT)
 	for x in ARCHES:
-		prop(host, "slab", Vector2(x, FLOOR_Y), 1.15, ARCH_TINT)
-	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]
+		prop(host, "slab", Vector2(x, FLOOR_Y), 1.0, ARCH_TINT)
+	# 十字形碎石是墓园符号；渣地上只留普通碎渣。
+	var rubble_keys := ["rubble_dry", "rubble_dry_c"]
 	for i in range(RUBBLE.size()):
 		prop(host, rubble_keys[i % rubble_keys.size()], Vector2(RUBBLE[i], FLOOR_Y), 1.0, RUBBLE_TINT)
 	# 熔渣支柱用本主题干石板，不用圣殿 column_big（背景已是工业剪影）。
 	for x in COLUMNS:
-		prop(host, "slab", Vector2(x, FLOOR_Y), 1.15, COLUMN_TINT)
+		prop(host, "slab", Vector2(x, FLOOR_Y), 1.0, COLUMN_TINT)
 	# 渣口：骷髅炉口立在落口和锈门边；骨渣散在渣堤上——渣记得剑，也记得人。
 	prop(host, "skull_arch", Vector2(24, FLOOR_Y))
+	# 坏在这里的机械：渣堤上那台不转了，断掉的斜撑倒在渣河边上，排气管还立着。
+	prop(host, "broken_machine", Vector2(1088, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "girder_l", Vector2(1168, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "pipe_valve", Vector2(2072, FLOOR_Y), 1.0, PIPE_TINT)
 	prop(host, "bones", Vector2(1016, FLOOR_Y), 1.0, RUBBLE_TINT)
 	prop(host, "bones", Vector2(2232 + 64, FLOOR_Y), 1.0, RUBBLE_TINT)

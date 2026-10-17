@@ -26,6 +26,10 @@ const TORCH_TINT := Color(1.0, 0.94, 0.86)
 const CABLE_TINT := Color(0.42, 0.26, 0.14, 0.8)
 ## 立柱压成烘过的石色，和暖石板是一家。
 const PILLAR := Color(0.72, 0.62, 0.52)
+## 历史机械件（斜撑 / 阀座 / 坏机械 / 断链）：铁族派生副本已经是暖褐色，只压一档灰尘。
+const GIRDER_TINT := Color(0.9, 0.78, 0.68)
+const PIPE_TINT := Color(0.82, 0.74, 0.66)
+const CHAIN_TINT := Color(0.78, 0.66, 0.52, 0.9)
 
 const WALK_Y := 208.0
 const DECK_Y := 200.0
@@ -253,16 +257,22 @@ func _build_enemies(host: Node2D) -> void:
 ## -------------------------------------------------------------------- decor --
 
 func _build_decor(host: Node2D) -> void:
-	# 工坊只用这套像素石作。Kenney 的平滑工字梁是另一套画风，竖在炉边像贴上去的。
+	# 工坊地面只用本主题像素石板/碎渣；Kenney 的机械件只种派生过的 1x 族副本
+	# （girder / pipe_valve / broken_machine / chain，见 tools/gen_theme_tiles.py
+	# 的 history_prop_variants），不再把 70×70 的平滑灰板直接贴进关里。
 	torch(host, 440.0, FLOOR_Y, TORCH_TINT)
 	# 456 整块落在 440 的壁炬墙板里。收到路牌和火把之间。
 	prop(host, "rubble_dry", Vector2(390, FLOOR_Y))
 	prop(host, "plate", Vector2(728, FLOOR_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 760.0, FLOOR_Y, TORCH_TINT)
 	prop(host, "plate", Vector2(848, WALK_Y), 1.0, Color(0.72, 0.66, 0.58))
-	prop(host, "rubble_dry_b", Vector2(900, FLOOR_Y))
+	# 十字形碎石是墓园符号，工坊地上换普通碎渣。
+	prop(host, "rubble_dry_c", Vector2(900, FLOOR_Y))
 	# 工坊支柱用本主题石板/金属板，不用圣殿 column_big。
 	prop(host, "plate", Vector2(990, FLOOR_Y), 1.0, PILLAR)
+	# 「上一班没干完的活」：倒下的斜撑还靠在闸门西侧，阀座留在原地。
+	prop(host, "girder_l", Vector2(1040, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "pipe_valve", Vector2(1080, FLOOR_Y), 1.0, PIPE_TINT)
 	torch(host, 1688.0, FLOOR_Y, TORCH_TINT)
 	prop(host, "plate", Vector2(1744, DECK_Y), 1.0, Color(0.72, 0.66, 0.58))
 	prop(host, "slab", Vector2(1784, FLOOR_Y), 1.0, Color(0.7, 0.6, 0.52))
@@ -271,8 +281,12 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "rubble_dry", Vector2(2524, FLOOR_Y))
 	# 台阶从 2624 起。石板收在台阶西侧的空地上，不立在踏步中间。
 	prop(host, "plate", Vector2(2588, FLOOR_Y), 1.0, PILLAR)
+	prop(host, "broken_machine", Vector2(2696, FLOOR_Y), 1.0, GIRDER_TINT)
 	prop(host, "plate", Vector2(2856, WALK_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 2832.0, FLOOR_Y, TORCH_TINT)
 	# 顶板垂下的旧缆：仍用窄藤条资源，但染成锈缆色，数量更少。
 	for x in [300.0, 1560.0, 2596.0]:
 		hanging(host, "vine", Vector2(x, 0), CABLE_TINT)
+	# 吊装的残链：工坊的核心机械是吊链，断掉的那半截还挂在顶板下。
+	for x in [640.0, 1904.0]:
+		hanging(host, "chain", Vector2(x, 0), CHAIN_TINT)

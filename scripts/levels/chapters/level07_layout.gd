@@ -48,6 +48,8 @@ const LIFTS: Array = [
 const LIFT_TRAVEL := Vector2(0, -240)
 const LIFT_WIDTH := 80.0
 const LIFT_PERIOD := 9.6
+## 钟楼是橄榄城砖 + 冷光的室内；尖窗玻璃压成月光色，不是教堂的紫窗。
+const WINDOW_TINT := Color(0.66, 0.68, 0.86)
 const PLATE_FEET := Vector2(720, -160)
 const DOOR_POS := Vector2(480, -224)
 const EXIT_POS := Vector2(1172, TOP_Y)
@@ -126,10 +128,15 @@ func build(host: Node2D) -> void:
 	# 塔顶火把原在 1232，墙板从 1200 起，和出口门叠在一起。现在门右缘 1196，火把左缘 1216。
 	for feet in [Vector2(80, 320), Vector2(656, 80), Vector2(784, -160), Vector2(656, -400), Vector2(1248, TOP_Y)]:
 		torch(host, feet.x, feet.y, Color(0.8, 0.82, 1.0))
-	for feet in [Vector2(520, 80), Vector2(888, -160), Vector2(520, -400)]:
-		prop(host, "balustrade", feet, 0.7)
-	for feet in [Vector2(800, 320), Vector2(736, 80), Vector2(688, -160), Vector2(736, -400)]:
-		prop(host, "window", feet, 0.65, Color(0.65, 0.65, 0.85))
+	# 1x 整数缩放：0.7 / 0.65 会把像素拉成半格，近看是软边（docs/art-spec.md）。
+	for feet in [Vector2(520, 80), Vector2(520, -400)]:
+		prop(host, "balustrade", feet, 1.0)
+	# GalleryB 东端 912：80px 石栏在 888 会探出台面 16px，收到 864。
+	prop(host, "balustrade", Vector2(864, -160), 1.0)
+	# 尖窗是墙面装饰（z=-3），让开 64px 宽的壁炬墙板（624..688 / 752..816），
+	# 否则窗框会被火盘吞掉一半。
+	for feet in [Vector2(800, 320), Vector2(768, 80), Vector2(640, -160), Vector2(768, -400)]:
+		prop(host, "window", feet, 1.0, WINDOW_TINT)
 	# 鲜绿苔藤是地窟的。钟楼里压成灰，才像梁上的积尘。
 	for x in [256.0, 672.0, 1120.0]:
 		hanging(host, "vine", Vector2(x, CEILING_Y + 32), Color(0.5, 0.5, 0.56, 0.7))

@@ -273,16 +273,34 @@ func toxin_pit(host: Node2D, pit_name: String, x0: float, x1: float, depth: floa
 	return toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0), Vector2(x1 - x0, 32.0), tint)
 
 
+## 把交互物的纯色/教堂紫贴片换成当前主题的材质族变体。门与压板是共享场景，
+## 贴图路径写死在 interactable 脚本里；一个工坊地面上的教堂紫门板读起来像另一关的
+## 素材（docs/art-spec.md「每章身份色」「世界历史细节」）。只在当前主题确实有派生
+## 副本时替换，贴图尺寸保持一致，所以碰撞/像素缩放都不变。
+func _harmonize_fill(node: Node, key: String) -> void:
+	var fill := node.get_node_or_null("Fill") as Sprite2D
+	if fill == null or fill.texture == null or not DECOR.has(key):
+		return
+	var path: String = PropCatalog.path_for(key, theme())
+	if path == String(DECOR[key]) or not ResourceLoader.exists(path):
+		return
+	var tex := load(path) as Texture2D
+	if tex != null:
+		fill.texture = tex
+
+
 ## 压板 + 闸门。plate_feet = 压板所在台面（x, y）；door_pos = 门左上角（门 16×64，底在 y+64）。
 func plate_door(host: Node2D, pair_name: String, plate_feet: Vector2, door_pos: Vector2) -> Array:
 	var plate := PLATE.instantiate()
 	plate.name = pair_name + "Plate"
 	plate.position = plate_feet + Vector2(0.0, -6.0)
 	group(host, "Props").add_child(plate)
+	_harmonize_fill(plate, "plate")
 	var door := DOOR.instantiate()
 	door.name = pair_name + "Door"
 	door.position = door_pos
 	group(host, "Props").add_child(door)
+	_harmonize_fill(door, "door_arch")
 	if not plate.activated.is_connected(door.open_door):
 		plate.activated.connect(door.open_door)
 	plate_door_pairs.append([plate, door])
@@ -295,6 +313,7 @@ func rusty_gate(host: Node2D, gate_name: String, pos: Vector2) -> Node:
 	g.name = gate_name
 	g.position = pos
 	group(host, "Props").add_child(g)
+	_harmonize_fill(g, "door_arch")
 	return g
 
 
@@ -434,18 +453,32 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 	spr.set_meta("feet", pinned)
 	spr.set_meta("foot_anchor", "bottom_center")
 	spr.set_meta("opaque_bottom", opaque_bottom)
+	# 贴图可以按主题换成族变体，键名才是「种下的是什么」：prop_fit_test 用它
+	# 反查白名单、透明底和「不在原点」。
+	spr.set_meta("prop_key", key_or_path)
+	spr.set_meta("prop_theme", theme())
 	spr.add_to_group("grounded")
 	decor_layer(host).add_child(spr)
 	return spr
 
 
 ## 会随风摆的树/灌木（用 Level01Env.plant，自动接地检查）。
-func foliage(host: Node2D, key: String, feet: Vector2, scale_k: float, shed_leaves: bool = false) -> Sprite2D:
+## `tint` 用来把墓园的鲜绿压成本章该有的干色（锈城/城墙上的草不是春天）。
+func foliage(host: Node2D, key: String, feet: Vector2, scale_k: float, shed_leaves: bool = false,
+		tint: Color = Color.WHITE) -> Sprite2D:
 	if DECOR.has(key) and not prop_allowed(key):
 		push_warning("ChapterLayout: foliage '%s' not in theme '%s' allowlist" % [key, theme()])
 		return null
 	var path := PropCatalog.path_for(key, theme())
-	return Level01Env.plant(decor_layer(host), path, feet, scale_k, Color.WHITE, shed_leaves)
+	var spr := Level01Env.plant(decor_layer(host), path, feet, scale_k, tint, shed_leaves)
+	if spr != null:
+		spr.set_meta("prop_key", key)
+		spr.set_meta("prop_theme", theme())
+		var pivot := spr.get_parent()
+		if pivot != null and pivot != decor_layer(host):
+			pivot.set_meta("prop_key", key)
+			pivot.set_meta("prop_theme", theme())
+	return spr
 
 
 ## 悬挂装饰（藤蔓等）：top = 顶部中点，不做接地检查。
@@ -467,6 +500,8 @@ func hanging(host: Node2D, key_or_path: String, top: Vector2, tint: Color = Colo
 	spr.modulate = tint
 	spr.set_meta("hang_top", top.round())
 	spr.set_meta("foot_anchor", "top_center")
+	spr.set_meta("prop_key", key_or_path)
+	spr.set_meta("prop_theme", theme())
 	decor_layer(host).add_child(spr)
 	return spr
 

@@ -85,6 +85,12 @@ const DECOR := {
 	"tree_2": Level01Env.DECOR_TREE_2,
 	"bush_l": Level01Env.DECOR_BUSH_L,
 	"bush_s": Level01Env.DECOR_BUSH_S,
+	# 1x 像素裁切（tools/normalize_art.py 已入库的派生图）：章节里的树/大灌木要按
+	# 整数比例种，不能再拿原图乘 0.5/0.62 的小数缩放（docs/art-spec.md「像素密度与对齐」）。
+	# 键名保留 tree_/bush_ 前缀，Level01Env.hardness_of() 才能认出会摆动的植被。
+	"tree_1_px": "res://assets/env/normalized/props/tree-1_48.png",   # 38×27（48%）
+	"tree_2_px": "res://assets/env/normalized/props/tree-2_46.png",   # 34×25（46%）
+	"bush_l_px": "res://assets/env/normalized/props/bush-large_62.png", # 47×40（62%）
 }
 
 ## Per-theme prop allowlist. Do not cross-plant cathedral wall plates into
@@ -95,6 +101,8 @@ const THEME_PROPS := {
 		"balustrade", "door_arch", "grave_cross", "statue",
 		"stone_1", "stone_2", "stone_3", "stone_4",
 		"tree_1", "tree_2", "bush_l", "bush_s",
+		# 1x 像素裁切的植被（整数缩放；小数缩放会把树冠的像素拉成半格）。
+		"tree_1_px", "tree_2_px", "bush_l_px",
 	],
 	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。管道与遗弃设施属于「城沉下去之前」
 	# 的生活残留。
@@ -143,9 +151,11 @@ const THEME_PROPS := {
 		"girder_l", "girder_r", "warning_plate", "chain",
 	],
 	"forge_core": [
-		"plate", "slab", "rubble_dry", "rubble_dry_b", "rubble_dry_c",
+		"plate", "slab", "rubble_dry", "rubble_dry_c",
 		"column", "altar", "skull_column", "vine", "rock_pile", "bones", "skull_arch",
 		"chain", "warning_plate",
+		# 炉心入口回廊的送渣机械（Kenney 派生的 1x 玄武岩族副本）。
+		"pipe_valve", "broken_machine", "girder_l", "girder_r", "fence",
 	],
 }
 

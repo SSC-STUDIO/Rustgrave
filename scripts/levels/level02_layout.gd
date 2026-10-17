@@ -213,16 +213,19 @@ func _build_props(props: Node2D, hooks: Node2D) -> void:
 	plate.name = "Plate"
 	plate.position = PLATE_POS
 	props.add_child(plate)
+	_harmonize_fill(plate, "plate")
 	door = DOOR.instantiate()
 	door.name = "Door"
 	door.position = DOOR_C_POS
 	props.add_child(door)
+	_harmonize_fill(door, "door_arch")
 	if not plate.activated.is_connected(door.open_door):
 		plate.activated.connect(door.open_door)
 	var gate := GATE.instantiate()
 	gate.name = "RustyGate"
 	gate.position = GATE_D_POS
 	props.add_child(gate)
+	_harmonize_fill(gate, "door_arch")
 	var hook := ANCHOR.instantiate()
 	hook.name = "Hook_Gallery"
 	hook.position = HOOK_D_POS
@@ -345,3 +348,15 @@ func _waymark(parent: Node2D, feet: Vector2, text: String) -> void:
 	root.add_child(lab)
 	lab.position = (origin + SIGN_PLANK.position).round()
 	lab.size = SIGN_PLANK.size
+## 章节 2 的旧关也换掉教堂紫的门/压板/锈门贴图：地窟主题的族变体是青苔石色，
+## 和 m19 的苔绿身份色一致（docs/art-spec.md「每章身份色」）。只换贴图，碰撞不变。
+func _harmonize_fill(node: Node, key: String) -> void:
+	var fill := node.get_node_or_null("Fill") as Sprite2D
+	if fill == null or fill.texture == null:
+		return
+	var path := PropCatalog.path_for(key, "undercroft")
+	if path == String(PropCatalog.DECOR.get(key, "")) or not ResourceLoader.exists(path):
+		return
+	var tex := load(path) as Texture2D
+	if tex != null:
+		fill.texture = tex

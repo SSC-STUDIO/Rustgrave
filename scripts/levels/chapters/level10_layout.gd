@@ -28,6 +28,8 @@ const SLAG_TINT := Color(18.0, 1.6, 0.5)
 const TORCH_TINT := Color(1.4, 0.8, 0.55)
 const PLATE_TINT := Color(1.5, 0.85, 0.5, 0.9)
 const ALTAR_TINT := Color(1.6, 0.95, 0.6, 0.92)
+## 历史机械件（Kenney 派生的 1x 玄武岩族副本）：压成焦黑铁色，和祭坛的红石分开。
+const MACHINE_TINT := Color(0.9, 0.72, 0.62)
 
 ## ① 入口回廊
 const NEST_GATE_X := 176.0
@@ -95,9 +97,12 @@ const ENEMIES: Array = [
 
 ## 装饰。竞技场（1100–2300）里只有壁炬和背景柱子，不放任何落地装饰，免得误导落点。
 ## 壁炬板 64 宽、柱子 114 宽，两者横向错开——柱子在壁炬前面一层，叠上会把火吞掉。
-const TORCHES: Array = [316.0, 1016.0, 1240.0, 1560.0, 1880.0, 2160.0, 2504.0]
+## 壁炬 2160 挪到 2192：石柱按 1x 整数缩放后右缘到 2154，原位置的火盘会被柱身吃掉。
+const TORCHES: Array = [316.0, 1016.0, 1240.0, 1560.0, 1880.0, 2192.0, 2504.0]
 const COLUMNS: Array = [64.0, 1400.0, 1720.0, 2040.0]
+## 十字形碎石是墓园符号，炉心地面只用普通碎渣。
 const RUBBLE: Array = [120.0, 792.0, 2520.0]
+const RUBBLE_KEYS: Array = ["rubble_dry", "rubble_dry_c"]
 const SKULL_COLUMN_X := 776.0
 
 
@@ -197,13 +202,16 @@ func _build_decor(host: Node2D) -> void:
 	for x in TORCHES:
 		torch(host, float(x), FLOOR_Y, TORCH_TINT)
 	# 炉心支柱用殿里那根石柱，压成赭石。平滑工字梁和终关的像素墙不是一套。
+	# 1x 整数缩放（0.9 会把石柱的像素拉成半格）。
 	for x in COLUMNS:
-		prop(host, "column", Vector2(float(x), FLOOR_Y), 0.9, PLATE_TINT)
+		prop(host, "column", Vector2(float(x), FLOOR_Y), 1.0, PLATE_TINT)
 	prop(host, "skull_column", Vector2(SKULL_COLUMN_X, FLOOR_Y), 1.0, PLATE_TINT)
 	_altar(host, ALTAR_FEET, ALTAR_TINT)
-	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]
+	# 入口回廊的炉前机械：把渣送进炉心的那台坏了，阀座还开着。竞技场里不放。
+	prop(host, "broken_machine", Vector2(420, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "pipe_valve", Vector2(452, FLOOR_Y), 1.0, MACHINE_TINT)
 	for i in range(RUBBLE.size()):
-		prop(host, rubble_keys[i % rubble_keys.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
+		prop(host, RUBBLE_KEYS[i % RUBBLE_KEYS.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
 
 
 ## 炉心祭坛：终局门旁的背景墙板，残芯的所在。顶 64px 是素墙，走 RuinPlate 塌成残垣，

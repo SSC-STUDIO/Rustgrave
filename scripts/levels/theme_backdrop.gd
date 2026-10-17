@@ -72,11 +72,13 @@ const SIGNATURES := {
 	},
 	"forge": {
 		"kind": "glow", "scroll": 0.44, "alpha": 0.16,
-		"glows": [Vector3(108, 304, 3), Vector3(420, 320, 4), Vector3(300, 250, 2)],
+		"glows": [Vector3(108, 304, 3), Vector3(420, 320, 4), Vector3(300, 250, 2),
+				Vector3(236, 148, 3), Vector3(524, 184, 2)],
 	},
 	"forge_core": {
 		"kind": "glow", "scroll": 0.4, "alpha": 0.16,
-		"glows": [Vector3(320, 258, 5), Vector3(120, 320, 2)],
+		"glows": [Vector3(320, 258, 5), Vector3(120, 320, 2),
+				Vector3(176, 168, 4), Vector3(484, 138, 3)],
 		"shafts": [Vector3(320, 24, 1)],
 	},
 	"cathedral": {
@@ -140,15 +142,24 @@ const THEMES := {
 	},
 	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
 	# 和工坊（industrial）同包，但工坊是灰绿的冷车间，这里是渣海。
+	# 三层室内远景（wall/truss/machinery）由 tools/gen_theme_tiles.py 的
+	# interior_backdrops() 生成：墙板铺满镜头，顶架给上缘收口，机械剪影给地面线。
 	"forge": {
 		"indoors": true,
 		"void": Color(0.07, 0.02, 0.015),
 		"mood": Color(1.0, 0.8, 0.66),
 		"layers": [
-			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "wall_forge.png", "scroll": Vector2(0.14, 0.1),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.72, 0.62),
+				 "tile": true, "covers_top": true},
+			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1, 1, 1, 0.5)},
 			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(1, 1, 1, 0.9)},
+			{"path": BACKDROP_DIR + "truss_forge.png", "scroll": Vector2(0.22, 0.16),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.8, 0.74), "covers_top": true},
+			{"path": BACKDROP_DIR + "machinery_forge.png", "scroll": Vector2(0.5, 0.3),
+				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.88, 0.82)},
 		],
 	},
 	# 炉心深处：地窟的拱窗内景烧成暗红——终关是一座被火从里面舔过的殿。
@@ -157,18 +168,33 @@ const THEMES := {
 		"void": Color(0.05, 0.012, 0.016),
 		"mood": Color(1.0, 0.84, 0.8),
 		"layers": [
-			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "wall_core.png", "scroll": Vector2(0.14, 0.1),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.88, 0.72, 0.64),
+				 "tile": true, "covers_top": true},
+			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(1, 1, 1, 0.82)},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.3, 0.08, 0.07, 0.92), "repeat": 352.0},
+			{"path": BACKDROP_DIR + "truss_core.png", "scroll": Vector2(0.22, 0.16),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.9, 0.82, 0.76), "covers_top": true},
+			{"path": BACKDROP_DIR + "machinery_core.png", "scroll": Vector2(0.5, 0.3),
+				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(1.0, 0.9, 0.84)},
 		],
 	},
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。
+	# 大厅板画在地面线上，上半屏原本是空的：补一层冷紫砌石墙 + 顶架剪影（拱顶肋）。
 	"cathedral": {
 		"indoors": true,
 		"void": Color(0.045, 0.04, 0.075),
 		"mood": Color(0.72, 0.7, 0.9),
 		"layers": [
+			# 补墙/顶架用显式 layer 名：殿墙 hall strip 仍是 Layer0、柱影仍是 Layer1，
+			# 竖井关「不能沿井复制殿墙」的索引断言不受影响。
+			{"name": "WallPlate", "path": BACKDROP_DIR + "wall_slate.png", "scroll": Vector2(0.14, 0.1),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.84, 0.82, 0.94),
+				 "tile": true, "covers_top": true},
 			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.2, 0.17, 0.3, 0.9), "repeat": 448.0},
+			{"name": "VaultTruss", "path": BACKDROP_DIR + "truss_slate.png", "scroll": Vector2(0.24, 0.18),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.72, 0.7, 0.82), "covers_top": true},
 		],
 	},
 	# 钟楼：竖井。橄榄色城砖墙双向平铺爬满整座塔（没有地面线，抬多高都不穿帮），
@@ -178,7 +204,7 @@ const THEMES := {
 		"void": Color(0.03, 0.03, 0.04),
 		"mood": Color(0.78, 0.78, 0.9),
 		"layers": [
-			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true},
+			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true, "covers_top": true},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.15, 0.2, 0.9), "repeat": 448.0},
 		],
 	},
@@ -209,14 +235,21 @@ const THEMES := {
 		],
 	},
 	# 锈厂：工业剪影——脚手架、厂房、烟囱。有顶棚，算室内（无雨），暖灰色调。
+	# 原包整族是绿的，和「暖灰铁」身份色打架；三张远景由 gen_theme_tiles.py 重映射到
+	# 暖铁色阶。砌石墙（wall_iron）铺满镜头，顶架和机械剪影给上缘/地面线收口。
 	"industrial": {
 		"indoors": true,
 		"void": Color(0.06, 0.06, 0.06),
 		"mood": Color(0.82, 0.74, 0.68),
 		"layers": [
-			{"path": INDUSTRIAL_DIR + "skill-desc_0003_bg.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(0.9, 0.85, 0.85)},
-			{"path": INDUSTRIAL_DIR + "skill-desc_0002_far-buildings.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color(0.75, 0.7, 0.7)},
-			{"path": INDUSTRIAL_DIR + "skill-desc_0001_buildings.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color(0.6, 0.55, 0.55)},
+			{"path": BACKDROP_DIR + "wall_iron.png", "scroll": Vector2(0.14, 0.1),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.82, 0.78),
+				 "tile": true, "covers_top": true},
+			{"path": BACKDROP_DIR + "workshop_haze.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1.0, 0.96, 0.92, 0.25)},
+			{"path": BACKDROP_DIR + "truss_iron.png", "scroll": Vector2(0.22, 0.16),
+				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.8, 0.76, 0.72), "covers_top": true},
+			{"path": BACKDROP_DIR + "machinery_iron.png", "scroll": Vector2(0.5, 0.3),
+				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.9, 0.85)},
 		],
 	},
 }
@@ -246,13 +279,13 @@ static func has_theme(theme_id: String) -> bool:
 ## 新增主题必须同时登记 THEMES、has_theme 与本表。
 const SIGNATURE_LAYERS := {
 	"undercroft": ["Layer0"],
-	"forge": ["Layer0", "Layer1", "Layer2", "Layer3"],
-	"forge_core": ["Layer0"],
-	"cathedral": ["Layer0"],
+	"forge": ["Layer0", "Layer5", "Layer6"],
+	"forge_core": ["Layer0", "Layer3", "Layer4"],
+	"cathedral": ["WallPlate", "VaultTruss"],
 	"belltower": ["Layer0"],
 	"ramparts": ["Layer1", "Layer2", "Layer3"],
 	"town": ["Layer0", "Layer1", "Layer2", "Layer3", "Layer4", "Layer5"],
-	"industrial": ["Layer0", "Layer1", "Layer2"],
+	"industrial": ["Layer0", "Layer2", "Layer3"],
 }
 
 
@@ -283,10 +316,16 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 		void_rect.size = Vector2(PresentationMetrics.WORLD_SIZE) + Vector2(128, 128)
 		void_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		backdrop.add_child(void_rect)
+	# 命名：默认 Layer0..LayerN（图层顺序 = 绘制顺序）。新加的「室内补墙/顶架」层
+	# 可以给 def "name" 覆盖自己的名字，这样垂直关的既有 hall strip 仍是 Layer0/Layer1
+	# （chapter_support_test 用索引锁定「殿墙不能沿竖井复制」）。named 层不占 LayerN 序号。
 	var i := 0
 	for layer_def in theme.get("layers", []):
-		_add_layer(backdrop, "Layer%d" % i, layer_def)
-		i += 1
+		var layer_name := String((layer_def as Dictionary).get("name", ""))
+		if layer_name == "":
+			layer_name = "Layer%d" % i
+			i += 1
+		_add_layer(backdrop, layer_name, layer_def)
 	# 环境层次：每一章都有「雾 + 独有光型」两层。雾把远/中/近粘在同一空气里，
 	# Signature 是本章的身份光（箭窗、炉口、街灯窗），两者都在玩法画布后面。
 	if backdrop.get_node_or_null("FogNear") == null:
@@ -414,16 +453,18 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 	layer.add_child(spr)
 	var repeat: float = def.get("repeat", 0.0)
 	if bool(def.get("tile", false)):
-		# Plain wall texture for a tall shaft: one oversized sprite that tiles on both
+		# Plain wall texture for a tall interior: one oversized sprite that tiles on both
 		# axes by texture repeat. Parallax2D's own repeat only covers a strip of the
-		# view on the second axis. The sprite spans the whole camera travel
-		# (scroll shifts it by at most travel * scroll_scale) plus a view of margin.
+		# view on the second axis. The sprite spans every camera position of every chapter
+		# (scroll shifts it by at most travel * scroll_scale) plus a view of margin, so
+		# the wall can never run off the top of a tall shaft — the old fixed
+		# `-18 * cell` offset left the whole bell tower black.
 		var cell := Vector2(tex.get_size()) * k
-		var span := Vector2(cell.x * ceilf(2400.0 / cell.x), cell.y * ceilf(2600.0 / cell.y))
+		var span := Vector2(cell.x * ceilf(6000.0 / cell.x), cell.y * ceilf(4200.0 / cell.y))
 		spr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		spr.region_enabled = true
 		spr.region_rect = Rect2(Vector2.ZERO, span / k)
-		spr.position = Vector2(-cell.x * 8.0, -cell.y * 18.0)
+		spr.position = Vector2(-cell.x * 8.0, -cell.y * 11.0)
 		layer.repeat_size = Vector2.ZERO
 	elif repeat > 0.0:
 		layer.repeat_size = Vector2(repeat, 0.0)
@@ -433,6 +474,9 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 		var step := floorf(tile)
 		layer.repeat_size = Vector2(step, 0.0)
 		layer.repeat_times = Level01Parallax.copies_for_view(step)
+	if bool(def.get("covers_top", false)):
+		# 室内关的上缘必须有墙/梁压住（tests/prop_fit_test.gd 断言的「镜头上界带」）。
+		layer.set_meta("covers_top", true)
 	return layer
 
 

@@ -16,6 +16,8 @@ extends ChapterLayout
 const EAST_LIMIT := 3200
 const ENTRY_SPAWN := Vector2(96, 300)
 const SKIN := "rampart"
+## 城墙缝里的草是风干的：鲜绿灌木压成冷灰橄榄，和雾青石墙同温。
+const DRY_BUSH := Color(0.74, 0.78, 0.7)
 const PIT_DEPTH := 32.0
 
 ## [name, x0, x1, cap_left, cap_right] —— 墙顶步道（80px 厚，顶在 320）
@@ -104,7 +106,7 @@ const PROPS: Array = [
 	# 城墙用女墙、门洞、干石。墓碑（stone_*）立在墙顶上，读成墓园搬进城里。
 	["balustrade_wall", Vector2(72, 320), 0],
 	["rubble_dry", Vector2(232, 320), 0],
-	["rubble_dry_b", Vector2(776, 320), 0],
+	["rubble_dry_c", Vector2(776, 320), 0],
 	["balustrade_wall", Vector2(944, 256), 0],
 	["door_arch_wall", Vector2(944, 320), 1],
 	["balustrade_wall", Vector2(1032, 320), 0],
@@ -120,9 +122,9 @@ const PROPS: Array = [
 ]
 ## [feet(左脚点), scale] —— 墙缝里长出来的几丛灌木
 const BUSHES: Array = [
-	[Vector2(300, 320), 0.8],
-	[Vector2(1592, 320), 0.8],
-	[Vector2(2640, 320), 0.8],
+	[Vector2(300, 320), 1.0],
+	[Vector2(1592, 320), 1.0],
+	[Vector2(2640, 320), 1.0],
 ]
 const WAYMARKS: Array = [[Vector2(352, 320), "城墙"], [Vector2(3048, 320), "炉心"]]
 
@@ -235,4 +237,4 @@ func _build_decor(host: Node2D) -> void:
 		var tint := Color(0.8, 0.86, 0.9) if String(p[0]) == "ruin_tower" else Color.WHITE
 		prop(host, String(p[0]), p[1], 1.0, tint, int(p[2]))
 	for b in BUSHES:
-		foliage(host, "bush_s", b[0], float(b[1]))
+		foliage(host, "bush_s", b[0], float(b[1]), false, DRY_BUSH)
