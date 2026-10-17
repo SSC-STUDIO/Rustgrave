@@ -280,6 +280,9 @@ func _process(delta: float) -> void:
 	_gap_left = maxf(0.0, _gap_left - delta)
 	if _current != &"":
 		_hold -= delta
+		# 正在显示的提示也会过期（比如巢被点燃）：直接进入淡出，不再挂满 3.6 秒。
+		if _hold > FADE and not still_relevant(_current):
+			_hold = FADE
 		_apply_alpha()
 		if _hold <= 0.0:
 			_hide_current()
