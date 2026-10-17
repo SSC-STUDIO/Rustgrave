@@ -9,7 +9,6 @@ extends Node2D
 ## scene reloads clean it up automatically.
 
 const WEAPONHIT_SHEET_PATH := "res://assets/kenney_clean/vfx/10_weaponhit_spritesheet.png"
-const BUBBLES_SHEET_PATH := "res://assets/kenney_clean/vfx/20_magicbubbles_spritesheet.png"
 const BRIGHTFIRE_SHEET_PATH := "res://assets/kenney_clean/vfx/9_brightfire_spritesheet.png"
 
 ## One-shot particles live under this autoload, which sits early in the tree
@@ -28,7 +27,6 @@ const EMBER_FIELD_NAME := "FxEmberField"
 
 var _headless := false
 var _weaponhit_sheet: Texture2D = null
-var _bubbles_sheet: Texture2D = null
 var _brightfire_sheet: Texture2D = null
 var _pool_root: Node2D
 var _motes: Array[PooledMote] = []
@@ -103,8 +101,6 @@ func _ready() -> void:
 		return
 	if ResourceLoader.exists(WEAPONHIT_SHEET_PATH):
 		_weaponhit_sheet = load(WEAPONHIT_SHEET_PATH) as Texture2D
-	if ResourceLoader.exists(BUBBLES_SHEET_PATH):
-		_bubbles_sheet = load(BUBBLES_SHEET_PATH) as Texture2D
 	if ResourceLoader.exists(BRIGHTFIRE_SHEET_PATH):
 		_brightfire_sheet = load(BRIGHTFIRE_SHEET_PATH) as Texture2D
 
@@ -298,16 +294,26 @@ func enemy_death_smoke(pos: Vector2) -> void:
 	play_frames_once(CharFrames.anim("fx_enemy_death", "death"), pos, 12.0, false, -24.0)
 
 
-## One toxin bubble rising out of `rect` (parent-local coordinates) and
-## popping as it fades. Tinted orange, pressed toward Palette.TOXIC.
-func toxin_bubbles(parent: Node2D, rect: Rect2) -> void:
-	if _headless or _bubbles_sheet == null:
+## 毒池气泡：从池面上升的 1–2px 酸液泡，整数像素、竖直上升（带 1px 内摆动）。
+## 以前这里用 Kenney 的 `20_magicbubbles` 彩色粒子喷溅表，再缩到 0.06–0.1 倍：
+## 缩小后是一团乱码白点，玩家会误读成"明明没下雨却有雨滴打在水面"（用户报告）。
+## 现在改用程序化像素泡；`tint` 跟池子的液面/毒雾一致（第 4 章橙色冷却液也成立）。
+const BUBBLE_CAP := 16
+
+
+func toxin_bubbles(parent: Node2D, rect: Rect2, tint: Color = Color(0.55, 0.95, 0.62)) -> void:
+	if _headless:
 		return
 	if parent == null or not is_instance_valid(parent):
 		return
-	var bubble := ToxinBubble.new(_bubbles_sheet)
-	bubble.position = rect.position + Vector2(randf() * rect.size.x, randf() * rect.size.y)
-	bubble.modulate = Color(0.45, 0.78, 0.55, 0.75)
+	var alive := 0
+	for child in parent.get_children():
+		if child is ToxinBubble:
+			alive += 1
+	if alive >= BUBBLE_CAP:
+		return
+	var bubble := ToxinBubble.new(tint)
+	bubble.position = (rect.position + Vector2(randf() * rect.size.x, randf() * rect.size.y)).round()
 	parent.add_child(bubble)
 
 
@@ -607,33 +613,59 @@ class PooledRing extends Node2D:
 
 
 ## One small sludge bubble: three-frame wiggle, upward drift, fade-out pop.
-class ToxinBubble extends Sprite2D:
-	const FRAME_STEP := 0.14
-
+## 一颗酸液泡：像素圆环，只朝上飘，到顶淡出。整数像素绘制、整数坐标，
+## 半径 1–2px（不做小数缩放）。视觉上明确是"池子在冒泡"，不是水花/涟漪。
+class ToxinBubble extends Node2D:
 	var _age := 0.0
 	var _lifetime := 1.2
 	var _rise := 10.0
 	var _phase := 0.0
+	var _radius := 1
+	var _tint := Color(0.55, 0.95, 0.62)
 
-
-	func _init(sheet: Texture2D) -> void:
-		texture = sheet
-		hframes = 8
-		vframes = 8
-		_lifetime = randf_range(0.9, 1.6)
-		_rise = randf_range(7.0, 14.0)
+	func _init(tint: Color) -> void:
+		_tint = tint
+		_lifetime = randf_range(0.8, 1.6)
+		_rise = randf_range(8.0, 15.0)
 		_phase = randf() * TAU
-		var s := randf_range(0.06, 0.1)
-		scale = Vector2(s, s)
-
+		_radius = randi_range(1, 2)
+		z_index = 3
+		set_process(true)
 
 	func _process(delta: float) -> void:
 		_age += delta
 		if _age >= _lifetime:
 			queue_free()
 			return
+		# 单方向：只往上飘；横向只有 ±2px 的摆动，位置取整保持像素边缘。
 		position.y -= _rise * delta
-		position.x += sin(_age * 2.2 + _phase) * 3.0 * delta
-		frame = int(_age / FRAME_STEP) % 3
-		var k := _age / _lifetime
-		modulate.a = minf(k * 10.0, 1.0) * clampf((1.0 - k) * 2.5, 0.0, 1.0)
+		position.x += sin(_age * 2.2 + _phase) * 4.0 * delta
+		position = position.round()
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := clampf(_age / _lifetime, 0.0, 1.0)
+		var a := minf(k * 6.0, 1.0) * clampf((1.0 - k) * 2.4, 0.0, 1.0) * 0.90
+		if a <= 0.01:
+			return
+		# 颜色只用液面色调：**不要纯白高光**——纯白小点会被玩家读成"雨滴/闪光"，
+		# 正是用户报告里"明明没下雨"的错觉来源之一。
+		var glint := Color(
+				_tint.r + (1.0 - _tint.r) * 0.42,
+				_tint.g + (1.0 - _tint.g) * 0.34,
+				_tint.b + (1.0 - _tint.b) * 0.42, a)
+		var body := Color(_tint.r * 0.80, _tint.g * 0.88, _tint.b * 0.80, a * 0.80)
+		var rim := Color(_tint.r * 0.52, _tint.g * 0.66, _tint.b * 0.52, a * 0.85)
+		if _radius <= 1:
+			# 单像素泡：一颗亮点 + 下方 1px 暗边（读作气泡，不是环形）
+			draw_rect(Rect2(0, 0, 1, 1), glint)
+			draw_rect(Rect2(0, 1, 1, 1), rim)
+			return
+		# 3×3 小圆泡：上下暗边、左右液色、中心一点亮。缩到 1px 时仍是一团，
+		# 不会变成"八点扩散环"。
+		draw_rect(Rect2(0, -1, 1, 1), rim)
+		draw_rect(Rect2(-1, 0, 3, 1), body)
+		draw_rect(Rect2(0, 1, 1, 1), rim)
+		draw_rect(Rect2(0, 0, 1, 1), glint)
+
+

@@ -241,8 +241,10 @@ func _tick_drop(i: int, delta: float, rain_col: Color, vis: float) -> void:
 	if kind != HIT_NONE:
 		if _drop_phase[i] == PHASE_FALL:
 			var hy := _hit_y
+			# 水花强度跟当前雨势走：雨刚停（alpha 趋零）时不再有全亮的溅落残留。
+			var strength := clampf(_alpha * 1.15, 0.0, 1.0)
 			if kind == HIT_WATER:
-				_on_water_hit(Vector2(world.x, hy))
+				_on_water_hit(Vector2(world.x, hy), strength)
 				if randf() < WATER_BOUNCE_SHARE:
 					_drop_phase[i] = PHASE_BOUNCE
 					_drop_vy[i] = -randf_range(28.0, 52.0)
@@ -251,7 +253,7 @@ func _tick_drop(i: int, delta: float, rain_col: Color, vis: float) -> void:
 					_recycle_drop(i, spr)
 					return
 			else:
-				_on_ground_hit(Vector2(world.x, hy))
+				_on_ground_hit(Vector2(world.x, hy), strength)
 				if randf() < BOUNCE_SHARE:
 					_drop_phase[i] = PHASE_BOUNCE
 					_drop_vy[i] = -randf_range(88.0, 140.0)
@@ -328,21 +330,21 @@ func _settle_drops_under_roofs() -> void:
 			spr.position.y = floor_screen
 
 
-func _on_ground_hit(world: Vector2) -> void:
+func _on_ground_hit(world: Vector2, strength: float = 1.0) -> void:
 	if _water_y_at(world.x) >= 0.0:
 		return
 	if _ground_y_at(world.x) < 0.0 and not _is_default_standable(world.x):
 		return
-	_spawn_splash(world)
+	_spawn_splash(world, strength)
 	_soak_wet(world)
 
 
-func _on_water_hit(world: Vector2) -> void:
-	_spawn_water_splash(world)
-	_spawn_ripple(world)
+func _on_water_hit(world: Vector2, strength: float = 1.0) -> void:
+	_spawn_water_splash(world, strength)
+	_spawn_ripple(world, strength)
 
 
-func _spawn_splash(world: Vector2) -> void:
+func _spawn_splash(world: Vector2, strength: float = 1.0) -> void:
 	var host := _ensure_ground_fx()
 	if host == null or _splashes == null:
 		return
@@ -351,32 +353,36 @@ func _spawn_splash(world: Vector2) -> void:
 	if _splash_tex == null:
 		_splash_tex = _make_splash_tex()
 	var n := randi_range(2, 5)
+	if strength < 0.55:
+		n = maxi(1, roundi(float(n) * clampf(strength, 0.25, 1.0)))
 	for _i in n:
 		if _splashes.get_child_count() >= SPLASH_MAX:
 			break
 		var speck := _take_splash()
 		speck.position = Vector2(roundf(world.x), roundf(world.y))
-		speck.arm()
+		speck.arm(strength)
 		_splashes.add_child(speck)
 
 
-func _spawn_water_splash(world: Vector2) -> void:
+func _spawn_water_splash(world: Vector2, strength: float = 1.0) -> void:
 	var host := _ensure_ground_fx()
 	if host == null or _splashes == null:
 		return
 	if _splash_tex == null:
 		_splash_tex = _make_splash_tex()
 	var n := randi_range(2, 4)
+	if strength < 0.55:
+		n = maxi(1, roundi(float(n) * clampf(strength, 0.25, 1.0)))
 	for _i in n:
 		if _splashes.get_child_count() >= SPLASH_MAX:
 			break
 		var speck := _take_water()
 		speck.position = Vector2(roundf(world.x), roundf(world.y))
-		speck.arm()
+		speck.arm(strength)
 		_splashes.add_child(speck)
 
 
-func _spawn_ripple(world: Vector2) -> void:
+func _spawn_ripple(world: Vector2, strength: float = 1.0) -> void:
 	_ensure_ground_fx()
 	if _ripples == null:
 		return
@@ -384,7 +390,7 @@ func _spawn_ripple(world: Vector2) -> void:
 		return
 	var ring := _take_ripple()
 	ring.position = Vector2(roundf(world.x), roundf(world.y))
-	ring.arm()
+	ring.arm(strength)
 	_ripples.add_child(ring)
 
 
@@ -844,6 +850,7 @@ class SplashSpeck extends Sprite2D:
 	var _age := 0.0
 	var _life := 0.22
 	var _vel := Vector2.ZERO
+	var _alpha0 := 0.75
 
 	func _init(tex: Texture2D) -> void:
 		texture = tex
@@ -852,11 +859,12 @@ class SplashSpeck extends Sprite2D:
 		set_process(false)
 		visible = false
 
-	func arm() -> void:
+	func arm(strength: float = 1.0) -> void:
 		_age = 0.0
 		_vel = Vector2(randf_range(-38.0, 38.0), randf_range(-52.0, -18.0))
 		_life = randf_range(0.16, 0.28)
-		modulate = Color(0.80, 0.86, 0.94, 0.75)
+		_alpha0 = 0.75 * clampf(strength, 0.0, 1.0)
+		modulate = Color(0.80, 0.86, 0.94, _alpha0)
 		visible = true
 
 	func tick(delta: float) -> bool:
@@ -867,7 +875,7 @@ class SplashSpeck extends Sprite2D:
 		_vel.y += 260.0 * delta
 		position.x = roundf(position.x + _vel.x * delta)
 		position.y = roundf(position.y + _vel.y * delta)
-		modulate.a = 0.75 * (1.0 - _age / _life)
+		modulate.a = _alpha0 * (1.0 - _age / _life)
 		return true
 
 
@@ -875,6 +883,7 @@ class WaterSpeck extends Sprite2D:
 	var _age := 0.0
 	var _life := 0.20
 	var _vel := Vector2.ZERO
+	var _alpha0 := 0.80
 
 	func _init(tex: Texture2D) -> void:
 		texture = tex
@@ -883,11 +892,14 @@ class WaterSpeck extends Sprite2D:
 		set_process(false)
 		visible = false
 
-	func arm() -> void:
+	func arm(strength: float = 1.0) -> void:
 		_age = 0.0
-		_vel = Vector2(randf_range(-46.0, 46.0), randf_range(-28.0, -8.0))
-		_life = randf_range(0.12, 0.22)
-		modulate = Color(0.70, 0.88, 0.86, 0.80)
+		# 落水只往上溅：入水方向是竖直的，水花朝上收束（用户反馈"单方向"），
+		# 不再用 8 点径向扩散环去表现水面。
+		_vel = Vector2(randf_range(-11.0, 11.0), randf_range(-36.0, -16.0))
+		_life = randf_range(0.14, 0.24)
+		_alpha0 = 0.80 * clampf(strength, 0.0, 1.0)
+		modulate = Color(0.70, 0.88, 0.86, _alpha0)
 		visible = true
 
 	func tick(delta: float) -> bool:
@@ -895,24 +907,28 @@ class WaterSpeck extends Sprite2D:
 		if _age >= _life:
 			visible = false
 			return false
-		_vel.y += 180.0 * delta
+		_vel.y += 220.0 * delta
 		position.x = roundf(position.x + _vel.x * delta)
 		position.y = roundf(position.y + _vel.y * delta)
-		modulate.a = 0.80 * (1.0 - _age / _life)
+		modulate.a = _alpha0 * (1.0 - _age / _life)
 		return true
 
 
+## 雨滴落水的水面反馈：**只沿水面横向张开**的一道 1px 亮线（两侧各补 1px 高点），
+## 不做圆的径向扩散、也不画 8 点环——用户报告"怎么是扩散的，明明只有单方向"。
 class WaterRipple extends Node2D:
 	var _age := 0.0
-	var _life := 0.30
+	var _life := 0.22
+	var _strength := 1.0
 
 	func _init() -> void:
 		z_index = 3
 		set_process(false)
 		visible = false
 
-	func arm() -> void:
+	func arm(strength: float = 1.0) -> void:
 		_age = 0.0
+		_strength = clampf(strength, 0.0, 1.0)
 		visible = true
 		queue_redraw()
 
@@ -925,10 +941,14 @@ class WaterRipple extends Node2D:
 		return true
 
 	func _draw() -> void:
-		var k := _age / _life
-		var a := 0.70 * (1.0 - k)
-		var r := 1.0 + 11.0 * k
+		var k := clampf(_age / _life, 0.0, 1.0)
+		var a := 0.60 * _strength * (1.0 - k)
+		if a <= 0.01:
+			return
 		var col := Color(0.72, 0.90, 0.88, a)
-		for i in 8:
-			var p := Vector2.from_angle(float(i) * TAU / 8.0) * r
-			draw_rect(Rect2(roundf(p.x), roundf(p.y), 1, 1), col)
+		var half := 1.0 + 3.0 * k
+		draw_rect(Rect2(-roundf(half), 0, roundf(half * 2.0) + 1, 1), col)
+		if k > 0.30:
+			var b := Color(col.r, col.g, col.b, a * 0.55)
+			draw_rect(Rect2(roundf(-half) - 1, 1, 1, 1), b)
+			draw_rect(Rect2(roundf(half) + 1, 1, 1, 1), b)
