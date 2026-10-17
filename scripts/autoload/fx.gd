@@ -622,6 +622,8 @@ class ToxinBubble extends Node2D:
 	var _phase := 0.0
 	var _radius := 1
 	var _tint := Color(0.55, 0.95, 0.62)
+	var _pos := Vector2.ZERO
+	var _started := false
 
 	func _init(tint: Color) -> void:
 		_tint = tint
@@ -638,9 +640,14 @@ class ToxinBubble extends Node2D:
 			queue_free()
 			return
 		# 单方向：只往上飘；横向只有 ±2px 的摆动，位置取整保持像素边缘。
-		position.y -= _rise * delta
-		position.x += sin(_age * 2.2 + _phase) * 4.0 * delta
-		position = position.round()
+		# 亚像素累计在 _pos 里，只把显示位置取整：直接对 position 取整时，60fps 下每帧
+		# 位移 <0.5px 会被 round() 吃掉，气泡原地不动（toxin_bubbles_test 偶发失败）。
+		if not _started:
+			_pos = position
+			_started = true
+		_pos.y -= _rise * delta
+		_pos.x += sin(_age * 2.2 + _phase) * 4.0 * delta
+		position = _pos.round()
 		queue_redraw()
 
 	func _draw() -> void:
