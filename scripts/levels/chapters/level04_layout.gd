@@ -21,8 +21,12 @@ const FLOAT_TONE := Color(0.94, 0.92, 1.0)
 ## 壁炬墙板是墓园紫石，压冷一点融进殿墙；藤蔓当成落灰的帷幔。
 const TORCH_TINT := Color(0.8, 0.82, 1.0)
 const VINE_TINT := Color(0.62, 0.62, 0.8, 0.85)
-## 酸黄绿：紫石殿里原色最醒目，池子一眼读成危险。
-const TOXIN_TINT := Color(1.0, 1.25, 0.55)
+## Phase 3: the spec's orange coolant (GDD: 橙色腐液) instead of acid green. The cold slate
+## nave makes orange the most readable hazard colour; the tint stays neutral and the sludge
+## art is ramp-mapped onto orange (ToxinPool.set_sludge_ramp).
+const TOXIN_TINT := Color.WHITE
+const TOXIN_RAMP := [Color("#1a0702"), Color("#5a1d06"), Color("#a8410c"), Color("#e8761c"), Color("#ffc067")]
+const TOXIN_VAPOR := Color(1.7, 0.62, 0.3)
 
 ## [name, x0, x1, cap_left, cap_right]
 const FLOORS: Array = [
@@ -161,7 +165,9 @@ func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
 		floor_strip(host, f[0], f[1], f[2], "nave", f[3], f[4], FLOOR_Y, STONE_TONE)
 	for p in PITS:
-		toxin_pit(host, p[0], p[1], p[2], 32.0, "nave", TOXIN_TINT)
+		var pool := toxin_pit(host, p[0], p[1], p[2], 32.0, "nave", TOXIN_TINT)
+		if pool != null:
+			pool.set_sludge_ramp(TOXIN_RAMP, TOXIN_VAPOR)
 	for s in STEPS:
 		step(host, s[0], s[1], s[2], "nave_float", FLOAT_TONE)
 	for b in BLOCKS:
