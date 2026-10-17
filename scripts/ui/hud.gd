@@ -784,6 +784,7 @@ func _on_boss_appeared(boss_name: String, current_hp: int, max_hp: int) -> void:
 	_boss_bar_panel.modulate.a = 0.0
 	_boss_bar_panel.visible = true
 	_sync_prompt_offsets()
+	_lift_caption(true)
 	var tw := create_tween()
 	tw.tween_property(_boss_bar_panel, "modulate:a", 1.0, 0.6)
 
@@ -815,6 +816,7 @@ func _on_boss_defeated() -> void:
 	tw.tween_property(_boss_bar_panel, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(func() -> void:
 		_boss_bar_panel.visible = false
+		_lift_caption(false)
 		_sync_prompt_offsets())
 
 
@@ -921,7 +923,19 @@ func _on_player_died() -> void:
 
 # --- 天气时辰 / 剑核 / 安全区 -------------------------------------------------
 
+## Boss 血条和底部字幕抢同一条屏幕底边：血条在时字幕抬到它上方。
+const CAPTION_LIFT := 72.0
+
+
+func _lift_caption(on: bool) -> void:
+	var cap := Director.caption()
+	if cap != null:
+		cap.lift(CAPTION_LIFT if on else 0.0)
+
+
 func _exit_tree() -> void:
+	# Director 常驻：本 HUD 抬起的字幕在离场（死亡重载 / 换章 / 回标题）时放回原位。
+	_lift_caption(false)
 	_disconnect_if(WorldClock.phase_changed, _on_phase_changed)
 	_disconnect_if(WorldClock.weather_changed, _on_weather_changed)
 	_disconnect_if(WorldClock.zone_changed, _on_zone_changed)

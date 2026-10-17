@@ -41,7 +41,9 @@ const TOP := 64.0
 ## 战斗中的教学（挥砍/弹反/钩锁）仍是 24px，不能被压成脚注。
 const CATALOG := {
 	&"peek": {"order": 0, "title": "目标与天气", "compact": true,
-			"text": "Tab 目标 · 天气 · Esc 暂停"},
+			"text": "Tab 目标 · 天气 · Esc 暂停",
+			# Touch sessions (on-screen pad): no keyboard keys in the wording.
+			"touch_text": "轻点状态带查看目标与天气 · Ⅱ 暂停"},
 	&"swing": {"order": 10, "title": "挥砍",
 			"text": "挥砍中再按 {attack}：判定末段或收刀时衔接，可接三连"},
 	&"dash": {"order": 20, "title": "冲刺",
@@ -154,7 +156,10 @@ static func template_for(id: StringName, given: String = "") -> String:
 	if given != "":
 		return given
 	if CATALOG.has(id):
-		return String(CATALOG[id]["text"])
+		var entry: Dictionary = CATALOG[id]
+		if entry.has("touch_text") and TouchInput.wants_overlay():
+			return String(entry["touch_text"])
+		return String(entry["text"])
 	var cache: Variant = Settings.value(TEXT_CACHE_KEY, {})
 	if cache is Dictionary:
 		return String((cache as Dictionary).get(String(id), ""))
@@ -303,6 +308,9 @@ func _process(delta: float) -> void:
 	_gap_left = maxf(0.0, _gap_left - delta)
 	if _current != &"":
 		_hold -= delta
+		# 正在显示的提示也会过期（比如巢被点燃）：直接进入淡出，不再挂满 3.6 秒。
+		if _hold > FADE and not still_relevant(_current):
+			_hold = FADE
 		_apply_alpha()
 		if _hold <= 0.0:
 			_hide_current()
@@ -312,14 +320,29 @@ func _process(delta: float) -> void:
 		var once := _queued_once
 		_queued = &""
 		_queued_text = ""
-		_show(id, text, once)
-		_apply_alpha()
+		if still_relevant(id):
+			_show(id, text, once)
+			_apply_alpha()
+		elif once:
+			# 玩家在等待期间已经自己做到了（点了巢、镶了核）：不再事后说教，记作看过。
+			mark_seen(id)
 	if _current == &"" and _panel != null and _panel.visible and _panel.modulate.a <= 0.01:
 		_panel.visible = false
 	_poll_t -= delta
 	if _poll_t <= 0.0:
 		_poll_t = POLL
 		_scan_state()
+
+
+## 排队的提示在真正出现前再核对一次：教的事情玩家已经做完了就不出。
+func still_relevant(id: StringName) -> bool:
+	var player := _player()
+	match id:
+		&"nest":
+			return SaveData.lit_nests.is_empty()
+		&"core":
+			return player == null or player.inventory == null or not player.inventory.pouch.is_empty()
+	return true
 
 
 func _apply_alpha() -> void:

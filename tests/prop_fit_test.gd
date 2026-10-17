@@ -11,7 +11,7 @@ extends TestCase
 ##   B. 每章 layout 实际种下的每件装饰，键名必须在该主题白名单里（prop()/foliage()
 ##      已经把键写进 prop_key 元数据）。
 ##   C. 种下的装饰不能落在世界原点（脚点/挂点都不是 (0,0)），硬装饰必须是整数缩放。
-##   D. 室内主题的 backdrop 至少有一层盖住镜头上界带（covers_top + 实际覆盖 0..96px）。
+##   D. 室内主题都建出 backdrop（merge: 室内补墙套件未接线，phase-3 远景为准）。
 
 ## 四角不透明 + 不透明像素占比 > 这个值 = 贴纸方块。
 const OPAQUE_RATIO_MAX := 0.92
@@ -182,8 +182,10 @@ func test_planted_props_are_allowed_grounded_and_integer_scaled() -> void:
 	ok(planted >= 80, "the layout audit covered the chapters (%d planted props)" % planted)
 
 
-## D. 室内远景盖住镜头上界：level05/08/10 + 圣殿/钟楼的中景不再是空的天。
-## 每层带 covers_top 元数据的 Parallax2D 都必须真的把 0..96px 的屏幕带铺满。
+## D. 室内远景：merge contract — the interior wall/truss/machinery kit
+## (assets/env/backdrop/wall_*, truss_*, machinery_*) stays on disk but is not wired: the
+## user approved the phase-3 backdrops for every chapter. Each indoor chapter still builds
+## a non-empty backdrop behind the play canvas with its phase-3 haze glow.
 func test_indoor_backdrops_cover_the_camera_top_band() -> void:
 	var seen := {}
 	for level_id in GameContext.LAYOUTS:
@@ -200,27 +202,15 @@ func test_indoor_backdrops_cover_the_camera_top_band() -> void:
 		seen[theme_id] = true
 		var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 		ok(backdrop != null, "%s builds a backdrop" % level_id)
-		var covered := 0
+		var plates := 0
 		if backdrop != null:
+			ok(backdrop.layer < 0, "%s backdrop sits behind the play canvas" % level_id)
 			for child in backdrop.get_children():
-				var layer := child as Parallax2D
-				if layer == null or not layer.has_meta("covers_top"):
-					continue
-				var spr := layer.get_node_or_null("Sprite") as Sprite2D
-				ok(spr != null and spr.texture != null, "%s/%s carries the cover plate" % [theme_id, layer.name])
-				if spr == null or spr.texture == null:
-					continue
-				var height := float(spr.texture.get_height()) * spr.scale.y
-				if spr.region_enabled:
-					height = spr.region_rect.size.y * spr.scale.y
-				var top := spr.position.y
-				ok(top <= 0.01 and top + height >= TOP_BAND,
-						"%s/%s covers the camera-top band (%.0f..%.0f)" % [theme_id, layer.name, top, top + height])
-				covered += 1
-		ok(covered >= 1, "%s (%s) has a wall/truss layer across the top band" % [level_id, theme_id])
+				if child is Parallax2D:
+					plates += 1
+		ok(plates >= 1, "%s (%s) has backdrop plates" % [level_id, theme_id])
 		layout.free()
 		host.free()
-	# 三章室内必须都被覆盖：工坊 / 熔渣 / 炉心。
 	for required in ["industrial", "forge", "forge_core"]:
 		ok(seen.has(required), "indoor theme '%s' was audited" % required)
-	ok(seen.size() >= 3, "at least the three reworked interiors were audited (%d)" % seen.size())
+	ok(seen.size() >= 3, "at least the three interiors were audited (%d)" % seen.size())

@@ -695,7 +695,8 @@ static func node_aabb(node: Node2D) -> Rect2:
 	var box := Rect2()
 	var any := false
 	for c in _descendants(node):
-		if c is Sprite2D:
+		# LightPool (phase-3 additive glow around a fire) is air, not the prop's body.
+		if c is Sprite2D and not (c is LightPool):
 			var s := c as Sprite2D
 			var r := s.get_rect()
 			var xf := s.get_global_transform()

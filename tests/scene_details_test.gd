@@ -246,14 +246,17 @@ func test_details_keep_off_the_route_and_landmarks() -> void:
 
 
 ## 光照锚定真实地标：每盏灯都记着它挂在哪个节点上，光池落在地标而不是空处。
+## (Planted explicitly: Level01 leaves it off so the phase-3 grade / LightPool own the look.)
 func test_lights_are_anchored_to_landmarks() -> void:
 	var level := await _load_level()
 	if level == null:
 		return
-	var lighting := level.get_node_or_null("AmbientLighting") as AmbientLighting
-	ok(lighting != null, "AmbientLighting is planted")
-	if lighting == null:
-		return
+	# Merge contract: chapter 1 does not plant the always-on ambience lights by default
+	# (phase-3 LightPool owns fire light). The anchoring itself is still verified here.
+	eq(Level01Static.PLANT_AMBIENT_LIGHTS, false, "chapter 1 keeps the phase-3 fire light")
+	ok(level.get_node_or_null("AmbientLighting") == null, "no ambience light set by default")
+	var lighting := AmbientLighting.create_for_level(level)
+	SceneDetails.add_level01_lighting(lighting, level)
 	ok(lighting.light_count() > 0, "level carries ambience lights")
 	ok(lighting.light_count() <= AmbientLighting.MAX_LIGHTS, "light budget respected")
 	eq(lighting.light_count(), SceneDetails.LIGHT_ANCHORS.size(), "one light per authored landmark")

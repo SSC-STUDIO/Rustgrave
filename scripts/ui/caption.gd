@@ -8,6 +8,9 @@ signal line_advanced
 
 const CHARS_PER_SEC := 22.0
 const DEFAULT_HOLD := 1.6
+## 面板默认贴底（-48..-4）。Boss 血条也在屏幕底部，打 Boss 时 HUD 把字幕抬到血条上方。
+const BASE_TOP := -48.0
+const BASE_BOTTOM := -4.0
 
 var _queue: Array[Dictionary] = []
 var _full: String = ""
@@ -17,6 +20,7 @@ var _typing: bool = false
 var _holding: bool = false
 var _label: Label
 var _panel: PanelContainer
+var _lift := 0.0
 
 
 func _ready() -> void:
@@ -33,8 +37,8 @@ func _ready() -> void:
 	_panel.offset_left = -280.0
 	_panel.offset_right = 280.0
 	# Hug the 32px letterbox / screen foot so the strip does not cover the player.
-	_panel.offset_top = -48.0
-	_panel.offset_bottom = -4.0
+	_panel.offset_top = BASE_TOP - _lift
+	_panel.offset_bottom = BASE_BOTTOM - _lift
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.visible = false
 	add_child(_panel)
@@ -48,6 +52,19 @@ func _sync_viewport_size() -> void:
 	var vp := get_viewport()
 	if vp != null:
 		set_deferred("size", vp.get_visible_rect().size)
+
+
+## 把字幕条整体上移 `px`（UI 设计像素）；0 = 回到贴底。Director 是常驻的，
+## 所以抬起的一方（HUD）离场时必须放回去。
+func lift(px: float) -> void:
+	_lift = maxf(0.0, px)
+	if _panel != null:
+		_panel.offset_top = BASE_TOP - _lift
+		_panel.offset_bottom = BASE_BOTTOM - _lift
+
+
+func lifted() -> float:
+	return _lift
 
 
 func is_busy() -> bool:
@@ -116,8 +133,11 @@ func _start_next() -> void:
 	var item: Dictionary = _queue.pop_front()
 	_full = String(item.get("text", ""))
 	_hold_left = float(item.get("hold", DEFAULT_HOLD))
-	_shown = 0.0
-	_label.text = ""
-	_typing = true
-	_holding = false
+	# 第一格字和面板同一帧出现：以前面板先空着亮 2–3 帧，截图和录像里是一条空框。
+	_shown = 1.0
+	_label.text = _full.substr(0, 1)
+	_typing = _full.length() > 1
+	_holding = not _typing
+	if _holding:
+		line_advanced.emit()
 	_panel.visible = true

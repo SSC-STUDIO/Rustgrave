@@ -89,6 +89,11 @@ func _ready() -> void:
 	_spawn_actors(restored)
 	_wire_props()
 	_bind_story()
+	# Chapter palette on the play layer once every folder is built (east wing included);
+	# deferred again so late-built pieces (rebuilt toxin pit, sway pivots) are covered.
+	Level01Parallax.grade_play_layer(self)
+	Level01Parallax.grade_play_layer.call_deferred(self)
+	Level01Parallax.add_light_pools.call_deferred(self)
 	call_deferred("_try_wake")
 
 
@@ -134,7 +139,11 @@ func _tune_play_layout() -> void:
 	if platforms == null:
 		return
 	place_teach_layout(platforms)
-	_grade_materials(platforms)
+	# Merge note: the chapter-1 colour is the phase-3 grade (Level01Parallax play material +
+	# plates). The per-material tones below are kept for reference but not applied: they
+	# re-tinted ground / floating stone / toxin away from the agreed authored hues.
+	if APPLY_MATERIAL_TONES:
+		_grade_materials(platforms)
 
 
 ## 第一章材质色阶（不换贴图、不动碰撞）：让墓园的地面、悬空石台和毒液
@@ -144,6 +153,8 @@ const GROUND_TONE := Color(1.14, 0.76, 0.38)   # 草地 → 枯橄榄/墓土（�
 const FLOAT_TONE := Color(1.10, 0.88, 0.60)    # 悬浮石板 → 暖灰石（去薰衣草紫）
 const STONE_TONE := Color(1.12, 0.90, 0.62)    # 决斗台铺路 → 暖石
 const TOXIN_TINT := Color(1.16, 1.08, 0.48)    # 腐液 → 酸黄绿（与草地绿分开）
+## Off: the phase-3 grade owns chapter-1 colour (user-approved look).
+const APPLY_MATERIAL_TONES := false
 
 
 func _grade_materials(platforms: Node2D) -> void:
@@ -255,9 +266,9 @@ func _spawn_decor() -> void:
 
 
 ## 植被去饱和：鲜绿是"刚浇过水"，枯橄榄才是墓园长出来的东西。
-const FOLIAGE_TONE := Color(0.98, 0.80, 0.48)
+const FOLIAGE_TONE := Color.WHITE  # phase-3 grade owns colour (was Color(0.98, 0.80, 0.48))
 ## 墓石统一微暖，避免灰蓝石头在暖锈天空下显脏。
-const GRAVE_STONE_TONE := Color(1.04, 0.94, 0.82)
+const GRAVE_STONE_TONE := Color.WHITE  # phase-3 grade owns colour (was Color(1.04, 0.94, 0.82))
 
 
 const STELE_SCENE := preload("res://scenes/interactables/LoreStele.tscn")
@@ -361,6 +372,10 @@ static func mark_executioner_slain() -> void:
 
 
 ## 视觉增强：光照 + 场景细节
+## Off: phase-3 LightPool owns chapter-1 fire light (see _add_visual_enhancements).
+const PLANT_AMBIENT_LIGHTS := false
+
+
 func _add_visual_enhancements() -> void:
 	# 场景细节：PropCatalog 的真实贴图（脚点钉台面、1x 最近邻），画在玩法层后面。
 	var details_layer := Node2D.new()
@@ -371,5 +386,10 @@ func _add_visual_enhancements() -> void:
 
 	# 环境光照：全部锚定到真实地标（余烬巢 / 毒池 / 门 / Boss 门 / 炉心），
 	# 不再用写死坐标——关卡布局一改，光池跟着地标走。
-	var lighting := AmbientLighting.create_for_level(self)
-	SceneDetails.add_level01_lighting(lighting, self)
+	# Merge note: the landmark Light2D set (AmbientLighting) is not planted in chapter 1.
+	# Fire light here is the phase-3 LightPool (follows each WorldLight's on/off state, so
+	# an unlit nest stays dark); the always-on ambient lights re-lit the scene away from the
+	# agreed grade. AmbientLighting / SceneDetails.add_level01_lighting stay available.
+	if PLANT_AMBIENT_LIGHTS:
+		var lighting := AmbientLighting.create_for_level(self)
+		SceneDetails.add_level01_lighting(lighting, self)

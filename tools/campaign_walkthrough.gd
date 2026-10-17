@@ -10,10 +10,8 @@ func _run() -> void:
 		await super._run()
 		return
 	get_tree().change_scene_to_file(TITLE)
-	await _frames(12)
-	_ui(&"ui_down")
-	await _frames(3)
-	_ui(&"ui_accept")
+	await _frames(6)
+	await _title_continue()
 	if not await _wait_world(): return
 	_record("resume_input_checkpoint")
 	if not await _after_undercroft(): return
@@ -101,11 +99,7 @@ func _await_scene(path: String) -> bool:
 
 func _continue_round_trip(id: String) -> bool:
 	var checkpoint: Vector2 = SaveData.data["player"]["pos"]
-	_ui(&"ui_cancel")
-	await _frames(3)
-	_ui(&"ui_up")
-	await _frames(3)
-	_ui(&"ui_accept")
+	if not await _pause_to_title(): return false
 	if not await _await_scene(TITLE): return false
 	await _frames(6)
 	await _title_continue()

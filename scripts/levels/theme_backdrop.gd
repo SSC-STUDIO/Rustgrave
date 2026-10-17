@@ -27,111 +27,10 @@ const INDUSTRIAL_DIR := "res://assets/external/oga_parallax/pack/parallax-indust
 ## pack still get their own sky.
 const BACKDROP_DIR := "res://assets/env/backdrop/"
 
-## ---- 显式美术规格（docs/art-spec.md） -------------------------------------
-## 层级对比：远板 ≤ 天空 < 中景 < 近景，且永远输给角色（BackdropTint 再压一档）。
-## 每个主题至少一个独有元素（IDENTITY_COLOR + Signature 灯型 / 剪影 / 窗光）。
-## UNDERCRYPT → undercroft 是唯一回退主题；未知 theme() 会静默变成地窟，
-## 这正是「只换底色」的失败模式，所以这里显式拒絕未知主题由 ThemeBackdrop 承担。
-const THEME_FALLBACK := "undercroft"
-## 每层 tint 的最高明度（scene 线性）：sky 0.13 < far 0.24 < mid 0.40 < near 0.62。
-## 角色（玩家最低明度 0.227 在 MoodTint 之前）因此永远高出背景至少一档。
-const TINT_LUMA_MAX := 0.62
-## backdrop 的 CanvasModulate 额外压暗，保证远景输给角色（world_atmosphere.gd）。
-const BACKDROP_SUBORDINATE := 0.24
-## 轮廓对照：玩家躯干 #CD5C5C 的 sRGB 明度是 0.455；一档 = 0.045 明度。
-## 背景层允许的平均明度上限 0.40，再被 BackdropTint 压 0.24（×0.76），
-## 因此玩法层与背景的平均差 ≥ 0.455 - 0.40×0.76 ≈ 0.151，即至少 3 档。
-const PLAYER_BODY_LUMA := 0.455
-const SILHOUETTE_STEP := 0.045
-const SILHOUETTE_STEPS_MIN := 3
-const LAYER_LUMA_CAP := 0.40
-## BackdropTint 跟随世界时钟的速率；和 WorldAtmosphere.FOLLOW_RATE 同档。
-const BACKDROP_TINT_RATE := 3.5
-
-## 每章身份色（只能用 Palette 的 16 色）：写在签名光 / 雾 / 窗光上。
-## 单换背景色不算视觉身份，所以这张表和 SIGNATURES 一起被测试锁定。
-const IDENTITY_COLOR := {
-	"graveyard": Palette.RUST_LIGHT,
-	"undercroft": Palette.TEAL,
-	"forge": Palette.TOXIC,
-	"forge_core": Palette.RUST_LIGHT,
-	"cathedral": Palette.PALE,
-	"belltower": Palette.EMBER,
-	"ramparts": Palette.FOG,
-	"town": Palette.EMBER_ASH,
-	"industrial": Palette.RUST_MID,
-}
-
-## 每章的独有光型：shafts（天窗/箭窗光柱）、glow（炉口/故事光）、windows（街灯窗）。
-## shafts / glows / windows 的坐标是 640×360 view 内的像素；层整体重复 640px。
-const SIGNATURES := {
-	"undercroft": {
-		"kind": "shafts", "scroll": 0.34, "alpha": 0.17,
-		"shafts": [Vector3(104, 16, 1), Vector3(356, -12, 1)],
-		"glows": [Vector3(212, 292, 2)],
-	},
-	"forge": {
-		"kind": "glow", "scroll": 0.44, "alpha": 0.16,
-		"glows": [Vector3(108, 304, 3), Vector3(420, 320, 4), Vector3(300, 250, 2),
-				Vector3(236, 148, 3), Vector3(524, 184, 2)],
-	},
-	"forge_core": {
-		"kind": "glow", "scroll": 0.4, "alpha": 0.16,
-		"glows": [Vector3(320, 258, 5), Vector3(120, 320, 2),
-				Vector3(176, 168, 4), Vector3(484, 138, 3)],
-		"shafts": [Vector3(320, 24, 1)],
-	},
-	"cathedral": {
-		"kind": "shafts", "scroll": 0.3, "alpha": 0.15,
-		"shafts": [Vector3(180, -8, 1), Vector3(330, -16, 1), Vector3(470, -4, 1)],
-		"glows": [Vector3(330, 300, 2)],
-	},
-	"belltower": {
-		"kind": "shafts", "scroll": 0.28, "alpha": 0.18,
-		"shafts": [Vector3(96, 58, 1), Vector3(480, 18, 1)],
-	},
-	"ramparts": {
-		"kind": "shafts", "scroll": 0.2, "alpha": 0.13,
-		"shafts": [Vector3(220, -32, 1)],
-		"glows": [Vector3(560, 300, 2)],
-	},
-	"town": {
-		"kind": "windows", "scroll": 0.58, "alpha": 0.4,
-		"windows": [Vector2(420, 214), Vector2(452, 214), Vector2(484, 206),
-				Vector2(516, 214), Vector2(548, 206), Vector2(580, 214)],
-		"glows": [Vector3(500, 306, 2)],
-	},
-	"industrial": {
-		"kind": "shafts", "scroll": 0.38, "alpha": 0.15,
-		"shafts": [Vector3(140, -8, 1), Vector3(420, -28, 1)],
-		"glows": [Vector3(260, 320, 2)],
-	},
-}
-
-## 每章的签名灯型（测试据此确认「不只换底色」）。
-const SIGNATURE_KIND := {
-	"graveyard": "moon",
-	"undercroft": "shafts",
-	"forge": "glow",
-	"forge_core": "glow",
-	"cathedral": "shafts",
-	"belltower": "shafts",
-	"ramparts": "shafts",
-	"town": "windows",
-	"industrial": "shafts",
-}
-
-const FOG_BAND_PATH := "res://assets/env/fog_band.png"
-const GLOW_SOFT_PATH := "res://assets/env/glow_soft.png"
-const SIGNATURE_NODE := "Signature"
-const SIGNATURE_SPAN := 640.0
-## 光柱 / 光晕贴图：程序化生成（Image），不下载、不新增外部素材。
-const BEAM_TEX_SIZE := Vector2i(32, 192)
-const GLOW_TEX_SIZE := 48
-
 const THEMES := {
 	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。
 	"undercroft": {
+		"look": {"far": 0.6, "near": 0.72, "glow": Color(0.45, 0.85, 0.75, 0.06), "glow_stops": "centre", "top_light": Color(0.78, 1.0, 0.82, 0.3)},
 		"indoors": true,
 		"void": Color(0.035, 0.07, 0.085),
 		"mood": Color(0.66, 0.82, 0.84),
@@ -142,74 +41,64 @@ const THEMES := {
 	},
 	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
 	# 和工坊（industrial）同包，但工坊是灰绿的冷车间，这里是渣海。
-	# 三层室内远景（wall/truss/machinery）由 tools/gen_theme_tiles.py 的
-	# interior_backdrops() 生成：墙板铺满镜头，顶架给上缘收口，机械剪影给地面线。
 	"forge": {
+		"look": {"far": 0.74, "near": 0.86, "glow": Color(1.0, 0.42, 0.12, 0.3), "glow_stops": "bottom", "top_light": Color(1.0, 0.62, 0.3, 0.42)},
 		"indoors": true,
 		"void": Color(0.07, 0.02, 0.015),
 		"mood": Color(1.0, 0.8, 0.66),
 		"layers": [
-			{"path": BACKDROP_DIR + "wall_forge.png", "scroll": Vector2(0.14, 0.1),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.72, 0.62),
-				 "tile": true, "covers_top": true},
-			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1, 1, 1, 0.5)},
+			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(1, 1, 1, 0.9)},
-			{"path": BACKDROP_DIR + "truss_forge.png", "scroll": Vector2(0.22, 0.16),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.8, 0.74), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_forge.png", "scroll": Vector2(0.5, 0.3),
-				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.88, 0.82)},
 		],
 	},
 	# 炉心深处：地窟的拱窗内景烧成暗红——终关是一座被火从里面舔过的殿。
 	"forge_core": {
+		"look": {"far": 0.62, "near": 0.74, "glow": Color(1.0, 0.24, 0.2, 0.07), "glow_stops": "centre", "top_light": Color(1.0, 0.52, 0.4, 0.4)},
 		"indoors": true,
 		"void": Color(0.05, 0.012, 0.016),
 		"mood": Color(1.0, 0.84, 0.8),
 		"layers": [
-			{"path": BACKDROP_DIR + "wall_core.png", "scroll": Vector2(0.14, 0.1),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.88, 0.72, 0.64),
-				 "tile": true, "covers_top": true},
-			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(1, 1, 1, 0.82)},
+			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color.WHITE},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.3, 0.08, 0.07, 0.92), "repeat": 352.0},
-			{"path": BACKDROP_DIR + "truss_core.png", "scroll": Vector2(0.22, 0.16),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.9, 0.82, 0.76), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_core.png", "scroll": Vector2(0.5, 0.3),
-				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(1.0, 0.9, 0.84)},
 		],
 	},
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。
-	# 大厅板画在地面线上，上半屏原本是空的：补一层冷紫砌石墙 + 顶架剪影（拱顶肋）。
+	# 冷石殿：板岩青灰石，暖光只来自烛台（不是第一章的锈红、第八章的炉橙，也不再是薰衣草紫）。
 	"cathedral": {
+		"look": {"far": 0.8, "near": 0.86, "glow": Color(0.6, 0.7, 0.95, 0.05), "glow_stops": "top", "top_light": Color(1.0, 0.84, 0.58, 0.32)},
 		"indoors": true,
-		"void": Color(0.045, 0.04, 0.075),
-		"mood": Color(0.72, 0.7, 0.9),
+		"void": Color(0.035, 0.04, 0.05),
+		"mood": Color(0.84, 0.88, 0.96),
 		"layers": [
-			# 补墙/顶架用显式 layer 名：殿墙 hall strip 仍是 Layer0、柱影仍是 Layer1，
-			# 竖井关「不能沿井复制殿墙」的索引断言不受影响。
-			{"name": "WallPlate", "path": BACKDROP_DIR + "wall_slate.png", "scroll": Vector2(0.14, 0.1),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.84, 0.82, 0.94),
-				 "tile": true, "covers_top": true},
-			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.2, 0.17, 0.3, 0.9), "repeat": 448.0},
-			{"name": "VaultTruss", "path": BACKDROP_DIR + "truss_slate.png", "scroll": Vector2(0.24, 0.18),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.72, 0.7, 0.82), "covers_top": true},
+			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color.WHITE, "region": Rect2(0, 0, 480, 168)},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.14, 0.16, 0.2, 0.9), "repeat": 448.0},
 		],
+		"grade": {
+			"ramp": [Color("#08090c"), Color("#1a1e25"), Color("#363d47"), Color("#6f7a86"), Color("#d3dade")],
+			"plates": {"Layer0": 0.85, "Layer1": 0.8},
+			"values": {"Layer0": 0.95, "Layer1": 1.0},
+			"play_ramp": [Color("#0d0e11"), Color("#2b3037"), Color("#555d66"), Color("#a3a9ab"), Color("#f4eee0")],
+			"play_amount": 0.7,
+		},
 	},
 	# 钟楼：竖井。橄榄色城砖墙双向平铺爬满整座塔（没有地面线，抬多高都不穿帮），
 	# 箭窗透冷光；地面一层再压一条殿墙。
 	"belltower": {
+		"look": {"far": 0.85, "near": 0.9, "glow": Color(0.55, 0.62, 0.95, 0.06), "glow_stops": "top", "top_light": Color(1.0, 0.86, 0.5, 0.42)},
 		"indoors": true,
 		"void": Color(0.03, 0.03, 0.04),
-		"mood": Color(0.78, 0.78, 0.9),
+		# Lifted from 0.78 / 0.9: the shaft read as near-black (phase-2 peeks).
+		"mood": Color(0.86, 0.86, 0.97),
 		"layers": [
-			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true, "covers_top": true},
+			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.15, 0.2, 0.9), "repeat": 448.0},
 		],
 	},
 	# 锈城城墙：站在墙顶往下看城。青灰云、远山，城和钟塔缩在脚下的雾里。
 	"ramparts": {
+		"look": {"far": 0.74, "near": 0.84, "glow": Color(0.95, 0.88, 0.7, 0.16), "glow_stops": "horizon", "top_light": Color(0.95, 0.95, 0.86, 0.32)},
 		"indoors": false,
 		"void": Color(0.06, 0.1, 0.11),
 		"mood": Color(0.8, 0.86, 0.86),
@@ -222,6 +111,7 @@ const THEMES := {
 	},
 	# 锈城：夜色小镇——天、云、山、林、远屋、近屋。室外，有天气与风。
 	"town": {
+		"look": {"far": 0.72, "near": 0.8, "glow": Color(0.4, 0.7, 0.75, 0.2), "glow_stops": "horizon", "top_light": Color(1.0, 0.82, 0.55, 0.38)},
 		"indoors": false,
 		"void": Color(0.04, 0.08, 0.09),
 		"mood": Color(0.74, 0.82, 0.84),
@@ -235,58 +125,55 @@ const THEMES := {
 		],
 	},
 	# 锈厂：工业剪影——脚手架、厂房、烟囱。有顶棚，算室内（无雨），暖灰色调。
-	# 原包整族是绿的，和「暖灰铁」身份色打架；三张远景由 gen_theme_tiles.py 重映射到
-	# 暖铁色阶。砌石墙（wall_iron）铺满镜头，顶架和机械剪影给上缘/地面线收口。
 	"industrial": {
+		"look": {"far": 0.72, "near": 0.8, "glow": Color(0.65, 0.85, 0.6, 0.16), "glow_stops": "top", "top_light": Color(1.0, 0.66, 0.38, 0.38)},
 		"indoors": true,
 		"void": Color(0.06, 0.06, 0.06),
 		"mood": Color(0.82, 0.74, 0.68),
 		"layers": [
-			{"path": BACKDROP_DIR + "wall_iron.png", "scroll": Vector2(0.14, 0.1),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.82, 0.78),
-				 "tile": true, "covers_top": true},
-			{"path": BACKDROP_DIR + "workshop_haze.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1.0, 0.96, 0.92, 0.25)},
-			{"path": BACKDROP_DIR + "truss_iron.png", "scroll": Vector2(0.22, 0.16),
-				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.8, 0.76, 0.72), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_iron.png", "scroll": Vector2(0.5, 0.3),
-				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.9, 0.85)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0003_bg.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(0.9, 0.85, 0.85)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0002_far-buildings.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color(0.75, 0.7, 0.7)},
+			{"path": INDUSTRIAL_DIR + "skill-desc_0001_buildings.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color(0.6, 0.55, 0.55)},
 		],
 	},
 }
+
+## Level06 night graveyard reuses chapter 1's sky stack; this palette makes it a cold,
+## moonlit place (bone, ash, fog-teal) instead of a second rust dusk.
+const NIGHT_GRAVEYARD := {
+	"ramp": [Color("#080b10"), Color("#18222c"), Color("#2f4250"), Color("#68848c"), Color("#d2e0da")],
+	"plates": {"Far": 0.9, "Mid": 0.9, "Hills": 0.85, "SkyCloudsHigh": 0.85, "SkyCloudsLow": 0.85, "Foreground": 0.8},
+	"values": {"Far": 1.0, "Mid": 0.82, "Hills": 0.7, "SkyCloudsHigh": 0.95, "SkyCloudsLow": 0.9, "Foreground": 0.8},
+	"warm": Color(0.86, 1.0, 1.12),
+	"cloud_tint": Color(1.0, 1.1, 1.18),
+	"veil": Color(0.74, 0.82, 0.84),
+	"sil_tint": Color(0.08, 0.11, 0.13, 0.95),
+	"play_ramp": [Color("#0a0c0e"), Color("#1d2526"), Color("#3c4a47"), Color("#7e8f86"), Color("#dfe2d2")],
+	"play_amount": 0.72,
+	"play_value": 1.0,
+	# Cold moon haze over the horizon and a cold rim on ledge tops (not chapter 1's ember).
+	"glow": Color(0.55, 0.72, 0.9, 0.22),
+	"top_light": Color(0.75, 0.86, 0.95, 0.3),
+}
+## Play-layer folders a ChapterLayout builds (see ChapterLayout.group / decor_layer).
+const PLAY_FOLDERS := ["Platforms", "Decor"]
 
 const BREATH_AMP := 0.03
 const BREATH_RATE := 0.35
 
 var _mood: CanvasModulate
-var _backdrop_tint: CanvasModulate
 var _base_mood := Color.WHITE
 var _indoors := true
 var _t := 0.0
 
-## 程序化合成的共享贴图 / 材质（每个进程只做一次）。
-static var _beam_tex: Texture2D
-static var _glow_tex: Texture2D
-static var _pixel_tex: Texture2D
-static var _add_mat: CanvasItemMaterial
-static var _luma_cache: Dictionary = {}
+
+## WorldAtmosphere darkens the backdrop CanvasLayer by this step below the play canvas
+## (shared constant; tests/world_atmosphere_test.gd pins it).
+const BACKDROP_SUBORDINATE := 0.24
 
 
 static func has_theme(theme_id: String) -> bool:
 	return THEMES.has(theme_id) or theme_id == "graveyard"
-
-
-## 每主题的独有元素名（视觉身份：不能只换底色）。写在这里由测试锁定，
-## 新增主题必须同时登记 THEMES、has_theme 与本表。
-const SIGNATURE_LAYERS := {
-	"undercroft": ["Layer0"],
-	"forge": ["Layer0", "Layer5", "Layer6"],
-	"forge_core": ["Layer0", "Layer3", "Layer4"],
-	"cathedral": ["WallPlate", "VaultTruss"],
-	"belltower": ["Layer0"],
-	"ramparts": ["Layer1", "Layer2", "Layer3"],
-	"town": ["Layer0", "Layer1", "Layer2", "Layer3", "Layer4", "Layer5"],
-	"industrial": ["Layer0", "Layer2", "Layer3"],
-}
 
 
 static func is_indoor_theme(theme_id: String) -> bool:
@@ -297,7 +184,7 @@ static func is_indoor_theme(theme_id: String) -> bool:
 
 func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 	if theme_id == "graveyard":
-		_build_graveyard(host, theme_id)
+		_build_graveyard(host)
 		return
 	var theme: Dictionary = THEMES.get(theme_id, THEMES["undercroft"])
 	_indoors = bool(theme.get("indoors", true))
@@ -316,23 +203,19 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 		void_rect.size = Vector2(PresentationMetrics.WORLD_SIZE) + Vector2(128, 128)
 		void_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		backdrop.add_child(void_rect)
-	# 命名：默认 Layer0..LayerN（图层顺序 = 绘制顺序）。新加的「室内补墙/顶架」层
-	# 可以给 def "name" 覆盖自己的名字，这样垂直关的既有 hall strip 仍是 Layer0/Layer1
-	# （chapter_support_test 用索引锁定「殿墙不能沿竖井复制」）。named 层不占 LayerN 序号。
 	var i := 0
 	for layer_def in theme.get("layers", []):
+		# 显式 "name" 的层不占 LayerN 序号（与 cursor/theme-fit-level-props 的约定一致）。
 		var layer_name := String((layer_def as Dictionary).get("name", ""))
 		if layer_name == "":
 			layer_name = "Layer%d" % i
 			i += 1
 		_add_layer(backdrop, layer_name, layer_def)
-	# 环境层次：每一章都有「雾 + 独有光型」两层。雾把远/中/近粘在同一空气里，
-	# Signature 是本章的身份光（箭窗、炉口、街灯窗），两者都在玩法画布后面。
-	if backdrop.get_node_or_null("FogNear") == null:
-		_add_mist(backdrop, theme_id)
-	if backdrop.get_node_or_null(SIGNATURE_NODE) == null:
-		_add_signature(backdrop, theme_id)
-	_ensure_backdrop_tint(backdrop)
+	var grade: Dictionary = theme.get("grade", {})
+	if not grade.is_empty():
+		Level01Parallax.grade_plates(backdrop, grade)
+		Level01Parallax.grade_play_layer(host, grade, PLAY_FOLDERS)
+	ChapterLook.apply(host, backdrop, theme.get("look", {}))
 	# Do not copy these strips up a tall shaft. Each plate is a scene with its
 	# ground line on the bottom edge (hall at y=320, columns at y=336). A copy
 	# shifted by the texture height plants that same wall in the air.
@@ -360,13 +243,9 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 
 
 ## Level01's authored sky stack, rebuilt in code, then handed to Level01Parallax
-## for clouds / fog / mood / weather / moon. The sky and far-mountain plates are
-## the derived rust pair for the graveyard identity (Level01Parallax decides and
-## falls back to the authored magenta plates if a derived asset is missing).
-func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
+## for clouds / fog / mood / weather / moon.
+func _build_graveyard(host: Node2D) -> void:
 	_indoors = false
-	var sky_path := Level01Parallax.sky_plate_path(theme_id)
-	var mountain_path := Level01Parallax.mountains_plate_path(theme_id)
 	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	if backdrop == null:
 		backdrop = CanvasLayer.new()
@@ -374,8 +253,8 @@ func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 		backdrop.layer = -10
 		backdrop.follow_viewport_enabled = false
 		host.add_child(backdrop)
-		_add_plate(backdrop, "Far", sky_path, Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
-		_add_plate(backdrop, "Mid", mountain_path, Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
+		_add_plate(backdrop, "Far", "res://assets/env/parallax_sky.png", Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
+		_add_plate(backdrop, "Mid", "res://assets/env/parallax_mountains.png", Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
 		_add_plate(backdrop, "Hills", "res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), Vector2(0, 168), 1.85)
 	var front := host.get_node_or_null("ParallaxForeground") as CanvasLayer
 	if front == null:
@@ -384,20 +263,19 @@ func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 		front.layer = 1
 		front.follow_viewport_enabled = false
 		host.add_child(front)
-		_add_plate(front, "Foreground", "res://assets/env/normalized/parallax_foreground_px.png", Vector2(1.22, 0.18), Vector2(0, 352), 1.0, Color(0.16, 0.12, 0.2, 0.78))
+		_add_plate(front, "Foreground", "res://assets/env/normalized/parallax_foreground_px.png", Vector2(1.22, 0.18), Vector2(0, 352), 1.0, Color(0.1, 0.13, 0.16, 0.78))
 	var extras := Level01Parallax.new()
 	extras.name = "ParallaxExtras"
+	extras.palette = NIGHT_GRAVEYARD
 	host.add_child(extras)
-	extras.build(host, theme_id)
-	_ensure_backdrop_tint(backdrop)
+	extras.build(host)
+	Level01Parallax.grade_play_layer(host, NIGHT_GRAVEYARD, PLAY_FOLDERS)
+	ChapterLook._finish_deferred.call_deferred(host.get_instance_id(), Color(0, 0, 0, 0), NIGHT_GRAVEYARD)
 
 
 func _add_plate(parent: Node, plate_name: String, path: String, scroll: Vector2, pos: Vector2, scale_k: float,
 		tint: Color = Color.WHITE) -> void:
 	if not ResourceLoader.exists(path):
-		return
-	var tex := load(path) as Texture2D
-	if tex == null:
 		return
 	var layer := Parallax2D.new()
 	layer.name = plate_name
@@ -406,18 +284,17 @@ func _add_plate(parent: Node, plate_name: String, path: String, scroll: Vector2,
 	parent.add_child(layer)
 	var spr := Sprite2D.new()
 	spr.name = "Sprite"
-	spr.texture = tex
+	spr.texture = load(path) as Texture2D
 	spr.centered = false
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.position = pos
 	spr.scale = Vector2(scale_k, scale_k)
-	_apply_luma_cap(layer, spr, tex, tint)
+	spr.modulate = tint
 	layer.add_child(spr)
 	Level01Parallax.cover_layer(layer)
 
 
 func _process(delta: float) -> void:
-	_update_backdrop_tint(delta)
 	if _mood == null or not _indoors:
 		return
 	_t += delta * BREATH_RATE
@@ -445,7 +322,7 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 	spr.position = def.get("pos", Vector2.ZERO)
 	var k: float = def.get("scale", 1.0)
 	spr.scale = Vector2(k, k)
-	_apply_luma_cap(layer, spr, tex, def.get("tint", Color.WHITE))
+	spr.modulate = def.get("tint", Color.WHITE)
 	var region: Rect2 = def.get("region", Rect2())
 	if region.has_area():
 		spr.region_enabled = true
@@ -453,12 +330,12 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 	layer.add_child(spr)
 	var repeat: float = def.get("repeat", 0.0)
 	if bool(def.get("tile", false)):
-		# Plain wall texture for a tall interior: one oversized sprite that tiles on both
+		# Plain wall texture for a tall shaft: one oversized sprite that tiles on both
 		# axes by texture repeat. Parallax2D's own repeat only covers a strip of the
 		# view on the second axis. The sprite spans every camera position of every chapter
 		# (scroll shifts it by at most travel * scroll_scale) plus a view of margin, so
-		# the wall can never run off the top of a tall shaft — the old fixed
-		# `-18 * cell` offset left the whole bell tower black.
+		# the wall can never run off the top of a tall shaft (the old fixed
+		# `-18 * cell` offset left the top of the bell tower black).
 		var cell := Vector2(tex.get_size()) * k
 		var span := Vector2(cell.x * ceilf(6000.0 / cell.x), cell.y * ceilf(4200.0 / cell.y))
 		spr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
@@ -474,277 +351,4 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 		var step := floorf(tile)
 		layer.repeat_size = Vector2(step, 0.0)
 		layer.repeat_times = Level01Parallax.copies_for_view(step)
-	if bool(def.get("covers_top", false)):
-		# 室内关的上缘必须有墙/梁压住（tests/prop_fit_test.gd 断言的「镜头上界带」）。
-		layer.set_meta("covers_top", true)
 	return layer
-
-
-## ------------------------------------------------- 视觉身份 / 轮廓对比 --
-
-## 主题身份色（Palette 16 色之一；未知主题回落到骨白）。
-static func identity_color(theme_id: String) -> Color:
-	return IDENTITY_COLOR.get(theme_id, Palette.PALE)
-
-
-## 主题独有光型：shafts / glow / windows。graveyard 的月亮/剪影由
-## Level01Parallax 负责，所以返回 "moon"。
-static func signature_kind(theme_id: String) -> String:
-	return String(SIGNATURE_KIND.get(theme_id, ""))
-
-
-static func srgb_luma(c: Color) -> float:
-	return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-
-
-## 贴图不透明像素的平均 sRGB 明度（按最长边最多采样 48 个点）。
-## 结果按 resource_path 缓存：每层只在建关时算一次。
-static func texture_luma(tex: Texture2D) -> float:
-	if tex == null:
-		return 0.0
-	var key := tex.resource_path
-	if key == "":
-		key = "rid:%d" % tex.get_instance_id()
-	if _luma_cache.has(key):
-		return float(_luma_cache[key])
-	var img := tex.get_image()
-	var total := 0.0
-	var n := 0
-	if img != null:
-		if img.is_compressed():
-			img.decompress()
-		var w := img.get_width()
-		var h := img.get_height()
-		var step := maxi(1, int(maxf(float(w), float(h)) / 48.0))
-		for y in range(0, h, step):
-			for x in range(0, w, step):
-				var c := img.get_pixel(x, y)
-				if c.a <= 0.04:
-					continue
-				total += srgb_luma(c)
-				n += 1
-	var luma := total / float(n) if n > 0 else 0.0
-	_luma_cache[key] = luma
-	return luma
-
-
-## 一层 backdrop 的平均明度上限：超出就整体压暗，既保留内部对比，
-## 又保证「背景永远比玩家里最亮的主角躯干低至少 3 档」。
-func _apply_luma_cap(layer: Parallax2D, spr: Sprite2D, tex: Texture2D, tint: Color) -> float:
-	var avg := texture_luma(tex)
-	var gain := 1.0
-	if avg > LAYER_LUMA_CAP:
-		gain = LAYER_LUMA_CAP / avg
-	spr.modulate = Color(tint.r * gain, tint.g * gain, tint.b * gain, tint.a)
-	if layer != null:
-		layer.set_meta("luma", avg * gain)
-		layer.set_meta("luma_cap", LAYER_LUMA_CAP)
-		layer.set_meta("luma_gain", gain)
-	return gain
-
-
-## 背景 CanvasLay 的独立调色：永远比 MoodTint（玩法层）暗一档。
-func _ensure_backdrop_tint(parent: CanvasLayer) -> void:
-	if parent == null:
-		return
-	var cm := parent.get_node_or_null("BackdropTint") as CanvasModulate
-	if cm == null:
-		cm = CanvasModulate.new()
-		cm.name = "BackdropTint"
-		parent.add_child(cm)
-	_backdrop_tint = cm
-	_backdrop_tint.color = _backdrop_target_color()
-
-
-func _backdrop_target_color() -> Color:
-	var ambient: Color = WorldClock.indoor_tint() if WorldClock.zone == WorldClock.Zone.INDOORS \
-			else WorldClock.outdoor_tint()
-	return ambient.darkened(BACKDROP_SUBORDINATE)
-
-
-func _update_backdrop_tint(delta: float) -> void:
-	if _backdrop_tint == null:
-		return
-	var k := 1.0 if delta <= 0.0 else 1.0 - exp(-BACKDROP_TINT_RATE * maxf(delta, 0.0))
-	_backdrop_tint.color = _backdrop_tint.color.lerp(_backdrop_target_color(), k)
-
-
-## 当前 BackdropTint 颜色（测试 / 调试用）。
-func backdrop_tint_color() -> Color:
-	return _backdrop_tint.color if _backdrop_tint != null else Color.WHITE
-
-
-## 雾层：所有章节共用一条 fog_band 贴图，但用本章身份色染色；
-## 它把远 / 中 / 近三层粘进同一空气，近层不会像贴在天空上的贴纸。
-func _add_mist(parent: CanvasLayer, theme_id: String) -> Parallax2D:
-	if not ResourceLoader.exists(FOG_BAND_PATH):
-		return null
-	var tex := load(FOG_BAND_PATH) as Texture2D
-	if tex == null:
-		return null
-	var layer := Parallax2D.new()
-	layer.name = "FogNear"
-	layer.scroll_scale = Vector2(0.76, 0.12)
-	layer.follow_viewport = false
-	parent.add_child(layer)
-	var spr := Sprite2D.new()
-	spr.name = "Sprite"
-	spr.texture = tex
-	spr.centered = false
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.position = Vector2(0, 248)
-	spr.scale = Vector2(2.0, 1.25)
-	var c := identity_color(theme_id)
-	spr.modulate = Color(c.r, c.g, c.b, 0.14)
-	layer.add_child(spr)
-	Level01Parallax.cover_layer(layer)
-	layer.set_meta("identity_color", c)
-	layer.set_meta("occlusion_alpha", 0.14)
-	return layer
-
-
-## 独有元素层：本章的一束光 / 一片炉火 / 一排街窗。坐标在 640×360 view 内，
-## Parallax2D 按 640px 重复，所以镜头走多远都有同一组光。
-func _add_signature(parent: CanvasLayer, theme_id: String) -> Parallax2D:
-	var spec: Dictionary = SIGNATURES.get(theme_id, {})
-	if spec.is_empty():
-		return null
-	var layer := Parallax2D.new()
-	layer.name = SIGNATURE_NODE
-	layer.scroll_scale = Vector2(float(spec.get("scroll", 0.5)), 0.08)
-	layer.follow_viewport = false
-	parent.add_child(layer)
-	layer.repeat_size = Vector2(SIGNATURE_SPAN, 0.0)
-	layer.repeat_times = Level01Parallax.copies_for_view(SIGNATURE_SPAN)
-	var c := identity_color(theme_id)
-	var alpha := float(spec.get("alpha", 0.16))
-	var made := 0
-	for spot in spec.get("shafts", []):
-		var v: Vector3 = spot
-		if _add_beam(layer, v, c, alpha):
-			made += 1
-	for spot in spec.get("glows", []):
-		var v: Vector3 = spot
-		if _add_glow(layer, v, c, alpha):
-			made += 1
-	for spot in spec.get("windows", []):
-		var v: Vector2 = spot
-		if _add_window(layer, v, c, alpha):
-			made += 1
-	if made == 0:
-		layer.queue_free()
-		return null
-	layer.set_meta("theme", theme_id)
-	layer.set_meta("kind", signature_kind(theme_id))
-	layer.set_meta("identity_color", c)
-	layer.set_meta("occlusion_alpha", alpha)
-	return layer
-
-
-## 光柱：32×192 的程序化渐变，顶部亮、底部收；加法混合，永远在 backdrop 层。
-func _add_beam(layer: Parallax2D, spot: Vector3, c: Color, alpha: float) -> bool:
-	var beam := _beam_texture()
-	if beam == null:
-		return false
-	var spr := Sprite2D.new()
-	spr.name = "Shaft"
-	spr.texture = beam
-	spr.centered = true
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.material = _additive_material()
-	spr.position = Vector2(roundf(spot.x), roundf(spot.y + 96.0))
-	spr.rotation = deg_to_rad(-7.0 if int(spot.z) % 2 == 0 else 6.0)
-	spr.modulate = Color(c.r, c.g, c.b, alpha)
-	spr.set_meta("kind", "shaft")
-	layer.add_child(spr)
-	return true
-
-
-## 局部光晕：炉口 / 烛台 / 烽火，加法混合的小半径光池。
-func _add_glow(layer: Parallax2D, spot: Vector3, c: Color, alpha: float) -> bool:
-	var tex := _glow_texture()
-	if tex == null:
-		return false
-	var spr := Sprite2D.new()
-	spr.name = "Pool"
-	spr.texture = tex
-	spr.centered = true
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.material = _additive_material()
-	spr.position = Vector2(roundf(spot.x), roundf(spot.y))
-	spr.scale = Vector2(spot.z, spot.z)
-	spr.modulate = Color(c.r, c.g, c.b, alpha * 0.8)
-	spr.set_meta("kind", "glow")
-	layer.add_child(spr)
-	return true
-
-
-## 街窗：4×6 的像素窗光，加法混合；窗框由暗背景自然切出。
-func _add_window(layer: Parallax2D, at: Vector2, c: Color, alpha: float) -> bool:
-	var tex := _pixel_texture()
-	if tex == null:
-		return false
-	var spr := Sprite2D.new()
-	spr.name = "Window"
-	spr.texture = tex
-	spr.centered = false
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.material = _additive_material()
-	spr.position = at.round()
-	spr.scale = Vector2(4, 6)
-	spr.modulate = Color(c.r, c.g, c.b, alpha)
-	spr.set_meta("kind", "window")
-	layer.add_child(spr)
-	return true
-
-
-static func _additive_material() -> CanvasItemMaterial:
-	if _add_mat == null:
-		_add_mat = CanvasItemMaterial.new()
-		_add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	return _add_mat
-
-
-static func _beam_texture() -> Texture2D:
-	if _beam_tex != null:
-		return _beam_tex
-	var w := BEAM_TEX_SIZE.x
-	var h := BEAM_TEX_SIZE.y
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	for y in h:
-		var t := float(y) / float(h - 1)
-		var along := pow(1.0 - t, 1.35) * 0.55
-		for x in w:
-			var cx := absf(float(x) - float(w - 1) * 0.5) / (float(w) * 0.5)
-			var a := clampf(along * pow(1.0 - cx, 1.6), 0.0, 0.55)
-			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
-	_beam_tex = ImageTexture.create_from_image(img)
-	return _beam_tex
-
-
-static func _glow_texture() -> Texture2D:
-	if _glow_tex != null:
-		return _glow_tex
-	if ResourceLoader.exists(GLOW_SOFT_PATH):
-		_glow_tex = load(GLOW_SOFT_PATH) as Texture2D
-		if _glow_tex != null:
-			return _glow_tex
-	var size := GLOW_TEX_SIZE
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var center := Vector2(size, size) * 0.5
-	for y in size:
-		for x in size:
-			var d := Vector2(x + 0.5, y + 0.5).distance_to(center) / (float(size) * 0.5)
-			var a := pow(clampf(1.0 - d, 0.0, 1.0), 2.0) * 0.7
-			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
-	_glow_tex = ImageTexture.create_from_image(img)
-	return _glow_tex
-
-
-static func _pixel_texture() -> Texture2D:
-	if _pixel_tex != null:
-		return _pixel_tex
-	var img := Image.create(1, 1, false, Image.FORMAT_RGBA8)
-	img.set_pixel(0, 0, Color.WHITE)
-	_pixel_tex = ImageTexture.create_from_image(img)
-	return _pixel_tex

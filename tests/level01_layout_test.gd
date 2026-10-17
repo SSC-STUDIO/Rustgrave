@@ -706,8 +706,11 @@ func test_scene_details_are_grounded_real_props() -> void:
 		ok(LevelSanity.standing_on(tops, feet) != null,
 				"%s feet stand on a platform top (%s)" % [spr.name, feet])
 	eq(grounded, SceneDetails.GROUND_DETAILS.size(), "every ground detail is foot-pinned")
-	var lighting := level.get_node_or_null("AmbientLighting") as AmbientLighting
-	ok(lighting != null, "ambient lighting is planted")
+	# Merge contract: the always-on ambience lights are off in chapter 1 (phase-3 LightPool
+	# owns fire light); when planted explicitly they still anchor to every landmark.
+	ok(level.get_node_or_null("AmbientLighting") == null, "chapter 1 plants no ambience light set")
+	var lighting := AmbientLighting.create_for_level(level)
+	SceneDetails.add_level01_lighting(lighting, level)
 	if lighting != null:
 		ok(lighting.light_count() > 0, "level actually gets ambience lights")
 		ok(lighting.light_count() <= AmbientLighting.MAX_LIGHTS,

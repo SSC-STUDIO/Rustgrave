@@ -69,20 +69,35 @@ static func extra_keys(action: StringName) -> Array[String]:
 
 
 ## 把模板里的 {action} 换成当前键名；未知占位原样保留，便于一眼看出写错。
+## On-screen pad captions (TouchControls): touch sessions name the button, not a key.
+const TOUCH_CAPS := {
+	&"attack": "斩", &"jump": "跳", &"dash": "冲", &"interact": "互",
+	&"hookshot": "钩", &"socket_1": "1", &"socket_2": "2",
+}
+
+
 static func format(template: String) -> String:
 	if not template.contains("{"):
 		return template
 	var out := template
+	var touch := TouchInput.wants_overlay()
 	for action in Settings.REBINDABLE:
 		var token := "{%s}" % String(action)
 		if out.contains(token):
-			out = out.replace(token, label(action))
+			out = out.replace(token, touch_label(action) if touch and TOUCH_CAPS.has(action) else label(action))
 	return out
+
+
+## 「斩」-style caption of the pad button for an action.
+static func touch_label(action: StringName) -> String:
+	return "「%s」" % String(TOUCH_CAPS.get(action, String(action)))
 
 
 ## 其他系统硬编码的交互提示（"E 点燃余烬巢"）开头那个 "E " 换成当前交互键。
 static func localize_prompt(text: String) -> String:
 	if text.begins_with("E "):
+		if TouchInput.wants_overlay():
+			return touch_label(&"interact") + text.substr(1)
 		return label(&"interact") + text.substr(1)
 	return text
 

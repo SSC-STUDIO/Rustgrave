@@ -72,6 +72,8 @@ func interact(actor: Node) -> void:
 		_looted = true
 		prompt = ""
 		modulate.a = 0.4
+		# Same save-at-pickup rule as CorePickup: looted flag and pouch land together.
+		SaveData.persist_progress(actor)
 
 
 func get_persistent_state() -> Dictionary:

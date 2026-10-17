@@ -90,6 +90,12 @@ static var _carrier: Greatsword
 static var _pending_handoff := false
 
 
+## True while the new-game opening owns the Director (the skip prompt says 跳过开场
+## only then; every other skippable beat says 跳过).
+static func is_active() -> bool:
+	return _active
+
+
 static func should_play() -> bool:
 	if _active or SaveData.has_flag(FLAG):
 		return false
