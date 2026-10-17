@@ -728,5 +728,9 @@ func tab_button(index: int) -> Button:
 	return _tab_buttons[index]
 
 
+## 切页（工具 / 测试 / 手柄肩键共用）。可见时把焦点送进新页的第一行：
+## 否则换页后焦点还留在上一页已隐藏的控件上，页面上一个高亮都没有。
 func show_tab(index: int) -> void:
 	_select_tab(index)
+	if visible:
+		_focus_first.call_deferred()

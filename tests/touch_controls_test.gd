@@ -84,3 +84,26 @@ func test_pad_buttons_stay_inside_design_rect_and_touch_sized() -> void:
 		ok(screen.encloses(rect), "%s 完整落在设计画布内 %s" % [button.name, rect])
 	pad.queue_free()
 	await flush(1)
+
+
+## 手机刘海 / 圆角安全区：喂一组边距进去，整块触控板缩进安全区，按钮仍然 ≥52px。
+## （真实设备才能给出真实刘海值；这里验证的是排版把安全区当回事。）
+func test_safe_insets_keep_the_pad_inside_the_notch() -> void:
+	TouchInput.force_show = 1
+	var pad := TouchControls.new()
+	add_child(pad)
+	await flush(3)
+	var insets := Vector4(44.0, 24.0, 44.0, 20.0)
+	pad.apply_safe_insets(insets)
+	await flush(3)
+	var safe := Rect2(Vector2(insets.x, insets.y),
+			Vector2(PresentationMetrics.UI_SIZE) - Vector2(insets.x + insets.z,
+					insets.y + insets.w))
+	for button in pad.buttons():
+		var rect := button.get_global_rect()
+		ok(rect.size.x >= UiKit.TOUCH_MIN and rect.size.y >= UiKit.TOUCH_MIN,
+				"%s keeps the 52px touch minimum under a notch" % button.name)
+		ok(safe.encloses(rect), "%s stays inside the safe area %s" % [button.name, rect])
+	pad.apply_safe_insets(Vector4.ZERO)
+	pad.queue_free()
+	await flush(1)

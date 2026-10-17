@@ -21,19 +21,29 @@ const HEART_SLOT_SIZE := Vector2(26, 22)
 const HEART_SEPARATION := 2
 const HEART_FLASH := 0.22
 
-## 状态带外侧的留白与毒素槽尺寸（设计单位）。心行 22 + 槽 12 + 间隙 2 + 上下衬 8 = 44。
+## 状态带外侧的留白与毒素槽尺寸（设计单位）。心行 22 + 槽行 16 + 间隙 2 + 上下衬 8 = 48。
 const STAT_MARGIN := Vector2(12.0, 8.0)
-const TOXIN_BAR_SIZE := Vector2(96, 12)
-## 毒素档位字（"冷 0%"）占的槽宽。12px 字的行高是 16，槽只有 12 高，字框上下各溢出 2。
-const TOXIN_LABEL_WIDTH := 34.0
+## 毒素槽宽度是下限，实际由 HBox 撑满状态带（与心行同宽），读数才像一条真正的量槽。
+const TOXIN_BAR_SIZE := Vector2(96, 14)
+## 槽行高度：12px 字的行高是 16，槽 14 高居中放，字框上下各留 1。
+const TOXIN_ROW_HEIGHT := 16.0
+## 毒素档位字（"溢 100%"）占的槽宽。12px 字最宽是 3 位数，"溢 100%" 约 39 设计像素。
+const TOXIN_LABEL_WIDTH := 46.0
 const SOCKET_ICON := 26.0
 ## 与 assets/ui/banner.png 的高度一致（21 设计像素 * 2）。
 const BANNER_HEIGHT := 42.0
 const BANNER_TOP := 14.0
 ## 交互提示贴在视口底边，避开玩家所在的中下视野；字幕占用底边时整条让路。
 const PROMPT_BOTTOM := 10.0
-## Boss 条在底边中央占的高度；交互提示在 Boss 战中抬到它上面，两者不重叠。
-const BOSS_BAR_LIFT := 56.0
+## 交互提示里键帽与文案的间距。
+const PROMPT_KEY_GAP := 10.0
+## Boss 条在底边中央占的高度（12px 名字行 + 2 + 12 血条 + 上下 10 内容边距）；
+## 交互提示在 Boss 战中抬到它上面，两者不重叠。
+const BOSS_BAR_HEIGHT := 50.0
+const BOSS_BAR_LIFT := 68.0
+## Boss 血条里的相数刻度：与过场名号卡同一套 8px 菱形。
+const BOSS_PIP := 8.0
+const BOSS_PIP_GAP := 4.0
 ## 长文案的边界（设计像素）。短句保持自然宽；超出后单行提示用省略号收尾，
 ## 目标行折成最多两行。所有上限定在 1280 宽的 HUD 画布内，任何语言都不溢出。
 const PROMPT_MAX_WIDTH := 1080.0
@@ -46,12 +56,19 @@ const TOXIN_ALARM_RATIO := 0.8
 const TOXIN_PULSE_PERIOD := 0.5
 const TOXIN_PULSE_MIN := 1.0
 const TOXIN_PULSE_MAX := 1.6
+## 报警脉动时档位字的乘色（绿色底字 × 暖色 = 琥珀 / 血红），别把档位读丢。
+const TOXIN_TINT_WARM := Color(1.15, 0.95, 0.65)
+const TOXIN_TINT_HOT := Color(1.35, 0.75, 0.35)
+const TOXIN_TINT_OVERFLOW := Color(1.5, 0.45, 0.3)
 const VIGNETTE_FADE_IN := 0.4
 const VIGNETTE_FADE_OUT := 0.6
-const VIGNETTE_ALPHA := 0.55
-const VIGNETTE_BREATH_MIN := 0.38
-const VIGNETTE_BREATH_MAX := 0.68
-const VIGNETTE_BREATH_PERIOD := 3.0
+## 低血量血雾：只留一圈会呼吸的锈血边，压到 0.34 后骑士剪影与敌人前摇仍读得清；
+## 原先 0.55 / 呼吸到 0.68 时，1-bit 抖动边会把左半屏（骑士所在）整片染红。
+const VIGNETTE_ALPHA := 0.34
+const VIGNETTE_BREATH_MIN := 0.18
+const VIGNETTE_BREATH_MAX := 0.38
+const VIGNETTE_BREATH_PERIOD := 1.8
+const VIGNETTE_TINT := Color(1.0, 0.82, 0.82)
 
 const ANNOUNCE_HOLD := 2.4
 const ANNOUNCE_FADE := 0.35
@@ -81,6 +98,8 @@ var _socket_label: Label
 var _objective_label: Label
 var _atmos_label: Label
 var _prompt_panel: PanelContainer
+var _prompt_key_panel: PanelContainer
+var _prompt_key_label: Label
 var _prompt_label: Label
 var _banner: PanelContainer
 var _announce_label: Label
@@ -120,6 +139,7 @@ var _insets := Vector4.ZERO
 var _boss_bar_panel: PanelContainer
 var _boss_title_label: Label
 var _boss_hp_bar: ProgressBar
+var _boss_phase_pips: PhasePips
 var _boss_max_hp: int = 1
 
 
@@ -141,6 +161,7 @@ func _ready() -> void:
 	GameEvents.resonance_changed.connect(_on_resonance)
 	GameEvents.boss_appeared.connect(_on_boss_appeared)
 	GameEvents.boss_hp_changed.connect(_on_boss_hp_changed)
+	GameEvents.boss_phase_changed.connect(_on_boss_phase_changed)
 	GameEvents.boss_defeated.connect(_on_boss_defeated)
 	GameEvents.chapter_started.connect(_on_chapter_started)
 	WorldClock.phase_changed.connect(_on_phase_changed)
@@ -173,13 +194,15 @@ func _build() -> void:
 	_build_boss_bar(_root)
 	_build_prompt(_root)
 	_build_atmosphere(_root)
-	_build_death_overlay(_root)
 
-	# 情境提示条（顶部居中，播报横幅之下）。
+	# 情境提示条（顶部居中，播报横幅之下）。必须在死亡幕之前建：提示是教学，
+	# 死亡幕是最高优先级，先建的先画，提示永远盖不到"余烬熄灭"上面。
 	_hints = HintService.new()
 	_hints.name = "HintService"
 	add_child(_hints)
 	_hints.attach(_root)
+
+	_build_death_overlay(_root)
 
 	_pause = PAUSE_MENU.instantiate()
 	add_child(_pause)
@@ -235,7 +258,10 @@ func _build_stat_panel(root: Control) -> void:
 	_toxin_bar = ProgressBar.new()
 	_toxin_bar.name = "ToxinBar"
 	_toxin_bar.custom_minimum_size = TOXIN_BAR_SIZE
+	# 撑满心行宽度：一截 96px 的短槽读数不像"量槽"，像心下面的一道暗缝。
+	_toxin_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_toxin_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_toxin_bar.theme_type_variation = &"ToxinBarCold"
 	_toxin_bar.show_percentage = false
 	_toxin_bar.min_value = 0.0
 	_toxin_bar.max_value = 100.0
@@ -244,12 +270,13 @@ func _build_stat_panel(root: Control) -> void:
 	gauge_row.add_child(_toxin_bar)
 	var label_slot := Control.new()
 	label_slot.name = "ToxinLabelSlot"
-	label_slot.custom_minimum_size = Vector2(TOXIN_LABEL_WIDTH, TOXIN_BAR_SIZE.y)
+	label_slot.custom_minimum_size = Vector2(TOXIN_LABEL_WIDTH, TOXIN_ROW_HEIGHT)
 	label_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gauge_row.add_child(label_slot)
-	_toxin_label = UiKit.label("冷 0%", &"TinyToxinLabel")
+	_toxin_label = UiKit.label("冷 0%", &"TinyToxinLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	_toxin_label.name = "ToxinLabel"
-	_toxin_label.position = Vector2(0.0, -2.0)
+	_toxin_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_toxin_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label_slot.add_child(_toxin_label)
 
 	# 剑核插座：拿到第一枚锈核之前整条隐藏。
@@ -334,9 +361,9 @@ func _build_boss_bar(root: Control) -> void:
 	_boss_bar_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_boss_bar_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_boss_bar_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_boss_bar_panel.offset_top = -68.0
+	_boss_bar_panel.offset_top = -(22.0 + BOSS_BAR_HEIGHT)
 	_boss_bar_panel.offset_bottom = -22.0
-	_boss_bar_panel.custom_minimum_size = Vector2(460.0, 40.0)
+	_boss_bar_panel.custom_minimum_size = Vector2(460.0, BOSS_BAR_HEIGHT)
 	_boss_bar_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_panel.visible = false
 	root.add_child(_boss_bar_panel)
@@ -346,14 +373,25 @@ func _build_boss_bar(root: Control) -> void:
 	col.add_theme_constant_override("separation", 2)
 	_boss_bar_panel.add_child(col)
 
+	# 名号行：名字 + 相数刻度（与过场名号卡同一套菱形，一进相就多一只）。
+	var title_row := HBoxContainer.new()
+	title_row.name = "TitleRow"
+	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_row.add_theme_constant_override("separation", 10)
+	col.add_child(title_row)
 	_boss_title_label = UiKit.label("炉 约 刽 子 手 · 铸 渣 残 躯", &"BossTitleLabel",
 			HORIZONTAL_ALIGNMENT_CENTER)
 	_boss_title_label.name = "BossTitle"
-	col.add_child(_boss_title_label)
+	_boss_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_row.add_child(_boss_title_label)
+	_boss_phase_pips = PhasePips.new()
+	_boss_phase_pips.name = "BossPhase"
+	title_row.add_child(_boss_phase_pips)
 
 	_boss_hp_bar = ProgressBar.new()
 	_boss_hp_bar.name = "BossHpBar"
-	_boss_hp_bar.custom_minimum_size = Vector2(420.0, 10.0)
+	_boss_hp_bar.custom_minimum_size = Vector2(420.0, 12.0)
+	_boss_hp_bar.theme_type_variation = &"BossHpBar"
 	_boss_hp_bar.show_percentage = false
 	_boss_hp_bar.min_value = 0.0
 	_boss_hp_bar.max_value = 13.0
@@ -372,10 +410,28 @@ func _build_prompt(root: Control) -> void:
 	_prompt_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_prompt_panel.visible = false
 	root.add_child(_prompt_panel)
+
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", PROMPT_KEY_GAP)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_panel.add_child(row)
+	# 键帽：交互键单独一块小铁牌，和设置页键位列同一个来源（Settings → KeyLabels）。
+	_prompt_key_panel = UiKit.panel(&"KeyCapPanel")
+	_prompt_key_panel.name = "PromptKeyPanel"
+	_prompt_key_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_key_panel.visible = false
+	row.add_child(_prompt_key_panel)
+	_prompt_key_label = UiKit.label("", &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_prompt_key_label.name = "PromptKey"
+	_prompt_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_prompt_key_panel.add_child(_prompt_key_label)
 	_prompt_label = UiKit.label("", &"PromptLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_prompt_label.name = "PromptLabel"
 	_prompt_label.max_lines_visible = 1
-	_prompt_panel.add_child(_prompt_label)
+	_prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(_prompt_label)
 
 
 ## 右上角的小标签：天气 · 时辰（换区 / 换时辰时 4 秒，或按住 Tab）。
@@ -401,7 +457,8 @@ func _build_vignette(root: Control) -> void:
 	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
 	_vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_vignette.modulate = Color(1, 1, 1, 0.0)
+	# 贴图本身是 (140,20,20) 的 1-bit 抖动脉冲边，压暗一点读成锈血而不是红屏。
+	_vignette.modulate = Color(VIGNETTE_TINT, 0.0)
 	_vignette.visible = false
 	root.add_child(_vignette)
 
@@ -448,7 +505,9 @@ func _process(delta: float) -> void:
 		var pulse := lerpf(TOXIN_PULSE_MIN, TOXIN_PULSE_MAX,
 				0.5 + 0.5 * sin(TAU * _time / TOXIN_PULSE_PERIOD))
 		_toxin_bar.modulate = Color(pulse, pulse, pulse)
-		_toxin_label.modulate = Color(pulse, pulse, pulse)
+		# 报警脉动只调亮度，不把档位色冲成灰白：炽是琥珀、溢是血红，闪起来仍读得出。
+		var tint := TOXIN_TINT_OVERFLOW if _toxin_ratio >= 0.999 else TOXIN_TINT_HOT
+		_toxin_label.modulate = Color(tint.r * pulse, tint.g * pulse, tint.b * pulse)
 	if _low_hp and not _vignette_tween_active():
 		_breath_time += delta
 		_vignette.modulate.a = lerpf(VIGNETTE_BREATH_MIN, VIGNETTE_BREATH_MAX,
@@ -502,6 +561,10 @@ func _tick_reveals(delta: float) -> void:
 	if peek and not _peek_was_on:
 		_objective_refresh = 0.0
 		_refresh_atmosphere()
+		# 玩家已经自己按开"查看"了：那条"按 Tab 查看"的教学提示教完就该退场，
+		# 不再继续横在画面顶部等它自己超时。
+		if _hints != null:
+			_hints.dismiss_if(&"peek")
 	_peek_was_on = peek
 	_atmos_time = maxf(0.0, _atmos_time - delta)
 	_objective_time = maxf(0.0, _objective_time - delta)
@@ -679,14 +742,31 @@ func _on_toxin(current: float, maximum: float) -> void:
 	_toxin_ratio = t
 	_toxin_bar.value = t * 100.0
 	var band := ToxinMeter.band_for(current, maximum)
+	_toxin_bar.theme_type_variation = toxin_bar_variation(band)
 	_toxin_label.text = "%s %d%%" % [ToxinMeter.band_label_for(band), int(t * 100.0)]
 	if band == &"hot":
-		_toxin_label.modulate = Color(1.35, 0.75, 0.35)
+		_toxin_label.modulate = TOXIN_TINT_HOT
 	elif band == &"warm":
-		_toxin_label.modulate = Color(1.15, 0.95, 0.65)
-	elif t < TOXIN_ALARM_RATIO:
-		_toxin_bar.modulate = Color.WHITE
+		_toxin_label.modulate = TOXIN_TINT_WARM
+	else:
 		_toxin_label.modulate = Color.WHITE
+	# 80% 以上的报警脉动由 _process 管；掉回报警线以下要立刻收掉上一次脉动的残留
+	# 亮度，否则条会停在半亮的颜色上，看上去像"还满着"。
+	if t < TOXIN_ALARM_RATIO:
+		_toxin_bar.modulate = Color.WHITE
+
+
+## 毒素档位 → 量槽样式变体（冷=毒绿、温/炽=余烬、溢=血红）。条本身换色，
+## 玩家不用读 12px 的档位字也知道自己烧到哪一档了。
+static func toxin_bar_variation(band: StringName) -> StringName:
+	match band:
+		&"overflow":
+			return &"ToxinBarOverflow"
+		&"hot":
+			return &"ToxinBarHot"
+		&"warm":
+			return &"ToxinBarWarm"
+	return &"ToxinBarCold"
 
 
 # --- Boss ---------------------------------------------------------------------
@@ -700,11 +780,19 @@ func _on_boss_appeared(boss_name: String, current_hp: int, max_hp: int) -> void:
 	_fit_single_line(_boss_title_label, boss_name, BOSS_TITLE_MAX_WIDTH)
 	_boss_hp_bar.max_value = float(_boss_max_hp)
 	_boss_hp_bar.value = float(current_hp)
+	_boss_phase_pips.set_count(1)
 	_boss_bar_panel.modulate.a = 0.0
 	_boss_bar_panel.visible = true
 	_sync_prompt_offsets()
 	var tw := create_tween()
 	tw.tween_property(_boss_bar_panel, "modulate:a", 1.0, 0.6)
+
+
+## 二阶段起血条的名字旁多一只菱形：和过场名号卡同一套刻度，抬头就知道升相了。
+func _on_boss_phase_changed(_boss_name: String, phase: int) -> void:
+	if _boss_phase_pips == null:
+		return
+	_boss_phase_pips.set_count(phase)
 
 
 func _on_boss_hp_changed(current_hp: int, max_hp: int) -> void:
@@ -719,6 +807,8 @@ func _on_boss_hp_changed(current_hp: int, max_hp: int) -> void:
 
 func _on_boss_defeated() -> void:
 	_boss_name = ""
+	if _boss_phase_pips != null:
+		_boss_phase_pips.set_count(0)
 	if _boss_bar_panel == null or not _boss_bar_panel.visible:
 		return
 	var tw := create_tween()
@@ -732,9 +822,14 @@ func _on_boss_defeated() -> void:
 
 func _on_prompt(text: String) -> void:
 	_prompt_text = text
-	if _prompt_label != null:
-		_prompt_label.text = KeyLabels.localize_prompt(text)
-		_fit_single_line(_prompt_label, _prompt_label.text, PROMPT_MAX_WIDTH)
+	if _prompt_label == null:
+		_sync_prompt()
+		return
+	var parts := KeyLabels.prompt_parts(text)
+	_prompt_key_label.text = String(parts.key)
+	_prompt_key_panel.visible = String(parts.key) != ""
+	_prompt_label.text = String(parts.body)
+	_fit_single_line(_prompt_label, _prompt_label.text, PROMPT_MAX_WIDTH)
 	_sync_prompt()
 
 
@@ -914,9 +1009,14 @@ func _refresh_cores() -> void:
 ## 触屏刘海 / 圆角的安全区（设计单位，已换算到 HUD 层坐标）。桌面与 headless 为零。
 ## 只在窗口尺寸变化时重算，不逐帧问 DisplayServer。
 func _apply_safe_area() -> void:
+	apply_safe_insets(PresentationMetrics.safe_layer_insets(get_tree().root))
+
+
+## 把一组安全区边距摆进 HUD 各条：状态带 / 横幅 / 天气行 / Boss 条 / 交互提示。
+## 公开是为了让 headless 测试能喂一组手机刘海进来验证排版（真实刘海值只有设备知道）。
+func apply_safe_insets(insets: Vector4) -> void:
 	if _stat == null:
 		return
-	var insets := PresentationMetrics.safe_layer_insets(get_tree().root)
 	_insets = insets
 	_stat.offset_left = STAT_MARGIN.x + insets.x
 	_stat.offset_top = _stat_top()
@@ -928,7 +1028,7 @@ func _apply_safe_area() -> void:
 	if _hints != null:
 		_hints.set_top(HintService.TOP + insets.y)
 	var bottom := 22.0 + insets.w
-	_boss_bar_panel.offset_top = -(bottom + 46.0)
+	_boss_bar_panel.offset_top = -(bottom + BOSS_BAR_HEIGHT)
 	_boss_bar_panel.offset_bottom = -bottom
 	_sync_prompt_offsets()
 
@@ -954,3 +1054,72 @@ func cluster_rect() -> Rect2:
 
 func hint_service() -> HintService:
 	return _hints
+
+
+## 交互提示当前显示的键帽文字（"" = 这条提示不带键位）。测试用。
+func prompt_key_text() -> String:
+	return _prompt_key_label.text if _prompt_key_label != null and _prompt_key_panel.visible else ""
+
+
+## 交互提示的正文（不含键帽）。
+func prompt_body_text() -> String:
+	return _prompt_label.text if _prompt_label != null else ""
+
+
+## Boss 血条旁当前的相数刻度数量（0 = 没有 Boss / 已击败）。
+func boss_phase_count() -> int:
+	return _boss_phase_pips.count if _boss_phase_pips != null else 0
+
+
+## Boss 血条里名字与刻度所在的横向行，测试用（两者必须装在 460 设计像素内）。
+func boss_title_row() -> Control:
+	return _boss_title_label.get_parent() as Control if _boss_title_label != null else null
+
+
+## Boss 血条里的相数刻度控件。
+func boss_phase_pips() -> PhasePips:
+	return _boss_phase_pips
+
+
+## Boss 血条里的 HP 条（主题变体 BossHpBar，余烬色填充）。
+func boss_hp_bar() -> ProgressBar:
+	return _boss_hp_bar
+
+
+## Boss 血条在 HUD 层坐标里的矩形（含名字与刻度）。
+func boss_bar_rect() -> Rect2:
+	return _boss_bar_panel.get_global_rect()
+
+
+## 低血量血雾当前透明度（测试用：读数在 0.18..0.38 之间才算"看得见但不盖住画面"）。
+func vignette_alpha() -> float:
+	return _vignette.modulate.a
+
+
+## Boss 血条里的相数刻度：与过场名号卡同一套 8px 菱形，第 N 相就有 N 只。
+## 纯 _draw，不做几何缩放；数量为 0 时只占一格宽度，血条不会因为升相而跳动。
+class PhasePips extends Control:
+	var count := 0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_count(0)
+
+	func set_count(value: int) -> void:
+		count = maxi(0, value)
+		var slots := maxi(count, 1)
+		custom_minimum_size = Vector2(slots * BOSS_PIP + maxf(0.0, slots - 1) * BOSS_PIP_GAP,
+				BOSS_PIP + 4.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		for i in count:
+			var c := Vector2(i * (BOSS_PIP + BOSS_PIP_GAP) + BOSS_PIP * 0.5, size.y * 0.5)
+			var pts := PackedVector2Array([
+				c + Vector2(0.0, -BOSS_PIP * 0.5),
+				c + Vector2(BOSS_PIP * 0.5, 0.0),
+				c + Vector2(0.0, BOSS_PIP * 0.5),
+				c + Vector2(-BOSS_PIP * 0.5, 0.0),
+			])
+			draw_colored_polygon(pts, UiKit.EMBER)
+			draw_polyline(pts + PackedVector2Array([pts[0]]), Color("#2A1E32"), 1.0)

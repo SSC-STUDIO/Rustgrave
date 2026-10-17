@@ -269,9 +269,15 @@ func buttons() -> Array[Control]:
 
 
 func _apply_safe_area() -> void:
+	apply_safe_insets(TouchInput.safe_insets_ui(get_tree().root))
+
+
+## 把刘海/圆角安全区收进触控板：整块 pad 缩进安全区内，簇仍贴安全区的角。
+## 公开是为了让 headless 测试喂一组手机边距进来验证按钮不会滑到刘海底下
+## （真实刘海值只有设备知道，桌面/headless 都是 0）。
+func apply_safe_insets(insets: Vector4) -> void:
 	if _pad == null:
 		return
-	var insets := TouchInput.safe_insets_ui(get_tree().root)
 	_pad.offset_left = insets.x
 	_pad.offset_top = insets.y
 	_pad.offset_right = -insets.z

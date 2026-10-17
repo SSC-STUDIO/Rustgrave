@@ -32,12 +32,16 @@ const POLL := 0.25
 ## 敌弹进到这个距离（世界像素）才算"飞向骑士"。
 const PROJECTILE_RADIUS := 220.0
 const MAX_TEXT_WIDTH := 880.0
+## 紧凑提示（12px）的折行上限：一行放得下就绝不折。
+const COMPACT_TEXT_WIDTH := 620.0
 const TOP := 64.0
 
 ## 内置提示表。order 决定"教程回看"里的排序；title 是回看列表里的小标题。
+## compact = 用 12px 的紧凑提示条：只给"按一下就能验证"的系统提示（Tab 查看），
+## 战斗中的教学（挥砍/弹反/钩锁）仍是 24px，不能被压成脚注。
 const CATALOG := {
-	&"peek": {"order": 0, "title": "目标与天气",
-			"text": "按住 Tab 查看目标与天气 · Esc 暂停 / 设置"},
+	&"peek": {"order": 0, "title": "目标与天气", "compact": true,
+			"text": "Tab 目标 · 天气 · Esc 暂停"},
 	&"swing": {"order": 10, "title": "挥砍",
 			"text": "挥砍中再按 {attack}：判定末段或收刀时衔接，可接三连"},
 	&"dash": {"order": 20, "title": "冲刺",
@@ -74,6 +78,7 @@ var _clock := 0.0
 
 var _panel: PanelContainer
 var _label: Label
+var _mark: TextureRect
 var _connected := false
 
 
@@ -220,6 +225,12 @@ func dismiss() -> void:
 		_hide_current()
 
 
+## 玩家已经亲手验证过这条提示（例如真的按住了 Tab）时提前收掉，教完就退场。
+func dismiss_if(id: StringName) -> void:
+	if _current == id:
+		_hide_current()
+
+
 func _show(id: StringName, text: String, once: bool) -> void:
 	var template := template_for(id, text)
 	_current = id
@@ -231,20 +242,32 @@ func _show(id: StringName, text: String, once: bool) -> void:
 		_repeat_seen[id] = _clock
 	if not CATALOG.has(id):
 		_cache_text(id, template)
+	var compact := CATALOG.has(id) and bool((CATALOG[id] as Dictionary).get("compact", false))
 	if _label != null:
+		_label.theme_type_variation = &"TinyHintLabel" if compact else &"HintLabel"
 		_label.text = _current_text
-		_fit_label()
+		_fit_label(compact)
 	if _panel != null:
+		_panel.theme_type_variation = &"HintPanelTiny" if compact else &"HintPanel"
 		_panel.visible = true
+	# 18×28 的箭头留给 24px 教学条；12px 的紧凑条放不下它，也不缺它。
+	if _mark != null:
+		_mark.visible = not compact
 	UiKit.sfx(&"hint_show")
 	hint_shown.emit(id, _current_text)
 
 
+## 收掉当前提示时立刻把面板清干净：淡出只在自然到时时由 _apply_alpha 逐帧做，
+## dismiss（死亡 / 场景切换 / 玩家已用上）没有后续 _apply_alpha，留着 alpha=1 的
+## 面板就会盖在"余烬熄灭"上。
 func _hide_current() -> void:
 	var id := _current
 	_current = &""
 	_current_text = ""
 	_gap_left = GAP
+	if _panel != null:
+		_panel.modulate.a = 0.0
+		_panel.visible = false
 	hint_hidden.emit(id)
 
 
@@ -411,6 +434,7 @@ func attach(parent: Control) -> void:
 	if art != null:
 		mark.custom_minimum_size = art.get_size()
 	row.add_child(mark)
+	_mark = mark
 	_label = UiKit.label("", &"HintLabel")
 	_label.name = "Text"
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -418,15 +442,16 @@ func attach(parent: Control) -> void:
 
 
 ## 一行放不下（窄屏、长文案）才折行，折行宽度受 MAX_TEXT_WIDTH 限制。
-func _fit_label() -> void:
+func _fit_label(compact: bool = false) -> void:
 	if _label == null:
 		return
+	var max_width := COMPACT_TEXT_WIDTH if compact else MAX_TEXT_WIDTH
 	var font := _label.get_theme_font("font")
 	var size := _label.get_theme_font_size("font_size")
 	var width := font.get_string_size(_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size).x
-	if width > MAX_TEXT_WIDTH:
+	if width > max_width:
 		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_label.custom_minimum_size.x = MAX_TEXT_WIDTH
+		_label.custom_minimum_size.x = max_width
 	else:
 		_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 		_label.custom_minimum_size.x = 0.0

@@ -98,6 +98,40 @@ func test_select_walks_the_menu_and_skips_disabled_rows() -> void:
 	title.queue_free()
 	await get_tree().process_frame
 
+
+## 鼠标悬停与键盘上下键共用同一条"选中"信号：任何时刻只有一格是选中的，
+## 两种输入方式看到的是同一块金框板（不出现"高亮一格、回车执行另一格"）。
+func test_hover_and_keyboard_share_one_selection() -> void:
+	var title: TitleScreen = await _open_title()
+	var menu := title.get_node("Menu") as MenuList
+	var items := _items(title)
+	for i in items.size():
+		var item: MenuItem = items[i]
+		item.hover_requested.emit()
+		await get_tree().process_frame
+		var selected := 0
+		for other in items:
+			if other.selected:
+				selected += 1
+		eq(selected, 1, "hovering row %d leaves exactly one selected row" % i)
+		if not item.disabled:
+			eq(menu.selected_id(), _id_for(i), "hover selects the row under the mouse")
+	menu.select(0, false)
+	menu._step(1)
+	await get_tree().process_frame
+	var count := 0
+	for other in items:
+		if other.selected:
+			count += 1
+	eq(count, 1, "keyboard step also leaves exactly one selected row")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 菜单下标 → 菜单 id（五格顺序与 _build_rail 一致）。
+func _id_for(index: int) -> StringName:
+	return [&"new", &"continue", &"settings", &"controls", &"quit"][index]
+
 func test_quit_plays_an_exit_sequence_and_can_be_skipped() -> void:
 	var title: TitleScreen = await _open_title()
 	# 测试里只走动画，不真的退出进程。

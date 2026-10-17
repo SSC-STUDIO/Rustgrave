@@ -22,6 +22,7 @@ const TEX_SOCKET_RING := "res://assets/ui/socket_ring.png"
 const TEX_SOCKET_GEM := "res://assets/ui/socket_gem.png"
 const TEX_BAR_TRACK := "res://assets/ui/bar_track.png"
 const TEX_BAR_EMBER := "res://assets/ui/bar_fill_ember.png"
+const TEX_BAR_TOXIN := "res://assets/ui/bar_fill_toxin.png"
 const TEX_PANEL_HUD := "res://assets/ui/panel_hud.png"
 const TEX_BTN_NORMAL := "res://assets/ui/btn_normal.png"
 const TEX_BTN_HOVER := "res://assets/ui/btn_hover.png"
@@ -211,6 +212,7 @@ static func extras_theme() -> Theme:
 	_extras_buttons(t)
 	_extras_slider(t)
 	_extras_scrollbars(t)
+	_extras_bars(t)
 	_extras = t
 	return t
 
@@ -249,6 +251,13 @@ static func _extras_panels(t: Theme) -> void:
 	# 一行提示条：比 HudPanel 更薄，24px 字配上下 8px。
 	t.set_type_variation(&"HintPanel", &"PanelContainer")
 	t.set_stylebox("panel", &"HintPanel", _sb(TEX_PANEL_HUD, 8, Vector4(18, 8, 18, 8)))
+	# 12px 的紧凑提示条（"Tab 目标 · 天气"）：同一块铁牌，墨带更薄，
+	# 顶部只占 24 设计像素高，不再是一条压在画面上的大横幅。
+	t.set_type_variation(&"HintPanelTiny", &"PanelContainer")
+	t.set_stylebox("panel", &"HintPanelTiny", _sb(TEX_PANEL_HUD, 8, Vector4(16, 3, 16, 3)))
+	# 交互提示的键帽：一块小铁牌装一个 24px 键名，和设置页的键位写法同源。
+	t.set_type_variation(&"KeyCapPanel", &"PanelContainer")
+	t.set_stylebox("panel", &"KeyCapPanel", _sb(TEX_BTN_NORMAL, 8, Vector4(12, 1, 12, 1)))
 	# 设置页的行底（无光标留白）。
 	t.set_type_variation(&"SettingsRowNormal", &"Panel")
 	t.set_stylebox("panel", &"SettingsRowNormal", _sb(TEX_BTN_NORMAL, 8, Vector4.ZERO))
@@ -266,6 +275,14 @@ static func _extras_labels(t: Theme) -> void:
 	t.set_type_variation(&"HintMarkLabel", &"Label")
 	t.set_font_size("font_size", &"HintMarkLabel", 24)
 	t.set_color("font_color", &"HintMarkLabel", EMBER)
+	# 紧凑提示（12px）：只给"说明/提示"档，比 24px 的教学条矮一半 ——
+	# 顶部那条"Tab 目标 · 天气"不该占掉 1/12 的画面。
+	t.set_type_variation(&"TinyHintLabel", &"Label")
+	t.set_font_size("font_size", &"TinyHintLabel", 12)
+	t.set_color("font_color", &"TinyHintLabel", Color("#E4DCCC"))
+	t.set_color("font_outline_color", &"TinyHintLabel", Color(0.04, 0.03, 0.06, 0.92))
+	t.set_constant("outline_size", &"TinyHintLabel", 1)
+	t.set_constant("line_spacing", &"TinyHintLabel", 0)
 	# HUD 紧凑小字（Hud* / Tiny*）已收进项目主题 theme_rust.tres（12px + 1px 描边），
 	# 这里不再重复定义 —— 主题是唯一权威，两处各写一份必然 drift。
 
@@ -359,6 +376,43 @@ static func _margins(sb: StyleBoxTexture, px: int) -> void:
 	sb.texture_margin_top = px
 	sb.texture_margin_right = px
 	sb.texture_margin_bottom = px
+
+
+## HUD 条：毒素槽按档位换填充色，Boss 血条用余烬色。
+## 只改贴图的调制色（换色不换图）：同一张 bar_track 当槽底，空槽在墨带上也读得出
+## 是"量槽"而不是一道暗缝；毒素冷=毒绿、温/炽=余烬、溢=血红，Boss 血条=琥珀余烬。
+## 全部落在 Palette 的既有色阶里，不新增贴图。
+static func _extras_bars(t: Theme) -> void:
+	# 槽底压暗：原图内芯只有 (20,16,31)，提亮后会读成一条"浅紫满槽"——空槽必须
+	# 是画面里最暗的一道凹槽，只留一点铁灰刻度和边线提示"这里是量槽"。
+	var toxin_track := _bar_texture(TEX_BAR_TRACK, Color(0.72, 0.68, 0.74))
+	var boss_track := _bar_texture(TEX_BAR_TRACK, Color(0.9, 0.9, 0.9))
+	var toxin_cold := _bar_texture(TEX_BAR_TOXIN, Color.WHITE)
+	var toxin_warm := _bar_texture(TEX_BAR_EMBER, Color(1.0, 0.92, 0.7))
+	var toxin_hot := _bar_texture(TEX_BAR_EMBER, Color(1.0, 0.55, 0.26))
+	var toxin_overflow := _bar_texture(TEX_BAR_EMBER, Color(1.0, 0.3, 0.2))
+	var boss_fill := _bar_texture(TEX_BAR_EMBER, Color(1.06, 1.0, 0.92))
+	for spec: Array in [
+		[&"ToxinBarCold", toxin_track, toxin_cold],
+		[&"ToxinBarWarm", toxin_track, toxin_warm],
+		[&"ToxinBarHot", toxin_track, toxin_hot],
+		[&"ToxinBarOverflow", toxin_track, toxin_overflow],
+		[&"BossHpBar", boss_track, boss_fill],
+	]:
+		var variation: StringName = spec[0]
+		t.set_type_variation(variation, &"ProgressBar")
+		t.set_stylebox("background", variation, spec[1])
+		t.set_stylebox("fill", variation, spec[2])
+
+
+## 一条 9-slice 量条贴图：横向平铺保留贴图自己的刻度，纵向随条高拉伸。
+static func _bar_texture(path: String, tint: Color) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex(path)
+	_margins(sb, 4)
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.modulate_color = tint
+	return sb
 
 
 ## 一片余烬：6x6 的蒸馏帧，随机上升或飘落。UI 层用，不参与玩法。

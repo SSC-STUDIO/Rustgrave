@@ -85,3 +85,14 @@ static func localize_prompt(text: String) -> String:
 	if text.begins_with("E "):
 		return label(&"interact") + text.substr(1)
 	return text
+
+
+## 交互提示拆成"键帽 + 文案"两段，交给 HUD 画成[S] 点燃余烬巢。
+##   · 键位取自 Settings（改键后自动跟随），和设置页的键位列同一个出口；
+##   · 触屏上换成触控板那颗交互键的字（"互"），提示里就不再出现按不到的 E；
+##   · 不带键位的提示（"门已锁住"）返回空键帽，HUD 只画一行文案。
+static func prompt_parts(text: String) -> Dictionary:
+	if text.begins_with("E "):
+		var key := "互" if TouchInput.wants_overlay() else label(&"interact")
+		return {"key": key, "body": text.substr(2).strip_edges()}
+	return {"key": "", "body": text}

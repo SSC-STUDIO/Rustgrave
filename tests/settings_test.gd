@@ -253,3 +253,65 @@ func test_settings_focus_chain_links_tabs_pages_and_footer() -> void:
 	screen.close()
 	screen.queue_free()
 	await get_tree().process_frame
+
+
+## 切页后焦点必须落进新页：否则焦点还留在上一页已隐藏的控件上，整个页面
+## 一个高亮都没有（鼠标点标签页 / 肩键换页 / 工具截图都会这样）。
+func test_show_tab_moves_focus_into_the_new_page() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	screen.open()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for tab in [SettingsScreen.TAB_DISPLAY, SettingsScreen.TAB_KEYS, SettingsScreen.TAB_AUDIO]:
+		screen.show_tab(tab)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		eq(screen.current_tab(), tab, "tab %d is current" % tab)
+		var first := screen.first_control()
+		ok(first != null, "tab %d has a first control" % tab)
+		if first != null:
+			ok(first.has_focus(), "focus lands on the first row of tab %d" % tab)
+			ok(first.is_visible_in_tree(), "the focused row is visible (no focus on a hidden page)")
+	# 鼠标悬停走的是同一个可见选中信号：悬停行拿焦点。
+	screen.show_tab(SettingsScreen.TAB_AUDIO)
+	await get_tree().process_frame
+	var slider := screen.slider_for(&"Master")
+	ok(slider != null, "master volume slider exists")
+	if slider != null:
+		slider.mouse_entered.emit()
+		await get_tree().process_frame
+		ok(slider.has_focus(), "hovering a settings row focuses it (gold row, same as keyboard)")
+	screen.close()
+	screen.queue_free()
+	await get_tree().process_frame
+
+
+## 改键后，设置页的键帽和操作说明的键位列都要立刻跟着换 —— 不经重开界面，
+## 玩家不会看到"设置里写成 Q、操作说明还写着空格"的两套说法。
+func test_rebinding_refreshes_every_key_label() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	screen.show_tab(SettingsScreen.TAB_KEYS)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var controls := ControlsPanel.new()
+	add_child(controls)
+	await get_tree().process_frame
+	var old := Settings.key_for(&"jump")
+	eq(screen.key_cap_text(&"jump"), KeyLabels.label(&"jump"),
+			"settings key page starts on the bound key")
+	eq(controls.key_text(1), KeyLabels.label(&"jump"),
+			"controls panel starts on the bound key")
+	Settings.rebind_action(&"jump", KEY_Q, false)
+	await get_tree().process_frame
+	eq(screen.key_cap_text(&"jump"), "Q", "settings key page refreshes live after a rebind")
+	eq(controls.key_text(1), "Q", "controls panel refreshes live after a rebind")
+	Settings.rebind_action(&"jump", old, false)
+	await get_tree().process_frame
+	eq(screen.key_cap_text(&"jump"), KeyLabels.label(&"jump"), "the restored binding is shown")
+	screen.queue_free()
+	controls.queue_free()
+	await get_tree().process_frame

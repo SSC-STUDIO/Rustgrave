@@ -1,4 +1,4 @@
-﻿extends TestCase
+extends TestCase
 ## 多分辨率与多屏幕比例适配单元测试。
 ## 验证 16:9 (1080p/2K/4K)、16:10 (Steam Deck)、21:9 (带鱼屏)、4:3 (复古屏) 的
 ## 视口比例判定、缩放模式及 HUD/标题 UI 控件锚点完整性。
@@ -101,3 +101,22 @@ func test_title_screen_anchors() -> void:
 
 	title.queue_free()
 	await get_tree().process_frame
+
+
+## 安全区换算：刘海落在黑边里不该挤 UI，落在画面里才按内容矩形比例折进设计单位。
+func test_safe_area_insets_map_into_the_content_rect() -> void:
+	# 16:9 全屏：内容矩形铺满窗口，刘海边距原样传进 UI 层。
+	var full := PresentationMetrics.layer_insets(Vector4(120.0, 80.0, 120.0, 80.0),
+			Vector2i(1920, 1080))
+	eq(full, Vector4(120.0, 80.0, 120.0, 80.0), "16:9 phone keeps its notch insets in UI units")
+	# 21:9：内容矩形两侧各留 320 物理像素黑边（=160 设计单位），落在黑边里的左右
+	# 刘海不花任何 UI 空间；上下边距仍在画面里，按内容矩形高度换算后传入。
+	var ultra := PresentationMetrics.layer_insets(Vector4(120.0, 80.0, 120.0, 80.0),
+			Vector2i(2560, 1080))
+	almost(ultra.x, 0.0, 0.001, "a notch over the letterbox costs no left inset")
+	almost(ultra.z, 0.0, 0.001, "a notch over the letterbox costs no right inset")
+	almost(ultra.y, 80.0, 0.001, "top inset still reaches the UI")
+	almost(ultra.w, 80.0, 0.001, "bottom inset still reaches the UI")
+	# 零边距（桌面 / headless）保持零。
+	eq(PresentationMetrics.layer_insets(Vector4.ZERO, Vector2i(1920, 1080)), Vector4.ZERO,
+			"no notch means no insets")

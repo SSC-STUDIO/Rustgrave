@@ -13,6 +13,35 @@ const Plate := preload("res://scripts/ui/menu_plate.gd")
 const DESIGN := Vector2(1280.0, 720.0)
 
 
+func teardown() -> void:
+	# 暂停相关用例会真的暂停 SceneTree；失败中断时也要把树恢复，后面的用例才能跑。
+	Director.choice_hold = false
+	Director.resume()
+	if get_tree().paused:
+		get_tree().paused = false
+
+
+func _instances(pause: PauseMenu) -> Dictionary:
+	var counts := {"settings": 0, "tutorial": 0, "map": 0, "controls": 0}
+	for child in pause.get_children():
+		if child is SettingsScreen:
+			counts["settings"] += 1
+		elif child is TutorialRecall:
+			counts["tutorial"] += 1
+		elif child is MapScreen:
+			counts["map"] += 1
+		elif child is ControlsPanel:
+			counts["controls"] += 1
+	return counts
+
+
+## 每个子界面只有一份实例：反复开合不能每次新建一个盖上去（旧弹窗会留在树上）。
+func _assert_one_of_each(pause: PauseMenu, label: String) -> void:
+	var counts := _instances(pause)
+	for key in counts:
+		eq(int(counts[key]), 1, "%s: exactly one %s screen instance" % [label, key])
+
+
 func _card_of(screen: Node) -> Control:
 	return screen.get_node_or_null("ModalRoot/Card") as Control
 
@@ -121,4 +150,48 @@ func test_choice_dialogs_use_plate_rows_without_rail_ticks() -> void:
 			eq(items[1].kind, MenuItem.Kind.GHOST, "清档只留角标")
 			ok(not items[0].show_tick and not items[1].show_tick, "对话框里不画铁架挂钉")
 	title.queue_free()
+	await get_tree().process_frame
+
+
+## 暂停菜单里打开设置 / 教程回看 / 地图 / 操作说明：各自只有一份实例，打开时
+## 暂停菜单仍在、树仍暂停；关闭后回到菜单、菜单重新吃输入，但暂停只在最后解除。
+func test_pause_sub_screens_open_close_without_duplicating_or_unpausing() -> void:
+	var pause := PauseMenu.new()
+	add_child(pause)
+	await get_tree().process_frame
+	pause.open()
+	await get_tree().process_frame
+	ok(pause.is_open(), "pause opens")
+	ok(get_tree().paused, "pause pauses the tree")
+	_assert_one_of_each(pause, "fresh pause menu")
+	# 每块子界面：走真实的菜单入口（点/回车那一行）→ 暂停菜单还在且不解除暂停 →
+	# 子界面关闭 → 菜单重新接收输入。开合几轮后实例数不变 = 没有叠起来的旧弹窗。
+	var subs: Array = [
+		[&"settings", pause.settings_screen()],
+		[&"tutorial", pause.tutorial_recall()],
+		[&"map", pause.map_screen()],
+		[&"controls", pause.controls_panel()],
+	]
+	for entry in subs:
+		var chosen_id: StringName = entry[0]
+		var sub: CanvasLayer = entry[1]
+		pause._on_chosen(chosen_id)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		ok(sub.visible, "%s opens over the pause menu" % sub.name)
+		ok(pause.is_open() and get_tree().paused, "%s keeps the pause state" % sub.name)
+		ok(pause.sub_screen_open(), "pause reports a sub screen is open")
+		ok(not pause.menu().active, "menu input stays disabled under %s" % sub.name)
+		sub.call("close")
+		await get_tree().process_frame
+		ok(not pause.sub_screen_open(), "%s closes without leaving a modal behind" % sub.name)
+		ok(pause.is_open() and get_tree().paused,
+				"%s close keeps the pause menu paused" % sub.name)
+		ok(pause.menu().active, "menu input returns after %s closes" % sub.name)
+	_assert_one_of_each(pause, "after open/close cycles")
+	pause.close()
+	await get_tree().process_frame
+	ok(not pause.is_open(), "pause closes")
+	ok(not get_tree().paused, "closing the pause menu resumes the tree")
+	pause.queue_free()
 	await get_tree().process_frame
