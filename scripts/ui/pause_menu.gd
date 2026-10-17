@@ -42,6 +42,9 @@ var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _tutorial: TutorialRecall
 var _map: MapScreen
+## Esc during a scene fade (respawn fade-in, chapter arrival, Continue) used to be
+## dropped without a sound; the request is now kept and honoured once the fade ends.
+var _open_requested := false
 
 var _dossier_chapter: Label
 var _dossier_objective: Label
@@ -275,8 +278,13 @@ func _resume_menu() -> void:
 
 func open() -> void:
 	# 淡入淡出换关的 0.45 秒里暂停，下一关会带着 paused / suspended 加载出来。
-	if visible or Director.choice_hold or Director.is_fading():
+	# 所以淡变期间只记下请求，淡变结束再开（见 _process），而不是吞掉这次 Esc。
+	if visible or Director.choice_hold:
 		return
+	if Director.is_fading():
+		_open_requested = true
+		return
+	_open_requested = false
 	visible = true
 	_menu.active = true
 	_set_play_hud_visible(false)
@@ -287,7 +295,23 @@ func open() -> void:
 	UiKit.sfx(&"ui_pause", &"ui_select")
 
 
+## 淡变期间按下、还没兑现的暂停请求。
+func open_pending() -> bool:
+	return _open_requested
+
+
+func _process(_delta: float) -> void:
+	if not _open_requested:
+		return
+	if Director.choice_hold or not is_inside_tree():
+		_open_requested = false
+		return
+	if not Director.is_fading():
+		open()
+
+
 func close() -> void:
+	_open_requested = false
 	if not visible:
 		return
 	_controls.visible = false
@@ -319,7 +343,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if Director.choice_hold and not visible:
 		return
 	# 子界面自己会吃掉 ui_cancel，走到这里说明它们没开着。
-	if visible:
+	# 淡变中再按一次 = 收回刚才的暂停请求。
+	if _open_requested and not visible:
+		_open_requested = false
+	elif visible:
 		close()
 	else:
 		open()
