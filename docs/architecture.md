@@ -4,6 +4,17 @@ Target: **Godot 4.7** · GDScript only · zero external deps.
 
 显示边界：世界始终在 **640×360 SubViewport** 中以原生像素渲染，`GameCamera.zoom=1`；`GamePresentation` 将世界图像和 1280×720 设计单位的 UI 一起放入最大整数倍率内容矩形。`PresentationMetrics` 是内容矩形、倍率和坐标转换的唯一来源，非 16:9 窗口只增加黑边。
 
+## UI layers (root window)
+
+| Layer | Script / scene | Role |
+|---|---|---|
+| HUD (~10) | `scripts/ui/hud.gd` | Hearts, toxin, prompts, banners; owns PauseMenu + TouchControls |
+| Touch pad (~15) | `scripts/ui/touch_controls.gd` | Mobile/touch overlay; `Input.action_press` on the same InputMap actions as keyboard. Shown when `TouchInput.wants_overlay()` (mobile / touchscreen); hidden headless and on pure desktop. Safe-area insets via `TouchInput.safe_insets_ui`. |
+| Pause (~20) | `scripts/ui/pause_menu.gd` | Esc / Ⅱ; hides the touch pad while open |
+| Title | `scripts/ui/title_screen.gd` | MenuList (mouse + touch hit targets ≥52px tall) |
+
+`GameContext.ui_host()` is the presentation `UiHost` node; authored levels parent HUD there so UI stays outside the world SubViewport.
+
 世界图像经过 `assets/shaders/pixel_smooth.gdshader`（3x 用 Scale3x，其余倍率用 Scale2x/EPX）：只把对比色块之间的斜向台阶圆滑掉，平面、渐变和 1px 细节原样通过，所以 1080p/1440p 上不再是马赛克但仍是像素画。`GamePresentation.pixel_smoothing` 是会话级开关，暂停菜单「像素平滑」可关；`scale_hint` 随窗口整数倍率更新。
 
 ## Autoloads
@@ -65,7 +76,7 @@ Chapter flow: the forge heart's 复燃 choice no longer returns to the title —
 
 ### Vertical space and encounters
 
-`ChapterLayout.finish()` sizes the indoor zone from the chapter camera top and east limit, covering the room down to y=464. `ThemeBackdrop` repeats indoor plates vertically for tall chapters. Bell Tower is 1280px wide: the floor at y=320 connects through four 240px lifts to the summit at y=−640. Its camera top is −832, ceiling −800, chains anchor below the ceiling, and upper galleries use 16px slabs so they leave the routes underneath open. Three nests provide entry, gallery and summit recovery.
+`ChapterLayout.finish()` sizes the indoor zone from the chapter camera top and east limit, covering the room down to y=464. Indoor backdrop strips stay on the ground line they were drawn for; copying one up a tall shaft would hang a second wall in the air. Bell Tower is 1280px wide: the floor at y=320 connects through four 240px lifts to the summit at y=−640. Its camera top is −832, ceiling −800, chains anchor below the ceiling, and upper galleries use 16px slabs so they leave the routes underneath open. Three nests provide entry, gallery and summit recovery.
 
 Skeletons rise before becoming tangible; fire skulls alternate patrol, pursuit, lunge and retreat. Nightmare has 16 HP, enters its second phase at half health and summons two skulls on every third second-phase attack, capped at four living summons. Arena bounds constrain the horse and its summons; corridor pursuers in level10 stay west of the arena and its checkpoint. Optional `GhostEnemy.arena_left/right` bounds default to infinity so existing encounters retain their behavior.
 

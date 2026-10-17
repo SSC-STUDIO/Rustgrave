@@ -21,8 +21,10 @@ const WALK_TONE := Color(1.08, 1.0, 0.86)
 ## 冷却液：比腐液更青、更亮，暖石板上才认得出是"液体"。
 const COOLANT := Color(0.8, 1.1, 1.1)
 const TORCH_TINT := Color(1.0, 0.94, 0.86)
-## 顶板垂下的旧缆，压成锈色。
-const CABLE_TINT := Color(0.85, 0.7, 0.5, 0.9)
+## 藤条贴图本身是青苔绿。乘深锈色才不会在工坊顶上长出一蓬墓园藤。
+const CABLE_TINT := Color(0.42, 0.26, 0.14, 0.8)
+## 立柱压成烘过的石色，和暖石板是一家。
+const PILLAR := Color(0.72, 0.62, 0.52)
 
 const WALK_Y := 208.0
 const DECK_Y := 200.0
@@ -107,7 +109,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "齿轮还在转。没有人给它们上油。"
+	return "插座是在这里切开的。核是职称，不是力气。"
 
 
 func entry_spawn() -> Vector2:
@@ -122,6 +124,10 @@ func theme() -> String:
 	return "industrial"
 
 
+func motes() -> String:
+	return "sparks"
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_mechanisms(host)
@@ -129,8 +135,8 @@ func build(host: Node2D) -> void:
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_X, "运渣道", PackedStringArray([
-		"运渣道一路向下。渣里还有没烧透的火星。",
-		"尽头有雨声。墓园在另一侧等着。",
+		"运渣道通向雨里。",
+		"土里埋着两个还叫得出名字的人。",
 	]), "level05_done", GameContext.next_level_id(level_id()))
 	finish(host)
 
@@ -138,19 +144,19 @@ func build(host: Node2D) -> void:
 ## ------------------------------------------------------------------ terrain --
 
 func _build_terrain(host: Node2D) -> void:
-	floor_strip(host, "FloorA", FLOOR_A.x, FLOOR_A.y, "stone", false, true, FLOOR_Y, STONE_WARM)
+	floor_strip(host, "FloorA", FLOOR_A.x, FLOOR_A.y, "iron", false, true, FLOOR_Y)
 	_coolant_pit(host, "PitB", PIT_B.x, PIT_B.y, FLOOR_Y + 32.0)
-	floor_strip(host, "FloorB", FLOOR_B.x, FLOOR_B.y, "stone", true, true, FLOOR_Y, STONE_WARM)
+	floor_strip(host, "FloorB", FLOOR_B.x, FLOOR_B.y, "iron", true, true, FLOOR_Y)
 	# 长冷却池：矮唇让掉下去的人两跳爬回来（368 → 352 → 320）。
-	platform(host, "LipC1", LIP_C1, Vector2(32, 48), "stone", false, false, STONE_WARM)
+	platform(host, "LipC1", LIP_C1, Vector2(32, 48), "iron", false, false)
 	platform(host, "BedC", Vector2(POOL_C.position.x, POOL_C.position.y + 16.0),
-			Vector2(POOL_C.size.x, FLOOR_Y + 80.0 - POOL_C.position.y - 16.0), "stone", false, false, STONE_WARM)
-	platform(host, "LipC2", LIP_C2, Vector2(32, 48), "stone", false, false, STONE_WARM)
+			Vector2(POOL_C.size.x, FLOOR_Y + 80.0 - POOL_C.position.y - 16.0), "iron", false, false)
+	platform(host, "LipC2", LIP_C2, Vector2(32, 48), "iron", false, false)
 	toxin(host, "PoolC", POOL_C.position, POOL_C.size, COOLANT)
-	floor_strip(host, "FloorC", FLOOR_C.x, FLOOR_C.y, "stone", true, true, FLOOR_Y, STONE_WARM)
+	floor_strip(host, "FloorC", FLOOR_C.x, FLOOR_C.y, "iron", true, true, FLOOR_Y)
 	_coolant_pit(host, "PitE", PIT_E.x, PIT_E.y, FLOOR_Y + 32.0)
-	floor_strip(host, "FloorE", FLOOR_E.x, FLOOR_E.y, "stone", true, false, FLOOR_Y, STONE_WARM)
-	enclose(host, "stone", CEILING_Y, -1.0, 0.0, STONE_WARM)
+	floor_strip(host, "FloorE", FLOOR_E.x, FLOOR_E.y, "iron", true, false, FLOOR_Y)
+	enclose(host, "iron", CEILING_Y)
 
 	# 齿轮踏点：淬火坑上两块，长池池心一块（半截泡在液里，掉下去的人踩它歇口气）。
 	gear(host, "GearB1", GEAR_B1)
@@ -158,21 +164,22 @@ func _build_terrain(host: Node2D) -> void:
 	gear(host, "GearC1", GEAR_C1)
 
 	# 检修走道 B 与它的三级台阶（从闸门这头往西爬）。
-	step(host, "WalkB", WALK_B.position, WALK_B.size.x, "floating", WALK_TONE)
+	# 走道用和地面同一套暖石板。floating 是教堂紫石，搁在工坊里像另一关的台子。
+	step(host, "WalkB", WALK_B.position, WALK_B.size.x, "iron_float")
 	for i in STEPS_B.size():
-		step(host, "StepB%d" % (i + 1), STEPS_B[i], STEP_W, "floating", WALK_TONE)
+		step(host, "StepB%d" % (i + 1), STEPS_B[i], STEP_W, "iron_float")
 	# 压板台：只有吊台 D 送得上去。
-	step(host, "DeckD", DECK_D.position, DECK_D.size.x, "floating", WALK_TONE)
+	step(host, "DeckD", DECK_D.position, DECK_D.size.x, "iron_float")
 	# 检修走道 E 与它的三级台阶（从余烬巢这头往东爬）。
 	for i in STEPS_E.size():
-		step(host, "StepE%d" % (i + 1), STEPS_E[i], STEP_W, "floating", WALK_TONE)
-	step(host, "WalkE", WALK_E.position, WALK_E.size.x, "floating", WALK_TONE)
+		step(host, "StepE%d" % (i + 1), STEPS_E[i], STEP_W, "iron_float")
+	step(host, "WalkE", WALK_E.position, WALK_E.size.x, "iron_float")
 
 
 ## 冷却液坑：坑底铺暖石板，液面（32 厚）压在坑底上方 16px。
 func _coolant_pit(host: Node2D, pit_name: String, x0: float, x1: float, bed_y: float) -> void:
 	platform(host, pit_name + "Bed", Vector2(x0, bed_y), Vector2(x1 - x0, FLOOR_Y + 80.0 - bed_y),
-			"stone", false, false, STONE_WARM)
+			"iron", false, false)
 	toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0), Vector2(x1 - x0, 32.0), COOLANT)
 
 
@@ -205,9 +212,9 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestLift", NEST_LIFT_X)
 	nest(host, "EmberNestGate", NEST_GATE_X)
 	stele(host, "SteleQuench", STELE_A_POS, "工坊遗训 · 淬火",
-			"他们把剑淬进冷却液，换出一枚锈核。剑从此不再认主。")
+			"他们把剑淬进冷却液，换出一枚锈核。核上刻的是职称，不是力气。")
 	stele(host, "SteleChain", STELE_B_POS, "工坊遗训 · 吊链",
-			"吊台的链子是旧剑熔的。每一环都曾有过名字。")
+			"吊链的每一环都曾有过名字。名字离开了人，留在铁上。")
 	waymark(host, SIGN_A_POS, "工坊")
 	waymark(host, SIGN_F_POS, "渣道")
 
@@ -222,25 +229,24 @@ func _build_enemies(host: Node2D) -> void:
 ## -------------------------------------------------------------------- decor --
 
 func _build_decor(host: Node2D) -> void:
-	# A 入口车间：金属梁、壁炬、干石渣（不再用苔门拱/教堂柱）。
-	prop(host, "beam_bolts", Vector2(96, FLOOR_Y), 1.0, Color(0.75, 0.7, 0.65))
+	# 工坊只用这套像素石作。Kenney 的平滑工字梁是另一套画风，竖在炉边像贴上去的。
 	torch(host, 440.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "rubble_dry", Vector2(456, FLOOR_Y))
-	# B 淬火槽：坑沿钢板，走道栏改短梁；支柱用带螺栓的工字梁。
+	# 456 整块落在 440 的壁炬墙板里。收到路牌和火把之间。
+	prop(host, "rubble_dry", Vector2(390, FLOOR_Y))
 	prop(host, "plate", Vector2(728, FLOOR_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 760.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "beam_narrow", Vector2(840, WALK_Y), 1.0, Color(0.72, 0.66, 0.58))
+	prop(host, "plate", Vector2(848, WALK_Y), 1.0, Color(0.72, 0.66, 0.58))
 	prop(host, "rubble_dry_b", Vector2(900, FLOOR_Y))
-	prop(host, "beam", Vector2(990, FLOOR_Y), 1.15, Color(0.68, 0.58, 0.5))
-	# D 压板塔：巢边壁炬、金属门板、干渣；走廊尽头工字梁。
+	# 工坊支柱用本主题石板/金属板，不用圣殿 column_big。
+	prop(host, "plate", Vector2(990, FLOOR_Y), 1.0, PILLAR)
 	torch(host, 1688.0, FLOOR_Y, TORCH_TINT)
-	prop(host, "beam_narrow", Vector2(1736, DECK_Y), 1.0, Color(0.72, 0.66, 0.58))
-	prop(host, "metal_panel", Vector2(1760, FLOOR_Y), 1.2, Color(0.7, 0.6, 0.52))
-	prop(host, "rubble_dry_c", Vector2(1808, FLOOR_Y))
-	prop(host, "beam_bolts", Vector2(1990, FLOOR_Y), 1.1, Color(0.68, 0.58, 0.5))
-	# F 锈门与运渣道。
-	prop(host, "rubble_dry", Vector2(2536, FLOOR_Y))
-	prop(host, "beam", Vector2(2672, FLOOR_Y), 1.15, Color(0.68, 0.58, 0.5))
+	prop(host, "plate", Vector2(1744, DECK_Y), 1.0, Color(0.72, 0.66, 0.58))
+	prop(host, "slab", Vector2(1784, FLOOR_Y), 1.0, Color(0.7, 0.6, 0.52))
+	prop(host, "rubble_dry_c", Vector2(1848, FLOOR_Y))
+	prop(host, "slab", Vector2(1968, FLOOR_Y), 1.0, PILLAR)
+	prop(host, "rubble_dry", Vector2(2524, FLOOR_Y))
+	# 台阶从 2624 起。石板收在台阶西侧的空地上，不立在踏步中间。
+	prop(host, "plate", Vector2(2588, FLOOR_Y), 1.0, PILLAR)
 	prop(host, "plate", Vector2(2856, WALK_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 2832.0, FLOOR_Y, TORCH_TINT)
 	# 顶板垂下的旧缆：仍用窄藤条资源，但染成锈缆色，数量更少。

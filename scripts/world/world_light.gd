@@ -18,6 +18,11 @@ const INDOOR_OUTDOOR_RADIUS := 72.0
 @export var radius_cap: float = 0.0
 
 var _flame_frame: int = 0
+## Host-authored brightness for followers the clock does not drive (torch, skull, ghost).
+## apply() writes the flicker back into `energy`, so the base has to be remembered
+## separately: reading `energy` as the target multiplied last frame's flicker into the
+## next one and every torch dimmed to black within a minute.
+var _base_energy: float = -1.0
 static var _radial_tight: Texture2D
 static var _radial_soft: Texture2D
 
@@ -86,7 +91,14 @@ func _target_energy() -> float:
 		&"heart":
 			return WorldClock.heart_light_energy()
 		_:
-			return energy
+			if _base_energy < 0.0:
+				_base_energy = energy
+			return _base_energy
+
+
+## Hosts that retune a free-running light after _ready() go through here.
+func set_base_energy(value: float) -> void:
+	_base_energy = maxf(value, 0.0)
 
 
 func _present_energy() -> float:

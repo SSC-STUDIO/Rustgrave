@@ -14,9 +14,19 @@ extends Node2D
 const AIM_DOT_MIN := 0.25
 const ROPE_ORIGIN := Vector2(0.0, -48.0)
 
+## 战斗里的钩锁：没有锚点可钩时，瞄准锥内的小型敌人（EnemyBase.is_yankable）会被拽到骑士面前，
+## 吃一小段硬直并露出破绽（下一刀翻倍）。重甲 / 首领不吃。
+const YANK_REACH := 180.0
+## 拽人的瞄准锥比锚点宽一点：战斗里没人会精确对准一只会动的敌人。
+const YANK_AIM_DOT_MIN := 0.55
+const YANK_STOP_DISTANCE := 26.0
+const YANK_ROPE_TIME := 0.22
+
 var _anchor: Node2D = null
 var _cooldown_left: float = 0.0
 var _rope: Line2D
+var _yank_target: Node2D = null
+var _yank_left: float = 0.0
 
 
 func _ready() -> void:
@@ -36,6 +46,7 @@ func is_active() -> bool:
 
 func _process(delta: float) -> void:
 	_cooldown_left = maxf(0.0, _cooldown_left - delta)
+	_tick_yank_rope(delta)
 	if not is_active():
 		return
 	# 绳索：从手部到锚点，中点略微下垂。
@@ -53,12 +64,83 @@ func try_fire(player: Player) -> bool:
 			return true
 	var anchor := _pick_anchor(player)
 	if anchor == null:
-		return false
+		return _try_yank(player)
 	_anchor = anchor
 	_rope.visible = true
-	Sfx.play(&"gate")
+	Sfx.play_at(CombatRules.sfx_key(&"hook_fire"), anchor.global_position)
 	Fx.hit_sparks(anchor.global_position)
 	return true
+
+
+## 战斗用法：把瞄准锥里最合适的小型敌人拽到骑士面前。只在按下钩锁键时扫一次编组。
+func _try_yank(player: Player) -> bool:
+	var target := _pick_yank_target(player)
+	if target == null:
+		return false
+	var face := signf(player.visual.scale.x)
+	if face == 0.0:
+		face = 1.0
+	# 敌人保持自己的高度（飞行的拽到骑士胸前，地面的仍踩在原来的台面上）。
+	var stop := Vector2(player.global_position.x + face * YANK_STOP_DISTANCE, target.global_position.y)
+	if not (target as EnemyBase).yank_to(stop):
+		return false
+	_yank_target = target
+	_yank_left = YANK_ROPE_TIME
+	_rope.visible = true
+	_set_cooldown()
+	Sfx.play_at(CombatRules.sfx_key(&"hook_fire"), player.global_position)
+	Sfx.play_at(CombatRules.sfx_key(&"hook_hit"), target.global_position)
+	Fx.hit_sparks(target.global_position + Vector2(0.0, -14.0))
+	return true
+
+
+func _pick_yank_target(player: Player) -> Node2D:
+	var origin := player.global_position + ROPE_ORIGIN
+	var aim := _aim_dir(player)
+	var reach := minf(_hook_reach(player), YANK_REACH)
+	var best: Node2D = null
+	var best_score := -1.0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy == null or not is_instance_valid(enemy) or not enemy.is_yankable():
+			continue
+		var point := enemy.hit_point()
+		var to := point - origin
+		var dist := to.length()
+		if dist > reach or dist < YANK_STOP_DISTANCE:
+			continue
+		var score := (to / dist).dot(aim)
+		if score < YANK_AIM_DOT_MIN or not _has_line_of_sight(origin, point):
+			continue
+		if score > best_score:
+			best_score = score
+			best = enemy
+	return best
+
+
+## 拽人时的绳子：只亮一瞬，从手到敌人；敌人先被释放就收绳。
+func _tick_yank_rope(delta: float) -> void:
+	if _yank_left <= 0.0:
+		return
+	_yank_left = maxf(0.0, _yank_left - delta)
+	if _yank_left <= 0.0 or _yank_target == null or not is_instance_valid(_yank_target):
+		_yank_target = null
+		_yank_left = 0.0
+		if not is_active():
+			_rope.visible = false
+		return
+	var from := ROPE_ORIGIN
+	var to := to_local((_yank_target as EnemyBase).hit_point())
+	var mid := (from + to) * 0.5 + Vector2(0.0, clampf(from.distance_to(to) * 0.05, 0.0, 9.0))
+	_rope.points = PackedVector2Array([from, mid, to])
+
+
+func yank_rope_active() -> bool:
+	return _yank_left > 0.0
+
+
+func cooldown_left() -> float:
+	return _cooldown_left
 
 
 func _try_melt_hook(player: Player) -> bool:
@@ -97,7 +179,7 @@ func _pick_melt_gate(player: Player) -> RustyGate:
 
 
 func _hook_reach(player: Player) -> float:
-	return max_range * (1.2 if player.toxin.potency() >= 0.5 else 1.0)
+	return max_range * float(CombatRules.toxin_tier(player.toxin.band())["hook"])
 
 
 func _aim_dir(player: Player) -> Vector2:
@@ -138,6 +220,11 @@ func _pop_off(player: CharacterBody2D, to_anchor: Vector2) -> void:
 func _release() -> void:
 	_anchor = null
 	_rope.visible = false
+	_set_cooldown()
+
+
+## 冷却：共鸣窗口里减半（弹反的回报之一）。
+func _set_cooldown() -> void:
 	var cd := cooldown
 	var host := get_parent()
 	if host is Player and (host as Player).resonance.is_active():

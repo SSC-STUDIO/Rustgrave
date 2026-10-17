@@ -40,9 +40,13 @@ func insert_into_socket(index: int) -> bool:
 	GameEvents.core_inserted.emit(core, index)
 	GameEvents.ability_unlocked.emit(core.ability_id)
 	Sfx.play(&"insert")
-	GameEvents.announcement.emit(
-		"嵌核 %d：%s（%s）" % [index + 1, core.display_name, AbilityIds.display_name(core.ability_id)]
-	)
+	var voice := _first_voice(core.ability_id)
+	if voice != "":
+		GameEvents.announcement.emit(voice)
+	else:
+		GameEvents.announcement.emit(
+			"嵌核 %d：%s（%s）" % [index + 1, core.display_name, AbilityIds.display_name(core.ability_id)]
+		)
 	return true
 
 
@@ -69,3 +73,22 @@ func socket_core(index: int) -> RustCore:
 	if index < 0 or index >= sockets.size():
 		return null
 	return sockets[index]
+
+
+## 每种能力第一次入座时说一句职称。之后回到普通嵌核播报，不再锁操作。
+func _first_voice(ability_id: StringName) -> String:
+	var key := "voice_%s" % String(ability_id)
+	if SaveData.has_flag(key):
+		return ""
+	var line := ""
+	match ability_id:
+		AbilityIds.HEAT_FORGE:
+			line = "窑匠：把火留在刃上。门会自己让开。"
+		AbilityIds.HOOKSHOT_TETHER:
+			line = "系索匠：你很重。让世界过来。"
+		AbilityIds.EMBER_STEP:
+			line = "余烬步：灰还能再跳一次。别问它从谁身上来。"
+		_:
+			return ""
+	SaveData.mark_flag(key)
+	return line

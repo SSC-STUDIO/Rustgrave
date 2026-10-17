@@ -1,9 +1,18 @@
 extends Node
 ## Director autoload: fade transitions + sequenced cutscenes.
-## Never touches Engine.time_scale. Pause hangs us via suspend() / tree.paused,
+## Never sets Engine.time_scale itself: freeze / slow-mo fx go through Juice, and the
+## only write we make is putting our own still-running freeze back to 1.0 when a
+## script is skipped or aborted. Pause hangs us via suspend() / tree.paused,
 ## not by us setting paused ourselves.
+##
+## Step kinds: lock unlock wait tableau caption cam_focus cam_release letterbox sfx fx anim.
+## fx ids: ember_rise ash_fall heart_pulse shock_ring rust_flake dust_puff plant bell_ring
+##   grave_answer core_ring boss_roar phase_flash shake flash freeze slowmo.
 
 signal finished
+## Every script end that is not an abort (natural end or skip), including the ones
+## followed by a queued script. `finished` only fires when the queue runs dry.
+signal script_finished
 signal step_started(index: int, step: Dictionary)
 signal step_finished(index: int, step: Dictionary)
 
@@ -42,6 +51,12 @@ var _letter_target: float = 0.0
 var _skip_to_end: bool = false
 var _script_skip_queue: Array = []
 var _aborting: bool = false
+## 等一个干净时机再开的剧本（开场、章节到达）。见 play_when_clear。
+var _deferred: Array = []
+## cam_release 先把推近的镜头缓回 1x，等这一步的等待结束再真正交还。
+var _release_pending: bool = false
+## 本剧本发起的冻帧 / 慢动作的墙钟终点；跳过或中断时只复位还在跑的那一次。
+var _time_fx_until_ms: int = 0
 const LETTER_BAR := 32.0
 const LETTER_SPEED := 3.4
 
@@ -50,6 +65,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_overlay()
 	add_child(preload("res://scripts/ui/cinematic_presentation.gd").new())
+	add_child(preload("res://scripts/ui/story_stage.gd").new())
 
 
 func _build_overlay() -> void:
@@ -156,11 +172,64 @@ func is_fading() -> bool:
 	return _fading
 
 
+## Rough running time of a script in seconds: waits, fx, camera moves, timed cards and
+## captions (typing + hold). Freezes and skips are not counted. Tests hold each cinematic
+## to its budget with it.
+func estimate_seconds(script: Array) -> float:
+	var total := 0.0
+	for raw in script:
+		var step := _as_step(raw)
+		match _kind_of(step):
+			"wait":
+				total += _seconds_of(step)
+			"fx":
+				total += float(step.get("seconds", 0.6))
+			"cam_focus":
+				total += float(step.get("duration", 0.8))
+			"cam_release":
+				total += float(step.get("duration", 0.35))
+			"letterbox":
+				total += float(step.get("duration", 0.28))
+			"tableau":
+				total += float(step.get("seconds", 0.0))
+			"caption":
+				var text := String(step.get("text", ""))
+				total += float(text.length()) / Caption.CHARS_PER_SEC 						+ float(step.get("hold", Caption.DEFAULT_HOLD))
+	return total
+
+
+## Scripts waiting behind the live one. Zero after abort(); tests read it.
+func pending_scripts() -> int:
+	return _script_queue.size() + _deferred.size()
+
+
+func is_test_runner() -> bool:
+	return _is_test_runner()
+
+
+## One-line control hint over the world (the opening's move prompt). It hides on the
+## first gameplay input, on timeout, on death, on abort and when a scene change starts.
+func show_hint(text: String, seconds: float = 14.0) -> void:
+	var presentation := get_node_or_null("CinematicPresentation")
+	if presentation != null:
+		presentation.show_hint(text, seconds)
+
+
+func hide_hint() -> void:
+	var presentation := get_node_or_null("CinematicPresentation")
+	if presentation != null:
+		presentation.hide_hint()
+
+
 ## fade_to(scene) or fade_to(scene, duration_seconds). Always fades to black.
 ## 正在淡变时不丢第二次请求：只保留最后一个目标，当前淡出结束后切过去。
 func fade_to(scene: String, duration: float = FADE_DEFAULT) -> void:
 	# 切场必须掐掉进行中的过场，否则 lock/字幕会跟着 Autoload 进下一幕。
 	abort()
+	# Back at the title the play session is over: New Game and Continue start from
+	# the save alone, with no "already seen this session" memory (see StoryStage.once).
+	if scene.get_file() == "TitleScreen.tscn":
+		StoryStage.forget()
 	if _fading:
 		_queued_fade_path = scene
 		_queued_fade_duration = duration
@@ -219,6 +288,35 @@ func play(script: Array, skip_to_end: bool = false) -> void:
 	_advance()
 
 
+## Start `script` as soon as nothing blocks it: tree not paused, Director not suspended,
+## no scene fade (in or out) and no choice menu open. The opening and the chapter
+## arrivals are kicked off in the very frame a scene finishes loading — possibly in the
+## middle of the fade, or with the pause menu open on top of it; a script started then
+## would sit suspended and locked inside a level nobody can unpause. `on_start` runs
+## right before the first step. abort() drops anything still waiting.
+func play_when_clear(script: Array, skip_to_end: bool = false, on_start: Callable = Callable()) -> void:
+	if _clear_to_start():
+		if on_start.is_valid():
+			on_start.call()
+		play(script, skip_to_end)
+		return
+	_deferred.append({"script": script.duplicate(), "skip": skip_to_end, "on_start": on_start})
+
+
+func _clear_to_start() -> bool:
+	if not is_inside_tree():
+		return false
+	return not get_tree().paused and not _suspended and not _fading and not choice_hold
+
+
+func _start_deferred() -> void:
+	var item: Dictionary = _deferred.pop_front()
+	var on_start: Callable = item.get("on_start", Callable())
+	if on_start.is_valid():
+		on_start.call()
+	play(item["script"] as Array, bool(item["skip"]))
+
+
 func is_aborting() -> bool:
 	return _aborting
 
@@ -230,6 +328,7 @@ func skip_step() -> void:
 		var cam := _camera()
 		if cam != null:
 			cam.release()
+		_release_pending = false
 		if _caption != null:
 			_caption.clear()
 		_waiting = false
@@ -258,17 +357,23 @@ func abort() -> void:
 	var cam := _camera()
 	if cam != null:
 		cam.release()
+	_release_pending = false
+	_clear_time_effects()
 	if _caption != null:
 		_caption.clear()
 	_queue.clear()
 	_script_queue.clear()
+	var dropped := not _deferred.is_empty()
+	_deferred.clear()
 	_index = -1
 	_waiting = false
 	_wait_kind = ""
 	set_letterbox(false)
 	var was := playing
 	playing = false
-	if was:
+	# Scripts that were still waiting for a clear moment end here too; listeners that
+	# prepared the scene for them (the opening's prone knight) must get to undo it.
+	if was or dropped:
 		finished.emit()
 	_aborting = false
 
@@ -283,6 +388,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_tick_letterbox(delta)
+	if not _deferred.is_empty() and _clear_to_start():
+		_start_deferred()
 	if _suspended or get_tree().paused:
 		return
 	if not playing or not _waiting:
@@ -320,14 +427,30 @@ func _seconds_of(step: Dictionary, fallback: float = 0.3) -> float:
 	return float(step.get("seconds", step.get("sec", fallback)))
 
 
+## One-off fx from code (the opening's grave answers, the forge pulse) with the same
+## ids as the fx step, no script needed. Inert headless like the step.
+func play_fx(id: String, target: Variant = null) -> void:
+	_play_fx_step({"id": id, "target": target})
+
+
 func _play_fx_step(step: Dictionary) -> void:
+	var id := String(step.get("id", ""))
+	# Freeze / slow-mo are only Juice's wall-clock timer, so they resolve (and reset)
+	# deterministically headless too. Everything else is visual and stays inert there.
+	if id == "freeze" or id == "slowmo":
+		var ms := int(step.get("ms", 400 if id == "freeze" else 600))
+		_time_fx_until_ms = maxi(_time_fx_until_ms, Time.get_ticks_msec() + ms)
+		if id == "freeze":
+			Juice.hit_stop(ms, float(step.get("scale", 0.05)))
+		else:
+			Juice.slow_mo(ms, float(step.get("scale", 0.25)))
+		return
 	if DisplayServer.get_name() == "headless":
 		return
-	var id := String(step.get("id", ""))
 	var pos := _fx_anchor()
 	var target = step.get("target")
-	if target is Node2D and is_instance_valid(target):
-		pos = target.global_position
+	if typeof(target) == TYPE_OBJECT and is_instance_valid(target) and target is Node2D:
+		pos = (target as Node2D).global_position
 	elif target is Vector2:
 		pos = target
 	match id:
@@ -343,8 +466,73 @@ func _play_fx_step(step: Dictionary) -> void:
 			Juice.flash(Color(1.0, 0.46, 0.22, 0.34), 160)
 		"shock_ring":
 			Fx.burst(&"ring", pos)
+		"rust_flake":
+			# 锈片从甲和剑上剥落，慢慢往下掉。
+			for _i in 3:
+				Fx.burst(&"rust", pos + Vector2(randf_range(-14.0, 14.0), randf_range(-52.0, -10.0)), PI * 0.5)
+			Fx.burst(&"dust", pos + Vector2(randf_range(-10.0, 10.0), -34.0), PI * 0.5)
+		"dust_puff":
+			Fx.dust_puff(pos + Vector2(0.0, -2.0))
+		"plant":
+			# 剑尖杵进地里：两侧扬灰 + 一下很轻的震。
+			Fx.dust_puff(pos + Vector2(-12.0, -2.0), PI)
+			Fx.dust_puff(pos + Vector2(12.0, -2.0), 0.0)
+			Juice.shake(float(step.get("shake", 1.8)), 200)
+		"bell_ring":
+			# 地下的一声钟：冲击环 + 震 + 顶上落灰；剑背上的火星跳一下，像剑里有人应声。
+			Fx.burst(&"ring", pos + Vector2(0.0, -24.0))
+			Fx.burst(&"spark", pos + Vector2(-8.0, -34.0), -PI * 0.5)
+			Juice.shake(float(step.get("shake", 3.0)), 420)
+			for _i in 2:
+				Fx.burst(&"dust", pos + Vector2(randf_range(-70.0, 70.0), -96.0), PI * 0.5)
+		"grave_answer":
+			# 坟回应：一缕冷灰带着火星往上冒，坟头亮一下又暗下去。
+			Fx.burst(&"dust", pos + Vector2(0.0, -4.0), -PI * 0.5)
+			Fx.burst(&"dust", pos + Vector2(-5.0, -10.0), -PI * 0.5 - 0.35)
+			Fx.burst(&"spark", pos + Vector2(randf_range(-6.0, 6.0), -14.0), -PI * 0.5)
+			Fx.burst(&"spark", pos + Vector2(randf_range(-6.0, 6.0), -20.0), -PI * 0.5)
+			CineFx.glow_pulse(self, pos + Vector2(0.0, -14.0), Color(0.78, 0.84, 1.0, 0.55), 0.9, 0.85)
+		"core_ring":
+			Fx.burst(&"ring", pos + Vector2(0.0, -24.0))
+			Fx.burst(&"spark", pos + Vector2(0.0, -26.0), -PI * 0.5)
+		"boss_roar":
+			Fx.burst(&"ring", pos + Vector2(0.0, -30.0))
+			Fx.hit_sparks(pos + Vector2(0.0, -40.0))
+			Juice.shake(float(step.get("shake", 4.5)), 380)
+			Juice.flash(Color(0.86, 0.2, 0.12, 0.3), 220)
+		"phase_flash":
+			Fx.burst(&"ring", pos + Vector2(0.0, -30.0))
+			Juice.shake(float(step.get("shake", 5.0)), 360)
+			Juice.flash(Color(0.9, 0.16, 0.1, 0.42), 240)
+		"shake":
+			Juice.shake(float(step.get("px", 3.0)), int(step.get("ms", 300)))
+		"flash":
+			var tint = step.get("color", Color(1.0, 1.0, 1.0, 0.5))
+			Juice.flash(tint if tint is Color else Color(1.0, 1.0, 1.0, 0.5), int(step.get("ms", 160)))
 		_:
 			pass
+
+
+## 目标被释放（场景已换）或没给时退回骑士，镜头不会对着悬空对象锁死。
+func _focus_target(raw: Variant) -> Variant:
+	if raw is Vector2:
+		return raw
+	if typeof(raw) == TYPE_OBJECT and is_instance_valid(raw) and raw is Node2D:
+		return raw
+	var tree := get_tree()
+	var player: Node2D = null
+	if tree != null:
+		player = tree.get_first_node_in_group("player") as Node2D
+	if player != null:
+		return player
+	var cam := _camera()
+	return cam.global_position if cam != null else Vector2.ZERO
+
+
+func _clear_time_effects() -> void:
+	if Time.get_ticks_msec() < _time_fx_until_ms and Engine.time_scale != 1.0:
+		Engine.time_scale = 1.0
+	_time_fx_until_ms = 0
 
 
 func _fx_anchor() -> Vector2:
@@ -390,19 +578,28 @@ func _run_step(step: Dictionary) -> void:
 			var cam := _camera()
 			var dur := float(step.get("duration", 0.8))
 			if cam != null:
-				cam.focus(step.get("target"), float(step.get("zoom", GameCamera.ZOOM)), dur)
+				cam.focus(_focus_target(step.get("target")), float(step.get("zoom", GameCamera.ZOOM)), dur)
 			_begin_wait(dur, "cam")
 		"cam_release":
 			var cam := _camera()
 			var dur := float(step.get("duration", 0.35))
 			if cam != null:
-				cam.release()
+				if absf(cam.zoom.x - GameCamera.ZOOM) > 0.03 and dur > 0.06:
+					# release() snaps zoom back to 1x. Ease it home first, then hand over.
+					cam.focus(_focus_target(null), GameCamera.ZOOM, dur / 3.0)
+					_release_pending = true
+				else:
+					cam.release()
 			_begin_wait(dur, "cam")
 		"letterbox":
 			set_letterbox(bool(step.get("on", true)), bool(step.get("instant", false)))
 			_begin_wait(float(step.get("duration", 0.28)), "letterbox")
 		"sfx":
-			Sfx.play(StringName(step.get("id", "ui_select")))
+			var sfx_id := StringName(step.get("id", "ui_select"))
+			if step.has("db"):
+				Sfx.play(sfx_id, float(step.get("jitter", 0.08)), float(step["db"]))
+			else:
+				Sfx.play(sfx_id)
 			_finish_step(step)
 			_advance()
 		"fx":
@@ -427,6 +624,11 @@ func _complete_wait() -> void:
 		return
 	_waiting = false
 	_wait_kind = ""
+	if _release_pending:
+		_release_pending = false
+		var cam := _camera()
+		if cam != null:
+			cam.release()
 	if _index >= 0 and _index < _queue.size():
 		_finish_step(_as_step(_queue[_index]))
 	_advance()
@@ -444,6 +646,9 @@ func _finish_play() -> void:
 	_waiting = false
 	_wait_kind = ""
 	_skip_to_end = false
+	_release_pending = false
+	_clear_time_effects()
+	script_finished.emit()
 	# 队列里还有下一条：保持 lock，避免两段过场之间漏一帧输入/灌毒/AI。
 	if not _script_queue.is_empty():
 		var next: Array = _script_queue.pop_front()

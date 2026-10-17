@@ -1,9 +1,13 @@
 class_name Level01StoryBeats
 extends Node
-## One-shot Level01 Director scripts. Listens to GameEvents + east-wing signals;
-## flags live on SaveData so a reload does not replay the same caption.
+## One-shot Level01 Director scripts. Listens to GameEvents + east-wing signals.
+## Every beat goes through StoryStage.once(): the flag lives on SaveData, and the
+## stage also remembers it for the session, so a death reload (which rewinds the
+## flags to the last save) never replays a cutscene the player already watched.
+## Core pickup / insert staging is shared with every other chapter (StoryStage).
 
 const Opening := preload("res://scripts/levels/opening_cinematic.gd")
+const LEVEL_ID := "level01"
 
 var _host: Node
 var _player: Player
@@ -20,7 +24,6 @@ func bind(host: Node, player: Player, boss: ExecutionerBoss) -> void:
 	_bound = true
 	GameEvents.toxin_changed.connect(_on_toxin_story)
 	GameEvents.core_acquired.connect(_on_core_story)
-	GameEvents.ability_unlocked.connect(_on_insert_story)
 	GameEvents.parried.connect(_on_parry_story)
 
 
@@ -36,62 +39,51 @@ func _exit_tree() -> void:
 		GameEvents.toxin_changed.disconnect(_on_toxin_story)
 	if GameEvents.core_acquired.is_connected(_on_core_story):
 		GameEvents.core_acquired.disconnect(_on_core_story)
-	if GameEvents.ability_unlocked.is_connected(_on_insert_story):
-		GameEvents.ability_unlocked.disconnect(_on_insert_story)
 	if GameEvents.parried.is_connected(_on_parry_story):
 		GameEvents.parried.disconnect(_on_parry_story)
 
 
 func try_wake() -> void:
+	# After the knight exists, once per load: Continue and death reloads included.
+	GameEvents.chapter_started.emit(LEVEL_ID)
 	if SaveData.entering_from_checkpoint or SaveData.has_pending_spawn() or SaveData.has_flag("wake"):
 		if not Director.playing:
 			GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
 		return
-	# 开场只在全新一局、醒来之前。继续、死亡重进、已经醒过都直接进原来的醒来。
-	if Opening.try_start(_play_wake):
-		SaveData.mark_flag("wake")
-		return
-	SaveData.mark_flag("wake")
-	_play_wake()
-
-
-func _play_wake() -> void:
-	if not is_inside_tree():
-		return
+	# 全新一局只播开场这一条（含章节卡）。旗标由开场在结束或跳过时点上。
 	var nest: Node = null
 	if _host != null and is_instance_valid(_host):
 		nest = _host.get_node_or_null("Props/EmberNest")
-	Director.play([
-		{"kind": "lock"},
-		{"kind": "sfx", "id": "insert"},
-		{"kind": "cam_focus", "target": nest, "duration": 0.2},
-		{"kind": "wait", "seconds": 0.25},
-		{"kind": "fx", "id": "ember_rise", "seconds": 0.7},
-		{"kind": "caption", "text": "你不是被选中的。刮锈的偶，自己先锈透了。", "hold": 1.8},
-		{"kind": "cam_focus", "target": _player, "duration": 0.55},
-		ChapterLevel.chapter_card("锈墓・壹 — 腐液回廊"),
-		{"kind": "cam_release"},
-		{"kind": "unlock"},
-	])
+	if Opening.try_start(_player, nest):
+		return
+	# 继续、已有存档、已有结局：不重播开场，也不再接一段醒来。
+	SaveData.mark_flag("wake")
+	if not Director.playing:
+		GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
 
 
+## 刽子手：镜头锁他，吼一声，一句誓言。名号卡由 boss_appeared 另画，不抢操作。
+## 约 3.8 秒，按一次确认键整段跳过。
 func on_boss_gate(body: Node) -> void:
-	if SaveData.has_flag("boss_intro") or SaveData.has_flag("boss_dead"):
+	if SaveData.has_flag("boss_dead") or not body is Player:
 		return
-	if not body is Player or _boss == null or not is_instance_valid(_boss):
+	if _boss == null or not is_instance_valid(_boss):
 		return
-	SaveData.mark_flag("boss_intro")
+	if not StoryStage.once("boss_intro"):
+		return
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "gate"},
-		{"kind": "cam_focus", "target": _boss, "duration": 0.55},
-		{"kind": "fx", "id": "shock_ring", "target": _boss, "seconds": 0.4},
-		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.8},
-		{"kind": "cam_release"},
+		{"kind": "sfx", "id": "boss_roar"},
+		{"kind": "cam_focus", "target": _boss, "zoom": 1.2, "duration": 0.55},
+		{"kind": "fx", "id": "boss_roar", "target": _boss, "seconds": 0.3},
+		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.4},
+		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
-	])
+	], true)
 
 
+## 刽子手跪下：慢放 + 一震，镜头先给跪倒的他，再移到残芯的光上。约 4 秒，可跳过。
 func on_boss_slain() -> void:
 	var heart: ForgeHeart = null
 	if _host != null:
@@ -101,21 +93,25 @@ func on_boss_slain() -> void:
 	if SaveData.has_flag("boss_dead"):
 		return
 	Level01EastWing.mark_executioner_slain()
+	Music.set_state(&"calm")
+	Music.stinger(&"boss_down")
 	Director.play([
 		{"kind": "lock"},
-		{"kind": "sfx", "id": "insert"},
-		{"kind": "cam_focus", "target": heart, "duration": 0.7},
-		{"kind": "fx", "id": "heart_pulse", "target": heart, "seconds": 0.55},
-		{"kind": "caption", "text": "残芯还在跳。你可以把它熄掉，也可以答应往下问一次。", "hold": 1.9},
-		{"kind": "cam_release"},
+		{"kind": "fx", "id": "slowmo", "ms": 700, "scale": 0.25, "seconds": 0.0},
+		{"kind": "fx", "id": "shake", "px": 5.0, "ms": 400, "seconds": 0.0},
+		{"kind": "cam_focus", "target": _boss, "zoom": 1.3, "duration": 0.4},
+		{"kind": "cam_focus", "target": heart, "zoom": 1.0, "duration": 0.7},
+		{"kind": "sfx", "id": "forge_pulse"},
+		{"kind": "fx", "id": "heart_pulse", "target": heart, "seconds": 0.4},
+		{"kind": "caption", "text": "残芯还在跳。熄掉它，或者答应往下问一次。", "hold": 1.4},
+		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
-	])
+	], true)
 
 
 func _on_toxin_story(current: float, _maximum: float) -> void:
-	if SaveData.has_flag("toxin") or current <= 0.0:
+	if current <= 0.0 or not StoryStage.once("toxin"):
 		return
-	SaveData.mark_flag("toxin")
 	var pool: Node = null
 	if _host != null:
 		pool = _host.get_node_or_null("Props/ToxinPool")
@@ -125,37 +121,22 @@ func _on_toxin_story(current: float, _maximum: float) -> void:
 		{"kind": "caption", "text": "它曾是冷却剂。吃肺，也把记忆淬进剑里。", "hold": 1.6},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
-	])
+	], true)
 
 
-func _on_core_story(_core: Resource) -> void:
-	if SaveData.has_flag("core"):
-		return
-	SaveData.mark_flag("core")
-	Director.play([
-		{"kind": "lock"},
-		{"kind": "caption", "text": "这不是战利品。是一个还没说完的职称。", "hold": 1.5},
-		{"kind": "unlock"},
-	])
-
-
-func _on_insert_story(_ability_id: StringName) -> void:
-	if SaveData.has_flag("insert"):
-		return
-	SaveData.mark_flag("insert")
-	Director.play([
-		{"kind": "lock"},
-		{"kind": "caption", "text": "插座咬住了。剑里有人清了清嗓子。", "hold": 1.4},
-		{"kind": "unlock"},
-	])
+## 第一枚核（全游戏第一次拾取）。每一枚核各一次的演出在 StoryStage，这里只是第一章的
+## 入口：StoryStage 先收到信号时这里不会重复；没有骑士的场景（测试）退化成只有字幕。
+func _on_core_story(core: Resource) -> void:
+	var stage := Director.get_node_or_null("StoryStage") as StoryStage
+	if stage != null:
+		stage.stage_pickup(core, true)
 
 
 func _on_parry_story(_bolt: Node, _by: Node) -> void:
-	if SaveData.has_flag("parry"):
+	if not StoryStage.once("parry"):
 		return
-	SaveData.mark_flag("parry")
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "caption", "text": "打回去的是他们的火。锈被你炼过一次。", "hold": 1.6},
 		{"kind": "unlock"},
-	])
+	], true)

@@ -1,0 +1,183 @@
+extends Control
+## 标题屏的像素铁件：插座剑、墓志短铆钉、主横线。
+##
+## 全部落在 2px 栅格上（与 UI 套件的 DESIGN_SCALE 一致），用绘制而不是新贴图。
+## 不在本文件里写类名：这个脚本第一次被编译时全局类还没注册。
+
+const CELL := 2
+## 剑比横线粗一档，否则夹在 726px 的字标旁边会收成一根针。
+const SWORD_CELL := 4
+const SWORD_W := 13
+const KIND_SWORD := 0
+const KIND_RULE := 1
+const KIND_STUB := 2
+const PAL := {
+	"0": Color("#120E14"),
+	"7": Color("#4A2A18"),
+	"8": Color("#8B4513"),
+	"9": Color("#A0522D"),
+	"b": Color("#FF8C00"),
+	"c": Color("#FFC14A"),
+	"e": Color("#E4DCCC"),
+}
+const SWORD: PackedStringArray = [
+	"......c......",
+	".....c9c.....",
+	"....c989c....",
+	"....98889....",
+	"....98089....",
+	"....90c09....",
+	"....98089....",
+	"....98889....",
+	"....99899....",
+	"....9e8e9....",
+	"....99899....",
+	"....99899....",
+	"...c99899c...",
+	"..998989899..",
+	".c99.....99c.",
+	".99.......99.",
+	".....989.....",
+	".....9c9.....",
+	".....070.....",
+	"....98889....",
+	"...988b889...",
+	"....98889....",
+	".....989.....",
+]
+const DIAMOND: PackedStringArray = [
+	"...c...",
+	"..c9c..",
+	".c989c.",
+	"c98b89c",
+	".c989c.",
+	"..c9c..",
+	"...c...",
+]
+
+var kind := KIND_SWORD
+var rivet_on_left := true
+
+
+static func sword() -> Control:
+	return _make(KIND_SWORD)
+
+
+static func rivet_rule() -> Control:
+	return _make(KIND_RULE)
+
+
+static func stub_rule(on_left: bool) -> Control:
+	return _make(KIND_STUB, on_left)
+
+
+static func _make(which: int, on_left: bool = true) -> Control:
+	var mark = load("res://scripts/ui/title_ornament.gd").new()
+	mark.kind = which
+	mark.rivet_on_left = on_left
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark._apply_size()
+	return mark
+
+
+func _apply_size() -> void:
+	if kind == KIND_SWORD:
+		custom_minimum_size = Vector2((SWORD_W + 2) * SWORD_CELL, (SWORD.size() + 2) * SWORD_CELL)
+	elif kind == KIND_RULE:
+		custom_minimum_size = Vector2(722, 16)
+	else:
+		custom_minimum_size = Vector2(104, 16)
+
+
+func _draw() -> void:
+	if kind == KIND_SWORD:
+		_draw_sword()
+	elif kind == KIND_RULE:
+		_draw_rule()
+	else:
+		_draw_stub()
+
+
+func _draw_sword() -> void:
+	var h := SWORD.size()
+	for y in h:
+		var row := SWORD[y]
+		for x in SWORD_W:
+			if row[x] == ".":
+				continue
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					var nx := x + dx
+					var ny := y + dy
+					if nx < 0 or ny < 0 or nx >= SWORD_W or ny >= h or SWORD[ny][nx] == ".":
+						_px_at(nx + 1, ny + 1, PAL["0"], SWORD_CELL)
+	for y in h:
+		var row := SWORD[y]
+		for x in SWORD_W:
+			var ch := row[x]
+			if ch == ".":
+				continue
+			_px_at(x + 1, y + 1, PAL[ch], SWORD_CELL)
+
+
+func _draw_rule() -> void:
+	var width := custom_minimum_size.x
+	var diamond_w := float(DIAMOND[0].length() * CELL)
+	var diamond_x := (width - diamond_w) * 0.5
+	var gap := 8.0
+	var left_break := diamond_x - gap
+	var right_break := diamond_x + diamond_w + gap
+	# 线头伸进铆钉底下，避免钉和线之间裂开一缝。
+	# 余烬发丝压在锈底上，暗底里仍看得见，两端再收暗。
+	_span(12.0, left_break, 8.0, PAL["c"])
+	_span(right_break, width - 12.0, 8.0, PAL["c"])
+	_span(64.0, left_break, 10.0, PAL["9"])
+	_span(right_break, width - 64.0, 10.0, PAL["9"])
+	_span(12.0, 80.0, 8.0, PAL["8"])
+	_span(width - 80.0, width - 12.0, 8.0, PAL["8"])
+	_rivet(8.0, 6.0)
+	_rivet(width - 14.0, 6.0)
+	_rivet(left_break - 6.0, 6.0)
+	_rivet(right_break, 6.0)
+	_diamond(Vector2(diamond_x, 2.0))
+
+
+func _draw_stub() -> void:
+	var width := custom_minimum_size.x
+	var line_x := 8.0 if rivet_on_left else 0.0
+	var line_w := width - 8.0
+	draw_rect(Rect2(line_x, 8.0, line_w, 2.0), PAL["9"])
+	draw_rect(Rect2(line_x, 10.0, line_w, 2.0), PAL["7"])
+	if rivet_on_left:
+		draw_rect(Rect2(width - 28.0, 8.0, 28.0, 2.0), PAL["7"])
+	else:
+		draw_rect(Rect2(0.0, 8.0, 28.0, 2.0), PAL["7"])
+	var rivet_x := 4.0 if rivet_on_left else width - 10.0
+	_rivet(rivet_x, 6.0)
+
+
+func _rivet(x: float, y: float) -> void:
+	draw_rect(Rect2(x, y, 6, 6), PAL["7"])
+	draw_rect(Rect2(x, y, 6, 2), PAL["9"])
+	draw_rect(Rect2(x + 2, y + 2, 2, 2), PAL["c"])
+
+
+func _span(x0: float, x1: float, y: float, color: Color) -> void:
+	if x1 <= x0:
+		return
+	draw_rect(Rect2(x0, y, x1 - x0, 2.0), color)
+
+
+func _diamond(origin: Vector2) -> void:
+	var s := float(CELL)
+	for y in DIAMOND.size():
+		var row := DIAMOND[y]
+		for x in row.length():
+			var ch := row[x]
+			if ch == ".":
+				continue
+			draw_rect(Rect2(origin + Vector2(x, y) * s, Vector2(s, s)), PAL[ch])
+
+
+func _px_at(x: int, y: int, color: Color, cell: int) -> void:
+	draw_rect(Rect2(x * cell, y * cell, cell, cell), color)

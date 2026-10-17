@@ -41,6 +41,7 @@ func test_round_trip_keeps_volume_comfort_and_extra() -> void:
 	Settings.set_shake_scale(0.25)
 	Settings.set_flash_scale(0.0)
 	Settings.set_value(&"hints_on", false)
+	Settings.save_settings()
 	ok(FileAccess.file_exists(TEST_PATH), "settings written")
 	ok(not FileAccess.file_exists(TEST_PATH + ".tmp"), "temp file renamed away")
 	Settings.shake_scale = 1.0
@@ -142,3 +143,15 @@ func test_bindings_persist_and_reset_restores_defaults() -> void:
 	Settings.reset_keys()
 	Settings.load_settings()
 	eq(Settings.key_for(&"attack"), default_attack, "reset persisted")
+
+
+func test_slider_drags_coalesce_into_one_delayed_write() -> void:
+	_remove(TEST_PATH)
+	for i in 40:
+		Settings.set_volume_percent(&"Music", float(i))
+	ok(not FileAccess.file_exists(TEST_PATH), "nothing is written while the slider is still moving")
+	await get_tree().create_timer(0.7, true, false, true).timeout
+	ok(FileAccess.file_exists(TEST_PATH), "one write lands shortly after the last change")
+	var cfg := ConfigFile.new()
+	eq(cfg.load(TEST_PATH), OK)
+	almost(float(cfg.get_value("audio", "Music", -1.0)), 39.0, 0.01, "the final value is what got written")

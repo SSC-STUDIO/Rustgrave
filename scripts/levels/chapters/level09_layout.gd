@@ -15,7 +15,7 @@ extends ChapterLayout
 
 const EAST_LIMIT := 3200
 const ENTRY_SPAWN := Vector2(96, 300)
-const SKIN := "stone"
+const SKIN := "rampart"
 const PIT_DEPTH := 32.0
 
 ## [name, x0, x1, cap_left, cap_right] —— 墙顶步道（80px 厚，顶在 320）
@@ -88,23 +88,25 @@ const ENEMIES: Array = [
 	["Scrapper2", "scrapper", Vector2(3032, 320), {"patrol_range": 24.0}],
 ]
 
-## 壁炬 x（板底贴地面 320）
-const TORCHES: Array = [412.0, 1104.0, 1688.0, 2600.0, 3160.0]
 ## [key, feet, z] —— 女墙、残碑、塔门；z=1 让塔门画在塔身石板之上
+## 室外城墙不用壁炬墙板（bg_wall_torch 是室内板）。
 const PROPS: Array = [
-	["balustrade", Vector2(72, 320), 0],
-	["stone_1", Vector2(232, 320), 0],
-	["stone_4", Vector2(776, 320), 0],
-	["balustrade", Vector2(944, 256), 0],
-	["door_arch", Vector2(944, 320), 1],
-	["balustrade", Vector2(1032, 320), 0],
-	["stone_3", Vector2(1504, 320), 0],
-	["balustrade", Vector2(1872, 256), 0],
-	["door_arch", Vector2(1872, 320), 1],
-	["balustrade", Vector2(2696, 320), 0],
-	["stone_2", Vector2(2764, 288), 0],
-	["balustrade", Vector2(2912, 224), 0],
-	["door_arch", Vector2(2912, 320), 1],
+	# 城墙用女墙、门洞、干石。墓碑（stone_*）立在墙顶上，读成墓园搬进城里。
+	["balustrade_wall", Vector2(72, 320), 0],
+	["rubble_dry", Vector2(232, 320), 0],
+	["rubble_dry_b", Vector2(776, 320), 0],
+	["balustrade_wall", Vector2(944, 256), 0],
+	["door_arch_wall", Vector2(944, 320), 1],
+	["balustrade_wall", Vector2(1032, 320), 0],
+	["rubble_dry_c", Vector2(1504, 320), 0],
+	# 中段：一座倒在城墙上的塔身，墙上唯一的大剪影。
+	["ruin_tower", Vector2(1700, 320), -3],
+	["balustrade_wall", Vector2(1872, 256), 0],
+	["door_arch_wall", Vector2(1872, 320), 1],
+	["balustrade_wall", Vector2(2696, 320), 0],
+	["rubble_dry", Vector2(2764, 288), 0],
+	["balustrade_wall", Vector2(2912, 224), 0],
+	["door_arch_wall", Vector2(2912, 320), 1],
 ]
 ## [feet(左脚点), scale] —— 墙缝里长出来的几丛灌木
 const BUSHES: Array = [
@@ -124,7 +126,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "风从熔炉那边来。墙上只剩灰。"
+	return "这墙挡的是炉风。灰是守墙的人。"
 
 
 func entry_spawn() -> Vector2:
@@ -136,7 +138,12 @@ func east_limit() -> int:
 
 
 func theme() -> String:
-	return "town"
+	return "ramparts"
+
+
+## 墙挡的是炉风：黄昏，余烬风。
+func ambient() -> Dictionary:
+	return {"time": 0.56, "weather": "ember_wind", "hold": 360.0}
 
 
 func build(host: Node2D) -> void:
@@ -145,8 +152,8 @@ func build(host: Node2D) -> void:
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_X, "炉心大门", PackedStringArray([
-		"门后没有风。只有热。",
-		"炉心在等。它一直在等。",
+		"门后没有风，只有热。",
+		"有一匹马不肯进炉，还守在芯前。",
 	]), "level09_done", GameContext.next_level_id(level_id()))
 	finish(host)
 
@@ -159,7 +166,7 @@ func _build_terrain(host: Node2D) -> void:
 	for t in TOWERS:
 		platform(host, String(t[0]), t[1], t[2], SKIN)
 	for s in STONES:
-		step(host, String(s[0]), s[1], float(s[2]), "floating")
+		step(host, String(s[0]), s[1], float(s[2]), "rampart_float")
 	walls(host, SKIN)
 
 
@@ -168,9 +175,9 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestMid", NEST_MID_X)
 	nest(host, "EmberNestEast", NEST_EAST_X)
 	stele(host, "SteleWall", STELE_WALL_POS, "城墙铭 · 挡",
-			"这墙不挡人，挡风。风从炉心那边来，把没烧尽的灰吹进城里。")
+			"这墙不挡人，挡风。风从炉心来。灰是守过这墙的人。")
 	stele(host, "SteleWind", STELE_WIND_POS, "城墙铭 · 风",
-			"风里有铁锈和烧焦的油味。闻到它的人，离炉心只剩一道门。")
+			"风里有铁锈和烧焦的油味。墙下的灰，曾经会走路。")
 	plate_door(host, "WallGate", PLATE_FEET, GATE_DOOR_POS)
 	hook(host, "HookTower", HOOK_POS)
 	pickup(host, "EmberCore", EMBER_CORE_POS, &"ember_core")
@@ -184,9 +191,8 @@ func _build_enemies(host: Node2D) -> void:
 
 
 func _build_decor(host: Node2D) -> void:
-	for x in TORCHES:
-		torch(host, float(x))
 	for p in PROPS:
-		prop(host, String(p[0]), p[1], 1.0, Color.WHITE, int(p[2]))
+		var tint := Color(0.8, 0.86, 0.9) if String(p[0]) == "ruin_tower" else Color.WHITE
+		prop(host, String(p[0]), p[1], 1.0, tint, int(p[2]))
 	for b in BUSHES:
 		foliage(host, "bush_s", b[0], float(b[1]))

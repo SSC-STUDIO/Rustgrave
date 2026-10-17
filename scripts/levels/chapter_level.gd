@@ -31,7 +31,12 @@ func _ready() -> void:
 	add_child(layout)
 	WorldClock.set_zone(WorldClock.Zone.INDOORS if layout.indoors() else WorldClock.Zone.OUTDOORS)
 	layout.build(self)
+	if not layout.indoors() and not SaveData.has_flag("%s_wake" % layout.level_id()):
+		apply_ambient(layout.ambient())
 	_spawn_actors(restored)
+	# Once per level load, after the knight, camera and HUD exist — Continue and
+	# respawn-reloads included. Music and the stage reset their per-place state here.
+	GameEvents.chapter_started.emit(layout.level_id())
 	call_deferred("_wake")
 
 
@@ -72,11 +77,16 @@ func _spawn_actors(restored: bool) -> void:
 
 
 func _wake() -> void:
+	var returning := SaveData.entering_from_checkpoint
 	SaveData.entering_from_checkpoint = false
 	var flag := "%s_wake" % layout.level_id()
-	if SaveData.has_flag(flag):
+	# A reload after death is a return, not an arrival. And a card the player already
+	# sat through this session stays seen even though the load rewinds the save flags.
+	if returning:
+		StoryStage.once(flag)
 		return
-	SaveData.mark_flag(flag)
+	if not StoryStage.once(flag):
+		return
 	var steps: Array = [
 		{"kind": "lock"},
 		chapter_card(layout.title()),
@@ -84,14 +94,28 @@ func _wake() -> void:
 	if layout.wake_line() != "":
 		steps.append({"kind": "caption", "text": layout.wake_line(), "hold": 2.0})
 	steps.append({"kind": "unlock"})
-	Director.play(steps)
+	# One press skips the card and the line together. Waits out a scene fade or an open
+	# pause menu instead of starting suspended inside a level nobody can unpause.
+	Director.play_when_clear(steps, true, func() -> void: Music.stinger(&"chapter"))
+
+
+## First arrival only (later respawns keep the saved clock). Weather is held so the
+## chapter's signature sky does not flip within seconds of the title card.
+static func apply_ambient(ambient: Dictionary) -> void:
+	if ambient.is_empty():
+		return
+	if ambient.has("time"):
+		WorldClock.set_time(float(ambient["time"]))
+	if ambient.has("weather"):
+		WorldClock.set_weather(WorldClock.weather_from_id(String(ambient["weather"])), true)
+	WorldClock.set_weather_hold(float(ambient.get("hold", 240.0)))
 
 
 ## Chapter metadata remains the source of truth; cards do not invent story flags.
-static func chapter_card(chapter_title: String) -> Dictionary:
+static func chapter_card(chapter_title: String, seconds: float = 2.6) -> Dictionary:
 	var parts := chapter_title.split("—", false, 1)
 	return {
-		"kind": "tableau", "id": "chapter", "seconds": 2.6,
+		"kind": "tableau", "id": "chapter", "seconds": seconds,
 		"title": String(parts[1]).strip_edges() if parts.size() > 1 else chapter_title,
 		"subtitle": String(parts[0]).strip_edges() if parts.size() > 1 else "锈 墓",
 	}

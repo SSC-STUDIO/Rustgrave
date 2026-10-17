@@ -5,10 +5,10 @@
 [ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="3"]
 
 [sub_resource type="RectangleShape2D" id="body"]
-size = Vector2(16, 26)
+size = Vector2(28, 48)
 
 [sub_resource type="RectangleShape2D" id="hurt"]
-size = Vector2(24, 44)
+size = Vector2(36, 60)
 
 [node name="ExecutionerBoss" type="CharacterBody2D"]
 collision_layer = 4
@@ -17,7 +17,7 @@ floor_snap_length = 4.0
 script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, -13)
+position = Vector2(0, -24)
 shape = SubResource("body")
 
 [node name="Visual" type="Node2D" parent="."]
@@ -52,7 +52,7 @@ color = Color(0.42, 0.5, 0.5, 1)
 polygon = PackedVector2Array(2, -10, 10, -8, 12, 6, 8, 12, 2, 12, -2, 6, -2, -6)
 
 [node name="Hurtbox" type="Area2D" parent="."]
-position = Vector2(0, -22)
+position = Vector2(0, -30)
 collision_layer = 32
 collision_mask = 24
 script = ExtResource("3")

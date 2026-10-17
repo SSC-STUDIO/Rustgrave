@@ -71,6 +71,6 @@ func _wake() -> void:
 	Director.play([
 		{"kind": "lock"},
 		ChapterLevel.chapter_card(LEVEL_TITLE),
-		{"kind": "caption", "text": "苔水底下有东西在数你的脚步。", "hold": 2.0},
+		{"kind": "caption", "text": "钟在数人。数到你，就得往下走。", "hold": 2.0},
 		{"kind": "unlock"},
 	])

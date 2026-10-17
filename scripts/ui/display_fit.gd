@@ -29,6 +29,7 @@ const PRESET_RESOLUTIONS: Array[Vector2i] = [
 ]
 
 static var _current_fit_mode: FitMode = FitMode.ADAPTIVE
+static var _saved_mode_applied := false
 
 
 static func _get_root_window(win: Window = null) -> Window:
@@ -43,7 +44,17 @@ static func _get_root_window(win: Window = null) -> Window:
 static func apply(win: Window = null) -> void:
 	if DisplayServer.get_name() == "headless":
 		return
+	_apply_saved_window_mode()
 	apply_fit_mode(_current_fit_mode, win)
+
+
+## 启动后第一次 apply 时恢复玩家在设置里选的全屏（只做一次，之后窗口模式归玩家说了算）。
+static func _apply_saved_window_mode() -> void:
+	if _saved_mode_applied:
+		return
+	_saved_mode_applied = true
+	if bool(Settings.value(&"fullscreen", false)) and not is_fullscreen():
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 
 static func apply_fit_mode(mode: FitMode, win: Window = null) -> void:

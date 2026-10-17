@@ -185,6 +185,31 @@ func test_play_decor_feet_sit_on_ground() -> void:
 		ok(_on_standable_ground(feet), "%s x=%.0f sits on a standable span" % [path.get_file(), feet.x])
 
 
+func test_play_decor_stays_at_integer_scale_and_off_the_signs() -> void:
+	var spans: Array[Rect2] = []
+	for item in Level01Static.PLAY_DECOR:
+		var path := String(item[0])
+		almost(float(item[2]), 1.0, 0.001, "%s is drawn at 1x" % path.get_file())
+		var tex := load(path) as Texture2D
+		ok(tex != null, path)
+		if tex == null:
+			continue
+		var feet: Vector2 = item[1]
+		spans.append(Rect2(feet.x, feet.y - float(tex.get_height()), float(tex.get_width()), float(tex.get_height())))
+	for i in spans.size():
+		for j in range(i + 1, spans.size()):
+			var overlap: Rect2 = spans[i].intersection(spans[j])
+			ok(overlap.get_area() <= 1.0,
+					"decor %d and %d overlap by %s" % [i, j, str(overlap.size)])
+	for mark in Level01Static.WAYMARKS:
+		var feet: Vector2 = mark[0]
+		var board := Rect2(feet.x - 17.0, feet.y - 35.0, 35.0, 35.0)
+		for i in spans.size():
+			var overlap: Rect2 = spans[i].intersection(board)
+			ok(overlap.get_area() <= 1.0,
+					"%s covers %s" % [String(Level01Static.PLAY_DECOR[i][0]).get_file(), String(mark[1])])
+
+
 func test_play_decor_hard_props_do_not_sway() -> void:
 	var layer := Node2D.new()
 	add_child(layer)

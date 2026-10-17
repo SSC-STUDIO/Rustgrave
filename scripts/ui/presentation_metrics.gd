@@ -28,6 +28,34 @@ static func for_window(win: Window) -> Dictionary:
 	return calculate(win.size if win != null else UI_SIZE)
 
 
+## Safe-area insets measured on the root canvas (left, top, right, bottom in 1280x720
+## units, as TouchInput.safe_insets_ui reports them) -> insets inside a layer bound
+## by `bind_layer`. Layer space is the centred integer content rectangle, so a notch
+## that lies in the black margin costs nothing and a window with no margin keeps the
+## full inset. Pure function: unit-testable without a display.
+static func layer_insets(root_insets: Vector4, window_size: Vector2i) -> Vector4:
+	if root_insets == Vector4.ZERO:
+		return Vector4.ZERO
+	var metrics := calculate(window_size)
+	var canvas: Rect2 = metrics["canvas_rect"]
+	var ui := Vector2(UI_SIZE)
+	# The content rect spans [canvas.position, canvas.end] on the root canvas and
+	# is exactly UI_SIZE wide/high in layer units, so one layer unit is this many
+	# root-canvas units:
+	var per_unit := Vector2(canvas.size.x / ui.x, canvas.size.y / ui.y)
+	var left := maxf(0.0, (root_insets.x - canvas.position.x) / per_unit.x)
+	var top := maxf(0.0, (root_insets.y - canvas.position.y) / per_unit.y)
+	var right := maxf(0.0, (root_insets.z - (ui.x - canvas.end.x)) / per_unit.x)
+	var bottom := maxf(0.0, (root_insets.w - (ui.y - canvas.end.y)) / per_unit.y)
+	return Vector4(left, top, right, bottom)
+
+
+## Insets for the live window (zero headless / on desktop).
+static func safe_layer_insets(win: Window) -> Vector4:
+	var size := win.size if win != null else UI_SIZE
+	return layer_insets(TouchInput.safe_insets_ui(win), size)
+
+
 static func apply_layer(layer: CanvasLayer) -> void:
 	if not is_instance_valid(layer) or not layer.is_inside_tree():
 		return

@@ -93,7 +93,7 @@ func test_drain_crossings_are_single_jumps() -> void:
 		almost(r.size.x, 32.0, 0.01, "%s is a short stone" % stone_name)
 	for s in LAYOUT.STONES:
 		var stone := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
-		ok(stone != null and stone.skin == "floating", "%s wears the floating skin" % s[0])
+		ok(stone != null and stone.skin == "rampart_float", "%s wears the rampart ledge skin" % s[0])
 		if stone != null:
 			almost(stone.size.y, 16.0, 0.01, "%s is a 16px slab" % s[0])
 
@@ -108,7 +108,7 @@ func test_towers_climb_in_32px_steps() -> void:
 		ok(block != null, "%s exists" % t[0])
 		if block == null:
 			continue
-		eq(block.skin, "stone", "%s is stone masonry" % t[0])
+		eq(block.skin, "rampart", "%s is rampart masonry" % t[0])
 		almost(block.position.y + block.size.y, FLOOR_Y, 0.01, "%s stands on the walkway" % t[0])
 		ok(is_zero_approx(fmod(FLOOR_Y - block.position.y, 32.0)), "%s top is a multiple of 32 above the floor" % t[0])
 	almost(_rect_of(host, "TowerA").position.y, 256.0, 0.01, "tower one is 64 high")
@@ -291,7 +291,7 @@ func test_backdrop_is_the_windy_outdoor_town() -> void:
 	eq(level.level_id(), "level09")
 	eq(level.title(), "锈墓・玖 — 锈城城墙")
 	ok(level.wake_line() != "", "an opening line")
-	eq(level.theme(), "town")
+	eq(level.theme(), "ramparts")
 	ok(not level.indoors(), "ramparts are open to the sky")
 	eq(level.east_limit(), 3200)
 	level.free()
@@ -300,7 +300,7 @@ func test_backdrop_is_the_windy_outdoor_town() -> void:
 	if backdrop != null:
 		ok(backdrop.get_node_or_null("Void") is ColorRect, "solid void behind everything")
 		ok(backdrop.get_node_or_null("Layer0") is Parallax2D, "town sky layer")
-		ok(backdrop.get_node_or_null("Layer5") is Parallax2D, "town near-houses layer")
+		ok(backdrop.get_node_or_null("Layer3") is Parallax2D, "the town below the wall")
 	ok(host.get_node_or_null("MoodTint") is CanvasModulate)
 	ok(host.get_node_or_null("IndoorZone") == null, "no indoor zone on the wall top")
 	ok(host.get_node_or_null("WindFx") != null, "wind blows across the ramparts")
@@ -313,12 +313,12 @@ func test_backdrop_is_the_windy_outdoor_town() -> void:
 		var plat := platforms.get_node_or_null(String(f[0])) as SolidPlatform
 		ok(plat != null, "%s exists" % f[0])
 		if plat != null:
-			eq(plat.skin, "stone", "%s is flagstone walkway" % f[0])
+			eq(plat.skin, "rampart", "%s is wall-top walkway" % f[0])
 			almost(plat.position.y, FLOOR_Y, 0.01)
 	for child in platforms.get_children():
 		if child is SolidPlatform:
 			var r := Rect2(child.position, child.size)
 			ok(r.position.x >= -16.0 and r.end.x <= float(LAYOUT.EAST_LIMIT) + 16.0, "%s within the camera bounds" % child.name)
 	var decor := host.get_node_or_null("Decor")
-	ok(decor != null and decor.get_child_count() >= LAYOUT.TORCHES.size() + LAYOUT.PROPS.size() + LAYOUT.BUSHES.size(),
-			"torches, balustrades, stones and bushes were planted")
+	ok(decor != null and decor.get_child_count() >= LAYOUT.PROPS.size() + LAYOUT.BUSHES.size(),
+			"balustrades, door arches, rubble and bushes were planted")

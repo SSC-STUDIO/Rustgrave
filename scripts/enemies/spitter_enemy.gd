@@ -106,7 +106,7 @@ func _on_shoot_tick() -> void:
 		return
 	if health.current <= 0 or _charging:
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player == null:
 		return
 	if global_position.distance_to(player.global_position) > aggro_range:
@@ -118,9 +118,15 @@ func _on_shoot_tick() -> void:
 	_begin_charge()
 
 
+## 吐完一口的喘息：炮口冒烟的这一小会儿是破绽（头顶金箭头），之后才重新蓄力。
+const EXHALE_TIME := 0.35
+
+
 func _begin_charge() -> void:
 	_charging = true
 	_face_player()
+	begin_telegraph(&"spitter", CHARGE_TIME)
+	Sfx.play_at(CombatRules.sfx_key(&"spit_charge"), global_position, 0.06, -8.0)
 	# 吐息动画横跨整个蓄力窗：4 帧在 CHARGE_TIME 内播完，释放帧正好落在发射瞬间。
 	if _anim != null:
 		_anim.set_fps("attack", 4.0 / maxf(CHARGE_TIME, 0.1))
@@ -146,10 +152,11 @@ func _on_charged() -> void:
 	)
 	if health.current <= 0 or _dead:
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player == null:
 		return
 	_fire(player)
+	show_opening(EXHALE_TIME)
 
 
 ## 吐息动画播完（非循环停在末帧）后回到待机循环。
@@ -192,7 +199,7 @@ func _charge_modulate() -> Color:
 func _face_player() -> void:
 	if _body == null:
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player == null:
 		return
 	_body.scale.x = 1.0 if player.global_position.x < global_position.x else -1.0

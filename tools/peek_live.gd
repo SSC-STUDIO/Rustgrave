@@ -32,6 +32,7 @@ func _ready() -> void:
 	var level_id := "level01"
 	var out_dir := OUT
 	var cam_y := 220.0
+	var win_size := Vector2i(1920, 1080)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--level="):
 			level_id = arg.trim_prefix("--level=")
@@ -39,6 +40,10 @@ func _ready() -> void:
 			out_dir = arg.trim_prefix("--out=")
 		elif arg.begins_with("--cam_y="):
 			cam_y = float(arg.trim_prefix("--cam_y="))
+		elif arg.begins_with("--win="):
+			var parts := arg.trim_prefix("--win=").split("x", false)
+			if parts.size() == 2:
+				win_size = Vector2i(int(parts[0]), int(parts[1]))
 	var table: Dictionary = SPOTS
 	if level_id == "level02":
 		table = SPOTS_L2
@@ -71,7 +76,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
-	win.size = Vector2i(1920, 1080)
+	win.size = win_size
 	win.position = Vector2i(-12000, -12000)
 	SaveData.save_path = out_dir + "/peek_save.cfg"
 	SaveData.delete_save()

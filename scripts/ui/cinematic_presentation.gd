@@ -3,20 +3,26 @@ extends CanvasLayer
 ## Uses the Director clock: pause/suspend freezes blends, particles and prompts.
 
 const Tableau := preload("res://scripts/ui/cinematic_tableau.gd")
-const SHOTS := {
-	"relic": ["剑先锈了", "I   /   铁 中 的 声 音", 0],
-	"grave": ["无名者之墓", "II   /   被 遗 弃 的 偶", 1],
-	"furnace": ["火还在下面", "III   /   最 后 一 点 余 烬", 2],
-}
+
+## Rising-edge watch for the one-line control hint: first press after it appears hides it.
+const HINT_ACTIONS: Array[StringName] = [
+	&"move_left", &"move_right", &"jump", &"attack", &"dash", &"interact", &"hookshot",
+	&"socket_1", &"socket_2",
+]
+const HINT_FADE := 0.35
 
 var front
 var back
 var skip_button: Button
+var hint_panel: PanelContainer
+var hint_label: Label
 var active_shot := ""
 var _blend := 1.0
 var _leaving := false
 var _hint_age := 0.0
 var _card_left := 0.0
+var _hint_left := 0.0
+var _hint_held: Dictionary = {}
 
 
 func _ready() -> void:
@@ -41,10 +47,83 @@ func _ready() -> void:
 	skip_button.visible = false
 	skip_button.pressed.connect(Director.skip_step)
 	prompt_layer.add_child(skip_button)
+	_build_hint(prompt_layer)
 	Director.step_started.connect(_on_step)
 	Director.finished.connect(_on_finished)
 	GameEvents.boss_appeared.connect(_on_boss_appeared)
 	GameEvents.boss_defeated.connect(_on_boss_defeated)
+	GameEvents.player_died.connect(hide_hint)
+
+
+func _build_hint(layer: CanvasLayer) -> void:
+	# A zero-height strip 118px above the bottom edge; the panel grows upward to fit.
+	# It sits in the soil band under the knight's feet and clear of the HUD prompt.
+	hint_panel = UiKit.panel(&"HudPanel")
+	hint_panel.name = "MoveHint"
+	hint_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	hint_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	hint_panel.offset_top = -118.0
+	hint_panel.offset_bottom = -118.0
+	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_panel.visible = false
+	hint_label = UiKit.label("", &"PromptLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	hint_panel.add_child(hint_label)
+	var root := Control.new()
+	root.name = "HintRoot"
+	root.size = Vector2(PresentationMetrics.UI_SIZE)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(root)
+	root.add_child(hint_panel)
+
+
+## One line over the world, up to `seconds` of unpaused play. First gameplay input,
+## death, another cinematic, a scene fade or abort() all hide it.
+func show_hint(text: String, seconds: float = 14.0) -> void:
+	if hint_panel == null or text == "":
+		return
+	hint_label.text = text
+	hint_panel.modulate.a = 0.0
+	hint_panel.visible = true
+	_hint_left = maxf(seconds, 0.1)
+	_hint_held.clear()
+	for action in HINT_ACTIONS:
+		_hint_held[action] = InputMap.has_action(action) and Input.is_action_pressed(action)
+
+
+func hide_hint() -> void:
+	_hint_left = 0.0
+	_hint_held.clear()
+	if hint_panel != null:
+		hint_panel.visible = false
+
+
+func hint_visible() -> bool:
+	return hint_panel != null and hint_panel.visible and _hint_left > 0.0
+
+
+func _tick_hint(delta: float) -> void:
+	if _hint_left <= 0.0:
+		return
+	if Director.playing or Director.is_fading() or Director.choice_hold:
+		hide_hint()
+		return
+	hint_panel.modulate.a = move_toward(hint_panel.modulate.a, 1.0, delta / HINT_FADE)
+	if not GameContext.gameplay_input_enabled():
+		# Paused or locked: keep the hint, keep the clock, and do not count menu presses.
+		for action in HINT_ACTIONS:
+			_hint_held[action] = InputMap.has_action(action) and Input.is_action_pressed(action)
+		return
+	_hint_left -= delta
+	for action in HINT_ACTIONS:
+		var now := InputMap.has_action(action) and Input.is_action_pressed(action)
+		if now and not bool(_hint_held.get(action, false)):
+			hide_hint()
+			return
+		_hint_held[action] = now
+	if _hint_left <= 0.0:
+		hide_hint()
 
 
 func _make_canvas() -> Control:
@@ -56,7 +135,7 @@ func _make_canvas() -> Control:
 
 
 func show_shot(id: String, title: String = "", subtitle: String = "") -> void:
-	if not SHOTS.has(id) and id != "chapter" and id != "boss":
+	if id != "chapter" and id != "boss":
 		return
 	# Swap two bounded canvases, preserving the outgoing frame during a dissolve.
 	var previous = back
@@ -65,14 +144,8 @@ func show_shot(id: String, title: String = "", subtitle: String = "") -> void:
 	front.move_to_front()
 	front.shot = id
 	front.age = 0.0
-	front.number = 0
 	front.heading = title
 	front.subheading = subtitle
-	if SHOTS.has(id):
-		var data: Array = SHOTS[id]
-		front.heading = data[0]
-		front.subheading = data[1]
-		front.number = data[2]
 	front.visible = true
 	front.modulate.a = 0.0
 	active_shot = id
@@ -92,6 +165,7 @@ func dismiss(immediate: bool = false) -> void:
 		front.visible = false
 		_leaving = false
 		skip_button.visible = false
+		hide_hint()
 
 
 func _on_step(_index: int, step: Dictionary) -> void:
@@ -133,6 +207,7 @@ func _process(delta: float) -> void:
 	skip_button.visible = Director.playing and not frozen and _hint_age > 0.65
 	if frozen:
 		return
+	_tick_hint(delta)
 	if Director.playing:
 		_hint_age += delta
 		var touch := DisplayServer.is_touchscreen_available()

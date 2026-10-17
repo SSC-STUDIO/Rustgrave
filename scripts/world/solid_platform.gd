@@ -13,6 +13,10 @@ extends StaticBody2D
 ## - "moss" / "moss_float": Level02 undercroft — moss-capped teal brick cut
 ##   from the Old Dark Castle interior set; the float variant is the small
 ##   mossy block split into end/mid/end pieces.
+## - Chapter families (tools/gen_theme_tiles.py), each a slab skin plus a
+##   "<name>_float" ledge: "brick" (town street brick + plank ledges),
+##   "castle" (bell-tower olive brick, gold trim), "iron" (workshop rust
+##   iron), "basalt" (forge slag rock), "rampart" (city-wall grey stone).
 ## Missing art falls back to a ColorRect (headless/tests).
 
 @export var size: Vector2 = Vector2(64, 16)
@@ -25,7 +29,9 @@ extends StaticBody2D
 ## Multiplied onto every tile; pits/interiors can sit darker than open ground.
 @export var tone: Color = Color.WHITE
 ## "auto": thin, wide platforms count as floating; everything else is ground.
-@export_enum("auto", "ground", "floating", "stone", "moss", "moss_float") var skin: String = "auto"
+@export_enum("auto", "ground", "floating", "stone", "moss", "moss_float",
+		"brick", "brick_float", "castle", "castle_float", "iron", "iron_float",
+		"basalt", "basalt_float", "rampart", "rampart_float", "nave", "nave_float") var skin: String = "auto"
 
 const TOP_A := "res://assets/env/tile_top_a.png"
 const TOP_B := "res://assets/env/tile_top_b.png"
@@ -72,6 +78,51 @@ const MOSS_TONE := Color(0.96, 1.0, 0.94)
 const MOSS_FLOAT_LEFT := "res://assets/env/moss_float_left.png"
 const MOSS_FLOAT_MID := "res://assets/env/moss_float_mid.png"
 const MOSS_FLOAT_RIGHT := "res://assets/env/moss_float_right.png"
+## Chapter slab families: [slabs, slab rows, deep fill, tone, seed salt].
+## Entry: [slabs, slab rows, main fill, tone, seed salt, variant fill]. The fills are real
+## masonry (tools/gen_theme_tiles.py masonry_tile) so the ground reads as foundation going
+## down into the dark, not a slab over a black void.
+const SLAB_SKINS := {
+	"brick": [["res://assets/env/brick_slab_a.png", "res://assets/env/brick_slab_b.png",
+			"res://assets/env/brick_slab_c.png"], 3, "res://assets/env/brick_fill.png", Color.WHITE, 0x6b21,
+			"res://assets/env/brick_fill_b.png"],
+	"castle": [["res://assets/env/castle_slab_a.png", "res://assets/env/castle_slab_b.png",
+			"res://assets/env/castle_slab_c.png"], 3, "res://assets/env/castle_fill.png", Color.WHITE, 0x7c41,
+			"res://assets/env/castle_fill_b.png"],
+	"iron": [["res://assets/env/iron_slab_a.png", "res://assets/env/iron_slab_b.png",
+			"res://assets/env/iron_slab_c.png"], 2, "res://assets/env/iron_fill.png", Color.WHITE, 0x1a09,
+			"res://assets/env/iron_fill_b.png"],
+	"basalt": [["res://assets/env/basalt_slab_a.png", "res://assets/env/basalt_slab_b.png",
+			"res://assets/env/basalt_slab_c.png"], 2, "res://assets/env/basalt_fill.png", Color.WHITE, 0x2b3c,
+			"res://assets/env/basalt_fill_b.png"],
+	"rampart": [["res://assets/env/rampart_slab_a.png", "res://assets/env/rampart_slab_b.png",
+			"res://assets/env/rampart_slab_c.png"], 2, "res://assets/env/rampart_fill.png", Color.WHITE, 0x3d4e,
+			"res://assets/env/rampart_fill_b.png"],
+	# Cathedral / nave paving: the church slab in a slate ramp instead of saturated lavender.
+	"nave": [["res://assets/env/nave_slab_a.png", "res://assets/env/nave_slab_b.png",
+			"res://assets/env/nave_slab_c.png"], 2, "res://assets/env/nave_fill.png", Color.WHITE, 0x4a5c,
+			"res://assets/env/nave_fill_b.png"],
+}
+## Chapter ledges: [left, right, mids].
+const FLOAT_SKINS := {
+	"brick_float": ["res://assets/env/brick_float_left.png", "res://assets/env/brick_float_right.png",
+			["res://assets/env/brick_float_mid_a.png", "res://assets/env/brick_float_mid_b.png",
+			"res://assets/env/brick_float_mid_c.png"]],
+	"castle_float": ["res://assets/env/castle_float_left.png", "res://assets/env/castle_float_right.png",
+			["res://assets/env/castle_float_mid_a.png", "res://assets/env/castle_float_mid_b.png"]],
+	"iron_float": ["res://assets/env/iron_float_left.png", "res://assets/env/iron_float_right.png",
+			["res://assets/env/iron_float_mid_a.png", "res://assets/env/iron_float_mid_b.png",
+			"res://assets/env/iron_float_mid_c.png", "res://assets/env/iron_float_mid_d.png"]],
+	"basalt_float": ["res://assets/env/basalt_float_left.png", "res://assets/env/basalt_float_right.png",
+			["res://assets/env/basalt_float_mid_a.png", "res://assets/env/basalt_float_mid_b.png",
+			"res://assets/env/basalt_float_mid_c.png", "res://assets/env/basalt_float_mid_d.png"]],
+	"nave_float": ["res://assets/env/nave_float_left.png", "res://assets/env/nave_float_right.png",
+			["res://assets/env/nave_float_mid_a.png", "res://assets/env/nave_float_mid_b.png",
+			"res://assets/env/nave_float_mid_c.png", "res://assets/env/nave_float_mid_d.png"]],
+	"rampart_float": ["res://assets/env/rampart_float_left.png", "res://assets/env/rampart_float_right.png",
+			["res://assets/env/rampart_float_mid_a.png", "res://assets/env/rampart_float_mid_b.png",
+			"res://assets/env/rampart_float_mid_c.png", "res://assets/env/rampart_float_mid_d.png"]],
+}
 const WORLD := 16.0
 ## Row brightness: surface row full, then darken toward DEPTH_FLOOR by row 4.
 const DEPTH_FLOOR := 0.4
@@ -112,6 +163,21 @@ func _build_visual() -> void:
 	if skin == "moss" and _build_slabs(MOSS_SLABS, MOSS_ROWS, MOSS_TONE, MOSS_FILL,
 			[] as Array[String], 0x3055):
 		return
+	if FLOAT_SKINS.has(skin):
+		var f: Array = FLOAT_SKINS[skin]
+		var mids: Array[String] = []
+		mids.assign(f[2])
+		if _build_floating(f[0], f[1], mids, Color.WHITE):
+			return
+	if SLAB_SKINS.has(skin):
+		var d: Array = SLAB_SKINS[skin]
+		var slabs: Array[String] = []
+		slabs.assign(d[0])
+		var variants: Array[String] = []
+		if d.size() > 5:
+			variants.append(String(d[5]))
+		if _build_slabs(slabs, int(d[1]), d[3], d[2], variants, int(d[4])):
+			return
 	var tops: Array[Texture2D] = []
 	for path in [TOP_A, TOP_B]:
 		var t := _load_tex(path)

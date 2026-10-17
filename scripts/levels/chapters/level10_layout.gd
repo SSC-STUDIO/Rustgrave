@@ -12,12 +12,11 @@ const EAST_LIMIT := 2560
 const ENTRY_SPAWN := Vector2(96, 300)
 const CEILING_Y := -32.0
 
-## 色调都是乘法：苔砖/熔渣贴图的红通道本来就很低，红分量得给到 >1 才压得成琥珀赭红，
-## 否则只是更暗的绿（第一轮截图里地面、浮石、熔渣全是苔色）。
-## 苔盖 (65,71,29) → 约 (110,57,15)；砖身 (12,31,29) → 近黑的炭色。
-const TONE := Color(1.7, 0.8, 0.5)
+## 炉心是玄武渣岩（basalt），比熔渣深渊再压暗一档、偏冷一点：终关的地面是焦黑的，
+## 光只来自熔渣和炉火。早先把紫石板乘到过曝的赭红，整关像一块红砖。
+const TONE := Color(0.9, 0.82, 0.78)
 ## 浮石与两端高台亮一档：脚要落的地方得从暗底和熔渣里跳出来。
-const STONE_TONE := Color(2.2, 1.0, 0.6)
+const STONE_TONE := Color(1.12, 1.0, 0.94)
 ## 熔渣：污泥 (9,32,30) → 橙红，浮沫 (39,112,49) 撞顶成亮橙黄，读成会发光的渣面。
 const SLAG_TINT := Color(18.0, 1.6, 0.5)
 ## 壁炬 / 柱子 / 祭坛的墙板是墓园紫石，压成赭红色石。
@@ -62,7 +61,16 @@ const EXIT_LABEL := "炉心之门"
 const EXIT_FLAG := "game_complete"
 const EXIT_REQUIRES := "nightmare_dead"
 const EXIT_LOCKED_PROMPT := "梦魇还在喘。门不开。"
-const EXIT_CAPTIONS: Array = ["炉心复燃。", "锈退成铁，铁记起火。", "—— 锈墓・完 ——"]
+const GIVE_CAPTIONS: Array = [
+	"剑进了炉。里面的人跟着进去。",
+	"火稳了。骑士散成铁。陵墓睡下。",
+	"—— 锈墓・完 ——",
+]
+const KEEP_CAPTIONS: Array = [
+	"炉心还在不规则地跳。",
+	"你留下当看守。剑里的人还在。",
+	"—— 锈墓・完 ——",
+]
 
 ## [name, kind, pos]；落地敌人给脚点，飞行/穿墙敌人给悬停中心。
 ## 回廊敌人的活动限制在门前，余烬巢和梦魇竞技场不受前一战追击干扰。
@@ -92,7 +100,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "炉心还热。有东西在灰下面喘。"
+	return "有一匹马不肯进炉。它守着你还没做的选择。"
 
 
 func entry_spawn() -> Vector2:
@@ -104,7 +112,11 @@ func east_limit() -> int:
 
 
 func theme() -> String:
-	return "forge"
+	return "forge_core"
+
+
+func motes() -> String:
+	return "cinders"
 
 
 func build(host: Node2D) -> void:
@@ -116,31 +128,34 @@ func build(host: Node2D) -> void:
 
 
 func _build_terrain(host: Node2D) -> void:
-	floor_strip(host, "FloorEntry", 0.0, SLAG_X0, "stone", false, true, FLOOR_Y, TONE)
+	floor_strip(host, "FloorEntry", 0.0, SLAG_X0, "basalt", false, true, FLOOR_Y, TONE)
 	# 熔渣河手工铺（toxin_pit 不吃 tone，坑底会露出一截青苔色）。
 	platform(host, "SlagBed", Vector2(SLAG_X0, SLAG_BED_Y),
-			Vector2(SLAG_X1 - SLAG_X0, FLOOR_Y + 80.0 - SLAG_BED_Y), "stone", false, false, TONE)
+			Vector2(SLAG_X1 - SLAG_X0, FLOOR_Y + 80.0 - SLAG_BED_Y), "basalt", false, false, TONE)
 	toxin(host, "SlagPool", Vector2(SLAG_X0, SLAG_BED_Y - 16.0), Vector2(SLAG_X1 - SLAG_X0, 32.0), SLAG_TINT)
 	for s in SLAG_STONES:
-		step(host, String(s[0]), s[1], float(s[2]), "floating", STONE_TONE)
+		step(host, String(s[0]), s[1], float(s[2]), "basalt_float", STONE_TONE)
 	# 门前厅 + 竞技场 + 终局门共用一块地：竞技场必须是连续平地，Boss 来回冲锋。
-	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "stone", true, false, FLOOR_Y, TONE)
-	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "stone", true, true, STONE_TONE)
-	platform(host, "PerchEast", PERCH_EAST_POS, PERCH_SIZE, "stone", true, true, STONE_TONE)
-	enclose(host, "stone", CEILING_Y, -1.0, 0.0, TONE)
+	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "basalt", true, false, FLOOR_Y, TONE)
+	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "basalt", true, true, STONE_TONE)
+	platform(host, "PerchEast", PERCH_EAST_POS, PERCH_SIZE, "basalt", true, true, STONE_TONE)
+	enclose(host, "basalt", CEILING_Y, -1.0, 0.0, TONE)
 
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestGate", NEST_GATE_X)
 	nest(host, "EmberNestArena", NEST_ARENA_X)
 	stele(host, "SteleNightmare", STELE_A_POS, "炉心铭 · 梦魇",
-			"熄炉那夜，战马尽数熔回铁水；只一匹不肯进炉。它守在芯前，把黑夜当鬃毛。")
+			"熄炉那夜，战马尽数熔回铁水。只一匹不肯进炉。它守在芯前，等一个还没把剑送进去的人。")
 	stele(host, "SteleCompact", STELE_B_POS, "炉心铭 · 炉约",
-			"炉约末条：把火还给炉，把锈还给铁。谁点燃残芯，谁就替所有人记住。")
+			"炉约末条：把火还给炉，把锈还给铁。谁带着别人的声音走到这里，谁就得自己选。")
 	waymark(host, WAYMARK_POS, "炉心")
 	rusty_gate(host, "ArenaGate", ARENA_GATE_POS)
-	exit_door(host, EXIT_X, EXIT_LABEL, PackedStringArray(EXIT_CAPTIONS), EXIT_FLAG, "",
+	var door := exit_door(host, EXIT_X, EXIT_LABEL, PackedStringArray(), EXIT_FLAG, "",
 			FLOOR_Y, EXIT_REQUIRES, EXIT_LOCKED_PROMPT)
+	door.ending_choice = true
+	door.give_captions = PackedStringArray(GIVE_CAPTIONS)
+	door.keep_captions = PackedStringArray(KEEP_CAPTIONS)
 
 
 func _build_enemies(host: Node2D) -> void:
@@ -155,9 +170,9 @@ func _build_enemies(host: Node2D) -> void:
 func _build_decor(host: Node2D) -> void:
 	for x in TORCHES:
 		torch(host, float(x), FLOOR_Y, TORCH_TINT)
-	# 炉心支柱改工字梁；骷髅柱与祭坛保留作为终关符号。
+	# 炉心支柱用殿里那根石柱，压成赭石。平滑工字梁和终关的像素墙不是一套。
 	for x in COLUMNS:
-		prop(host, "beam", Vector2(float(x), FLOOR_Y), 1.25, PLATE_TINT)
+		prop(host, "column", Vector2(float(x), FLOOR_Y), 0.9, PLATE_TINT)
 	prop(host, "skull_column", Vector2(SKULL_COLUMN_X, FLOOR_Y), 1.0, PLATE_TINT)
 	_altar(host, ALTAR_FEET, ALTAR_TINT)
 	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]

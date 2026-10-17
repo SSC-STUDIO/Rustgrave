@@ -172,32 +172,44 @@ func _decorate_cathedral(host: Node2D) -> void:
 	decor.z_index = -3
 	host.add_child(decor)
 
-	# 1. 大教堂门廊石拱门 (BossGate x=1688)
+	# Level01 keeps the open graveyard sky for the whole map. Tall indoor wall
+	# plates (columns, skull columns, gargoyles, nave torch slabs) read as
+	# floating masonry against the moon and purple mountains — especially near
+	# the 东翼 sign and EmberLedge. Only low door/rails/rubble on the approach,
+	# and roofed forge-remnant art under ForgeShelter.
 	_plant_env_sprite(decor, "res://assets/env/door_arch.png", Vector2(1672, 256), Vector2(1, 1), Color(0.85, 0.82, 0.95, 0.95))
 
-	# 2. 宏伟立柱 (Cathedral Columns) 沿决斗场纵深排列
-	_plant_env_sprite(decor, "res://assets/env/column_big.png", Vector2(1730, 130), Vector2(1, 1), Color(0.72, 0.68, 0.82, 0.85))
-	_plant_env_sprite(decor, "res://assets/env/column_big.png", Vector2(1950, 130), Vector2(1, 1), Color(0.72, 0.68, 0.82, 0.85))
+	# Low bastion rails along the nave — shared with the west cemetery, not
+	# 192px indoor slabs over open sky.
+	_plant_balustrade(decor, Vector2(1730, 320))
+	_plant_balustrade(decor, Vector2(1950, 320))
 
-	# 3. 骷髅柱与石像鬼 (Gargoyle on Ember Ledge & Skull Pillars)
-	_plant_env_sprite(decor, "res://assets/env/bg_column_skulls.png", Vector2(1820, 128), Vector2(0.8, 0.8), Color(0.55, 0.5, 0.65, 0.75))
-	_plant_ruin_plate(decor, "res://assets/env/bg_gargoyle.png", Vector2(1500, 48), Vector2(0.55, 0.55), Color(0.68, 0.62, 0.78, 0.9))
+	# Forge remnant under the shelter roof (altar + one wall torch).
+	_plant_ruin_plate(decor, "res://assets/env/bg_altar_cut.png", Vector2(2004, 128), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
+	_plant_torch(decor, Vector2(2064, 224))
 
-	# 4. 锻炉残室祭坛与背景 (Altar behind Forge Heart)。顶 64px 是素墙，可以塌。
-	_plant_ruin_plate(decor, "res://assets/env/bg_altar.png", Vector2(2004, 128), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
-
-	# 5. 地面断碑碎石 (Ground Rubble & Slabs)
 	_plant_env_sprite(decor, "res://assets/env/slab_a.png", Vector2(1710, 296), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1810, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1990, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
+	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。
+	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png", Vector2(1616, 224), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
 
-	# 6. 壁挂火炬 (Torches)
-	_plant_torch(decor, Vector2(1730, 230))
-	_plant_torch(decor, Vector2(1950, 230))
-	_plant_torch(decor, Vector2(2064, 210))
+	_plant_lore_stele(host, Vector2(1636, 320), "断头者誓言", "我守残芯。谁来点这炉，谁就先被斩。直到我自己化成灰。")
 
-	# 7. 决斗台前古代碑铭 (Lore Stele at Arena Entrance)
-	_plant_lore_stele(host, Vector2(1636, 320), "断头者誓言", "炉火熄灭，我将在此铸斩一切试图染指残芯之物，直至此身化灰。")
+
+func _plant_balustrade(parent: Node2D, feet: Vector2) -> void:
+	const PATH := "res://assets/env/balustrade.png"
+	if not ResourceLoader.exists(PATH):
+		return
+	var tex := load(PATH) as Texture2D
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.centered = false
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.position = Vector2(feet.x - float(tex.get_width()) * 0.5, feet.y - float(tex.get_height()))
+	spr.modulate = Color(0.75, 0.7, 0.8, 0.85)
+	_mark_ground(spr, feet)
+	parent.add_child(spr)
 
 
 func _plant_env_sprite(parent: Node2D, path: String, pos: Vector2, scl: Vector2 = Vector2.ONE, tint: Color = Color.WHITE) -> Sprite2D:
@@ -237,7 +249,30 @@ func _plant_torch(parent: Node2D, pos: Vector2) -> void:
 		return
 	var torch: Node2D = TORCH_SCENE.instantiate()
 	torch.position = pos
+	torch.set_meta("feet", pos + Vector2(0.0, 96.0))
+	torch.add_to_group("grounded")
 	parent.add_child(torch)
+
+
+## feet is the bottom-centre. Returns the top-left that puts the texture there.
+func _plate_topleft(path: String, feet: Vector2, scale: float) -> Vector2:
+	var tex := load(path) as Texture2D
+	var w := float(tex.get_width()) * scale
+	var h := float(tex.get_height()) * scale
+	return Vector2(feet.x - w * 0.5, feet.y - h)
+
+
+## Keep an authored left edge: the foot x is the centre of that span.
+func _plate_feet(path: String, left_x: float, feet_y: float, scale: float) -> Vector2:
+	var tex := load(path) as Texture2D
+	return Vector2(left_x + float(tex.get_width()) * scale * 0.5, feet_y)
+
+
+func _mark_ground(node: Node2D, feet: Vector2) -> void:
+	if node == null:
+		return
+	node.set_meta("feet", feet)
+	node.add_to_group("grounded")
 
 
 func _plant_lore_stele(parent: Node2D, pos: Vector2, title: String, text: String) -> void:

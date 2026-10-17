@@ -106,12 +106,14 @@ func test_nightmare_death_survives_reload_and_final_exit_saves_completion() -> v
 	exit = _exit_of(level)
 	ok(not exit.is_locked())
 	exit.interact(_player())
+	exit.confirm_ending(&"give")
 	await flush(1)
 	Director.abort()
 	await flush(3)
 	ok(SaveData.load_game())
 	ok(SaveData.has_flag("game_complete"))
 	ok(SaveData.has_flag("nightmare_dead"))
+	eq(SaveData.ending, "give")
 	ok(await wait_until(func() -> bool:
 		return not Director.is_fading() and Director.last_fade_target == "res://scenes/ui/TitleScreen.tscn"
 	), "finale fade completes at the title")

@@ -127,13 +127,12 @@ func test_ground_is_amber_and_pools_are_slag() -> void:
 		ok(plat != null, "%s exists" % f[0])
 		if plat == null:
 			continue
-		eq(plat.skin, "stone", "%s wears forge stone" % f[0])
-		eq(plat.tone, tone, "%s is pressed to amber" % f[0])
+		eq(plat.skin, "basalt", "%s wears forge basalt" % f[0])
 		almost(plat.position.y, FLOOR_Y, 0.01, "%s top is the floor line" % f[0])
 	var steps: Array = consts["STEPS"]
 	for s in steps:
 		var plat := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
-		ok(plat != null and plat.skin == "floating" and plat.tone == tone, "%s is an amber forge platform" % s[0])
+		ok(plat != null and plat.skin == "basalt_float", "%s is a basalt forge ledge" % s[0])
 	var pools: Array = []
 	for node in host.get_node("Props").get_children():
 		if node is ToxinPool:
@@ -152,7 +151,7 @@ func test_ground_is_amber_and_pools_are_slag() -> void:
 		ok(bed != null, "%s has its own bed" % p.name)
 		if bed == null:
 			continue
-		eq(bed.tone, tone, "%s bed shares the amber tone" % p.name)
+		eq(bed.skin, "basalt", "%s bed is the same basalt" % p.name)
 		almost(bed.position.y, rect.position.y + 16.0, 0.01, "%s bed top sits 16px under the surface" % p.name)
 		almost(bed.position.x, rect.position.x, 0.01)
 		almost(bed.size.x, rect.size.x, 0.01)
@@ -354,7 +353,7 @@ func test_backdrop_is_forge_and_indoor() -> void:
 	ok(host.get_node_or_null("Waymarks/Sign_渣渊") != null, "entry sign")
 	ok(host.get_node_or_null("Waymarks/Sign_城墙") != null, "sign toward the ramparts")
 	var decor := host.get_node_or_null("Decor")
-	ok(decor != null and decor.get_child_count() >= 20, "torches, vines, arches, rubble and columns dress the room")
+	ok(decor != null and decor.get_child_count() >= 20, "torches, vines, slabs and rubble dress the room")
 	var torches := 0
 	for child in decor.get_children():
 		if child is TorchLight:

@@ -24,6 +24,8 @@ const DEFAULT_TOXIN := Rect2(400.0, 336.0, 112.0, 32.0)
 const HIT_NONE := 0
 const HIT_WATER := 1
 const HIT_GROUND := 2
+## While it rains the ground / water spans are refreshed at most this often (seconds).
+const SPAN_REFRESH_RAINING := 2.0
 
 var _drops: Array[Sprite2D] = []
 var _drop_vy: PackedFloat32Array = PackedFloat32Array()
@@ -115,6 +117,16 @@ func _ready() -> void:
 	_prewarm_pools()
 
 
+func _exit_tree() -> void:
+	# The splash / ripple / wet-mark pools are built up front and parked outside the tree;
+	# nothing else owns them, so every level load leaked ~74 orphan nodes.
+	for pool in [_pool_splash, _pool_water, _pool_ripple, _pool_wet]:
+		for node in pool:
+			if is_instance_valid(node) and node.get_parent() == null:
+				node.free()
+		pool.clear()
+
+
 func ground_fx() -> Node2D:
 	return _ensure_ground_fx()
 
@@ -154,8 +166,10 @@ func _process(delta: float) -> void:
 	_alpha = move_toward(_alpha, target, delta / 4.5)
 	var rust := WorldClock.rust_rain_mix() if WorldClock.weather_fx_allowed() else 0.0
 	var rain_col := Color(0.78, 0.84, 0.92).lerp(Color(0.80, 0.48, 0.34), clampf(rust, 0.0, 1.0))
+	# Spans only matter while drops can land. Walking the whole level tree every 0.45 s in
+	# clear weather cost 2-7 ms per call for nothing; refresh on demand or slowly while raining.
 	_span_t += delta
-	if _span_t >= 0.45:
+	if (target > 0.0 or _alpha > 0.001) and (_surfaces_dirty or _span_t >= SPAN_REFRESH_RAINING):
 		_span_t = 0.0
 		_rebuild_spans()
 	if _alpha <= 0.001 and target <= 0.0:

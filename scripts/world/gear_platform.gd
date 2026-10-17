@@ -5,6 +5,10 @@ extends StaticBody2D
 
 @export var radius: float = 16.0
 @export var fill: Color = Color("#2a1e32")
+## Material family of the chapter (iron, basalt, rampart, brick, castle ...). When
+## assets/env/<family>_float_small.png exists the block is drawn from it, so a
+## workshop's stepping stones are rust iron instead of lavender church slab.
+@export var family: String = ""
 
 const BLOCK_PATH := "res://assets/env/float_small.png"
 const FLOAT_TONE := Color(0.82, 0.8, 0.95)
@@ -35,9 +39,20 @@ func _ready() -> void:
 	add_child(occluder)
 
 
+## Themed block path + tone for this chapter family; the church block is the fallback.
+func _block_choice() -> Array:
+	if family != "":
+		var themed := "res://assets/env/%s_float_small.png" % family
+		if ResourceLoader.exists(themed):
+			return [themed, Color.WHITE]
+	return [BLOCK_PATH, FLOAT_TONE]
+
+
 func _build_visual() -> void:
-	if ResourceLoader.exists(BLOCK_PATH):
-		var tex := load(BLOCK_PATH) as Texture2D
+	var choice := _block_choice()
+	var block_path: String = choice[0]
+	if ResourceLoader.exists(block_path):
+		var tex := load(block_path) as Texture2D
 		var spr := Sprite2D.new()
 		spr.texture = tex
 		spr.centered = false
@@ -46,7 +61,7 @@ func _build_visual() -> void:
 		var s := (radius * 2.0) / float(tex.get_width())
 		spr.scale = Vector2(s, s)
 		spr.position = Vector2(-radius, -0.92 * radius)
-		spr.modulate = FLOAT_TONE
+		spr.modulate = choice[1]
 		add_child(spr)
 		return
 	var poly := Polygon2D.new()

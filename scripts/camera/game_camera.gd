@@ -77,7 +77,9 @@ func _ready() -> void:
 
 ## Public juice entry point. Strength is clamped to [0, 1].
 func add_trauma(strength: float) -> void:
-	_trauma = clampf(maxf(_trauma, strength), 0.0, 1.0)
+	# 舒适选项：在落手这一刻读 shake_scale（滑块实时生效，不缓存）。
+	var scaled := strength * clampf(Settings.shake_scale, 0.0, 1.0)
+	_trauma = clampf(maxf(_trauma, scaled), 0.0, 1.0)
 
 
 func focus(target: Variant, zoom: float = ZOOM, duration: float = 0.55) -> void:
@@ -145,7 +147,8 @@ func letter_inset() -> float:
 
 
 func punch_offset() -> Vector2:
-	return Vector2(0.0, LAND_PUNCH_Y * _land_punch * lerpf(1.0, 0.32, _letter_k()))
+	return Vector2(0.0, LAND_PUNCH_Y * _land_punch * lerpf(1.0, 0.32, _letter_k())
+			* clampf(Settings.shake_scale, 0.0, 1.0))
 
 
 func keep_in_view(cam: Vector2, subject: Vector2) -> Vector2:

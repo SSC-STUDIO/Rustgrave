@@ -1,15 +1,106 @@
-[gd_resource type="AudioBusLayout" format=3]
+[gd_resource type="AudioBusLayout" format=3 uid="uid://bouej4knqbx08"]
+
+[sub_resource type="AudioEffectHardLimiter" id="AudioEffectHardLimiter_master"]
+ceiling_db = -1.0
+
+[sub_resource type="AudioEffectLowPassFilter" id="AudioEffectLowPassFilter_music"]
+cutoff_hz = 20500.0
+db = 1
+
+[sub_resource type="AudioEffectReverb" id="AudioEffectReverb_sfx"]
+room_size = 0.35
+damping = 0.55
+hipass = 0.1
+wet = 0.0
+
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_sfx"]
+threshold = -14.0
+ratio = 2.5
+gain = 2.0
+attack_us = 8000.0
+release_ms = 150.0
+
+[sub_resource type="AudioEffectLimiter" id="AudioEffectLimiter_sfx"]
+ceiling_db = -2.0
+threshold_db = -6.0
+
+[sub_resource type="AudioEffectReverb" id="AudioEffectReverb_amb"]
+room_size = 0.55
+damping = 0.45
+wet = 0.06
+
+[sub_resource type="AudioEffectPanner" id="AudioEffectPanner_l2"]
+pan = -0.85
+
+[sub_resource type="AudioEffectPanner" id="AudioEffectPanner_l1"]
+pan = -0.45
+
+[sub_resource type="AudioEffectPanner" id="AudioEffectPanner_r1"]
+pan = 0.45
+
+[sub_resource type="AudioEffectPanner" id="AudioEffectPanner_r2"]
+pan = 0.85
 
 [resource]
-bus/1/name = &"Sfx"
+bus/0/effect/0/effect = SubResource("AudioEffectHardLimiter_master")
+bus/0/effect/0/enabled = true
+bus/1/name = &"Music"
 bus/1/solo = false
 bus/1/mute = false
 bus/1/bypass_fx = false
 bus/1/volume_db = 0.0
 bus/1/send = &"Master"
-bus/2/name = &"Ambience"
+bus/1/effect/0/effect = SubResource("AudioEffectLowPassFilter_music")
+bus/1/effect/0/enabled = false
+bus/2/name = &"Sfx"
 bus/2/solo = false
 bus/2/mute = false
 bus/2/bypass_fx = false
 bus/2/volume_db = 0.0
 bus/2/send = &"Master"
+bus/2/effect/0/effect = SubResource("AudioEffectReverb_sfx")
+bus/2/effect/0/enabled = false
+bus/2/effect/1/effect = SubResource("AudioEffectCompressor_sfx")
+bus/2/effect/1/enabled = true
+bus/2/effect/2/effect = SubResource("AudioEffectLimiter_sfx")
+bus/2/effect/2/enabled = true
+bus/3/name = &"Ambience"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = 0.0
+bus/3/send = &"Master"
+bus/3/effect/0/effect = SubResource("AudioEffectReverb_amb")
+bus/3/effect/0/enabled = true
+bus/4/name = &"SfxPanL2"
+bus/4/solo = false
+bus/4/mute = false
+bus/4/bypass_fx = false
+bus/4/volume_db = 0.0
+bus/4/send = &"Sfx"
+bus/4/effect/0/effect = SubResource("AudioEffectPanner_l2")
+bus/4/effect/0/enabled = true
+bus/5/name = &"SfxPanL1"
+bus/5/solo = false
+bus/5/mute = false
+bus/5/bypass_fx = false
+bus/5/volume_db = 0.0
+bus/5/send = &"Sfx"
+bus/5/effect/0/effect = SubResource("AudioEffectPanner_l1")
+bus/5/effect/0/enabled = true
+bus/6/name = &"SfxPanR1"
+bus/6/solo = false
+bus/6/mute = false
+bus/6/bypass_fx = false
+bus/6/volume_db = 0.0
+bus/6/send = &"Sfx"
+bus/6/effect/0/effect = SubResource("AudioEffectPanner_r1")
+bus/6/effect/0/enabled = true
+bus/7/name = &"SfxPanR2"
+bus/7/solo = false
+bus/7/mute = false
+bus/7/bypass_fx = false
+bus/7/volume_db = 0.0
+bus/7/send = &"Sfx"
+bus/7/effect/0/effect = SubResource("AudioEffectPanner_r2")
+bus/7/effect/0/enabled = true

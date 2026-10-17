@@ -124,6 +124,12 @@ func build(host: Node2D) -> void:
 	_backdrop.name = "Backdrop"
 	host.add_child(_backdrop)
 	_backdrop.build(host)
+	# Pale spores lift off the acid pools: the undercroft breathes, the forge burns.
+	if host.get_node_or_null("ThemeMotes") == null:
+		var specks := ThemeMotes.new()
+		specks.name = "ThemeMotes"
+		specks.flavor = "spores"
+		host.add_child(specks)
 
 
 func _group(host: Node2D, group_name: String) -> Node2D:
@@ -200,9 +206,9 @@ func _build_props(props: Node2D, hooks: Node2D) -> void:
 	props.add_child(toxin_c)
 	toxin_c.configure(TOXIN_C_SIZE)
 	_add_stele(props, "SteleShaft", STELE_A_POS, "沉钟纪事 · 地窟",
-			"陵墓醒来的头一件事，是把沉在苔水里的钟捞起来。听见钟响的人，就得走下去。")
-	_add_stele(props, "SteleGallery", STELE_D_POS, "工坊遗训 · 吊台",
-			"吊台的链子是用旧剑熔的。它们还记得怎么等一个人站稳。")
+			"这口钟数过每一个被送进炉的人。数到你的时候，脚就得往下。")
+	_add_stele(props, "SteleGallery", STELE_D_POS, "沉钟纪事 · 数",
+			"苔水把钟沉住，没有挡住它数人。听见的人，没有一个留在上面。")
 	plate = PLATE.instantiate()
 	plate.name = "Plate"
 	plate.position = PLATE_POS
@@ -227,8 +233,8 @@ func _build_props(props: Node2D, hooks: Node2D) -> void:
 	exit.door_label = "沉钟门"
 	exit.flag_id = "undercroft_done"
 	exit.captions = PackedStringArray([
-		"钟声从更深处传来。锈墓还没醒透。",
-		"门后是风——地窟通到了地面上的锈城。",
+		"钟数完这一轮。门后的街上，人是自己走下去的。",
+		"窗还亮着。那不是灯。",
 	])
 	# 沉钟门通向第三关（锈城街巷）；注册表里没有下一关时退回「章节结局」。
 	var next_id := GameContext.next_level_id("level02")

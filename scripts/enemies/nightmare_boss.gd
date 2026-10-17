@@ -57,12 +57,19 @@ var _charges := 0
 var _since_neigh := 0
 var _skulls_spawned := 0
 var _direction_locked := false
+var _lane: CombatMarker
+
+## 冲锋路径线：从马头前方向冲锋方向伸出这么长（锁向前跟随骑士，锁向后定死变白）。
+const LANE_LENGTH := 240.0
+const LANE_START := Vector2(34.0, -3.0)
+const LANE_COLOR := Color(1.0, 0.45, 0.35, 0.95)
 
 @onready var visual: Node2D = $Visual
 @onready var hitbox: Hitbox = $Hitbox
 
 
 func _enemy_ready() -> void:
+	hit_material = &"boss"
 	health.max_hp = MAX_HP
 	health.heal_full()
 	health.changed.connect(_on_hp_changed)
@@ -91,6 +98,8 @@ func announce() -> void:
 	if _announced:
 		return
 	_announced = true
+	# 先发「开场开始」（音乐 / 演出据此起势），紧接着才是 Boss 血条。
+	GameEvents.boss_intro_started.emit(BOSS_TITLE)
 	GameEvents.boss_appeared.emit(BOSS_TITLE, health.current, health.max_hp)
 
 
@@ -122,11 +131,21 @@ func _on_hp_changed(current: int, maximum: int) -> void:
 			_face_player(player)
 		_enter_windup()
 	if not _enraged and current <= maximum / 2:
-		_enraged = true
-		Juice.shake(4.0, 300)
-		Juice.slow_mo(200, 0.2)
-		Fx.hit_sparks(global_position + Vector2(0.0, -40.0))
-		GameEvents.announcement.emit("梦魇的鬃毛烧成了白焰")
+		_enter_phase_two()
+
+
+## 二阶段：相变演出 + 节奏收紧（前摇 0.7→0.58、喘息 1.1→0.9、冲速 x1.12，锁向仍留最后 0.2 秒，
+## 召唤上限不变）；相变后的第一手固定是嘶鸣召火骷髅，让「变强了」先被看见再被打到。
+func _enter_phase_two() -> void:
+	_enraged = true
+	windup_time = CombatRules.NIGHTMARE_P2_WINDUP
+	rest_time = CombatRules.NIGHTMARE_P2_REST
+	charge_speed *= CombatRules.NIGHTMARE_P2_SPEED_K
+	_since_neigh = NEIGH_EVERY - 1
+	Juice.boss_phase_beat(global_position + Vector2(0.0, -40.0), Color(1.0, 0.82, 0.7))
+	Fx.attach_heat_lick(visual)
+	GameEvents.announcement.emit("梦魇的鬃毛烧成了白焰")
+	GameEvents.boss_phase_changed.emit(BOSS_TITLE, 2)
 
 
 func _tick_state(delta: float) -> void:
@@ -146,6 +165,10 @@ func _tick_state(delta: float) -> void:
 			if _timer <= DIRECTION_LOCK_TIME and not _direction_locked:
 				_direction_locked = true
 				Sfx.play(&"land", 0.0, -8.0)
+				# 锁向：路径线定死并变白实线——这条线就是冲锋的路。
+				if _lane != null and is_instance_valid(_lane):
+					_lane.lock()
+			_sync_lane()
 			if _timer <= 0.0:
 				_begin_charge()
 		State.CHARGE:
@@ -199,6 +222,10 @@ func _enter_windup() -> void:
 	_direction_locked = false
 	hitbox.disarm()
 	_apply_tint()
+	hide_opening()
+	# 读招：微红蓄势（机体）+ 地面路径线（跟随骑士，锁向后变白实线）。
+	begin_telegraph(&"nightmare", windup_time)
+	_spawn_lane()
 
 
 func _begin_charge() -> void:
@@ -208,9 +235,32 @@ func _begin_charge() -> void:
 	_charges += 1
 	_since_neigh += 1
 	_clear_tint()
+	_dismiss_lane()
 	hitbox.arm(Vector2(_dir * CHARGE_KNOCKBACK.x, CHARGE_KNOCKBACK.y))
 	Fx.dust_puff(global_position, PI if _dir > 0.0 else 0.0)
-	Sfx.play(&"dash", 0.1, -6.0)
+	Sfx.play_at(CombatRules.sfx_key(&"horse_charge"), global_position, 0.1, -6.0)
+
+
+func _spawn_lane() -> void:
+	_dismiss_lane()
+	_lane = CombatMarker.spawn(self, CombatMarker.Kind.LANE,
+			Vector2(0.0, LANE_START.y), 0.0, LANE_COLOR,
+			{"length": LANE_LENGTH, "facing": _facing})
+	_sync_lane()
+
+
+## 路径线贴着「现在的朝向」摆：起点在马头前方，朝 _facing 伸出。
+func _sync_lane() -> void:
+	if _lane == null or not is_instance_valid(_lane):
+		return
+	_lane.facing = _facing
+	_lane.position.x = _facing * LANE_START.x
+
+
+func _dismiss_lane() -> void:
+	if _lane != null and is_instance_valid(_lane):
+		_lane.dismiss()
+	_lane = null
 
 
 func _wall_slam() -> void:
@@ -227,6 +277,9 @@ func _enter_rest() -> void:
 	_timer = rest_time
 	hitbox.disarm()
 	_clear_tint()
+	_dismiss_lane()
+	# 喘息就是破绽：头顶金箭头亮满整个窗口。
+	show_opening(rest_time)
 
 
 ## 嘶鸣：停 neigh_time，震屏，从鬃毛里落下火骷髅。
@@ -240,7 +293,8 @@ func _begin_neigh() -> void:
 	Juice.shake(4.0, 300)
 	GameEvents.announcement.emit("梦魇嘶鸣，火星从鬃毛里落下")
 	Fx.hit_sparks(global_position + Vector2(0.0, -48.0))
-	Sfx.play(&"gate", 0.15, -4.0)
+	Fx.burst(&"ring", global_position + Vector2(0.0, -36.0))
+	Sfx.play_at(CombatRules.sfx_key(&"boss_roar"), global_position, 0.15, -4.0)
 	_spawn_skulls()
 
 
@@ -353,7 +407,7 @@ func _update_anim() -> void:
 
 ## 同基类逻辑，只把挤开半宽放大到马身宽度。
 func _separate_from_player() -> void:
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player == null or player.is_invincible():
 		return
 	var to_p := player.global_position - global_position
@@ -367,7 +421,7 @@ func _separate_from_player() -> void:
 
 
 func _player() -> Player:
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p := knight()
 	if p == null or p.health.current <= 0:
 		return null
 	return p
@@ -375,7 +429,10 @@ func _player() -> Player:
 
 func _on_died() -> void:
 	_dismiss_skulls()
+	_dismiss_lane()
 	slain.emit()
+	# 死亡演出钩子：慢动作 + 大震屏 + 双圈 + 碎屑 + 音效（受 Settings 缩放）。
+	Juice.boss_death_beat(global_position + Vector2(0.0, -44.0))
 	GameEvents.boss_defeated.emit()
 	SaveData.mark_flag("nightmare_dead")
 	SaveData.persist_story()

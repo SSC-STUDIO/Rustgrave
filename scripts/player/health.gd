@@ -6,7 +6,7 @@ signal changed(current: int, maximum: int)
 signal died
 
 @export var max_hp: int = 5
-@export var hit_iframe_time: float = 0.45
+@export var hit_iframe_time: float = CombatRules.HIT_IFRAMES
 
 var current: int
 var invincible: bool = false

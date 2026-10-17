@@ -1,6 +1,6 @@
 class_name ForgeHeart
 extends Interactable
-## 锻炉残芯：复燃或熄灭。写入 SaveData.ending 后淡回标题。
+## 锻炉残芯：熄灭写入 ending 并回标题。复燃不写结局，只答应往下走。
 
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const ID_REKINDLE := &"rekindle"
@@ -16,7 +16,7 @@ var _glow: WorldLight
 func _ready() -> void:
 	super._ready()
 	prompt = "E 触碰炉心"
-	ensure_sprite("res://assets/env/bg_altar.png", Vector2(36, 40), Vector2(-10, -8), Palette.EMBER)
+	ensure_sprite("res://assets/env/bg_altar_cut.png", Vector2(36, 40), Vector2(-10, -8), Palette.EMBER)
 	_ensure_light()
 	if SaveData.has_flag("boss_dead"):
 		unlock()
@@ -114,17 +114,20 @@ func _on_chosen(id: StringName) -> void:
 		_layer.queue_free()
 		_layer = null
 	var kind := "rekindle" if id == ID_REKINDLE else "snuff"
-	SaveData.ending = kind
+	if kind == "snuff":
+		SaveData.ending = kind
 	GameEvents.ending_chosen.emit(id)
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		SaveData.save_game(GameContext.world_scene_path(player), player)
 	if kind == "rekindle":
-		# 复燃不是终点：陵墓醒来，炉心下面的石板松开，骑士落进沉钟地窟（第二关）。
+		# 复燃不是结局：答应把剑里的人带到炉心再问一次。不写入 ending。
 		Director.play([
 			{"kind": "lock"},
-			{"kind": "caption", "text": "陵墓在锈里睁开眼。", "hold": 2.2},
-			{"kind": "caption", "text": "炉心底下的石板松开了。下面有钟声。", "hold": 2.2},
+			{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
+			{"kind": "fx", "id": "ember_rise", "seconds": 0.8},
+			{"kind": "caption", "text": "不是拯救。", "hold": 1.4},
+			{"kind": "caption", "text": "把剑里的人带到炉心，再问一次。", "hold": 2.2},
 			{"kind": "wait", "seconds": 0.2},
 			{"kind": "unlock"},
 		])
@@ -136,6 +139,8 @@ func _on_chosen(id: StringName) -> void:
 		return
 	Director.play([
 		{"kind": "lock"},
+		{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
+		{"kind": "fx", "id": "ash_fall", "seconds": 0.9},
 		{"kind": "caption", "text": "余烬落回炉灰。骑士也是。", "hold": 2.2},
 		{"kind": "wait", "seconds": 0.2},
 		{"kind": "unlock"},

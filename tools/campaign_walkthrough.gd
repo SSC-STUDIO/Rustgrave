@@ -40,13 +40,13 @@ func _after_undercroft() -> bool:
 				goals.append({"name": str(node.name), "feet": LevelSanity.feet_of(node)})
 		goals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.feet.x < b.feet.x)
 		if n == 7:
-			goals = [
-				{"name": "EmberNestEntry", "feet": Vector2(176, 320)},
-				{"name": "BellGatePlate", "feet": Vector2(732, -160)},
-				{"name": "EmberNestGallery", "feet": Vector2(544, -160)},
-				{"name": "EmberNestSummit", "feet": Vector2(1104, -640)},
-				{"name": "Exit", "feet": Vector2(1184, -640)},
-			]
+			# 竖井不能按 x 排序：先踩中层压板，再点巢，再上塔顶。脚点读当前节点，
+			# 塔顶巢和出口挪过之后旧的写死坐标会对不准。
+			goals.clear()
+			for goal_name in ["EmberNestEntry", "BellGatePlate", "EmberNestGallery", "EmberNestSummit", "Exit"]:
+				var goal_node := _world().get_node_or_null("Props/" + goal_name)
+				if goal_node != null:
+					goals.append({"name": goal_name, "feet": LevelSanity.feet_of(goal_node)})
 		for goal in goals:
 			if n == first and "--resume" in OS.get_cmdline_user_args():
 				if (n == 7 and goal.feet.y > resume_feet.y + 16) or (n != 7 and goal.feet.x < resume_feet.x - 24): continue

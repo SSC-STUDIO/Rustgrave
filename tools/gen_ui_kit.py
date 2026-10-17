@@ -593,6 +593,86 @@ def title_logo() -> None:
     g.save("title_logo.png")
 
 
+# --- HUD v2: open cluster instead of a boxed status sheet ----------------
+
+def hud_backing() -> None:
+    """Ink ribbon behind the HUD cluster: a rust spine with rivets on the left,
+    a dark body, and a dithered fade on the right so the cluster melts into
+    the level instead of sitting in a framed box. 9-sliced (left 6 / right 8)."""
+    w, h = 20, 16
+    g = Grid(w, h)
+    for y in range(h):
+        for x in range(w):
+            if x == 0:
+                g[x, y] = "0"
+            elif x == 1:
+                g[x, y] = "8"
+            elif x == 2:
+                g[x, y] = "7"
+            elif x < w - 8:
+                g[x, y] = "T"
+            else:
+                # 8px dither ramp T -> U -> V -> clear
+                k = x - (w - 8)
+                tones = ["T", "U", "U", "V", "V", ".", ".", "."]
+                ch = tones[k]
+                if ch != "." and (x + y) % 2 and k >= 2:
+                    ch = tones[min(7, k + 1)]
+                g[x, y] = ch
+    for y in (2, h - 3):
+        g[1, y] = "c"
+    g[1, 0] = "0"
+    g[1, h - 1] = "0"
+    g.save("hud_backing.png")
+
+
+def socket_gems() -> None:
+    """Sword socket: an iron ring (empty) and a faceted gem drawn in greys so
+    the HUD can tint it per core (kiln / tether / ember)."""
+    ring = Grid(13, 13)
+    art = [
+        "....00000....",
+        "...0322210...",
+        "..032...210..",
+        ".032.....210.",
+        "032.......210",
+        "02.........10",
+        "02.........10",
+        "02.........10",
+        "021.......110",
+        ".021.....110.",
+        "..0211.1110..",
+        "...0211110...",
+        "....00000....",
+    ]
+    ring.stamp(0, 0, art)
+    for x, y in ((6, 0), (0, 6), (12, 6), (6, 12)):
+        ring[x, y] = "8"
+    ring.save("socket_ring.png")
+    gem = Grid(13, 13)
+    gem.stamp(0, 0, [
+        ".............",
+        ".............",
+        "......e......",
+        ".....eed.....",
+        "....eeedd....",
+        "...eeed3dd...",
+        "..eeed333dd..",
+        "...dd3332d...",
+        "....d3322....",
+        ".....322.....",
+        "......2......",
+        ".............",
+        ".............",
+    ])
+    gem.save("socket_gem.png")
+
+
+def hud_kit() -> None:
+    hud_backing()
+    socket_gems()
+
+
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     print("generating assets/ui/ ...")
@@ -610,7 +690,13 @@ def main() -> None:
     vignette()
     ember_motes()
     title_logo()
+    hud_kit()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if sys.argv[1:] == ["hud"]:
+        os.makedirs(OUT, exist_ok=True)
+        hud_kit()
+    else:
+        main()

@@ -307,4 +307,4 @@ func test_backdrop_is_the_open_graveyard_night() -> void:
 			if child is TorchLight:
 				torches += 1
 		ok(grounded >= 18, "graveyard dressing is dense (%d grounded pieces)" % grounded)
-		eq(torches, 4, "torch plates flank the mausoleum gate and the bell door")
+		eq(torches, 0, "open graveyard has no indoor torch wall plates")

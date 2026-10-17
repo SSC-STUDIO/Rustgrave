@@ -9,6 +9,8 @@ const CASES_DIR := "res://tests"
 const ERROR_COLLECTOR := preload("res://tests/error_collector.gd")
 var _errors
 var _active_test := "startup"
+## Some scene tests idle ~15s of physics on purpose (checkpoint safety). Leave headroom.
+const PER_TEST_MS := 30000
 var _deadline_ms := 0
 
 
@@ -16,7 +18,7 @@ func _enter_tree() -> void:
 	_errors = ERROR_COLLECTOR.new()
 	OS.add_logger(_errors)
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_deadline_ms = Time.get_ticks_msec() + 15000
+	_deadline_ms = Time.get_ticks_msec() + PER_TEST_MS
 
 
 func _process(_delta: float) -> void:
@@ -36,7 +38,7 @@ func _ready() -> void:
 	var failed := 0
 	for path in _case_paths():
 		_active_test = path
-		_deadline_ms = Time.get_ticks_msec() + 15000
+		_deadline_ms = Time.get_ticks_msec() + PER_TEST_MS
 		var script: GDScript = load(path)
 		if script == null or not script.can_instantiate():
 			failed += 1
@@ -52,7 +54,7 @@ func _ready() -> void:
 			total += 1
 			var errors_before: int = _errors.errors().size()
 			_active_test = "%s.%s" % [path, method]
-			_deadline_ms = Time.get_ticks_msec() + 15000
+			_deadline_ms = Time.get_ticks_msec() + PER_TEST_MS
 			var case: TestCase = script.new()
 			case.name = "%s.%s" % [path.get_file().get_basename(), method]
 			add_child(case)

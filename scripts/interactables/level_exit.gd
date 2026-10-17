@@ -16,8 +16,15 @@ const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 ## 需要先点亮的旗标（例如 Boss 死亡）；没点亮时门锁着，只给提示。
 @export var requires_flag: String = ""
 @export var locked_prompt: String = "门还锁着"
+## 炉心之门：打开送剑 / 守火，而不是直接播 captions。
+@export var ending_choice: bool = false
+@export var give_captions: PackedStringArray = []
+@export var keep_captions: PackedStringArray = []
 
 var _used := false
+var _choosing := false
+var _layer: CanvasLayer
+var _ending_actor: Player
 
 
 func _ready() -> void:
@@ -39,16 +46,86 @@ func get_prompt(_actor: Node) -> String:
 
 
 func interact(actor: Node) -> void:
-	if _used or not actor is Player:
+	if _used or _choosing or not actor is Player:
 		return
 	if is_locked():
 		Sfx.play(&"ui_denied", 0.04, -4.0)
 		GameEvents.announcement.emit(locked_prompt)
 		return
+	if ending_choice:
+		_open_ending_choice(actor as Player)
+		return
 	_used = true
 	Sfx.play(&"gate")
+	_play_and_leave(captions, actor as Player, "")
+
+
+## 菜单和测试都走这里。默认项是送剑（give）。
+func confirm_ending(id: StringName) -> void:
+	if _used or not ending_choice:
+		return
+	_used = true
+	_close_ending_choice()
+	var kind := "keep" if id == &"keep" else "give"
+	SaveData.ending = kind
+	GameEvents.ending_chosen.emit(StringName(kind))
+	var lines := keep_captions if kind == "keep" else give_captions
+	Sfx.play(&"gate")
+	_play_and_leave(lines, _ending_actor, "ash_fall" if kind == "give" else "ember_rise")
+
+
+func _open_ending_choice(actor: Player) -> void:
+	_choosing = true
+	_ending_actor = actor
+	Director.choice_hold = true
+	Director.suspend()
+	_layer = CanvasLayer.new()
+	_layer.layer = 25
+	_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	GameContext.ui_host(self).add_child(_layer)
+	var root := Control.new()
+	root.name = "ChoiceRoot"
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_layer.add_child(root)
+	root.add_child(UiKit.scrim(0.72, 0.72, 0.72))
+	var frame := UiKit.panel(&"OrnatePanel")
+	frame.set_anchors_preset(Control.PRESET_CENTER)
+	frame.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	frame.grow_vertical = Control.GROW_DIRECTION_BOTH
+	root.add_child(frame)
+	var column := VBoxContainer.new()
+	frame.add_child(column)
+	column.add_child(UiKit.label("把 剑 送 进 去", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.divider())
+	column.add_child(UiKit.label("送剑，火会稳。守火，你留下。",
+			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	var menu := MenuList.new()
+	column.add_child(menu)
+	menu.add_item(&"give", "送 剑")
+	menu.add_item(&"keep", "守 火")
+	menu.chosen.connect(confirm_ending)
+	get_tree().paused = true
+
+
+func _close_ending_choice() -> void:
+	Director.choice_hold = false
+	Director.resume()
+	_choosing = false
+	var tree := get_tree()
+	if tree != null:
+		tree.paused = false
+	if _layer != null:
+		_layer.queue_free()
+		_layer = null
+
+
+func _play_and_leave(lines: PackedStringArray, player: Player, fx_id: String) -> void:
 	var steps: Array = [{"kind": "lock"}]
-	for line in captions:
+	if fx_id != "":
+		steps.append({"kind": "fx", "id": "heart_pulse", "seconds": 0.55})
+		steps.append({"kind": "fx", "id": fx_id, "seconds": 1.0})
+	for line in lines:
 		steps.append({"kind": "caption", "text": String(line), "hold": 2.2})
 	steps.append({"kind": "wait", "seconds": 0.2})
 	steps.append({"kind": "unlock"})
@@ -58,11 +135,11 @@ func interact(actor: Node) -> void:
 		return
 	if flag_id != "":
 		SaveData.mark_flag(flag_id)
-	var player := actor as Player
 	if target_scene != "":
 		travel(target_scene, spawn, player)
 	else:
-		SaveData.save_game(GameContext.world_scene_path(self), player)
+		if player != null and is_instance_valid(player):
+			SaveData.save_game(GameContext.world_scene_path(self), player)
 		Director.fade_to(TITLE_PATH)
 
 

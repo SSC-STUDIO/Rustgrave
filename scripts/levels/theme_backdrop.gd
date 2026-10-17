@@ -5,12 +5,27 @@ extends Node2D
 ## CineFx，没有天气与风。ChapterLayout 调 build(host, theme_id)。
 ##
 ## 图层字段：path / scroll / pos / scale / tint / region（可选，只取贴图子矩形）。
+##
+## Prop packs must stay with their theme (see ChapterLayout.THEME_PROPS):
+##   graveyard  — cemetery foliage / stones / rails (no bg_wall_torch, no cathedral plates)
+##   undercroft — moss brick / arches / vines
+##   cathedral  — gothic columns / windows / gargoyles / altar / skull columns
+##   town       — rails / dry rubble / door arches (no torch slabs outdoors)
+##   industrial — plates / slabs / dry rubble / optional rust-tinted vine cables
+##   forge      — same dry-stone set, brick hearths instead of torch plates
+##   forge_core — Level10: altar / column / skull column setpieces
+##   belltower  — cathedral plates on castle brick
+##   ramparts   — rails / arches / rubble on the wall top
+## Do not copy indoor hall/column strips up tall shafts (see build()).
 
-const COLUMN_PATH := "res://assets/env/column_big.png"
+const COLUMN_PATH := "res://assets/env/column_big_cut.png"
 const CASTLE_INTERIOR := "res://assets/external/gothicvania_patreon/Old-dark-Castle-tileset-Files/PNG/old-dark-castle-interior-background.png"
 const GOTHIC_CASTLE := "res://assets/external/gothicvania_patreon/Gothic-Castle-Files/PNG/layers/gothic-castle-background.png"
 const TOWN_DIR := "res://assets/external/gothicvania_patreon/night-town-background-files/layers/"
 const INDUSTRIAL_DIR := "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/"
+## Gradient-mapped copies from tools/gen_theme_tiles.py: chapters that share a
+## pack still get their own sky.
+const BACKDROP_DIR := "res://assets/env/backdrop/"
 
 const THEMES := {
 	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。
@@ -23,16 +38,27 @@ const THEMES := {
 			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
 		],
 	},
-	# 熔炉：工业剪影压成琥珀色（不再用城堡尖窗内景，避免和圣殿撞脸）。
+	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
+	# 和工坊（industrial）同包，但工坊是灰绿的冷车间，这里是渣海。
 	"forge": {
 		"indoors": true,
-		"void": Color(0.09, 0.04, 0.025),
-		"mood": Color(0.95, 0.74, 0.56),
+		"void": Color(0.07, 0.02, 0.015),
+		"mood": Color(1.0, 0.8, 0.66),
 		"layers": [
-			{"path": INDUSTRIAL_DIR + "skill-desc_0003_bg.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1.0, 0.78, 0.62)},
-			{"path": INDUSTRIAL_DIR + "skill-desc_0002_far-buildings.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color(0.92, 0.62, 0.48)},
-			{"path": INDUSTRIAL_DIR + "skill-desc_0001_buildings.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color(0.78, 0.48, 0.36)},
-			{"path": INDUSTRIAL_DIR + "skill-desc_0000_foreground.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(0.55, 0.28, 0.18, 0.85)},
+			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(1, 1, 1, 0.9)},
+		],
+	},
+	# 炉心深处：地窟的拱窗内景烧成暗红——终关是一座被火从里面舔过的殿。
+	"forge_core": {
+		"indoors": true,
+		"void": Color(0.05, 0.012, 0.016),
+		"mood": Color(1.0, 0.84, 0.8),
+		"layers": [
+			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color.WHITE},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.3, 0.08, 0.07, 0.92), "repeat": 352.0},
 		],
 	},
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。
@@ -43,6 +69,29 @@ const THEMES := {
 		"layers": [
 			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.2, 0.17, 0.3, 0.9), "repeat": 448.0},
+		],
+	},
+	# 钟楼：竖井。橄榄色城砖墙双向平铺爬满整座塔（没有地面线，抬多高都不穿帮），
+	# 箭窗透冷光；地面一层再压一条殿墙。
+	"belltower": {
+		"indoors": true,
+		"void": Color(0.03, 0.03, 0.04),
+		"mood": Color(0.78, 0.78, 0.9),
+		"layers": [
+			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.15, 0.2, 0.9), "repeat": 448.0},
+		],
+	},
+	# 锈城城墙：站在墙顶往下看城。青灰云、远山，城和钟塔缩在脚下的雾里。
+	"ramparts": {
+		"indoors": false,
+		"void": Color(0.06, 0.1, 0.11),
+		"mood": Color(0.8, 0.86, 0.86),
+		"layers": [
+			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 1.8, "tint": Color(0.8, 0.9, 0.92)},
+			{"path": BACKDROP_DIR + "wall_clouds.png", "scroll": Vector2(0.07, 0.03), "pos": Vector2(0, -60), "scale": 2.0, "tint": Color(1, 1, 1, 0.85)},
+			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.14, 0.05), "pos": Vector2(0, 20), "scale": 1.6, "tint": Color(0.82, 0.9, 0.9)},
+			{"path": BACKDROP_DIR + "wall_town.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 160), "scale": 2.0, "tint": Color.WHITE},
 		],
 	},
 	# 锈城：夜色小镇——天、云、山、林、远屋、近屋。室外，有天气与风。
@@ -91,7 +140,7 @@ static func is_indoor_theme(theme_id: String) -> bool:
 	return bool((THEMES.get(theme_id, {}) as Dictionary).get("indoors", true))
 
 
-func build(host: Node2D, theme_id: String, camera_top: float = -48.0) -> void:
+func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 	if theme_id == "graveyard":
 		_build_graveyard(host)
 		return
@@ -114,19 +163,11 @@ func build(host: Node2D, theme_id: String, camera_top: float = -48.0) -> void:
 		backdrop.add_child(void_rect)
 	var i := 0
 	for layer_def in theme.get("layers", []):
-		var layer := _add_layer(backdrop, "Layer%d" % i, layer_def)
-		if layer != null and _indoors and camera_top < -320.0:
-			# Stack authored wall panels along tall shafts, retaining horizontal parallax.
-			var original := layer.get_node("Sprite") as Sprite2D
-			var height := original.get_rect().size.y * original.scale.y
-			var count := ceili((400.0 - camera_top) / height) + 1
-			for row in range(-count, 2):
-				if row == 0:
-					continue
-				var panel := original.duplicate() as Sprite2D
-				panel.position.y += row * height
-				layer.add_child(panel)
+		_add_layer(backdrop, "Layer%d" % i, layer_def)
 		i += 1
+	# Do not copy these strips up a tall shaft. Each plate is a scene with its
+	# ground line on the bottom edge (hall at y=320, columns at y=336). A copy
+	# shifted by the texture height plants that same wall in the air.
 	var tint := host.get_node_or_null("MoodTint") as CanvasModulate
 	if tint == null:
 		tint = CanvasModulate.new()
@@ -234,7 +275,19 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 		spr.region_rect = region
 	layer.add_child(spr)
 	var repeat: float = def.get("repeat", 0.0)
-	if repeat > 0.0:
+	if bool(def.get("tile", false)):
+		# Plain wall texture for a tall shaft: one oversized sprite that tiles on both
+		# axes by texture repeat. Parallax2D's own repeat only covers a strip of the
+		# view on the second axis. The sprite spans the whole camera travel
+		# (scroll shifts it by at most travel * scroll_scale) plus a view of margin.
+		var cell := Vector2(tex.get_size()) * k
+		var span := Vector2(cell.x * ceilf(2400.0 / cell.x), cell.y * ceilf(2600.0 / cell.y))
+		spr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		spr.region_enabled = true
+		spr.region_rect = Rect2(Vector2.ZERO, span / k)
+		spr.position = Vector2(-cell.x * 8.0, -cell.y * 18.0)
+		layer.repeat_size = Vector2.ZERO
+	elif repeat > 0.0:
 		layer.repeat_size = Vector2(repeat, 0.0)
 		layer.repeat_times = Level01Parallax.copies_for_view(repeat)
 	else:

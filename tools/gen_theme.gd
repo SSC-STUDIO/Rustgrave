@@ -15,6 +15,7 @@ const SIZE_HEAD := 36
 
 const BONE := Color("#E4DCCC")
 const BONE_DIM := Color("#A39A8E")
+const BONE_EPITAPH := Color("#C8BBA8")
 const BONE_FAINT := Color("#8E8578")
 const EMBER := Color("#FFC14A")
 const EMBER_ASH := Color("#E8B090")
@@ -87,6 +88,7 @@ func _setup_labels(theme: Theme) -> void:
 		"SubHeadLabel": [SIZE_BODY, EMBER_ASH, true],
 		"BodyLabel": [SIZE_BODY, BONE, false],
 		"DimLabel": [SIZE_BODY, BONE_DIM, false],
+		"EpitaphLabel": [SIZE_BODY, BONE_EPITAPH, true],
 		"KeyCapLabel": [SIZE_BODY, EMBER, false],
 		"HudLabel": [SIZE_SMALL, BONE_DIM, true],
 		"HudStrongLabel": [SIZE_SMALL, EMBER_ASH, true],

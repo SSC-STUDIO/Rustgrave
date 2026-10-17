@@ -3,10 +3,17 @@ extends EnemyBase
 ## Airborne gargoyle-demon that patrols the skies and perches above hazards.
 ## Keeps flapping while it winds up, swoops, then returns to its patrol height.
 
-## Keep the authored demon frame density. The offline px variant was half-size
-## and made the aerial enemy read too small against the original platforms.
-const DEMON_CHAR := "flying_demon"
+## 像素化变体（idle 72x65，身高约 55px = 骑士的 1.5 倍）：原 160x144 版本身高 124px
+## （骑士 3.4 倍）、像素颗粒也比其它敌人细得多，和全场格格不入。内容在画布里基本居中，
+## 悬停中心就是节点原点；attack 帧是青色火焰喷吐，与俯冲读招不是一回事，故不使用。
+const DEMON_CHAR := "flying_demon_px"
 const DEMON_POS := Vector2(0.0, 0.0)
+## 俯冲前摇：猩红染色 + 翅膀加速扇动 + 身体略微膨胀。前摇时长取自 CombatRules.TELEGRAPH。
+const ATTACK_WINDUP := 0.55
+const ATTACK_TINT := Color(1.6, 0.5, 0.55)
+const ATTACK_SWELL := 1.12
+## 俯冲落空 / 撞墙后的喘息：悬停不动，头顶金箭头。
+const RECOVERY_TIME := 1.0
 
 enum State { PATROL, AGGRO, ATTACK, SWOOP, RECOVERY }
 
@@ -30,6 +37,11 @@ var _flip_cooldown: float = 0.0
 
 @onready var visual: Node2D = $Visual
 @onready var hitbox: Hitbox = $Hitbox
+
+
+## 飞行的小型敌人，钩锁能拽到面前。
+func is_yankable() -> bool:
+	return true
 
 
 func _enemy_ready() -> void:
@@ -106,6 +118,7 @@ func _tick_state(delta: float) -> void:
 			if _target_player == null or not is_instance_valid(_target_player):
 				_state = State.RECOVERY
 				_state_timer = 0.2
+				_clear_attack_look()
 				return
 			_state_timer -= delta
 			velocity = velocity.move_toward(Vector2.ZERO, 200.0 * delta)
@@ -122,10 +135,9 @@ func _tick_state(delta: float) -> void:
 			if _state_timer <= 0.0 or is_on_wall() or is_on_floor():
 				hitbox.disarm()
 				_state = State.RECOVERY
-				_state_timer = 1.0
-				if _anim != null:
-					_anim.modulate = Color.WHITE
-					_anim.set_fps("idle", 10.0)
+				_state_timer = RECOVERY_TIME
+				show_opening(RECOVERY_TIME)
+				_clear_attack_look()
 		State.RECOVERY:
 			_state_timer -= delta
 			velocity.y = ((_origin_y + hover_offset) - global_position.y) * 3.0
@@ -151,7 +163,7 @@ func _face(dir: float, force: bool = false) -> void:
 
 
 func _poll_player() -> void:
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p := knight()
 	if p != null and not p.is_invincible() and p.health.current > 0:
 		if global_position.distance_to(p.global_position) <= aggro_range:
 			_target_player = p
@@ -161,12 +173,27 @@ func _poll_player() -> void:
 
 func _start_attack() -> void:
 	_state = State.ATTACK
-	_state_timer = 0.55
+	_state_timer = ATTACK_WINDUP
+	begin_telegraph(&"flying_demon", ATTACK_WINDUP)
 	if _anim != null:
 		_anim.play("idle")
 		_anim.set_fps("idle", 15.0)
-		_anim.modulate = Color(1.25, 0.82, 0.66)
-	Sfx.play(&"swing", 0.12, -4.0)
+		_anim.modulate = ATTACK_TINT
+		_anim.scale = Vector2(ATTACK_SWELL, ATTACK_SWELL)
+	Sfx.play_at(&"swing", global_position, 0.12, -4.0)
+
+
+func _clear_attack_look() -> void:
+	if _anim == null:
+		return
+	_anim.modulate = Color.WHITE
+	_anim.scale = Vector2.ONE
+	_anim.set_fps("idle", 10.0)
+
+
+## 受击白闪落回当前姿态色：前摇中不被洗成死白。
+func _flash_restore_color() -> Color:
+	return ATTACK_TINT if _state == State.ATTACK else Color.WHITE
 
 
 func _on_died() -> void:

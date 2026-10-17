@@ -157,3 +157,27 @@ func test_shrine_does_not_emit_fire() -> void:
 	ok(shrine.find_child("NestLight", true, false) == null)
 	for child in shrine.get_children():
 		ok(not (child is PointLight2D), "purification shrine has no point light")
+
+
+## Regression: a free-running light (torch, fire skull, ghost) used to read its own
+## flickered `energy` back as the target, compounding every frame until it was black.
+func test_free_running_flicker_never_decays() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var light := WorldLight.new()
+	light.follow = &"torch"
+	light.lit = true
+	light.flicker = true
+	light.energy = 0.6
+	host.add_child(light)
+	for frame in 4000:
+		light.set_flame_frame(frame % 8)
+		light.apply(false)
+	ok(light.energy >= 0.6 * 0.91 and light.energy <= 0.6 * 1.09,
+			"after 4000 frames the torch is still ~0.6 (got %f)" % light.energy)
+	ok(light.enabled, "still lit")
+	light.set_base_energy(0.3)
+	light.set_flame_frame(7)
+	light.apply(false)
+	ok(absf(light.energy - 0.3 * 1.08) < 0.002, "retuned base is honoured")
+	host.queue_free()

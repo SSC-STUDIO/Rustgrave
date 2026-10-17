@@ -7,6 +7,12 @@ const FAR_COUNT := 12
 const MID_COUNT := 10
 const NEAR_COUNT := 6
 const MOTE_PATH := "res://assets/ui/ember_motes.png"
+const GLOW_PATH := "res://assets/env/glow_soft.png"
+## Story halos alive at once (the forge answering from down the corridor, a core's flare).
+const GLOW_CAP := 3
+
+static var _glow_mat: CanvasItemMaterial
+static var _glows: Array[Sprite2D] = []
 
 var _far: Array[Sprite2D] = []
 var _mid: Array[Sprite2D] = []
@@ -38,6 +44,65 @@ func _ready() -> void:
 	_spawn_layer(_far, FAR_COUNT, 0.70, Color(0.82, 0.84, 0.90, 0.28), 80.0, 260.0)
 	_spawn_layer(_mid, MID_COUNT, 1.15, Color(0.82, 0.62, 0.44, 0.48), 230.0, 360.0)
 	_spawn_layer(_near, NEAR_COUNT, 1.55, Color(0.94, 0.86, 0.74, 0.62), 250.0, 380.0)
+
+
+## One soft additive halo in world space that swells and fades on its own. Story
+## beats use it to light something the camera is about to find (the forge remnant at
+## the end of the corridor). Bounded: past GLOW_CAP the oldest is retired first.
+static func glow_pulse(host: Node, world_pos: Vector2, tint: Color, seconds: float, glow_scale: float = 1.6) -> Sprite2D:
+	if host == null or not host.is_inside_tree() or not ResourceLoader.exists(GLOW_PATH):
+		return null
+	var layer := GameContext.world_effects(host)
+	if layer == null:
+		return null
+	_prune_glows()
+	while _glows.size() >= GLOW_CAP:
+		var oldest: Sprite2D = _glows.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	if _glow_mat == null:
+		_glow_mat = CanvasItemMaterial.new()
+		_glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var spr := Sprite2D.new()
+	spr.name = "StoryGlow"
+	spr.texture = load(GLOW_PATH) as Texture2D
+	spr.centered = true
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.material = _glow_mat
+	spr.z_index = 60
+	spr.scale = Vector2.ONE * glow_scale * 0.7
+	spr.modulate = Color(tint.r, tint.g, tint.b, 0.0)
+	layer.add_child(spr)
+	spr.global_position = world_pos
+	_glows.append(spr)
+	var span := maxf(seconds, 0.1)
+	var swell := spr.create_tween()
+	swell.tween_property(spr, "scale", Vector2.ONE * glow_scale, span).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	var fade := spr.create_tween()
+	fade.tween_property(spr, "modulate:a", tint.a, span * 0.35)
+	fade.tween_property(spr, "modulate:a", 0.0, span * 0.65)
+	fade.tween_callback(spr.queue_free)
+	return spr
+
+
+static func glow_count() -> int:
+	_prune_glows()
+	return _glows.size()
+
+
+static func clear_glows() -> void:
+	for spr in _glows:
+		if is_instance_valid(spr):
+			spr.queue_free()
+	_glows.clear()
+
+
+static func _prune_glows() -> void:
+	var live: Array[Sprite2D] = []
+	for spr in _glows:
+		if is_instance_valid(spr) and spr.is_inside_tree() and not spr.is_queued_for_deletion():
+			live.append(spr)
+	_glows = live
 
 
 func mid_motes_allowed() -> bool:

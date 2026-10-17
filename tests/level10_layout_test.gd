@@ -83,7 +83,7 @@ func test_metadata_is_the_final_chapter() -> void:
 	eq(level.level_id(), "level10")
 	eq(level.title(), "锈墓・拾 — 炉心深处")
 	ok(level.wake_line() != "", "the forge core has an opening line")
-	eq(level.theme(), "forge")
+	eq(level.theme(), "forge_core")
 	ok(level.indoors(), "the forge core is indoors")
 	eq(level.east_limit(), 2560)
 	eq(GameContext.next_level_id("level10"), "", "nothing comes after level10")
@@ -113,7 +113,7 @@ func test_slag_crossing_is_single_hops() -> void:
 		var stone := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
 		ok(stone != null, "%s exists" % s[0])
 		if stone != null:
-			eq(stone.skin, "floating", "%s is a forge stepping stone" % s[0])
+			eq(stone.skin, "basalt_float", "%s is a forge stepping stone" % s[0])
 			eq(stone.tone, LAYOUT.STONE_TONE, "%s wears the brighter footing tone" % s[0])
 	# the pit floor is one hop below the banks so a fall is survivable
 	var bed := host.get_node_or_null("Platforms/SlagBed") as SolidPlatform
@@ -212,8 +212,11 @@ func test_exit_is_the_ending_door() -> void:
 	eq(exit.flag_id, "game_complete", "walking through completes the game")
 	eq(exit.door_label, "炉心之门")
 	eq(exit.locked_prompt, "梦魇还在喘。门不开。")
-	eq(exit.captions.size(), 3, "three ending captions")
-	ok(String(exit.captions[exit.captions.size() - 1]).contains("完"), "the last caption closes the book")
+	ok(exit.ending_choice, "the forge door asks instead of walking through")
+	eq(exit.give_captions.size(), 3, "giving the sword has three lines")
+	eq(exit.keep_captions.size(), 3, "keeping the fire has three lines")
+	ok(String(exit.give_captions[exit.give_captions.size() - 1]).contains("完"), "giving the sword closes the book")
+	ok(String(exit.keep_captions[exit.keep_captions.size() - 1]).contains("完"), "keeping the fire closes the book")
 	ok(exit.is_locked(), "locked while the Nightmare lives")
 	SaveData.mark_flag("nightmare_dead")
 	ok(not exit.is_locked(), "opens once the Nightmare is dead")

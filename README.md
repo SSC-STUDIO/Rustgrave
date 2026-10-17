@@ -29,6 +29,19 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 | 1 / 2 | 把背包里第一枚锈核插入剑的 1 / 2 号插座 |
 | F | 钩锁（需已镶嵌 Hookshot Tether）：钩住锚点把自己拉过缺口 |
 
+### 移动端 / 触控
+
+手机与带触摸屏的设备会自动显示锈色触控板（与键鼠共用同一套 InputMap）：
+
+| 区域 | 动作 |
+| --- | --- |
+| 左下 ← → | 移动 |
+| 右下 斩 / 跳 / 冲 / 互 | 攻击（弹反仍在判定帧）、跳跃、冲刺、交互 |
+| 右下上方 钩 / 1 / 2 | 钩锁、插座 1 / 2 |
+| 右上 Ⅱ | 暂停 |
+
+纯桌面键鼠会话不显示触控板。桌面调试可设环境变量 `RUSTGRAVE_FORCE_TOUCH=1` 强制显示。世界仍是 640×360 整数倍率居中黑边；触控 UI 在 1280×720 设计层并避开刘海安全区。
+
 弹反 **不是** 单独的格挡动作：按设计，巨剑挥砍的 active 帧打中弹丸，就会把它打回去。
 
 ## 关卡里要做什么
@@ -40,7 +53,7 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 
 喷吐者死亡后会掉 **钩锁核**。东侧高台有 **余烬核**（要钩上去）。两核同槽会点亮组合技。
 
-第一关选择「熄灭」会播放提前结局；选择「复燃」进入后续章节：沉钟地窟 → 锈城街巷 → 圣殿中庭 → 齿轮工坊 → 墓园夜雨 → 钟楼 → 熔渣深渊 → 锈城城墙 → 炉心深处。主线使用单跳、冲刺和热锻；钩锁、二段跳供可选探索。钟楼有四段升降吊台和三个余烬巢。终关梦魇进入半血第二阶段，击杀后不再随死亡或继续游戏刷新；终局门保存完成状态，字幕后返回标题。
+第一关选择「熄灭」会播放提前结局；选择「复燃」不写入结局，只是答应把剑里的人带下去，进入后续章节：沉钟地窟 → 锈城街巷 → 圣殿中庭 → 齿轮工坊 → 墓园夜雨 → 钟楼 → 熔渣深渊 → 锈城城墙 → 炉心深处。主线使用单跳、冲刺和热锻；钩锁、二段跳供可选探索。钟楼有四段升降吊台和三个余烬巢。终关梦魇进入半血第二阶段，击杀后不再随死亡或继续游戏刷新。炉心之门在梦魇死后打开：送剑则火稳、骑士散成铁；守火则留下看守。两条都保存完成状态，字幕后返回标题。
 
 ## 已实现 / 仅文档
 
@@ -64,6 +77,7 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 - 平滑镜头 + 按移动方向的水平 look-ahead；打击停顿/震屏等打击感反馈
 - 像素 UI：`assets/ui/theme_rust.tres` 统一字体/配色/9-slice 面板，字体为 Fusion Pixel（中英全覆盖）
 - 标题屏菜单（开始/继续/操作说明/退出，键鼠导航 + 余烬粒子）、暂停菜单、操作说明面板、死亡覆盖层
+- 移动端触控板（自动检测手机/触摸屏；与键鼠共用 InputMap；Android 导出预设）
 - HUD：心槽血量、分段毒素槽、剑核/袋中、交互提示、播报横幅、低血量血雾
 - Kenney CC0 音效集（挥砍/受击/弹反/拾取/UI，见 `scripts/autoload/sfx.gd`）
 
@@ -129,6 +143,17 @@ Rustgrave/
 - `#4A6B6B` Teal/Water  
 
 世界固定在 640×360 SubViewport，窗口界面使用 1280×720 设计单位；最终按窗口可容纳的最大整数倍率居中显示，非 16:9 保留黑边。世界与 UI 均使用 Nearest，字体保留自动 oversampling。
+
+## Android 导出
+
+项目自带 `export_presets.cfg`（Android，arm64，横屏，immersive）。**不包含**签名密钥；在本机配置 debug/release keystore。
+
+1. 安装 [Godot 4.7+](https://godotengine.org/download) 与 [Android SDK / 一键安装](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_android.html)（编辑器 → Editor Settings → Export → Android）。
+2. 打开本项目 → **Project → Export → Android**。
+3. 在预设里设置 debug/release 的 Keystore（或先用编辑器自带的 debug 签名试装）。
+4. **Export Project** 生成 APK/AAB，用 `adb install` 装到手机。
+
+iOS：同套触控逻辑即可玩；正式上架需在 macOS 上另配 iOS 导出模板与 Apple 签名，本仓库未附 iOS 预设。
 
 ## Testing
 

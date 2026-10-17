@@ -18,9 +18,9 @@ func teardown() -> void:
 
 
 func test_pause_and_suspend_freeze_the_entire_dissolve() -> void:
-	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "relic"}, {"kind": "wait", "seconds": 5.0}])
+	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "chapter", "title": "腐液回廊", "subtitle": "锈墓・壹"}, {"kind": "wait", "seconds": 5.0}])
 	await flush(3)
-	eq(presentation.active_shot, "relic")
+	eq(presentation.active_shot, "chapter")
 	Director.suspend()
 	var age: float = presentation.front.age
 	var alpha: float = presentation.front.modulate.a
@@ -41,7 +41,7 @@ func test_skip_releases_camera_and_dissolves_back_to_world() -> void:
 	var cam := GameCamera.new()
 	add_child(cam)
 	Director.play([
-		{"kind": "lock"}, {"kind": "tableau", "id": "grave"},
+		{"kind": "lock"}, {"kind": "tableau", "id": "chapter", "title": "腐液回廊", "subtitle": "锈墓・壹"},
 		{"kind": "cam_focus", "target": Vector2(180, 200), "duration": 4.0},
 		{"kind": "cam_release"}, {"kind": "unlock"},
 	], true)
@@ -64,9 +64,9 @@ func test_abort_clears_both_canvases_and_does_not_mark_opening_seen() -> void:
 	var opening := preload("res://scripts/levels/opening_cinematic.gd")
 	var flags := SaveData.flags.duplicate()
 	SaveData.flags.erase(opening.FLAG)
-	Director.play([{"kind": "tableau", "id": "relic"}, {"kind": "wait", "seconds": 2.0}])
+	Director.play([{"kind": "tableau", "id": "chapter", "title": "腐液回廊"}, {"kind": "wait", "seconds": 2.0}])
 	await flush(2)
-	presentation.show_shot("furnace")
+	presentation.show_shot("boss", "炉约刽子手", "守 芯 者")
 	ok(presentation.back.visible)
 	Director.abort()
 	ok(not presentation.front.visible)
@@ -77,12 +77,12 @@ func test_abort_clears_both_canvases_and_does_not_mark_opening_seen() -> void:
 
 
 func test_queued_cutscene_replaces_the_opening_without_leaking_a_tableau() -> void:
-	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "relic"}, {"kind": "wait", "seconds": 5.0}], true)
-	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "grave"}, {"kind": "wait", "seconds": 5.0}], true)
+	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "chapter", "title": "腐液回廊"}, {"kind": "wait", "seconds": 5.0}], true)
+	Director.play([{"kind": "lock"}, {"kind": "tableau", "id": "boss", "title": "炉约刽子手"}, {"kind": "wait", "seconds": 5.0}], true)
 	Director.skip_step()
 	ok(Director.playing, "next script is still playing")
 	ok(Director.is_input_locked(), "no input gap between scripts")
-	eq(presentation.active_shot, "grave")
+	eq(presentation.active_shot, "boss")
 	Director.skip_step()
 	ok(not Director.playing)
 	ok(not Director.is_input_locked())

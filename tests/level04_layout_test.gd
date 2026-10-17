@@ -136,17 +136,17 @@ func test_terrain_seals_the_cathedral_and_pits_are_escapable() -> void:
 		ok(plat != null, "%s exists" % f[0])
 		if plat == null:
 			continue
-		eq(plat.skin, "stone", "%s is paved with cathedral flagstone" % f[0])
+		eq(plat.skin, "nave", "%s is paved with cathedral flagstone" % f[0])
 		almost(plat.position.y, 320.0, 0.01, "%s top is the floor line" % f[0])
 		almost(plat.position.x, float(f[1]), 0.01)
 		almost(plat.size.x, float(f[2]) - float(f[1]), 0.01)
 		ok(plat.tone.b >= plat.tone.r, "%s tone leans cold" % f[0])
 	for s in L4.STEPS:
 		var step := platforms.get_node_or_null(String(s[0])) as SolidPlatform
-		ok(step != null and step.skin == "floating", "%s is a floating cathedral slab" % s[0])
+		ok(step != null and step.skin == "nave_float", "%s is a floating cathedral slab" % s[0])
 	for b in L4.BLOCKS:
 		var block := platforms.get_node_or_null(String(b[0])) as SolidPlatform
-		ok(block != null and block.skin == "stone", "%s is a solid stone block" % b[0])
+		ok(block != null and block.skin == "nave", "%s is a solid stone block" % b[0])
 		if block != null:
 			ok(block.position.y + block.size.y <= 320.0 + 0.01, "%s never sinks below the floor" % b[0])
 	var wall_r := platforms.get_node_or_null("WallRight") as SolidPlatform

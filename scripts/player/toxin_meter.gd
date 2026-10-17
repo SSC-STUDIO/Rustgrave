@@ -10,7 +10,7 @@ const BAND_HOT := 60.0
 
 @export var max_toxin: float = 100.0
 @export var drain_per_second: float = 8.0
-@export var overflow_interval: float = 0.55
+@export var overflow_interval: float = CombatRules.OVERFLOW_TICK
 
 var toxin: float = 0.0
 var _overflow_clock: float = 0.0

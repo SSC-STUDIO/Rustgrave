@@ -49,6 +49,13 @@ func _ready() -> void:
 	call_deferred("_run")
 
 
+func _recording() -> bool:
+	for arg in OS.get_cmdline_args():
+		if str(arg).begins_with("--write-movie"):
+			return true
+	return false
+
+
 func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	if _rendered and _last_frame_usec > 0 and GameContext.gameplay_input_enabled() and _player() != null:
@@ -56,7 +63,11 @@ func _process(_delta: float) -> void:
 	_last_frame_usec = now
 	if _failed:
 		return
-	if Time.get_ticks_msec() - _started > (1800000 if _campaign else 240000):
+	# 录像时每帧都要编码，墙钟会比平时长。给全程通关四小时，避免录到一半被掐掉。
+	var budget := 240000
+	if _campaign:
+		budget = 14400000 if _recording() else 1800000
+	if Time.get_ticks_msec() - _started > budget:
 		_fail("walkthrough exceeded its time budget")
 	if not _errors.errors().is_empty():
 		_fail("engine error: " + _errors.errors()[0])

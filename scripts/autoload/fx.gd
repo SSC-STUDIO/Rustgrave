@@ -16,6 +16,13 @@ const BRIGHTFIRE_SHEET_PATH := "res://assets/kenney_clean/vfx/9_brightfire_sprit
 ## (autoloads come before the current scene), so z_index must lift them above
 ## scene content to stay visible.
 const FX_Z := 100
+const MOTE_CAP := 48
+const RING_CAP := 4
+## 精灵火花 / 一次性帧动画的同屏上限（预算表见 CombatRules.BUDGET）。超出时火花
+## 退化为池化小方块，尸体动画直接跳过；两者都只是表现，不影响逻辑。
+const SPARK_CAP := 6
+const ONESHOT_CAP := 8
+const HEAT_LICK_NAME := "HeatLick"
 
 const EMBER_FIELD_NAME := "FxEmberField"
 
@@ -23,7 +30,62 @@ var _headless := false
 var _weaponhit_sheet: Texture2D = null
 var _bubbles_sheet: Texture2D = null
 var _brightfire_sheet: Texture2D = null
+var _pool_root: Node2D
+var _motes: Array[PooledMote] = []
+var _rings: Array[PooledRing] = []
+var _mote_cursor := 0
+var _ring_cursor := 0
+var _live_sparks := 0
+var _live_oneshots := 0
 static var _additive: CanvasItemMaterial = null
+
+
+static func next_slot(cursor: int, cap: int) -> int:
+	if cap <= 0:
+		return 0
+	return posmod(cursor, cap)
+
+
+## 预算判定：live 未满才允许再生成一个临时节点。
+static func has_room(live: int, cap: int) -> bool:
+	return live < cap
+
+
+## 池是否需要重建：池已离树 / 还没建过 / 它挂的宿主不是当前世界的特效节点。
+static func pool_needs_rebuild(pool_alive: bool, has_motes: bool, pool_parent: Object,
+		host: Object) -> bool:
+	return not pool_alive or not has_motes or pool_parent != host
+
+
+## 同屏临时节点的实时数目（测试 / 诊断读）。headless 恒为 0。
+func live_sparks() -> int:
+	return _live_sparks
+
+
+func live_oneshots() -> int:
+	return _live_oneshots
+
+
+func _on_spark_gone() -> void:
+	_live_sparks = maxi(0, _live_sparks - 1)
+
+
+func _on_oneshot_gone() -> void:
+	_live_oneshots = maxi(0, _live_oneshots - 1)
+
+
+func burst_cap() -> int:
+	return 0 if _headless else MOTE_CAP
+
+
+func burst_live_count() -> int:
+	if _headless:
+		return 0
+	var n := 0
+	for mote in _motes:
+		if is_instance_valid(mote) and mote.alive:
+			n += 1
+	return n
 
 
 ## Shared additive material so night CanvasModulate cannot crush 2px motes.
@@ -74,41 +136,144 @@ func attach_ember(target: Node2D) -> void:
 	target.add_child(field)
 
 
-## Dust kicked up by landing or dashing. `dir` is the outward heading in
-## radians (0.0 = right); motes scatter outward with an upward bias.
+## Dust kicked up by landing or dashing. Routed through the capped pixel pool.
 func dust_puff(pos: Vector2, dir: float = 0.0) -> void:
+	burst(&"dust", pos, dir)
+
+
+## Weapon-hit flash: sprite sheet when present, otherwise pooled sparks.
+func hit_sparks(pos: Vector2) -> void:
 	if _headless:
 		return
-	var host := _effects_host()
-	for i in randi_range(4, 6):
-		var mote := DustMote.new()
-		mote.launch(pos, dir)
-		mote.z_index = FX_Z
-		host.add_child(mote)
-
-
-## Weapon-hit flash: first six frames of the CC0 Kenney/CodeManu sheet,
-## ~0.25 s end to end, then freed. Missing art degrades to nothing.
-func hit_sparks(pos: Vector2) -> void:
-	if _headless or _weaponhit_sheet == null:
+	if _weaponhit_sheet == null or not has_room(_live_sparks, SPARK_CAP):
+		burst(&"spark", pos)
 		return
 	var spark := HitSpark.new(_weaponhit_sheet)
 	spark.position = pos
 	spark.z_index = FX_Z
+	_live_sparks += 1
+	spark.tree_exited.connect(_on_spark_gone)
 	_effects_host().add_child(spark)
 
 
-## Rust debris bursting out of a destroyed enemy: gravity, a floor bounce,
-## then gone.
+## Rust debris bursting out of a destroyed enemy.
 func rust_debris(pos: Vector2) -> void:
+	burst(&"rust", pos)
+
+
+## 命中反馈矩阵的 Fx 出口：spark / debris 取自 CombatRules.HIT_FEEL 的种类名。
+## 全部走预算池（sheet 火花走 SPARK_CAP），headless 什么也不建。
+func hit_effect(spark: StringName, debris: StringName, ring: bool, pos: Vector2,
+		dir: float = 0.0) -> void:
+	if _headless:
+		return
+	match spark:
+		&"sheet":
+			hit_sparks(pos)
+		&"metal", &"bone", &"ghost":
+			burst(spark, pos, dir)
+	match debris:
+		&"rust":
+			rust_debris(pos)
+		&"bone", &"ghost":
+			burst(debris, pos, dir + PI * 0.5)
+	if ring:
+		burst(&"ring", pos)
+
+
+## Budgeted pixel burst. Headless creates nothing. Exhausted slots recycle.
+func burst(kind: StringName, pos: Vector2, dir: float = 0.0) -> void:
+	if _headless:
+		return
+	_ensure_pool()
+	if kind == &"ring":
+		_fire_ring(pos)
+		return
+	var count := 5
+	if kind == &"rust":
+		count = 6
+	elif kind == &"spark" or kind == &"ghost":
+		count = 4
+	elif kind == &"trail":
+		count = 4
+	for i in count:
+		var at := pos
+		var aim := dir
+		if kind == &"trail":
+			at = pos + Vector2(cos(dir), sin(dir)) * (5.0 * float(i))
+		else:
+			aim = dir + randf_range(-0.75, 0.75)
+		_fire_mote(kind, at, aim)
+
+
+func attach_heat_lick(target: Node2D) -> void:
+	if _headless or target == null or not is_instance_valid(target):
+		return
+	if target.get_node_or_null(HEAT_LICK_NAME) != null:
+		return
+	var lick := HeatLick.new()
+	lick.name = HEAT_LICK_NAME
+	lick.position = Vector2(18.0, -24.0)
+	target.add_child(lick)
+
+
+func detach_heat_lick(target: Node2D) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	var lick := target.get_node_or_null(HEAT_LICK_NAME)
+	if lick != null:
+		lick.queue_free()
+
+
+func _ensure_pool() -> void:
 	if _headless:
 		return
 	var host := _effects_host()
-	for i in randi_range(6, 8):
-		var bit := RustDebris.new()
-		bit.launch(pos)
-		bit.z_index = FX_Z
-		host.add_child(bit)
+	# 池必须挂在「当前世界」的特效节点下：标题界面 / 两个世界之间的空档里第一次
+	# burst 会把池挂到自动加载（根窗口坐标系），之后再用就画在错的视口里。
+	# 所以宿主变了（或旧池已离树）就整池重建。
+	var alive := is_instance_valid(_pool_root) and _pool_root.is_inside_tree()
+	var parent: Object = _pool_root.get_parent() if alive else null
+	if not pool_needs_rebuild(alive, not _motes.is_empty(), parent, host):
+		return
+	if is_instance_valid(_pool_root):
+		_pool_root.queue_free()
+	_motes.clear()
+	_rings.clear()
+	_mote_cursor = 0
+	_ring_cursor = 0
+	_pool_root = Node2D.new()
+	_pool_root.name = "FxPool"
+	_pool_root.z_index = FX_Z
+	host.add_child(_pool_root)
+	for i in MOTE_CAP:
+		var mote := PooledMote.new()
+		mote.name = "Mote%d" % i
+		_pool_root.add_child(mote)
+		_motes.append(mote)
+	for i in RING_CAP:
+		var ring := PooledRing.new()
+		ring.name = "Ring%d" % i
+		_pool_root.add_child(ring)
+		_rings.append(ring)
+
+
+func _fire_mote(kind: StringName, pos: Vector2, dir: float) -> void:
+	if _motes.is_empty():
+		return
+	var mote: PooledMote = _motes[_mote_cursor]
+	_mote_cursor = next_slot(_mote_cursor + 1, _motes.size())
+	if is_instance_valid(mote):
+		mote.launch(kind, pos, dir)
+
+
+func _fire_ring(pos: Vector2) -> void:
+	if _rings.is_empty():
+		return
+	var ring: PooledRing = _rings[_ring_cursor]
+	_ring_cursor = next_slot(_ring_cursor + 1, _rings.size())
+	if is_instance_valid(ring):
+		ring.launch(pos)
 
 
 ## 世界坐标一次性帧动画（敌人死亡尸体动画/烟雾等）。播完自毁；headless 或
@@ -117,12 +282,14 @@ func rust_debris(pos: Vector2) -> void:
 ## （centered Sprite：-(画布高/2 - 底部透明边距)）。
 func play_frames_once(frames: Array[Texture2D], pos: Vector2, fps: float,
 		flip: bool = false, baseline: float = 0.0) -> void:
-	if _headless or frames.is_empty():
+	if _headless or frames.is_empty() or not has_room(_live_oneshots, ONESHOT_CAP):
 		return
 	var player := OneShotFrames.new(frames, fps)
 	player.position = pos + Vector2(0.0, baseline)
 	player.flip_h = flip
 	player.z_index = FX_Z
+	_live_oneshots += 1
+	player.tree_exited.connect(_on_oneshot_gone)
 	_effects_host().add_child(player)
 
 
@@ -256,53 +423,114 @@ class EmberBit extends Node2D:
 		modulate.a = minf(k * 8.0, 1.0) * (1.0 - k)
 
 
-## A gray dust square scattering outward and upward, then settling and
-## dissolving.
-class DustMote extends Node2D:
-	var _velocity := Vector2.ZERO
-	## Sub-pixel position; `position` is snapped so NEAREST never smears.
+## Recycled pixel square. Hidden until launch; never queue_free.
+class PooledMote extends Node2D:
+	var alive := false
+	var _vel := Vector2.ZERO
 	var _drift := Vector2.ZERO
 	var _age := 0.0
-	var _lifetime := 0.5
-
-
-	func _init() -> void:
-		_lifetime = randf_range(0.35, 0.6)
-
-
-	func launch(pos: Vector2, dir: float) -> void:
-		_drift = pos
-		position = Vector2(roundf(pos.x), roundf(pos.y))
-		var angle := dir + randf_range(-0.85, 0.85)
-		var speed := randf_range(26.0, 62.0)
-		_velocity = Vector2(cos(angle), sin(angle)) * speed
-		_velocity.y -= randf_range(18.0, 42.0)
+	var _life := 0.45
+	var _grav := 90.0
+	var _poly: Polygon2D
 
 
 	func _ready() -> void:
-		var half := randf_range(1.2, 1.8)
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(-half, -half), Vector2(half, -half),
-			Vector2(half, half), Vector2(-half, half),
+		_poly = Polygon2D.new()
+		_poly.polygon = PackedVector2Array([
+			Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1),
 		])
-		# 夜廊的 CanvasModulate 会把中灰压成看不见；加法 + 提亮后落地尘在夜色里仍可读。
-		poly.color = Palette.IRON.lerp(Palette.CONCRETE, randf()) * 1.35
-		poly.material = Fx.additive_mat()
-		add_child(poly)
+		_poly.material = Fx.additive_mat()
+		add_child(_poly)
+		visible = false
+		set_process(false)
+
+
+	func launch(kind: StringName, pos: Vector2, dir: float) -> void:
+		alive = true
+		visible = true
+		set_process(true)
+		_age = 0.0
+		_drift = pos
+		position = Vector2(roundf(pos.x), roundf(pos.y))
+		modulate.a = 1.0
+		match kind:
+			&"rust":
+				_life = randf_range(0.45, 0.7)
+				_grav = 160.0
+				var ang := randf() * TAU
+				_vel = Vector2(cos(ang), sin(ang)) * randf_range(36.0, 88.0)
+				_vel.y -= 28.0
+				_poly.color = Palette.RUST_LIGHT
+			&"spark":
+				_life = randf_range(0.28, 0.48)
+				_grav = -16.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(8.0, 22.0)
+				_vel.y -= randf_range(14.0, 36.0)
+				_poly.color = Palette.EMBER
+			&"trail":
+				_life = randf_range(0.12, 0.22)
+				_grav = 0.0
+				_vel = Vector2(cos(dir), sin(dir)) * 8.0
+				_poly.color = Color(1.0, 0.92, 0.78)
+			&"metal":
+				# 金属火星：短、快、亮，沿出手方向喷。
+				_life = randf_range(0.16, 0.30)
+				_grav = 60.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(60.0, 130.0)
+				_vel.y -= randf_range(10.0, 40.0)
+				_poly.color = Color(1.0, 0.93, 0.62)
+			&"bone":
+				# 骨渣：淡骨色，重力大，落得快。
+				_life = randf_range(0.35, 0.6)
+				_grav = 180.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(30.0, 70.0)
+				_vel.y -= randf_range(24.0, 52.0)
+				_poly.color = Color(0.88, 0.84, 0.74)
+			&"ghost":
+				# 灵雾：青白，几乎不受重力，缓缓上浮。
+				_life = randf_range(0.4, 0.7)
+				_grav = -30.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(8.0, 24.0)
+				_vel.y -= randf_range(6.0, 20.0)
+				_poly.color = Color(0.55, 0.95, 1.0)
+			_:
+				_life = randf_range(0.32, 0.55)
+				_grav = 90.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(24.0, 58.0)
+				_vel.y -= randf_range(16.0, 38.0)
+				_poly.color = Palette.IRON.lerp(Palette.CONCRETE, randf()) * 1.35
 
 
 	func _process(delta: float) -> void:
-		_age += delta
-		if _age >= _lifetime:
-			queue_free()
+		if not alive:
 			return
-		_velocity.x *= maxf(0.0, 1.0 - 3.2 * delta)
-		_velocity.y += 90.0 * delta
-		_drift += _velocity * delta
+		_age += delta
+		if _age >= _life:
+			alive = false
+			visible = false
+			set_process(false)
+			return
+		_vel.y += _grav * delta
+		_drift += _vel * delta
 		position = Vector2(roundf(_drift.x), roundf(_drift.y))
-		var k := _age / _lifetime
-		modulate.a = minf(k * 10.0, 1.0) * (1.0 - k)
+		var k := _age / _life
+		modulate.a = minf(k * 8.0, 1.0) * (1.0 - k)
+
+
+## A few ember licks parented to the sword visual while heat forge is socketed.
+class HeatLick extends Node2D:
+	const MAX_BITS := 3
+	var _accum := 0.0
+
+
+	func _process(delta: float) -> void:
+		_accum += delta
+		if _accum < 0.22 or get_child_count() >= MAX_BITS:
+			return
+		_accum = 0.0
+		var bit := EmberBit.new(null)
+		bit.position = Vector2(randf_range(6.0, 26.0), randf_range(-4.0, 6.0))
+		add_child(bit)
 
 
 ## Sprite-sheet hit flash: 6 frames across, ~0.25 s, scale ~0.5.
@@ -328,53 +556,54 @@ class HitSpark extends Sprite2D:
 		frame = mini(int(_age / DURATION * FRAME_COUNT), FRAME_COUNT - 1)
 
 
-## A rust-colored square arcing out, bouncing once on a virtual floor, then
-## fading away.
-class RustDebris extends Node2D:
-	var _velocity := Vector2.ZERO
+## One-pixel ring of dots. Recycled; expands and fades in about 0.35s.
+class PooledRing extends Node2D:
+	const DOTS := 10
+	const LIFE := 0.35
+
+	var alive := false
 	var _age := 0.0
-	var _lifetime := 1.0
-	var _gravity := 240.0
-	var _floor_y := 0.0
-
-
-	func _init() -> void:
-		_lifetime = randf_range(0.7, 1.2)
-		_gravity = randf_range(220.0, 300.0)
-
-
-	func launch(pos: Vector2) -> void:
-		position = pos
-		_floor_y = pos.y + randf_range(6.0, 24.0)
-		var angle := -randf_range(PI * 0.2, PI * 0.8)
-		var speed := randf_range(40.0, 115.0)
-		_velocity = Vector2(cos(angle), sin(angle)) * speed
+	var _dots: Array[Polygon2D] = []
 
 
 	func _ready() -> void:
-		var half := randf_range(1.0, 1.5)
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(-half, -half), Vector2(half, -half),
-			Vector2(half, half), Vector2(-half, half),
-		])
-		poly.color = Palette.RUST_SHADOW.lerp(Palette.RUST_MID, randf())
-		add_child(poly)
+		for _i in DOTS:
+			var dot := Polygon2D.new()
+			dot.polygon = PackedVector2Array([
+				Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1),
+			])
+			dot.color = Color(1.0, 0.95, 0.88)
+			dot.material = Fx.additive_mat()
+			add_child(dot)
+			_dots.append(dot)
+		visible = false
+		set_process(false)
+
+
+	func launch(pos: Vector2) -> void:
+		alive = true
+		visible = true
+		set_process(true)
+		_age = 0.0
+		position = Vector2(roundf(pos.x), roundf(pos.y))
+		modulate.a = 1.0
 
 
 	func _process(delta: float) -> void:
-		_age += delta
-		if _age >= _lifetime:
-			queue_free()
+		if not alive:
 			return
-		_velocity.y += _gravity * delta
-		position += _velocity * delta
-		if _velocity.y > 0.0 and position.y >= _floor_y:
-			position.y = _floor_y
-			_velocity.y *= -randf_range(0.3, 0.5)
-			_velocity.x *= 0.6
-		var k := _age / _lifetime
-		modulate.a = clampf((1.0 - k) * 2.0, 0.0, 1.0)
+		_age += delta
+		if _age >= LIFE:
+			alive = false
+			visible = false
+			set_process(false)
+			return
+		var k := _age / LIFE
+		var radius := lerpf(4.0, 28.0, k)
+		for i in _dots.size():
+			var ang := TAU * float(i) / float(_dots.size())
+			_dots[i].position = Vector2(roundf(cos(ang) * radius), roundf(sin(ang) * radius))
+		modulate.a = 1.0 - k
 
 
 ## One small sludge bubble: three-frame wiggle, upward drift, fade-out pop.

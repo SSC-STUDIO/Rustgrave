@@ -39,7 +39,8 @@ var lit_nests: PackedStringArray = []
 
 ## One-shot story beats already shown (wake, first toxin, first parry…).
 var flags: PackedStringArray = []
-## "rekindle" / "snuff" once the forge heart is chosen.
+## Empty until a finished ending: "snuff" at the remnant, "give" / "keep" at the forge door.
+## Chapter-1 rekindle is a promise to continue, not an ending.
 var ending: String = ""
 
 

@@ -5,7 +5,7 @@ extends Node2D
 ## 地下本来就没有白天。
 
 const WALL_PATH := "res://assets/external/gothicvania_patreon/Old-dark-Castle-tileset-Files/PNG/old-dark-castle-interior-background.png"
-const COLUMN_PATH := "res://assets/env/column_big.png"
+const COLUMN_PATH := "res://assets/env/column_big_cut.png"
 const VOID_COLOR := Color(0.035, 0.07, 0.085)
 const WALL_SCROLL := Vector2(0.42, 0.18)
 ## 墙板 960×304；铺到 y=48 让画中的石地板压在关卡地面（320）附近。

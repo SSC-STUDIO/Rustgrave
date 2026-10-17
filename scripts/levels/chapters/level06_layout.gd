@@ -82,8 +82,8 @@ const ENEMIES: Array = [
 	["Skeleton3", "skeleton", Vector2(2020, 320)],
 	["Skeleton4", "skeleton", Vector2(2236, 320)],
 ]
-## 壁炬石墩（64×192 墙板，板底贴地）：陵门两侧、钟楼门两侧。
-const TORCHES: Array = [1360.0, 1456.0, 2708.0, 2812.0]
+## 陵门 / 钟楼门两侧：低石栏，不用 bg_wall_torch（室外墓园天空上的室内墙板）。
+const GATE_RAILS: Array = [1360.0, 1456.0, 2708.0, 2812.0]
 const WAYMARKS: Array = [[Vector2(416, 320), "墓园"], [Vector2(2648, 320), "钟楼"]]
 
 
@@ -96,7 +96,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "锈雨在下。土里的骸骨还记得剑的形状。"
+	return "哈伦的剑做了门闩。薇尔的三把剑，自己走了。"
 
 
 func entry_spawn() -> Vector2:
@@ -119,14 +119,19 @@ func theme() -> String:
 	return "graveyard"
 
 
+## 墓园夜雨：名字是什么，天就是什么。
+func ambient() -> Dictionary:
+	return {"time": 0.82, "weather": "rain", "hold": 420.0}
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_X, "钟楼门", PackedStringArray([
-		"钟声很近了。雨把土里的骸骨又埋回去。",
-		"门后是向上的楼梯。每一级都在响。",
+		"钟楼在雨上面。",
+		"他们把钟舌熔了，去铸最后一枚核。",
 	]), "level06_done", GameContext.next_level_id(level_id()))
 	finish(host)
 
@@ -150,7 +155,7 @@ func _build_props(host: Node2D) -> void:
 	stele(host, "SteleHallen", STELE_A_POS, "墓志 · 哈伦",
 			"锻工哈伦，葬于此土，无剑。剑被拆去做了钟楼的门闩。")
 	stele(host, "SteleVeil", STELE_B_POS, "墓志 · 薇尔",
-			"锻工薇尔，与三把剑同葬。土里只剩下她；剑自己走了。")
+			"锻工薇尔，与三把剑同葬。土里只剩下她；三把剑自己走了。")
 	plate_door(host, "Mausoleum", PLATE_FEET, DOOR_POS)
 	hook(host, "HookTreeTop", HOOK_POS)
 	pickup(host, "EmberCoreTreeTop", PICKUP_POS, &"ember_core")
@@ -175,7 +180,8 @@ func _build_decor(host: Node2D) -> void:
 	foliage(host, "bush_l", Vector2(508, 320), 0.62)
 	prop(host, "grave_cross", Vector2(608, 288))
 	prop(host, "stone_4", Vector2(688, 320))
-	foliage(host, "tree_1", Vector2(776, 320), 0.5, true)
+	# 0.5 倍的树冠铺到 x≈859，会盖住 888 的十字墓。左脚收到石块东侧。
+	foliage(host, "tree_1", Vector2(712, 320), 0.5, true)
 	prop(host, "grave_cross", Vector2(888, 320))
 	# ④ 陵门：石墩 + 闸门 + 守墓者
 	prop(host, "stone_1", Vector2(1216, 320))
@@ -191,5 +197,5 @@ func _build_decor(host: Node2D) -> void:
 	foliage(host, "bush_s", Vector2(2270, 320), 1.0)
 	# ⑧ 钟楼门
 	prop(host, "stone_2", Vector2(2632, 320))
-	for x in TORCHES:
-		torch(host, float(x))
+	for x in GATE_RAILS:
+		prop(host, "balustrade", Vector2(float(x), FLOOR_Y))

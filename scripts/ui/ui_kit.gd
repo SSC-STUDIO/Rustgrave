@@ -15,6 +15,19 @@ const TEX_CURSOR := "res://assets/ui/cursor_spike.png"
 const TEX_HEART_SLOT := "res://assets/ui/heart_slot.png"
 const TEX_VIGNETTE := "res://assets/ui/vignette_blood.png"
 const TEX_BAND := "res://assets/ui/band_edge.png"
+const TEX_HUD_BACKING := "res://assets/ui/hud_backing.png"
+const TEX_SOCKET_RING := "res://assets/ui/socket_ring.png"
+const TEX_SOCKET_GEM := "res://assets/ui/socket_gem.png"
+const TEX_BAR_TRACK := "res://assets/ui/bar_track.png"
+const TEX_BAR_EMBER := "res://assets/ui/bar_fill_ember.png"
+const TEX_PANEL_HUD := "res://assets/ui/panel_hud.png"
+const TEX_BTN_NORMAL := "res://assets/ui/btn_normal.png"
+const TEX_BTN_HOVER := "res://assets/ui/btn_hover.png"
+const TEX_BTN_PRESSED := "res://assets/ui/btn_pressed.png"
+const TEX_BTN_DISABLED := "res://assets/ui/btn_disabled.png"
+
+## 触控最小命中尺寸（设计单位）。所有可点的行、按钮不得低于它。
+const TOUCH_MIN := 52.0
 
 ## 余烬帧表：由 CC0 的 CodeManu 火焰帧在 tools/gen_ui_kit.py 里蒸馏成 6x6 像素，
 ## 因此只能以整数倍缩放绘制 —— 非整数倍会让 6px 的粒子直接糊成一团。
@@ -128,6 +141,161 @@ static func scrim(top: float, mid: float, bottom: float) -> TextureRect:
 	r.set_anchors_preset(Control.PRESET_FULL_RECT)
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return r
+
+
+## 界面音效。音频包的 UI 音（ui_tick / ui_pause / hint_show）是可选的：
+## 库里有就放它，没有就放 fallback（可为空 = 静音）。不直接引用 Sfx 的常量，
+## 免得音频包改结构时这里编译不过。
+static func sfx(key: StringName, fallback: StringName = &"") -> void:
+	if has_sfx(key):
+		Sfx.play(key)
+	elif fallback != &"":
+		Sfx.play(fallback)
+
+
+static func has_sfx(key: StringName) -> bool:
+	var script := Sfx.get_script() as Script
+	if script == null:
+		return false
+	var library: Variant = script.get_script_constant_map().get("LIBRARY", null)
+	return library is Dictionary and (library as Dictionary).has(key)
+
+
+# --- 补充主题 ---------------------------------------------------------------
+# theme_rust.tres 由 tools/gen_theme.gd 生成且不含滑条 / 紧凑面板 / 设置按钮。这些
+# 只服务 HUD 与设置界面，放在一个运行时主题里，挂在各自的根节点上（Control.theme
+# 向下继承，缺的类型回落到项目主题），免得动生成器和生成物。
+
+static var _extras: Theme
+
+
+static func extras_theme() -> Theme:
+	if _extras != null:
+		return _extras
+	var t := Theme.new()
+	_extras_panels(t)
+	_extras_labels(t)
+	_extras_buttons(t)
+	_extras_slider(t)
+	_extras = t
+	return t
+
+
+## 9-slice 贴图样式盒（与 gen_theme.gd 的 _sb 同义）。
+static func _sb(path: String, margin: int, content: Vector4) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex(path)
+	sb.texture_margin_left = margin
+	sb.texture_margin_top = margin
+	sb.texture_margin_right = margin
+	sb.texture_margin_bottom = margin
+	sb.content_margin_left = content.x
+	sb.content_margin_top = content.y
+	sb.content_margin_right = content.z
+	sb.content_margin_bottom = content.w
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	return sb
+
+
+static func _extras_panels(t: Theme) -> void:
+	# 墨带：左侧锈脊 + 铆钉，右侧抖动渐隐（见 gen_ui_kit.py 的 hud_backing）。
+	# 贴图 40x32：左切 12、右切 16，上下无边，所以高度随内容走。
+	var plate := StyleBoxTexture.new()
+	plate.texture = tex(TEX_HUD_BACKING)
+	plate.texture_margin_left = 12
+	plate.texture_margin_right = 16
+	plate.content_margin_left = 20
+	plate.content_margin_right = 22
+	plate.content_margin_top = 4
+	plate.content_margin_bottom = 4
+	plate.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	t.set_type_variation(&"HudPlate", &"PanelContainer")
+	t.set_stylebox("panel", &"HudPlate", plate)
+	# 一行提示条：比 HudPanel 更薄，24px 字配上下 8px。
+	t.set_type_variation(&"HintPanel", &"PanelContainer")
+	t.set_stylebox("panel", &"HintPanel", _sb(TEX_PANEL_HUD, 8, Vector4(18, 8, 18, 8)))
+	# 设置页的行底（无光标留白）。
+	t.set_type_variation(&"SettingsRowNormal", &"Panel")
+	t.set_stylebox("panel", &"SettingsRowNormal", _sb(TEX_BTN_NORMAL, 8, Vector4.ZERO))
+	t.set_type_variation(&"SettingsRowFocused", &"Panel")
+	t.set_stylebox("panel", &"SettingsRowFocused", _sb(TEX_BTN_HOVER, 8, Vector4.ZERO))
+
+
+static func _extras_labels(t: Theme) -> void:
+	t.set_type_variation(&"HintLabel", &"Label")
+	t.set_font_size("font_size", &"HintLabel", 24)
+	t.set_color("font_color", &"HintLabel", Color("#E4DCCC"))
+	t.set_color("font_shadow_color", &"HintLabel", Color(0.04, 0.03, 0.06, 0.85))
+	t.set_constant("shadow_offset_x", &"HintLabel", 2)
+	t.set_constant("shadow_offset_y", &"HintLabel", 2)
+	t.set_type_variation(&"HintMarkLabel", &"Label")
+	t.set_font_size("font_size", &"HintMarkLabel", 24)
+	t.set_color("font_color", &"HintMarkLabel", EMBER)
+	# HUD 里的次要小字：12px（像素字体的设计字号），描 1px 暗边保证压在任何背景上都读得出。
+	# 项目主题里的 Hud*Label 是 24px，一行就占 32 设计单位，状态带收不进 44。
+	for spec in [[&"TinyLabel", Color("#A39A8E")], [&"TinyStrongLabel", Color("#E8B090")],
+			[&"TinyToxinLabel", Color("#9ED092")]]:
+		var name: StringName = spec[0]
+		t.set_type_variation(name, &"Label")
+		t.set_font_size("font_size", name, 12)
+		t.set_color("font_color", name, spec[1])
+		t.set_color("font_outline_color", name, Color(0.04, 0.03, 0.06, 0.92))
+		t.set_constant("outline_size", name, 1)
+		t.set_constant("line_spacing", name, 0)
+		t.set_constant("shadow_offset_x", name, 0)
+		t.set_constant("shadow_offset_y", name, 0)
+
+
+static func _extras_buttons(t: Theme) -> void:
+	for variation in [&"SettingsButton", &"KeyCapButton", &"TabButton"]:
+		t.set_type_variation(variation, &"Button")
+		t.set_stylebox("normal", variation, _sb(TEX_BTN_NORMAL, 8, Vector4(14, 6, 14, 6)))
+		t.set_stylebox("hover", variation, _sb(TEX_BTN_HOVER, 8, Vector4(14, 6, 14, 6)))
+		t.set_stylebox("pressed", variation, _sb(TEX_BTN_PRESSED, 8, Vector4(14, 6, 14, 6)))
+		t.set_stylebox("hover_pressed", variation, _sb(TEX_BTN_HOVER, 8, Vector4(14, 6, 14, 6)))
+		t.set_stylebox("disabled", variation, _sb(TEX_BTN_DISABLED, 8, Vector4(14, 6, 14, 6)))
+		# 键盘焦点画在 normal 之上：用 hover 贴图，和菜单的"选中"同一个样子。
+		t.set_stylebox("focus", variation, _sb(TEX_BTN_HOVER, 8, Vector4(14, 6, 14, 6)))
+		t.set_color("font_color", variation, Color("#E4DCCC"))
+		t.set_color("font_hover_color", variation, EMBER)
+		t.set_color("font_focus_color", variation, EMBER)
+		t.set_color("font_pressed_color", variation, EMBER)
+		t.set_color("font_hover_pressed_color", variation, EMBER)
+		t.set_color("font_disabled_color", variation, Color("#5E574F"))
+		t.set_font_size("font_size", variation, 24)
+	t.set_color("font_color", &"KeyCapButton", EMBER)
+	t.set_color("font_hover_color", &"KeyCapButton", Color("#FFE0A0"))
+	t.set_color("font_focus_color", &"KeyCapButton", Color("#FFE0A0"))
+
+
+static func _extras_slider(t: Theme) -> void:
+	var track := StyleBoxTexture.new()
+	track.texture = tex(TEX_BAR_TRACK)
+	_margins(track, 4)
+	track.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	var fill := StyleBoxTexture.new()
+	fill.texture = tex(TEX_BAR_EMBER)
+	_margins(fill, 4)
+	var fill_hot := fill.duplicate() as StyleBoxTexture
+	fill_hot.modulate_color = Color(1.25, 1.1, 0.9)
+	t.set_stylebox("slider", &"HSlider", track)
+	t.set_stylebox("grabber_area", &"HSlider", fill)
+	t.set_stylebox("grabber_area_highlight", &"HSlider", fill_hot)
+	t.set_stylebox("focus", &"HSlider", StyleBoxEmpty.new())
+	var gem := tex(TEX_SOCKET_GEM)
+	if gem != null:
+		t.set_icon("grabber", &"HSlider", gem)
+		t.set_icon("grabber_highlight", &"HSlider", gem)
+		t.set_icon("grabber_disabled", &"HSlider", gem)
+	t.set_constant("center_grabber", &"HSlider", 0)
+
+
+static func _margins(sb: StyleBoxTexture, px: int) -> void:
+	sb.texture_margin_left = px
+	sb.texture_margin_top = px
+	sb.texture_margin_right = px
+	sb.texture_margin_bottom = px
 
 
 ## 一片余烬：6x6 的蒸馏帧，随机上升或飘落。UI 层用，不参与玩法。

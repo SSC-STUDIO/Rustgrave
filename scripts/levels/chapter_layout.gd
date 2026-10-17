@@ -39,42 +39,12 @@ const ENEMY_SCENES := {
 	"nightmare_boss": "res://scenes/enemies/NightmareBoss.tscn",
 }
 
-## 可用的装饰贴图（都已导入）。键 → 路径。
-const DECOR := {
-	"vine": "res://assets/env/moss_vine.png",           # 16×64，从顶板垂下（不接地）
-	"arch": "res://assets/env/moss_arch.png",           # 96×48 排水拱，接地
-	"rubble": "res://assets/env/moss_rubble.png",       # 32×30 苔石堆，接地
-	"stair": "res://assets/env/moss_stair.png",         # 32×41 苔阶（装饰，接地）
-	"wall_block": "res://assets/env/moss_wall_block.png", # 160×83 苔墙块，接地
-	"door": "res://assets/env/moss_door.png",           # 48×64 木门（装饰用，接地）
-	"balustrade": "res://assets/env/balustrade.png",    # 80×52 石栏，接地
-	"column": "res://assets/env/column_big.png",        # 114×190 大柱，接地（背景）
-	"gargoyle": "res://assets/env/bg_gargoyle.png",     # 石像鬼墙板（背景，接地）
-	"altar": "res://assets/env/bg_altar.png",           # 祭坛墙板（背景，接地）
-	"window": "res://assets/env/bg_wall_window.png",    # 尖窗墙板（背景，接地）
-	"skull_column": "res://assets/env/bg_column_skulls.png", # 骷髅柱（背景，接地）
-	# 工业/熔炉：Kenney Request pack + 干石渣（避免苔拱/教堂柱串味）
-	"beam": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beam.png",
-	"beam_bolts": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamBolts.png",
-	"beam_narrow": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamNarrow.png",
-	"metal_panel": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/metal.png",
-	"rubble_dry": "res://assets/env/rubble_a.png",
-	"rubble_dry_b": "res://assets/env/rubble_b.png",
-	"rubble_dry_c": "res://assets/env/rubble_c.png",
-	"slab": "res://assets/env/slab_a.png",
-	"plate": "res://assets/env/plate_stone.png",
-	"statue": "res://assets/env/statue_keeper.png",     # 守墓者石像，接地
-	"grave_cross": "res://assets/env/grave_cross.png",  # 十字墓碑，接地
-	"door_arch": "res://assets/env/door_arch.png",      # 32×64 石门洞（装饰），接地
-	"stone_1": Level01Env.DECOR_STONE_1,
-	"stone_2": Level01Env.DECOR_STONE_2,
-	"stone_3": Level01Env.DECOR_STONE_3,
-	"stone_4": Level01Env.DECOR_STONE_4,
-	"tree_1": Level01Env.DECOR_TREE_1,
-	"tree_2": Level01Env.DECOR_TREE_2,
-	"bush_l": Level01Env.DECOR_BUSH_L,
-	"bush_s": Level01Env.DECOR_BUSH_S,
-}
+## Prop sprites and the per-theme allowlist live in PropCatalog (prop_catalog.gd).
+const DECOR := PropCatalog.DECOR
+const THEME_PROPS := PropCatalog.THEME_PROPS
+## torch() plants a brick hearth instead of a church wall plate here. The core hall
+## (forge_core) keeps the gothic sconce: it is a castle hall, not a workshop.
+const FURNACE_THEMES: Array[String] = ["industrial", "forge"]
 
 const SIGN_TEX := "res://assets/env/normalized/props/waymark_sign.png"
 const SIGN_PLANK := Rect2(0, 3, 35, 20)
@@ -119,13 +89,26 @@ func camera_top() -> int:
 	return -48
 
 
-## ThemeBackdrop 主题：undercroft / forge / cathedral / town / industrial / graveyard。
+## ThemeBackdrop 主题：undercroft / forge / forge_core / cathedral / belltower / town /
+## ramparts / industrial / graveyard。
 func theme() -> String:
 	return "undercroft"
 
 
 func indoors() -> bool:
 	return ThemeBackdrop.is_indoor_theme(theme())
+
+
+## 这一关的飘浮微粒风味（ThemeMotes.FLAVORS 的 id；"" = 不加）。
+func motes() -> String:
+	return ""
+
+
+## 第一次进关时设定的天时与天气（只对室外关生效，见 ChapterLevel）。{} = 沿用全局时钟。
+## time：0..1（0.62 起是夜，见 WorldClock.phase_at）；weather：WorldClock.weather_id 的 id；
+## hold：天气保持的秒数，免得进关十秒就换天。
+func ambient() -> Dictionary:
+	return {}
 
 
 ## 子类在这里铺关卡。
@@ -225,6 +208,7 @@ func gear(host: Node2D, gear_name: String, pos: Vector2, radius: float = 16.0) -
 	g.name = gear_name
 	g.position = pos
 	g.set("radius", radius)
+	g.set("family", skin_family())
 	group(host, "Platforms").add_child(g)
 	return g
 
@@ -372,18 +356,38 @@ func enemy(host: Node2D, enemy_name: String, kind: String, pos: Vector2, overrid
 ## ---------------------------------------------------------------- decor --
 
 ## 壁炬（墙板 64×192 居中于 pos；y = 台面 - 96 时板底贴台面）。
+## Outdoor themes refuse these plates — bg_wall_torch is a flat indoor slab.
 func torch(host: Node2D, x: float, feet_y: float = FLOOR_Y, tint: Color = Color.WHITE) -> Node2D:
+	if not indoors():
+		push_warning("ChapterLayout: torch wall plate blocked outdoors (theme=%s)" % theme())
+		return null
 	var t := TORCH.instantiate() as Node2D
+	# Church wall plates belong to chapels. Workshops and forges get a brick hearth.
+	if theme() in FURNACE_THEMES:
+		t.set("style", "furnace")
 	t.position = Vector2(x, feet_y - 96.0)
 	t.modulate = tint
 	decor_layer(host).add_child(t)
 	return t
 
 
+## True when key is allowed for this layout's theme() (unknown themes: allow all).
+func prop_allowed(key: String) -> bool:
+	return PropCatalog.allowed(theme(), key)
+
+
+## Material family of this chapter's theme: "iron", "basalt", "rampart", ... (SolidPlatform skin).
+func skin_family() -> String:
+	return PropCatalog.family_for(theme())
+
+
 ## 接地装饰：feet = 脚点（底边中点）。用 DECOR 键或直接给路径。
 func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0, tint: Color = Color.WHITE,
 		z: int = 0) -> Sprite2D:
-	var path: String = DECOR.get(key_or_path, key_or_path)
+	if DECOR.has(key_or_path) and not prop_allowed(key_or_path):
+		push_warning("ChapterLayout: prop '%s' not in theme '%s' allowlist" % [key_or_path, theme()])
+		return null
+	var path := PropCatalog.path_for(key_or_path, theme())
 	if not ResourceLoader.exists(path):
 		return null
 	var tex := load(path) as Texture2D
@@ -396,6 +400,11 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 	var h := float(tex.get_height()) * scale_k
 	spr.position = Vector2(feet.x - w * 0.5, feet.y - h)
 	spr.modulate = tint
+	# 尖窗、石像鬼、祭坛、立柱是墙，不是路上的道具。画在角色后面，才不会
+	# 变成一块竖在街心或台面上的板子。
+	if z == 0 and key_or_path in ["window", "gargoyle", "altar", "skull_column", "column",
+			"brick_house", "ruin_tower"]:
+		z = -3
 	spr.z_index = z
 	spr.set_meta("feet", feet)
 	spr.add_to_group("grounded")
@@ -405,13 +414,19 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 
 ## 会随风摆的树/灌木（用 Level01Env.plant，自动接地检查）。
 func foliage(host: Node2D, key: String, feet: Vector2, scale_k: float, shed_leaves: bool = false) -> Sprite2D:
-	var path: String = DECOR.get(key, key)
+	if DECOR.has(key) and not prop_allowed(key):
+		push_warning("ChapterLayout: foliage '%s' not in theme '%s' allowlist" % [key, theme()])
+		return null
+	var path := PropCatalog.path_for(key, theme())
 	return Level01Env.plant(decor_layer(host), path, feet, scale_k, Color.WHITE, shed_leaves)
 
 
 ## 悬挂装饰（藤蔓等）：top = 顶部中点，不做接地检查。
 func hanging(host: Node2D, key_or_path: String, top: Vector2, tint: Color = Color(0.9, 1.0, 0.9, 0.95)) -> Sprite2D:
-	var path: String = DECOR.get(key_or_path, key_or_path)
+	if DECOR.has(key_or_path) and not prop_allowed(key_or_path):
+		push_warning("ChapterLayout: hanging '%s' not in theme '%s' allowlist" % [key_or_path, theme()])
+		return null
+	var path := PropCatalog.path_for(key_or_path, theme())
 	if not ResourceLoader.exists(path):
 		return null
 	var tex := load(path) as Texture2D
@@ -468,6 +483,12 @@ func finish(host: Node2D) -> void:
 	backdrop.name = "Backdrop"
 	host.add_child(backdrop)
 	backdrop.build(host, theme(), camera_top())
+	var flavor := motes()
+	if flavor != "" and ThemeMotes.has_flavor(flavor) and host.get_node_or_null("ThemeMotes") == null:
+		var specks := ThemeMotes.new()
+		specks.name = "ThemeMotes"
+		specks.flavor = flavor
+		host.add_child(specks)
 	if indoors():
 		var zone := AtmosphereZone.new()
 		zone.name = "IndoorZone"

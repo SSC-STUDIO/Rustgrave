@@ -29,14 +29,14 @@ const FLOORS: Array = [
 ]
 ## 悬空石台 [name, pos(左上), width, skin]
 const STEPS: Array = [
-	["BridgeA1", Vector2(592, 288), 48.0, "floating"],
-	["BridgeA2", Vector2(672, 256), 48.0, "floating"],
-	["RoofA", Vector2(760, 224), 128.0, "stone"],
-	["RoofB", Vector2(952, 224), 96.0, "stone"],
-	["RoofC", Vector2(1104, 224), 96.0, "stone"],
-	["TowerRoof", Vector2(1784, 160), 144.0, "stone"],
-	["EaveD", Vector2(1952, 256), 96.0, "stone"],
-	["EaveE", Vector2(2112, 256), 96.0, "stone"],
+	["BridgeA1", Vector2(592, 288), 48.0, "brick_float"],
+	["BridgeA2", Vector2(672, 256), 48.0, "brick_float"],
+	["RoofA", Vector2(760, 224), 128.0, "brick"],
+	["RoofB", Vector2(952, 224), 96.0, "brick"],
+	["RoofC", Vector2(1104, 224), 96.0, "brick"],
+	["TowerRoof", Vector2(1784, 160), 144.0, "brick"],
+	["EaveD", Vector2(1952, 256), 96.0, "brick"],
+	["EaveE", Vector2(2112, 256), 96.0, "brick"],
 ]
 ## 实心石阶 [name, pos(左上), size]：屋顶 C 东侧下到街面的两级。
 const BLOCKS: Array = [
@@ -75,22 +75,10 @@ const ENEMIES: Array = [
 	["GearShield1", "gear_shield", Vector2(2656, 256)],
 ]
 
-## 壁炬 [x, feet_y]：夜街的路灯。
-const TORCHES: Array = [
-	[112.0, 320.0], [1328.0, 320.0], [1488.0, 320.0],
-	[2384.0, 288.0], [2688.0, 256.0], [2832.0, 256.0],
-]
-## 门脸：尖窗墙板缩小后当房子正面，屋顶石台压在上沿。[feet, scale]
-const FACADES: Array = [
-	[Vector2(824, 320), 0.5],
-	[Vector2(1000, 320), 0.5],
-	[Vector2(1152, 320), 0.5],
-	[Vector2(1856, 320), 0.8333333],
-	[Vector2(2000, 352), 0.4166667],
-	[Vector2(2160, 352), 0.4166667],
-]
+## 街屋已经在夜城视差里。不再把圣殿尖窗板竖在街心当第二排房子。
+## 也不竖 bg_wall_torch：那是室内墙板，会挡掉夜城远山。
 ## 装饰门洞（地窟出口 / 店门）：压暗以免读成机关闸门。
-const ARCH_TINT := Color(0.62, 0.6, 0.72)
+const ARCH_TINT := Color(0.82, 0.8, 0.84)
 
 
 func level_id() -> String:
@@ -102,7 +90,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "街上没有人。窗里亮着的，不是灯。"
+	return "灭火那夜，人自己关了门，往下走。窗里是锈苔。"
 
 
 func entry_spawn() -> Vector2:
@@ -117,37 +105,42 @@ func theme() -> String:
 	return "town"
 
 
+## 灭火那夜：黄昏转夜，起浓雾。
+func ambient() -> Dictionary:
+	return {"time": 0.6, "weather": "fog", "hold": 300.0}
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_POS.x, "圣殿门", PackedStringArray([
-		"圣殿门推开时没有声音。吊灯还亮着。",
-		"梁上有什么东西动了一下，数了一个。",
+		"圣殿的灯还在烧。",
+		"签过炉约的手，已经不在了。",
 	]), "level03_done", GameContext.next_level_id(level_id()), EXIT_POS.y)
 	finish(host)
 
 
 func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
-		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "stone",
+		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "brick",
 				float(f[1]) > 0.0, float(f[2]) < float(EAST_LIMIT), float(f[3]))
-	toxin_pit(host, "Canal", CANAL_X0, CANAL_X1, 32.0, "stone", TOXIN_TINT)
+	toxin_pit(host, "Canal", CANAL_X0, CANAL_X1, 32.0, "brick", TOXIN_TINT)
 	for s in STEPS:
 		step(host, String(s[0]), s[1], float(s[2]), String(s[3]))
 	for b in BLOCKS:
-		platform(host, String(b[0]), b[1], b[2], "stone")
-	walls(host, "stone")
+		platform(host, String(b[0]), b[1], b[2], "brick")
+	walls(host, "brick")
 
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStreet", NEST_START_X)
 	nest(host, "EmberNestPlaza", NEST_PLAZA_X)
 	stele(host, "SteleWindow", STELE_WINDOW_POS, "锈城纪事 · 窗",
-			"炉火熄的那一夜，人们把门带上，往下走了。窗里现在亮着的不是灯，是锈苔。")
+			"炉火熄的那一夜，人们把门带上，自己往下走。窗里现在亮着的，是锈苔。")
 	stele(host, "SteleStair", STELE_STAIR_POS, "锈城纪事 · 阶",
-			"圣殿的吊灯一直亮着。门里没有人祈祷，只有石像在数人。")
+			"没有人来赶他们。阶梯是朝下的。尽头那盏灯，还在圣殿里烧。")
 	waymark(host, SIGN_TOWN_POS, "锈城")
 	waymark(host, SIGN_TEMPLE_POS, "圣殿")
 	plate_door(host, "Gate", PLATE_FEET, GATE_POS)
@@ -161,31 +154,28 @@ func _build_enemies(host: Node2D) -> void:
 
 
 func _build_decor(host: Node2D) -> void:
-	for t in TORCHES:
-		torch(host, float(t[0]), float(t[1]))
-	for f in FACADES:
-		prop(host, "window", f[0], float(f[1]))
-	# ① 街道：骑士走出来的地窟门洞、灌木、碎石、水沟两岸的石栏
-	prop(host, "door_arch", Vector2(40, 320), 1.0, ARCH_TINT)
+	# ① 街道：地窟门洞、一丛杂草、干石渣、水沟两岸的石栏。不用墓园树和苔石。
+	prop(host, "door_arch_town", Vector2(40, 320), 1.0, ARCH_TINT)
 	foliage(host, "bush_s", Vector2(368, 320), 1.0)
-	prop(host, "rubble", Vector2(464, 320))
-	prop(host, "balustrade", Vector2(520, 320))
-	prop(host, "balustrade", Vector2(760, 320))
-	# ② 屋顶下的街面：屋 A/B 之间的碎石、屋 B/C 之间的店门洞、屋 C 门前的灌木
-	prop(host, "rubble", Vector2(920, 320))
-	prop(host, "door_arch", Vector2(1072, 320), 1.0, ARCH_TINT)
+	prop(host, "rubble_dry", Vector2(464, 320))
+	prop(host, "balustrade_town", Vector2(520, 320))
+	prop(host, "balustrade_town", Vector2(760, 320))
+	# ② 屋顶下的街面：干石、店门洞、门前杂草
+	prop(host, "rubble_dry", Vector2(920, 320))
+	prop(host, "door_arch_town", Vector2(1072, 320), 1.0, ARCH_TINT)
 	foliage(host, "bush_s", Vector2(1108, 320), 1.0)
-	# ④ 广场：枯树、碎石、守墓者石像、灌木、塔楼脚下的灌木
-	foliage(host, "tree_2", Vector2(1528, 320), 0.46)
-	prop(host, "rubble", Vector2(1656, 320))
-	prop(host, "statue", Vector2(1712, 320))
-	foliage(host, "bush_l", Vector2(1752, 320), 0.6)
+	# ④ 广场：一栋还立着的砖屋当地标（压暗压冷，退到夜城后面），石栏和干石。
+	# 枯树、守墓者石像是墓园的，不搬到街上。
+	prop(host, "brick_house", Vector2(1660, 320), 1.0, Color(0.42, 0.46, 0.54))
+	prop(host, "balustrade_town", Vector2(1544, 320))
+	prop(host, "rubble_dry", Vector2(1656, 320))
+	prop(host, "rubble_dry_b", Vector2(1744, 320))
 	foliage(host, "bush_s", Vector2(1836, 320), 1.0)
-	# ⑤ 窄巷：檐口垂下的锈苔藤、巷底碎石
-	hanging(host, "vine", Vector2(1960, 272))
-	hanging(host, "vine", Vector2(2200, 272))
-	prop(host, "rubble", Vector2(2064, 352))
-	# ⑥ 圣殿前阶：阶口灌木、碎石、前台石栏
+	# ⑤ 窄巷：檐下是灰藤，不是鲜苔；巷底干石
+	hanging(host, "vine", Vector2(1960, 272), Color(0.4, 0.42, 0.4, 0.75))
+	hanging(host, "vine", Vector2(2200, 272), Color(0.4, 0.42, 0.4, 0.75))
+	prop(host, "rock_pile", Vector2(2064, 352), 1.0, Color(0.6, 0.62, 0.7))
+	# ⑥ 圣殿前阶：阶口杂草、干石、前台石栏
 	foliage(host, "bush_s", Vector2(2250, 320), 1.0)
-	prop(host, "rubble", Vector2(2352, 288))
-	prop(host, "balustrade", Vector2(2528, 256))
+	prop(host, "rubble_dry", Vector2(2352, 288))
+	prop(host, "balustrade_town", Vector2(2528, 256))

@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/flying_demon_enemy.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/player/health.gd" id="2"]
@@ -7,6 +7,12 @@
 
 [sub_resource type="RectangleShape2D" id="box_shape"]
 size = Vector2(32, 28)
+
+[sub_resource type="RectangleShape2D" id="hurt_shape"]
+size = Vector2(40, 34)
+
+[sub_resource type="RectangleShape2D" id="bite_shape"]
+size = Vector2(36, 30)
 
 [node name="FlyingDemonEnemy" type="CharacterBody2D"]
 collision_layer = 4
@@ -27,7 +33,7 @@ script = ExtResource("3")
 team = &"enemy"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
-shape = SubResource("box_shape")
+shape = SubResource("hurt_shape")
 
 [node name="Hitbox" type="Area2D" parent="."]
 collision_layer = 8
@@ -37,7 +43,7 @@ damage = 1
 team = &"enemy"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
-shape = SubResource("box_shape")
+shape = SubResource("bite_shape")
 
 [node name="Visual" type="Node2D" parent="."]
 

@@ -89,14 +89,16 @@ const ENEMIES: Array = [
 	["GearShield2", "gear_shield", Vector2(2736, 320), {"patrol_range": 16.0}],
 ]
 
-## 壁炬 x（板底贴地面）。
-const TORCHES: Array = [352.0, 880.0, 1544.0, 2768.0]
+## 壁炬 x（64px 墙板以 x 为中心，板底贴地面）。
+## 880 的左缘在 848，洗礼池铺到 864，有一截悬在毒液上。896 起整块落在 FloorB。
+const TORCHES: Array = [352.0, 896.0, 1544.0, 2768.0]
 ## 接地装饰 [key, feet]。墙板都是背景层，避开浮石落点正上方。
 const PROPS: Array = [
 	["window", Vector2(72, 320)],
 	["gargoyle", Vector2(424, 320)],
 	["balustrade", Vector2(504, 320)],
-	["skull_column", Vector2(976, 320)],
+	# 壁炬 896 的墙板铺到 928。柱心再往西，128px 的骷髅柱会吞掉火把。
+	["skull_column", Vector2(1008, 320)],
 	["column", Vector2(1176, 320)],
 	["balustrade", Vector2(1256, 224)],
 	["window", Vector2(1440, 320)],
@@ -117,7 +119,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "吊灯还亮着。石像鬼在数进来的人。"
+	return "灯还亮着。签过名的手，已经成灰。"
 
 
 func entry_spawn() -> Vector2:
@@ -136,37 +138,41 @@ func theme() -> String:
 	return "cathedral"
 
 
+func motes() -> String:
+	return "candle"
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_X, "工坊暗门", PackedStringArray([
-		"暗门后有齿轮转动的声音，很慢，像在数拍子。",
-		"锈核就是从那里造出来的。",
+		"暗门后是工坊。",
+		"剑上的插座，是在那里切开的。",
 	]), "level04_done", GameContext.next_level_id(level_id()))
 	finish(host)
 
 
 func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
-		floor_strip(host, f[0], f[1], f[2], "stone", f[3], f[4], FLOOR_Y, STONE_TONE)
+		floor_strip(host, f[0], f[1], f[2], "nave", f[3], f[4], FLOOR_Y, STONE_TONE)
 	for p in PITS:
-		toxin_pit(host, p[0], p[1], p[2], 32.0, "stone", TOXIN_TINT)
+		toxin_pit(host, p[0], p[1], p[2], 32.0, "nave", TOXIN_TINT)
 	for s in STEPS:
-		step(host, s[0], s[1], s[2], "floating", FLOAT_TONE)
+		step(host, s[0], s[1], s[2], "nave_float", FLOAT_TONE)
 	for b in BLOCKS:
-		platform(host, b[0], b[1], b[2], "stone", true, true, STONE_TONE)
-	enclose(host, "stone", CEILING_Y, -1.0, 0.0, STONE_TONE)
+		platform(host, b[0], b[1], b[2], "nave", true, true, STONE_TONE)
+	enclose(host, "nave", CEILING_Y, -1.0, 0.0, STONE_TONE)
 
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestNave", NEST_NAVE_X)
 	nest(host, "EmberNestAltar", NEST_ALTAR_X)
 	stele(host, "SteleCompact", STELE_A_POS, "圣殿铭 · 炉约誓",
-			"以剑饲炉，以火养城；炉不熄，人不死。签下名字的人，都把剑留在了这里。")
+			"以剑饲炉，以火养城。一百年的灯，是用签过名的剑换的。")
 	stele(host, "StelePrice", STELE_B_POS, "炉约 · 代价",
-			"他们把剑送进炉心，换来一百年不灭的灯。灯还亮着，握过剑的手早已锈成灰。")
+			"灯还亮着。握过剑的手早已锈成灰。名字还刻在石上。")
 	plate_door(host, "Choir", PLATE_FEET, DOOR_POS)
 	rusty_gate(host, "RustyGate", GATE_POS)
 	hook(host, "Hook_Vault", HOOK_POS)

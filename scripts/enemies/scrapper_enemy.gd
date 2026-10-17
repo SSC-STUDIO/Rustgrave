@@ -25,6 +25,8 @@ const WINDUP_TINT := Color(1.35, 0.85, 0.45)
 const WINDUP_BODY_SCALE := Vector2(1.08, 0.92)
 const CHARGE_KNOCKBACK_X := 120.0
 const CHARGE_KNOCKBACK_Y := -32.0
+## 冲满一程却没撞上东西时的喘息（撞墙 / 坑口走 stun_time）。
+const MISS_STUN_TIME := 0.5
 
 ## Hell Hound 像素帧动画（ansimuz，原图面朝左）：idle 6 / walk 12 / run 5 / jump 5。
 ## 画布 64x32（run 67x32、jump 78x48），脚底均贴画布底边。
@@ -107,7 +109,7 @@ func _after_move() -> void:
 func _tick_patrol(_delta: float) -> void:
 	charge_box.disarm()
 	_patrol_step()
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if _cooldown <= 0.0 and player != null:
 		var to_player := player.global_position - global_position
 		if absf(to_player.x) < aggro_range and absf(to_player.y) < 70.0:
@@ -135,11 +137,9 @@ func _tick_charge(delta: float) -> void:
 		_dir = -_dir
 		_enter_stun()
 	elif _timer <= 0.0:
-		_cooldown = re_aggro_cooldown
-		_state = State.PATROL
+		# 冲了一整程没撞上东西：喘一口气（短眩晕），比直接转回巡逻更读得出「现在能打」。
 		charge_box.disarm()
-		_clear_windup_look()
-		eye.color = Palette.TOXIC
+		_enter_stun(MISS_STUN_TIME)
 
 
 ## 冲锋方向前下方两条射线：地面射线（layer 1）探不到 = 平台边缘/坑口；
@@ -171,6 +171,7 @@ func _enter_windup() -> void:
 	_state = State.WINDUP
 	_timer = windup_time
 	_apply_windup_look()
+	begin_telegraph(&"scrapper", windup_time)
 
 
 func _arm_charge() -> void:
@@ -180,11 +181,13 @@ func _arm_charge() -> void:
 	charge_box.arm(Vector2(_dir * CHARGE_KNOCKBACK_X, CHARGE_KNOCKBACK_Y))
 
 
-func _enter_stun() -> void:
+func _enter_stun(time: float = -1.0) -> void:
 	_state = State.STUN
-	_timer = stun_time
+	_timer = stun_time if time < 0.0 else time
 	charge_box.disarm()
 	_clear_windup_look()
+	# 眩晕就是破绽：头顶金箭头亮到眩晕结束。
+	show_opening(_timer)
 
 
 ## Eye 色块在帧动画路径会被藏掉；用机体染色 + 微蹲让冲锋前摇可读。

@@ -19,8 +19,10 @@ func test_tall_room_covers_top_landing_with_indoor_zone_and_backdrop() -> void:
 	var rect := Rect2(col.position - col.shape.size * 0.5, col.shape.size)
 	ok(rect.has_point(Vector2(640, -680)), "tower summit stays indoors")
 	ok(rect.has_point(Vector2(96, 320)), "entry stays indoors")
-	var wall := host.get_node("ParallaxBackdrop/Layer0")
-	ok(wall.get_child_count() > 3, "wall panels also cover the upper floors")
+	# The hall strip's base is the bottom of the art. A vertical copy would
+	# stand that base in the shaft, which is the floating-wall bug.
+	_assert_single_grounded_strip(host.get_node("ParallaxBackdrop/Layer0"), 320.0, "hall")
+	_assert_single_grounded_strip(host.get_node("ParallaxBackdrop/Layer1"), 336.0, "column")
 
 
 func test_hook_is_optional_and_ceiling_is_not_a_walkable_shortcut() -> void:
@@ -36,3 +38,14 @@ func test_hook_is_optional_and_ceiling_is_not_a_walkable_shortcut() -> void:
 	ok(not LevelSanity.is_reachable(host, Vector2(96, 300), Vector2(160, 160), false), "single jump cannot gain 160px")
 	for top in LevelSanity.top_segments(host):
 		ok(top.owner_name != "Ceiling", "roof is not a landing")
+
+
+func _assert_single_grounded_strip(layer: Node, base_y: float, label: String) -> void:
+	var sprites := 0
+	for child in layer.get_children():
+		if child is Sprite2D:
+			sprites += 1
+			var spr := child as Sprite2D
+			var bottom := spr.position.y + spr.get_rect().size.y * absf(spr.scale.y)
+			almost(bottom, base_y, 1.0, "%s strip base stays on the ground line" % label)
+	eq(sprites, 1, "%s strip is not copied up the shaft" % label)

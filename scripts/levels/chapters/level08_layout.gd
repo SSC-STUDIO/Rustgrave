@@ -16,7 +16,8 @@ extends ChapterLayout
 const EAST_LIMIT := 3008
 const CEILING_Y := -32.0
 const PIT_DEPTH := 32.0
-## 琥珀地面：把地窟苔砖压成被炉火烤过的颜色（地面、浮石、坑底、墙顶同色）。
+## 地面是 basalt（tools/gen_theme_tiles.py 的渣岩）。这个琥珀值只剩一个用处：
+## 熔渣 tint 的红绿比必须远高于它，池面才和地面分得开（测试按它比较）。
 const GROUND_TONE := Color(1.0, 0.8, 0.6)
 ## 熔渣：比琥珀地面亮得多、红得多，池面一眼能和地面分开。
 ## tint 是乘法着色，而 toxin_sludge.png 本身是极暗的青绿（平均 RGB ≈ 8/32/30），
@@ -29,7 +30,8 @@ const LIFT_TONE := Color(1.0, 0.82, 0.62)
 ## 八角台原本是偏冷紫的教堂石：压成烤过的渣褐色，别在橙池上飘一块粉石头。
 const GEAR_TONE := Color(0.9, 0.62, 0.42)
 const TORCH_TINT := Color(1.0, 0.75, 0.55)
-const VINE_TINT := Color(1.0, 0.82, 0.6, 0.9)
+## 藤条是青苔绿。浅暖色乘上去仍是黄绿，像墓园的藤爬进熔渣坑。压到深锈才像挂渣的旧缆。
+const VINE_TINT := Color(0.45, 0.22, 0.1, 0.85)
 const ARCH_TINT := Color(1.0, 0.8, 0.62)
 const RUBBLE_TINT := Color(1.0, 0.82, 0.64)
 const COLUMN_TINT := Color(0.62, 0.44, 0.32)
@@ -95,7 +97,7 @@ const NESTS: Array = [
 ]
 const STELE_SLAG_POS := Vector2(256, 320)
 const STELE_QUENCH_POS := Vector2(2968, 320)
-const WAYMARKS: Array = [[Vector2(336, 320), "渣渊"], [Vector2(2576, 320), "城墙"]]
+const WAYMARKS: Array = [[Vector2(320, 320), "渣渊"], [Vector2(2576, 320), "城墙"]]
 ## [name, kind, pos, overrides]。落地敌人给脚点；幽魂/火骷髅给悬停中心。
 ## 火骷髅悬在头顶上方 40–70px（骑士身高 26 → 中心 y 224..254）。
 const ENEMIES: Array = [
@@ -109,10 +111,14 @@ const ENEMIES: Array = [
 	["FireSkull4", "fire_skull", Vector2(2400, 224), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2288.0, "arena_right": 2416.0}],
 	["GearShield1", "gear_shield", Vector2(2512, 320), {"patrol_range": 8.0, "aggro_range": 48.0}],
 ]
-const TORCHES: Array = [384.0, 940.0, 1472.0, 1848.0, 2312.0, 2480.0, 2992.0]
+## 1472 在 32px 渣柱上，64px 墙板两边各悬进熔渣 16px，改到 FloorB。
+## 2992 的墙板盖住出口碑，还探出东墙，改到 FloorC 门西侧的实地上。
+const TORCHES: Array = [384.0, 940.0, 1004.0, 1848.0, 2088.0, 2312.0, 2480.0]
 const VINES: Array = [232.0, 560.0, 720.0, 1312.0, 1624.0, 2008.0, 2240.0, 2704.0, 2944.0]
-const ARCHES: Array = [72.0, 1752.0]
-const RUBBLE: Array = [396.0, 872.0, 2120.0, 2336.0]
+## 1752 的石板（48×1.15）左缘探进 FloorC 以西的渣坑，收到坑沿里面。
+const ARCHES: Array = [72.0, 1764.0]
+## 396 叠在入口火把上；2336 叠在 FloorD 的火把上，窄台放不下。
+const RUBBLE: Array = [296.0, 872.0, 2120.0, 2432.0]
 const COLUMNS: Array = [1080.0, 2530.0]
 
 
@@ -125,7 +131,7 @@ func title() -> String:
 
 
 func wake_line() -> String:
-	return "钟楼底下，渣还没凉。它记得每一把剑的形状。"
+	return "这滩渣淬过你这把剑。它失败过一次。"
 
 
 func entry_spawn() -> Vector2:
@@ -148,14 +154,18 @@ func theme() -> String:
 	return "forge"
 
 
+func motes() -> String:
+	return "embers"
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
 	exit_door(host, EXIT_X, "城墙梯", PackedStringArray([
-		"梯子往上，热气也往上。",
-		"风灌进来。锈城的城墙在头顶等着。",
+		"梯子往上是城墙。",
+		"墙不挡人。它把炉风关在里面。",
 	]), "level08_done", GameContext.next_level_id(level_id()))
 	finish(host)
 
@@ -164,16 +174,16 @@ func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
 		var x0: float = f[1]
 		var x1: float = f[2]
-		floor_strip(host, String(f[0]), x0, x1, "stone", x0 > 0.0, x1 < float(EAST_LIMIT), FLOOR_Y, GROUND_TONE)
+		floor_strip(host, String(f[0]), x0, x1, "basalt", x0 > 0.0, x1 < float(EAST_LIMIT), FLOOR_Y)
 	for p in PITS:
 		_slag_pit(host, String(p[0]), p[1], p[2])
 	for s in STEPS:
-		step(host, String(s[0]), s[1], s[2], "floating", GROUND_TONE)
-	platform(host, "SlagPillar", PILLAR_POS, PILLAR_SIZE, "stone", true, true, GROUND_TONE)
+		step(host, String(s[0]), s[1], s[2], "basalt_float")
+	platform(host, "SlagPillar", PILLAR_POS, PILLAR_SIZE, "basalt", true, true)
 	for g in GEARS:
 		var octagon := gear(host, String(g[0]), g[1], g[2])
 		octagon.modulate = LIFT_TONE
-	enclose(host, "stone", CEILING_Y, -1.0, 0.0, GROUND_TONE)
+	enclose(host, "basalt", CEILING_Y)
 	var lift_a := lift(host, "LiftA", LIFT_A_POS, LIFT_A_TRAVEL, LIFT_PERIOD, LIFT_WIDTH, 0.0)
 	lift_a.modulate = LIFT_TONE
 	var lift_b := lift(host, "LiftB", LIFT_B_POS, LIFT_B_TRAVEL, LIFT_PERIOD, LIFT_WIDTH, LIFT_B_PHASE)
@@ -185,7 +195,7 @@ func _build_terrain(host: Node2D) -> void:
 func _slag_pit(host: Node2D, pit_name: String, x0: float, x1: float) -> ToxinPool:
 	var bed_y := FLOOR_Y + PIT_DEPTH
 	platform(host, pit_name + "Bed", Vector2(x0, bed_y), Vector2(x1 - x0, FLOOR_Y + 80.0 - bed_y),
-			"stone", false, false, GROUND_TONE)
+			"basalt", false, false)
 	return toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0), Vector2(x1 - x0, 32.0), SLAG_TINT)
 
 
@@ -193,9 +203,9 @@ func _build_props(host: Node2D) -> void:
 	for n in NESTS:
 		nest(host, String(n[0]), n[1])
 	stele(host, "SteleSlag", STELE_SLAG_POS, "熔渣纪事 · 渣",
-			"渣记得每一把剑。铁熔了，形状沉在底下。")
+			"渣记得每一把剑的形状。你这一把也在里面。它没能把锈刮完。")
 	stele(host, "SteleQuench", STELE_QUENCH_POS, "熔渣纪事 · 淬",
-			"有人把自己也淬了进去。渣面上至今浮着一层灰。")
+			"净化偶是在这里淬火的。铁成了，人先锈了。渣面上至今浮着一层灰。")
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 	plate_door(host, "Sluice", PLATE_FEET, DOOR_POS)
@@ -222,5 +232,10 @@ func _build_decor(host: Node2D) -> void:
 	var rubble_keys := ["rubble_dry", "rubble_dry_b", "rubble_dry_c"]
 	for i in range(RUBBLE.size()):
 		prop(host, rubble_keys[i % rubble_keys.size()], Vector2(RUBBLE[i], FLOOR_Y), 1.0, RUBBLE_TINT)
+	# 熔渣支柱用本主题干石板，不用圣殿 column_big（背景已是工业剪影）。
 	for x in COLUMNS:
-		prop(host, "beam_bolts", Vector2(x, FLOOR_Y), 1.2, COLUMN_TINT)
+		prop(host, "slab", Vector2(x, FLOOR_Y), 1.15, COLUMN_TINT)
+	# 渣口：骷髅炉口立在落口和锈门边；骨渣散在渣堤上——渣记得剑，也记得人。
+	prop(host, "skull_arch", Vector2(24, FLOOR_Y))
+	prop(host, "bones", Vector2(1016, FLOOR_Y), 1.0, RUBBLE_TINT)
+	prop(host, "bones", Vector2(2232 + 64, FLOOR_Y), 1.0, RUBBLE_TINT)

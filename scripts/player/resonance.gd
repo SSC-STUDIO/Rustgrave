@@ -6,7 +6,7 @@ extends Node
 signal started
 signal ended
 
-const DURATION := 2.0
+const DURATION := CombatRules.PARRY_RESONANCE
 
 var _time: float = 0.0
 

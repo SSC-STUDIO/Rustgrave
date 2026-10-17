@@ -150,3 +150,34 @@ func test_letterbox_opens_during_play_and_closes() -> void:
 	Director.abort()
 	Director.set_letterbox(false, true)
 	almost(Director.letterbox_amount(), 0.0, 0.01, "abort clears the bars")
+
+
+func test_skip_to_end_unlocks_and_keeps_the_queued_script() -> void:
+	var kinds: Array[String] = []
+	var on_step := func(_i: int, step: Dictionary) -> void:
+		kinds.append(String(step.get("kind", "")))
+	Director.step_started.connect(on_step)
+	Director.play([
+		{"kind": "lock"},
+		{"kind": "wait", "seconds": 8.0},
+		{"kind": "unlock"},
+	], true)
+	Director.play([{"kind": "sfx", "id": "ui_select"}])
+	ok(Director.is_input_locked(), "skippable script still locks")
+	Director.skip_step()
+	var done := await wait_until(func() -> bool: return not Director.playing, 40)
+	ok(done, "one skip ended the long script and the queued one")
+	ok(not Director.is_input_locked(), "skip-to-end clears the lock")
+	ok(kinds.has("lock") and kinds.has("sfx"), "queued script still ran")
+	ok(not kinds.has("unlock"), "the rest of the skipped script did not play")
+	Director.step_started.disconnect(on_step)
+
+
+func test_fx_step_waits_then_finishes() -> void:
+	Director.play([
+		{"kind": "fx", "id": "shock_ring", "seconds": 0.05},
+		{"kind": "fx", "id": "not_a_real_fx", "seconds": 0.05},
+	])
+	ok(Director.playing, "fx step holds the script")
+	var done := await wait_until(func() -> bool: return not Director.playing, 90)
+	ok(done, "known and unknown fx ids both advance")

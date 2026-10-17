@@ -20,6 +20,11 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 换关（出口门 / 重燃）途中被暂停打断时，新关不能带着 paused 与挂起的导演醒来。
+	if not Director.choice_hold:
+		get_tree().paused = false
+		Director.resume()
+	pixel_smoothing = bool(Settings.value(&"pixel_smoothing", pixel_smoothing))
 	DisplayFit.apply()
 	var background := ColorRect.new()
 	background.name = "LetterboxBackground"

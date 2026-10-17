@@ -22,6 +22,8 @@ const REBINDABLE: Array[StringName] = [
 ]
 ## Keys that may never be bound (menu / system).
 const RESERVED_KEYS: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]
+## Slider drags would otherwise rewrite the file dozens of times per second.
+const SAVE_DELAY := 0.4
 
 ## Redirectable for tests; production keeps PATH.
 var save_path: String = PATH
@@ -35,6 +37,7 @@ var _key_overrides: Dictionary = {}
 var _default_keys: Dictionary = {}
 var _extra: Dictionary = {}
 var _loaded := false
+var _save_pending := false
 
 
 func _ready() -> void:
@@ -69,8 +72,25 @@ func load_settings() -> bool:
 	return ok
 
 
+## Coalesced write: many callers (slider drags) can ask; one write lands ~0.4 s after the last.
+func save_soon() -> void:
+	if _save_pending:
+		return
+	_save_pending = true
+	if not is_inside_tree():
+		save_settings()
+		return
+	get_tree().create_timer(SAVE_DELAY, true, false, true).timeout.connect(_flush_save)
+
+
+func _flush_save() -> void:
+	if _save_pending:
+		save_settings()
+
+
 ## Atomic-ish write (temp file then rename) so a crash never leaves half a file.
 func save_settings() -> bool:
+	_save_pending = false
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "version", VERSION)
 	for bus in VOLUME_BUSES:
@@ -109,7 +129,7 @@ func set_volume_percent(bus: StringName, percent: float, persist: bool = true) -
 	_volume[bus] = clampf(percent, 0.0, 100.0)
 	_apply_volume(bus)
 	if persist:
-		save_settings()
+		save_soon()
 	changed.emit(StringName("volume_" + String(bus)))
 
 
@@ -127,14 +147,14 @@ func _apply_volume(bus: StringName) -> void:
 func set_shake_scale(value: float, persist: bool = true) -> void:
 	shake_scale = clampf(value, 0.0, 1.0)
 	if persist:
-		save_settings()
+		save_soon()
 	changed.emit(&"shake")
 
 
 func set_flash_scale(value: float, persist: bool = true) -> void:
 	flash_scale = clampf(value, 0.0, 1.0)
 	if persist:
-		save_settings()
+		save_soon()
 	changed.emit(&"flash")
 
 
@@ -156,9 +176,12 @@ func key_label(action: StringName) -> String:
 	var physical := key_for(action)
 	if physical <= 0:
 		return "—"
-	var keycode := DisplayServer.keyboard_get_keycode_from_physical(physical as Key)
-	if keycode == KEY_NONE:
-		keycode = physical as Key
+	var keycode := physical as Key
+	# The headless display server rejects layout queries with an engine error.
+	if DisplayServer.get_name() != "headless":
+		var translated := DisplayServer.keyboard_get_keycode_from_physical(physical as Key)
+		if translated != KEY_NONE:
+			keycode = translated
 	return OS.get_keycode_string(keycode)
 
 
