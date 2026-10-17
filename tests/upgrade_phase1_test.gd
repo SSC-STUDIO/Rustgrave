@@ -177,3 +177,18 @@ func test_showing_hint_fades_early_when_it_goes_stale() -> void:
 	await wait_until(func() -> bool: return hints.current_id() == &"", 40)
 	eq(hints.current_id(), &"", "nest hint leaves within its fade once the nest is lit")
 	hints.queue_free()
+
+
+func test_director_caption_and_bars_follow_the_game_picture() -> void:
+	var cap_layer := Director.get_node_or_null("DirectorCaption") as CanvasLayer
+	var bar_layer := Director.get_node_or_null("DirectorLetterbox") as CanvasLayer
+	var fade_layer := Director.get_node_or_null("DirectorFade") as CanvasLayer
+	ok(cap_layer != null and bar_layer != null and fade_layer != null)
+	if cap_layer == null or bar_layer == null:
+		return
+	ok(cap_layer.has_meta("presentation_bound"), "caption layer is bound to the content rect")
+	ok(bar_layer.has_meta("presentation_bound"), "letterbox bars are bound to the content rect")
+	ok(not fade_layer.has_meta("presentation_bound"), "the fade still covers the whole window")
+	# 960x540 -> 1x content (640x360) centred: the bound transform must shrink and offset.
+	var t: Transform2D = PresentationMetrics.calculate(Vector2i(960, 540))["ui_transform"]
+	ok(t.get_scale().x < 1.0 and t.origin.y > 0.0, "small windows place captions inside the picture")
