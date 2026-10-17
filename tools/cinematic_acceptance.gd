@@ -129,9 +129,10 @@ func _expected_opening_shots() -> int:
 func _step(_index: int, step: Dictionary) -> void:
 	var kind := String(step.get("kind", ""))
 	if not _capture_cards:
+		# 只认步骤自己的 tag。以前这里还按"第 3 句字幕文本"兜底认 line_forge，
+		# 分镜调整后那句已经不带 tag，于是 08-forge 被抓了两次、门禁假失败。
+		# tag 是剧本的一部分（opening_cinematic_test 会锁住顺序），够稳定。
 		var key := String(step.get("tag", ""))
-		if kind == "caption" and String(step.get("text", "")) == Opening.LINES[3]:
-			key = "line_forge"
 		if OPENING_SHOTS.has(key):
 			for shot in OPENING_SHOTS[key]:
 				_capture_later(String(shot[0]), float(shot[1]))

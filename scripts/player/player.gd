@@ -9,6 +9,7 @@ extends CharacterBody2D
 @onready var melee: MeleeCombat = $MeleeCombat
 @onready var sensor: InteractionSensor = $InteractionSensor
 @onready var visual: Node2D = $Visual
+@onready var greatsword: Greatsword = get_node_or_null("Visual/Greatsword")
 @onready var hookshot: HookshotTether = $HookshotTether
 @onready var resonance: Resonance = $Resonance
 @onready var stats: CharacterStats = $CharacterStats
@@ -263,6 +264,9 @@ func _update_visual(delta: float) -> void:
 		if float(tier["ember_chance"]) > 0.0 and randf() < float(tier["ember_chance"]) * delta * 60.0:
 			Fx.dust_puff(global_position + Vector2(randf_range(-6.0, 6.0), -16.0))
 	_poll_stride_audio(delta)
+	if greatsword != null:
+		# 巨剑由自己算姿态/淡出；Player 只把状态喂给它，从不反向读它。
+		greatsword.tick(self, delta)
 	if _anim != null:
 		_update_knight_anim()
 		return

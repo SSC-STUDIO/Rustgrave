@@ -55,9 +55,14 @@ const PULLBACK_X := 262.0
 const PAN_END_X := 1990.0
 const PAN_SECONDS := 3.4
 const PULLBACK_SECONDS := 2.1
-const ZOOM_CLOSE := 2.0
+## 第一拍推得更近：趴着的骑士只有 40px 宽，2.0 倍下在 640 视野里太小，
+## 观众第一眼读不出「这里躺着个人」。2.35 倍下骑士与插在地上的巨剑占满画面中部。
+const ZOOM_CLOSE := 2.35
 const ZOOM_WIDE := 1.4
 const ZOOM_ARRIVE := 1.25
+## 巨剑插在骑士左侧（世界 x 偏移，朝右）。剑宽 34px，落在 53..87，
+## 避开 40..89 的大灌木右缘与 101 起的路牌牌面，也压在趴姿身体的外侧下缘。
+const PLANTED_SWORD_OFFSET := Vector2(-24.0, 0.0)
 ## 倒放死亡动画：先趴着不动一会儿，再撑起来。
 const HOLD_FRAMES := 6
 const RISE_FPS := 8.0
@@ -77,6 +82,9 @@ static var _pan: Tween
 static var _echo: Tween
 static var _rise: FrameAnimSprite
 static var _hidden: FrameAnimSprite
+## 开场把巨剑从背上摘下来插进土里；起身 / 跳过 / abort 都要把它收回去并还原背剑。
+static var _planted: Sprite2D
+static var _carrier: Greatsword
 ## 剧本自然结束或被跳过后，等队列真正清空再交还操作提示：
 ## 若后面还压着一段过场，提示不能先闪出来又被它盖掉。
 static var _pending_handoff := false
@@ -241,6 +249,12 @@ static func _on_step(_index: int, step: Dictionary) -> void:
 		"rouse":
 			Music.set_state(&"silent")
 			_start_rise()
+			# 冷墓里只有他身边这一点暖：趴着的剪影先从背景里"浮"出来，
+			# 再让剑把他钉在画面里（剑已种在脚边，这里只补一层地雾光）。
+			var world := GameContext.world_root(_knight_node())
+			if world != null:
+				CineFx.glow_pulse(world, _knight_pos() + Vector2(-10.0, -6.0),
+						Color(1.0, 0.55, 0.28, 0.30), 1.5, 0.9)
 		"stand":
 			_end_rise()
 		"pullback":
@@ -256,6 +270,8 @@ static func _on_step(_index: int, step: Dictionary) -> void:
 			_begin_return()
 
 ## 剑先锈了：骑士趴在地上，死亡动画倒放成「撑起来」。真实精灵先藏起来，结束或中断时必还原。
+## 巨剑这时候不在背上：它先他一步插进土里（`PLANTED_SWORD_OFFSET`），是这片墓园里
+## 唯一还立着的东西 —— 第一眼就有「人和他的武器」这一对剪影，而不是地上的一堆暗色像素。
 static func _begin_rise() -> void:
 	var knight := _knight_node()
 	if knight == null or not knight is Player or _rise != null:
@@ -282,6 +298,27 @@ static func _begin_rise() -> void:
 	real.visible = false
 	_rise = rise
 	_hidden = real
+	_stage_planted_sword(player)
+
+
+## 把巨剑从背上摘下来、插在骑士左侧脚边。返回的精灵由 `_end_rise` 收走。
+static func _stage_planted_sword(player: Player) -> void:
+	var carrier := player.visual.get_node_or_null("Greatsword") as Greatsword
+	if carrier != null:
+		_carrier = carrier
+		carrier.hide_carried()
+	if _planted != null and is_instance_valid(_planted):
+		_planted.queue_free()
+	_planted = null
+	var world := GameContext.world_root(player)
+	var host := world if world != null else player.get_parent() as Node2D
+	if host == null:
+		return
+	_planted = Greatsword.spawn_planted(host,
+			player.global_position + PLANTED_SWORD_OFFSET)
+	if _planted != null:
+		# 剑在骑士身后、地面之上：玩家 z=0，地面贴片多为 -1。
+		_planted.z_index = -1
 
 
 static func _start_rise() -> void:
@@ -289,7 +326,14 @@ static func _start_rise() -> void:
 		_rise.set_process(true)
 
 
+## 起身：收起插在地上的剑（他把剑从土里拔出来扛回背上），再恢复站立精灵。
 static func _end_rise() -> void:
+	if is_instance_valid(_planted):
+		_planted.queue_free()
+	_planted = null
+	if is_instance_valid(_carrier):
+		_carrier.show_carried()
+	_carrier = null
 	if is_instance_valid(_rise):
 		_rise.queue_free()
 	_rise = null

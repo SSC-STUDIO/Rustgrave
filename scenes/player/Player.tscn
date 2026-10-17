@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="2_ctrl"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/player/resonance.gd" id="12_reso"]
 [ext_resource type="Script" path="res://scripts/player/character_stats.gd" id="13_stats"]
 [ext_resource type="Script" path="res://scripts/player/equipment_inventory.gd" id="14_equip"]
+[ext_resource type="Script" path="res://scripts/player/greatsword.gd" id="15_greatsword"]
 
 [sub_resource type="RectangleShape2D" id="body"]
 size = Vector2(14, 26)
@@ -71,6 +72,9 @@ color = Color(0.29, 0.42, 0.42, 1)
 [node name="Sword" type="Polygon2D" parent="Visual"]
 position = Vector2(4, -16)
 script = ExtResource("10_sword")
+
+[node name="Greatsword" type="Node2D" parent="Visual"]
+script = ExtResource("15_greatsword")
 
 [node name="PlayerController" type="Node" parent="."]
 script = ExtResource("2_ctrl")
