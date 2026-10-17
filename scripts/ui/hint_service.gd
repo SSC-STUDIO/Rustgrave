@@ -289,14 +289,29 @@ func _process(delta: float) -> void:
 		var once := _queued_once
 		_queued = &""
 		_queued_text = ""
-		_show(id, text, once)
-		_apply_alpha()
+		if still_relevant(id):
+			_show(id, text, once)
+			_apply_alpha()
+		elif once:
+			# 玩家在等待期间已经自己做到了（点了巢、镶了核）：不再事后说教，记作看过。
+			mark_seen(id)
 	if _current == &"" and _panel != null and _panel.visible and _panel.modulate.a <= 0.01:
 		_panel.visible = false
 	_poll_t -= delta
 	if _poll_t <= 0.0:
 		_poll_t = POLL
 		_scan_state()
+
+
+## 排队的提示在真正出现前再核对一次：教的事情玩家已经做完了就不出。
+func still_relevant(id: StringName) -> bool:
+	var player := _player()
+	match id:
+		&"nest":
+			return SaveData.lit_nests.is_empty()
+		&"core":
+			return player == null or player.inventory == null or not player.inventory.pouch.is_empty()
+	return true
 
 
 func _apply_alpha() -> void:
