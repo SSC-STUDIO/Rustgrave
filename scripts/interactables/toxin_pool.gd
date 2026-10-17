@@ -90,16 +90,24 @@ func set_sludge_ramp(ramp: Array, vapor: Color = Color.WHITE) -> void:
 func _apply_sludge_ramp() -> void:
 	if _vapor != null and is_instance_valid(_vapor):
 		_vapor.modulate = vapor_modulate
-	if sludge_ramp.size() < 5 or not ResourceLoader.exists(Level01Parallax.GRADE_SHADER):
+	if sludge_ramp.size() < 5:
 		return
-	var mat := ShaderMaterial.new()
-	mat.shader = load(Level01Parallax.GRADE_SHADER) as Shader
-	mat.set_shader_parameter("amount", 0.92)
-	for i in 5:
-		mat.set_shader_parameter("c%d" % i, sludge_ramp[i])
+	# This branch has no chapter grade shader (that belongs to the parallel art line):
+	# approximate the ramp by recolouring the authored green film / scum sprites with
+	# the ramp's mid tones. Depth shading stays exactly as _rebuild_visual baked it.
 	for child in get_children():
-		if child is Sprite2D:
-			(child as Sprite2D).material = mat
+		var spr := child as Sprite2D
+		if spr == null:
+			continue
+		var base: Color = sludge_ramp[3] if _scum_sprites.has(spr) else sludge_ramp[2]
+		var depth := (spr.modulate.r + spr.modulate.g + spr.modulate.b) / 3.0
+		spr.modulate = Color(base.r * depth, base.g * depth, base.b * depth, spr.modulate.a)
+	# Texture-less fallback pools draw a ColorRect "Fill" instead of sprites.
+	var fill := get_node_or_null("Fill") as ColorRect
+	if fill != null:
+		var film: Color = sludge_ramp[2]
+		film.a = 0.88
+		fill.color = film
 
 
 func _rebuild_visual() -> void:
