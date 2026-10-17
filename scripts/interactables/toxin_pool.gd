@@ -35,6 +35,11 @@ const VAPOR_TINT := Color(0.55, 0.95, 0.62)
 ## 峰值透明度：加法混合下 0.42 在夜里几乎读不出，0.62 是一缕能看见的雾。
 const VAPOR_PEAK_ALPHA := 0.62
 var _vapor: Node2D
+## Optional recolour of the authored (green) sludge through the chapter grade shader:
+## a 5-stop dark -> light ramp (e.g. the spec's orange coolant). Empty = authored colour.
+var sludge_ramp: Array = []
+## Multiplied onto the vapour wisps so they match a recoloured pool.
+var vapor_modulate := Color.WHITE
 var _vapor_accum := 0.0
 var _headless := false
 
@@ -74,6 +79,35 @@ func _on_body_exited(body: Node2D) -> void:
 	_bodies.erase(body)
 	if body is Player:
 		_hinted = false
+
+
+func set_sludge_ramp(ramp: Array, vapor: Color = Color.WHITE) -> void:
+	sludge_ramp = ramp
+	vapor_modulate = vapor
+	_apply_sludge_ramp()
+
+
+func _apply_sludge_ramp() -> void:
+	if _vapor != null and is_instance_valid(_vapor):
+		_vapor.modulate = vapor_modulate
+	if sludge_ramp.size() < 5:
+		return
+	# This branch has no chapter grade shader (that belongs to the parallel art line):
+	# approximate the ramp by recolouring the authored green film / scum sprites with
+	# the ramp's mid tones. Depth shading stays exactly as _rebuild_visual baked it.
+	for child in get_children():
+		var spr := child as Sprite2D
+		if spr == null:
+			continue
+		var base: Color = sludge_ramp[3] if _scum_sprites.has(spr) else sludge_ramp[2]
+		var depth := (spr.modulate.r + spr.modulate.g + spr.modulate.b) / 3.0
+		spr.modulate = Color(base.r * depth, base.g * depth, base.b * depth, spr.modulate.a)
+	# Texture-less fallback pools draw a ColorRect "Fill" instead of sprites.
+	var fill := get_node_or_null("Fill") as ColorRect
+	if fill != null:
+		var film: Color = sludge_ramp[2]
+		film.a = 0.88
+		fill.color = film
 
 
 func _rebuild_visual() -> void:
@@ -139,6 +173,7 @@ func _rebuild_visual() -> void:
 		fill.color = Color(0.18, 0.42, 0.34, 0.88)
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(fill)
+	_apply_sludge_ramp()
 	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
 	if col == null:
 		col = CollisionShape2D.new()
@@ -180,6 +215,7 @@ func _tick_vapor(delta: float) -> void:
 		_vapor = Node2D.new()
 		_vapor.name = "Vapor"
 		_vapor.z_index = 2
+		_vapor.modulate = vapor_modulate
 		add_child(_vapor)
 	_vapor_accum += delta
 	var interval := VAPOR_INTERVAL * lerpf(1.0, 2.0, WorldClock.rain_opacity())
