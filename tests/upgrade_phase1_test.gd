@@ -125,19 +125,21 @@ func test_stale_nest_hint_is_dropped_once_a_nest_is_lit() -> void:
 func test_backdrop_grade_touches_only_listed_plates() -> void:
 	var backdrop := CanvasLayer.new()
 	add_child(backdrop)
-	for layer_name in ["Far", "Mid", "Hills", "FogNear"]:
+	for layer_name in ["Far", "Mid", "Hills", "FogNear", "NearSilhouette"]:
 		var layer := Parallax2D.new()
 		layer.name = layer_name
 		var spr := Sprite2D.new()
 		layer.add_child(spr)
 		backdrop.add_child(layer)
 	var graded := Level01Parallax.grade_plates(backdrop)
-	eq(graded, 3, "sky, mountains and graveyard plates are graded")
+	# Phase 3: the fog bands joined the grade (warm haze, not lavender); silhouettes stay tinted only.
+	eq(graded, 4, "sky, mountains, graveyard and fog plates are graded")
 	var far := backdrop.get_node("Far").get_child(0) as Sprite2D
 	ok(far.material is ShaderMaterial, "far plate carries the grade")
 	almost(float((far.material as ShaderMaterial).get_shader_parameter("amount")), float(Level01Parallax.GRADE["Far"]))
-	ok((backdrop.get_node("FogNear").get_child(0) as Sprite2D).material == null, "fog is not graded")
-	eq(Level01Parallax.grade_plates(backdrop), 3, "regrading reuses the materials")
+	ok((backdrop.get_node("FogNear").get_child(0) as Sprite2D).material is ShaderMaterial, "fog is graded warm")
+	ok((backdrop.get_node("NearSilhouette").get_child(0) as Sprite2D).material == null, "unlisted layers are left alone")
+	eq(Level01Parallax.grade_plates(backdrop), 4, "regrading reuses the materials")
 	ok(far.material is ShaderMaterial)
 	backdrop.queue_free()
 

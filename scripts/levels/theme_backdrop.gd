@@ -141,6 +141,10 @@ const NIGHT_GRAVEYARD := {
 	"sil_tint": Color(0.08, 0.11, 0.13, 0.95),
 	"play_ramp": [Color("#0a0c0e"), Color("#1d2526"), Color("#3c4a47"), Color("#7e8f86"), Color("#dfe2d2")],
 	"play_amount": 0.72,
+	"play_value": 1.0,
+	# Cold moon haze over the horizon and a cold rim on ledge tops (not chapter 1's ember).
+	"glow": Color(0.55, 0.72, 0.9, 0.22),
+	"top_light": Color(0.75, 0.86, 0.95, 0.3),
 }
 ## Play-layer folders a ChapterLayout builds (see ChapterLayout.group / decor_layer).
 const PLAY_FOLDERS := ["Platforms", "Decor"]

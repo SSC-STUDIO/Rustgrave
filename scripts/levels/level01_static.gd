@@ -93,6 +93,7 @@ func _ready() -> void:
 	# deferred again so late-built pieces (rebuilt toxin pit, sway pivots) are covered.
 	Level01Parallax.grade_play_layer(self)
 	Level01Parallax.grade_play_layer.call_deferred(self)
+	Level01Parallax.add_light_pools.call_deferred(self)
 	call_deferred("_try_wake")
 
 

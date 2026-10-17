@@ -45,22 +45,45 @@ const TINT_FOLLOW := 2.8
 ## 品红月变成余烬月、紫山变成锈褐暮色。玩法层（平台、角色、道具）不进这道调色，
 ## 远景退后、前景跳出来。数值 = 混合量，0 就是原画。
 const GRADE_SHADER := "res://assets/shaders/rust_grade.gdshader"
-const GRADE := {"Far": 0.88, "Mid": 0.9, "Hills": 0.8, "SkyCloudsHigh": 0.85, "SkyCloudsLow": 0.85, "Foreground": 0.75}
+## Phase 3: the hue moves almost fully onto the ramp (kills the Gothicvania magenta) while the
+## value structure does the separation: sky and glow behind, dark mountain silhouettes, mid-value
+## graveyard slope, brightest values on the play layer. Fog bands are graded too so they read as
+## warm haze instead of lavender.
+const GRADE := {"Far": 0.94, "Mid": 0.95, "Hills": 0.9, "SkyCloudsHigh": 0.9, "SkyCloudsLow": 0.9,
+		"FogFar": 0.85, "FogNear": 0.85, "Foreground": 0.85, "GroundFog": 0.8}
 ## 玩法层（地砖、墓园 / 东翼装饰）走同一张 shader 的「煤灰 + 锈」色阶：明度次序不变，
 ## 平台亮沿、台阶边仍然读得出；人物、敌人、可交互物、毒池、钩点、火光不进这道调色，
 ## 角色和前摇因此从灰褐地面上跳出来。
-const PLAY_GRADE_AMOUNT := 0.74
+const PLAY_GRADE_AMOUNT := 0.68
+## Play-layer value lift: terrain and decor sit above the backdrop in value (phase-2 feedback: muddy).
+const PLAY_VALUE := 1.25
 const PLAY_GRADE_FOLDERS := ["Platforms", "GraveDecor", "BastionDecor", "CathedralDecor"]
-const PLAY_RAMP := [Color("#0f0b0a"), Color("#2e201a"), Color("#5a3a29"), Color("#a06a43"), Color("#f2c48c")]
+const PLAY_RAMP := [Color("#0e0907"), Color("#45301f"), Color("#875b38"), Color("#cf914f"), Color("#ffe2ad")]
 ## 远景压暗：越远越沉进暮色，最亮的值留给玩法层（平台亮沿、角色）。
-const PLATE_VALUE := {"Far": 1.0, "Mid": 0.82, "Hills": 0.7, "SkyCloudsHigh": 0.95, "SkyCloudsLow": 0.9, "Foreground": 0.8}
+## Mountains (Mid) are the darkest plate so they silhouette against the horizon glow; the graveyard
+## slope (Hills) is mid-value; the near grass strip (Foreground) is a dark frame.
+const PLATE_VALUE := {"Far": 1.0, "Mid": 0.66, "Hills": 0.9, "SkyCloudsHigh": 1.0, "SkyCloudsLow": 0.95,
+		"FogFar": 1.0, "FogNear": 1.0, "Foreground": 0.55, "GroundFog": 1.0}
 ## 第一章暖偏：全局 MoodTint（昼夜 / 天气）乘上余烬偏色——夜仍是夜，但是煤灰夜而不是紫夜。
-const CHAPTER_WARM := Color(1.14, 1.0, 0.8)
+const CHAPTER_WARM := Color(1.24, 1.14, 0.92)
 const TINT_FLOOR := 0.3
 ## Default (chapter-1) palette. Keys: ramp = backdrop ramp (5 colours, dark→light),
 ## plates = layer name → blend, values = layer name → value_scale, warm = MoodTint bias,
 ## play_ramp / play_amount = play-layer ramp and blend.
-const RUST_RAMP := [Color("#120a0e"), Color("#3b1d24"), Color("#6a3030"), Color("#a8553a"), Color("#f0a868")]
+## r > g > b at every stop: ember / rust / soot, never plum or magenta.
+const RUST_RAMP := [Color("#0f0909"), Color("#3a1f18"), Color("#7a3d26"), Color("#c46e32"), Color("#ffc177")]
+## Horizon glow: a screen-space additive gradient between the sky (plus clouds) and the
+## mountains, so the sky reads as a warm haze over the horizon instead of flat murk and the
+## dark mountain plate silhouettes against it. rgb = colour, a = peak strength.
+const HORIZON_GLOW := Color(1.0, 0.5, 0.2, 0.6)
+## [y fraction of the view, strength fraction] stops of the glow gradient, top → bottom.
+const GLOW_STOPS := [[0.0, 0.0], [0.16, 0.12], [0.44, 0.62], [0.62, 1.0], [0.8, 0.72], [1.0, 0.35]]
+## Top light: a warm lit lip along every platform top on the play layer (a = strength).
+const TOP_LIGHT := Color(1.0, 0.74, 0.44, 0.55)
+const TOP_LIGHT_DEPTH := 6
+## Light pools: additive glow around lit fires (nests, torches, the forge heart), a = strength.
+const LIGHT_POOL := Color(1.0, 0.6, 0.28, 0.3)
+const POOL_FOLLOWS := [&"nest", &"torch", &"heart"]
 
 ## Chapter palette (defaults: GRADE, RUST_RAMP, CHAPTER_WARM, PLAY_RAMP). Chapters that reuse this sky stack (Level06 night
 ## graveyard) hand in their own ramp so they do not read as a copy of chapter 1.
@@ -77,6 +100,7 @@ var _ground_fog: Parallax2D
 var _fog_veil: ColorRect
 var _mood_tint: CanvasModulate
 var _moon_fill: DirectionalLight2D
+var _glow: Sprite2D
 
 
 func build(host: Node2D) -> void:
@@ -104,10 +128,11 @@ func build(host: Node2D) -> void:
 		fog_tex = load(FOG_PATH) as Texture2D
 	if fog_tex != null:
 		_fog_far = _add_fog_layer(backdrop, "FogFar", Vector2(0.5, 0.1), 234.0, 0.13, fog_tex)
-	grade_plates(backdrop, _palette())
 	_sil_layer = _add_silhouette_layer(backdrop)
 	if fog_tex != null:
 		_fog_near = _add_fog_layer(backdrop, "FogNear", Vector2(0.75, 0.14), 276.0, 0.2, fog_tex)
+	grade_plates(backdrop, _palette())
+	_add_horizon_glow(backdrop)
 	var front := host.get_node_or_null("ParallaxForeground") as Node
 	if front != null:
 		if front is CanvasLayer:
@@ -116,9 +141,9 @@ func build(host: Node2D) -> void:
 		_foreground = front.get_node_or_null("Foreground") as Parallax2D
 		if _foreground != null:
 			cover_layer(_foreground)
-			grade_plates(front, _palette())
 		if fog_tex != null:
 			_ground_fog = _add_ground_fog(front, fog_tex)
+		grade_plates(front, _palette())
 		_fog_veil = _add_fog_veil(front)
 	# 全局微紫色调：把厚涂角色与紫色墓地轻轻拉到同一冷色轴上。
 	# CanvasModulate 与余烬巢 PointLight2D 叠在同一视口：夜里压暗，点光打出暖圈。
@@ -205,6 +230,11 @@ func _follow_atmosphere(delta: float) -> void:
 		var veil: Color = palette.get("veil", FOG_VEIL_COLOR)
 		veil.a = WorldClock.fog_veil_alpha()
 		_fog_veil.color = _fog_veil.color.lerp(veil, k)
+	if _glow != null:
+		# Night / storm dim the horizon glow but never remove it (the forge city still smoulders).
+		var glow: Color = palette.get("glow", HORIZON_GLOW)
+		var dim := clampf(WorldClock.mood_luminance() / 0.82, 0.4, 1.1)
+		_glow.modulate = _glow.modulate.lerp(Color(glow.r, glow.g, glow.b, glow.a * dim), k)
 	if _moon_fill != null:
 		var e := WorldClock.moon_fill_energy()
 		_moon_fill.energy = e
@@ -303,11 +333,135 @@ static func grade_play_layer(host: Node, pal: Dictionary = {}, folders: Array = 
 		return 0
 	var mat := play_grade_material(pal)
 	var graded := 0
+	var top: Color = pal.get("top_light", TOP_LIGHT)
 	for folder_name in folders:
 		var folder := host.get_node_or_null(String(folder_name))
 		if folder != null:
 			graded += _grade_tree(folder, mat)
+			if top.a > 0.001:
+				_light_tops(folder, top)
 	return graded
+
+
+## Warm lit lip along each platform top (additive, under the actors' feet line). Walls (one tile
+## wide, tall) and platforms without a surface are skipped; idempotent.
+static func _light_tops(node: Node, top: Color) -> void:
+	for child in node.get_children():
+		var plat := child as SolidPlatform
+		if plat == null:
+			if child is Node2D and not is_grade_exempt(child):
+				_light_tops(child, top)
+			continue
+		if plat.get_node_or_null("TopLight") != null or not plat.cap_surface:
+			continue
+		if plat.size.x <= SolidPlatform.WORLD + 0.5 and plat.size.y > SolidPlatform.WORLD * 2.0:
+			continue
+		var lip := Sprite2D.new()
+		lip.name = "TopLight"
+		lip.texture = top_light_texture()
+		lip.centered = false
+		lip.scale = Vector2(plat.size.x, 1.0)
+		lip.modulate = Color(top.r, top.g, top.b, top.a)
+		lip.material = additive_material()
+		lip.z_index = 1
+		lip.add_to_group("no_grade")
+		plat.add_child(lip)
+
+
+static var _top_tex: Texture2D
+static var _pool_tex: Texture2D
+static var _add_mat: CanvasItemMaterial
+
+
+static func additive_material() -> CanvasItemMaterial:
+	if _add_mat == null:
+		_add_mat = CanvasItemMaterial.new()
+		_add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return _add_mat
+
+
+## 1 px wide, TOP_LIGHT_DEPTH tall: a hot top row, then a quick falloff into the stone.
+static func top_light_texture() -> Texture2D:
+	if _top_tex == null:
+		var img := Image.create(1, TOP_LIGHT_DEPTH, false, Image.FORMAT_RGBA8)
+		for y in TOP_LIGHT_DEPTH:
+			var a := 1.0 if y == 0 else 0.55 * pow(1.0 - float(y) / float(TOP_LIGHT_DEPTH), 1.6)
+			img.set_pixel(0, y, Color(1, 1, 1, a))
+		_top_tex = ImageTexture.create_from_image(img)
+	return _top_tex
+
+
+static func pool_texture() -> Texture2D:
+	if _pool_tex == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.45), Color(1, 1, 1, 0)])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.width = 128
+		t.height = 128
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		_pool_tex = t
+	return _pool_tex
+
+
+## Soft additive pools around every lit fire light under host (nest, torch, forge heart).
+## Each pool follows its light's on/off and energy, so unlit nests stay dark. Idempotent.
+static func add_light_pools(host: Node, pal: Dictionary = {}) -> int:
+	var col: Color = pal.get("light_pool", LIGHT_POOL)
+	if host == null or col.a <= 0.001:
+		return 0
+	var n := 0
+	for node in host.find_children("*", "WorldLight", true, false):
+		var light := node as WorldLight
+		if not POOL_FOLLOWS.has(light.follow) or light.has_meta("light_pool"):
+			continue
+		var pool := LightPool.new()
+		pool.name = "LightPool"
+		pool.source = light
+		pool.tint = col
+		pool.texture = pool_texture()
+		pool.material = additive_material()
+		light.set_meta("light_pool", true)
+		light.add_child(pool)
+		n += 1
+	return n
+
+
+func _add_horizon_glow(backdrop: Node) -> void:
+	var glow: Color = palette.get("glow", HORIZON_GLOW)
+	if glow.a <= 0.001 or backdrop.get_node_or_null("HorizonGlow") != null:
+		return
+	var g := Gradient.new()
+	var offsets := PackedFloat32Array()
+	var colors := PackedColorArray()
+	for stop in GLOW_STOPS:
+		offsets.append(float(stop[0]))
+		colors.append(Color(1, 1, 1, float(stop[1])))
+	g.offsets = offsets
+	g.colors = colors
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.width = 4
+	t.height = 128
+	t.fill_from = Vector2(0, 0)
+	t.fill_to = Vector2(0, 1)
+	var spr := Sprite2D.new()
+	spr.name = "HorizonGlow"
+	spr.texture = t
+	spr.centered = false
+	var view := Vector2(PresentationMetrics.WORLD_SIZE)
+	spr.scale = Vector2(view.x / 4.0, view.y / 128.0)
+	spr.modulate = Color(glow.r, glow.g, glow.b, glow.a)
+	spr.material = additive_material()
+	backdrop.add_child(spr)
+	_glow = spr
+	# Over the sky and clouds, under the mountains.
+	var mid := backdrop.get_node_or_null("Mid")
+	if mid != null:
+		backdrop.move_child(spr, mid.get_index())
 
 
 static func chapter_tint(c: Color, warm: Color = CHAPTER_WARM) -> Color:
@@ -319,6 +473,7 @@ static func play_grade_material(pal: Dictionary = {}) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load(GRADE_SHADER) as Shader
 	mat.set_shader_parameter("amount", float(pal.get("play_amount", PLAY_GRADE_AMOUNT)))
+	mat.set_shader_parameter("value_scale", float(pal.get("play_value", PLAY_VALUE)))
 	var ramp: Array = pal.get("play_ramp", PLAY_RAMP)
 	for i in ramp.size():
 		mat.set_shader_parameter("c%d" % i, ramp[i])
