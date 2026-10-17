@@ -217,24 +217,17 @@ func _descend_into_undercroft() -> bool:
 	if not _require(absf(_player().position.y - 320.0) < 2.0, "knight stands on FloorB after the toxin pit"): return false
 	_record("undercroft_pit_crossed")
 	# Save/continue round trip: pause → title → continue must come back here.
-	_ui(&"ui_cancel")
-	await _frames(3)
-	_ui(&"ui_up")
-	await _frames(3)
-	_ui(&"ui_accept")
-	for i in 600:
-		await _frames(1)
-		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
-			await _frames(6)
-			await _title_continue()
-			if not await _wait_world(): return false
-			var player := _player()
-			if not _require(GameContext.world_scene_path(player) == GameContext.LEVEL02_PATH, "continue reopens Level02"): return false
-			if not _require(absf(player.position.x - 176.0) < 12.0, "continue restores the undercroft checkpoint"): return false
-			_record("undercroft_continue_verified")
-			return true
-	_fail("pause menu did not return to title from Level02")
-	return false
+	if not await _pause_return_to_title(): 
+		_fail("pause menu did not return to title from Level02")
+		return false
+	await _frames(6)
+	await _title_continue()
+	if not await _wait_world(): return false
+	var player_after := _player()
+	if not _require(GameContext.world_scene_path(player_after) == GameContext.LEVEL02_PATH, "continue reopens Level02"): return false
+	if not _require(absf(player_after.position.x - 176.0) < 12.0, "continue restores the undercroft checkpoint"): return false
+	_record("undercroft_continue_verified")
+	return true
 
 
 func _wait_world() -> bool:
@@ -444,24 +437,65 @@ func _verify_progress_reload() -> bool:
 		if i == 2399:
 			_fail("enemy damage did not complete a checkpoint reload")
 			return false
-	_ui(&"ui_cancel")
-	await _frames(3)
-	_ui(&"ui_up") # Pause: wrap from Resume to Return to Title.
-	await _frames(3)
-	_ui(&"ui_accept")
-	for i in 600:
-		await _frames(1)
+	if not await _pause_return_to_title():
+		_fail("pause menu did not return to title")
+		return false
+	await _frames(6)
+	await _title_continue()
+	if not await _wait_world(): return false
+	# Continue restores the saved interaction position; death uses the
+	# nest's respawn point. Momentum may put those a few pixels apart.
+	if not _check_restored_progress((SaveData.data["player"]["pos"] as Vector2).x): return false
+	_record("continue_verified")
+	return true
+
+
+## 暂停 → 返回标题。
+## 死亡重载后还会有一小段场景淡变：PauseMenu 在淡变期间只记下请求（不立即暂停），
+## 而紧接着再按一次 Esc 会把该请求收回。所以这里先等淡变结束（玩家等半秒再按），
+## 再发送真实的 ui_cancel/ui_up/ui_accept；重试时同样等状态，不盲目连按。
+func _pause_return_to_title() -> bool:
+	for attempt in 4:
 		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
-			await _frames(6)
-			await _title_continue()
-			if not await _wait_world(): return false
-			# Continue restores the saved interaction position; death uses the
-			# nest's respawn point. Momentum may put those a few pixels apart.
-			if not _check_restored_progress((SaveData.data["player"]["pos"] as Vector2).x): return false
-			_record("continue_verified")
 			return true
-	_fail("pause menu did not return to title")
+		for _i in 240:
+			if not Director.is_fading() or get_tree().paused:
+				break
+			await _frames(1)
+		_ui(&"ui_cancel")
+		await _frames(8)
+		var paused := get_tree().paused
+		var pause := _find_pause()
+		print("[PAUSE] attempt=%d paused=%s scene=%s fading=%s playing=%s locked=%s hold=%s open=%s"
+				% [attempt, paused,
+				get_tree().current_scene.scene_file_path if get_tree().current_scene != null else "null",
+				Director.is_fading(), Director.playing, Director.is_input_locked(),
+				Director.choice_hold, pause != null and pause.is_open()])
+		if not paused:
+			await _frames(30)
+			continue
+		_ui(&"ui_up")
+		await _frames(6)
+		_ui(&"ui_accept")
+		for i in 300:
+			await _frames(1)
+			if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
+				return true
+		if get_tree().paused:
+			# 没退出：把菜单关掉，下一轮重新来。
+			_ui(&"ui_cancel")
+			await _frames(8)
 	return false
+
+
+func _find_pause() -> PauseMenu:
+	var host := GameContext.ui_host(_player())
+	if host == null:
+		return null
+	for node in host.find_children("*", "", true, false):
+		if node is PauseMenu:
+			return node
+	return null
 
 
 func _check_restored_progress(expected_x: float = 1536.0) -> bool:

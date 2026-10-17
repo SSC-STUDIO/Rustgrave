@@ -401,7 +401,7 @@ func test_death_after_level_transition_reloads_level_arrival_state() -> void:
 	eq(p3.equipment.get_equipped(EquipmentInventory.SLOT_ARMOR).id, &"iron_carapace", "armor preserved on death")
 	eq(p3.equipment.get_equipped(EquipmentInventory.SLOT_TRINKET).id, &"bone_charm", "trinket preserved on death")
 	eq(p3.equipment.bag.size(), 0, "bag empty preserved")
-	eq(p3.health.max_hp, 7, "max HP is 7")
+	eq(p3.health.max_hp, 8, "max HP is 8 (5 base + 2 carapace + 1 bone_charm)")
 
 	p3.queue_free()
 	arena.queue_free()

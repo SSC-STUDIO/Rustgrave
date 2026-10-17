@@ -74,8 +74,8 @@
 |---|------|-------|-------------|--------|
 | M1 | Attributes & Combat Integration | `character_stats.gd`, wiring into `melee_combat.gd`, `hurtbox.gd`/`health.gd`, `toxin_meter.gd`, `player_controller.gd` | none | DONE |
 | M2 | Equipment System & Drops | `equipment_item.gd`, `equipment_catalog.gd`, `equipment_inventory.gd`, `EquipmentPickup.tscn`, starter gear, set synergy | M1 | DONE |
-| M3 | Persistence & Backward Compatibility | `save_data.gd` integration, legacy save fallback, respawn & level transition retention | M2 | IN_PROGRESS |
-| M4 | UI & Pause Menu Integration | `character_equipment_panel.gd`, `CharacterEquipmentPanel.tscn`, `pause_menu.gd` integration, Tab/I hotkey, input focus | M2, M3 | PLANNED |
+| M3 | Persistence & Backward Compatibility | `save_data.gd` integration, legacy save fallback, respawn & level transition retention | M2 | DONE |
+| M4 | UI & Pause Menu Integration | `character_equipment_panel.gd`, `CharacterEquipmentPanel.tscn`, `pause_menu.gd` integration, Tab/I hotkey, input focus | M2, M3 | IN_PROGRESS |
 | E2E | E2E Testing Track | Test infra setup, Tiers 1-4 test scripts, publishes `TEST_READY.md` | M1 interface contracts | DONE |
 | M5 | Final Milestone: 100% Pass & Tier 5 Hardening | Pass 100% E2E tests, 0 engine errors, no regression, Phase 2 adversarial hardening | M1, M2, M3, M4, E2E | PLANNED |
 
