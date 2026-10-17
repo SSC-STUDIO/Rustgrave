@@ -13,7 +13,16 @@ Slab sheets keep SolidPlatform's 48x48 contract (16px lip row, body rows);
 float pieces are 16px left / mid / right like float_*.png.
 
 Set pieces from Gothic Horror (furnace, skull arch, rock pile, bones, brick
-house facade, toppled tower) are written next to them.
+house facade, toppled tower) are written next to them. The tileset ships on an
+opaque flat background; the pieces that are planted as set dressing (bones,
+skull arch, rock pile, furnace, toppled tower) have that background flood-keyed
+to transparency, so they no longer read as pasted squares on a chapter floor.
+
+Interior chapters (05 workshop / 08 slag / 10 forge core, plus the cathedral
+vault) get a vertical backdrop kit built from the same masonry tile, recoloured
+per family: a seamless wall plate, a ceiling-truss silhouette band and a
+mid-ground machinery silhouette. They fill the upper 55-65% of the frame that
+used to be empty dark void.
 
 Backdrop plates are gradient-mapped copies of existing parallax layers, so
 chapters that share a pack still read as different places (assets/env/backdrop/):
@@ -249,6 +258,299 @@ WARM_RAMP = [(0.0, (14, 11, 10)), (0.2, (52, 42, 36)), (0.38, (96, 82, 68)),
 COLD_RAMP = RAMPS["rampart"]
 
 
+def _key_tileset_bg(img, bg, tol=6):
+    """Flood the flat tileset background out from the canvas border.
+
+    Gothic Horror's tiles.png is one opaque image; every crop carries the flat
+    backdrop colour with it. Planted at 1x that reads as a dark pasted square
+    (the old `bones` sticker). Only pixels connected to the border *and* within
+    `tol` of `bg` are cleared, so interior darks of the carve stay opaque.
+    """
+    out = img.copy()
+    px = out.load()
+    w, h = out.size
+    seen = set()
+    stack = [(x, y) for x in range(w) for y in (0, h - 1)]
+    stack += [(x, y) for y in range(h) for x in (0, w - 1)]
+    while stack:
+        x, y = stack.pop()
+        if (x, y) in seen or not (0 <= x < w and 0 <= y < h):
+            continue
+        seen.add((x, y))
+        r, g, b, a = px[x, y]
+        if a == 0:
+            continue
+        if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) > tol * 3:
+            continue
+        px[x, y] = (r, g, b, 0)
+        stack.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    return out
+
+
+# Family ramp for the derived interior backdrop kit (walls read as the
+# chapter's own stone, not a generic grey box). Values sit a step above the
+# floor ramps: the backdrop CanvasLayer is darkened by BackdropTint, so the
+# authored plate has to start mid-dark to survive as readable masonry.
+WALL_RAMPS = {
+    "iron": [(0.0, (22, 23, 26)), (0.16, (58, 60, 64)), (0.32, (92, 94, 96)),
+             (0.5, (128, 122, 110)), (0.7, (168, 156, 138))],
+    "forge": [(0.0, (20, 10, 8)), (0.16, (58, 28, 22)), (0.32, (96, 47, 32)),
+              (0.5, (134, 70, 42)), (0.7, (186, 98, 50))],
+    "core": [(0.0, (17, 8, 8)), (0.16, (48, 21, 20)), (0.32, (82, 35, 29)),
+             (0.5, (118, 53, 40)), (0.7, (164, 84, 52))],
+    "slate": [(0.0, (20, 18, 28)), (0.16, (52, 50, 76)), (0.32, (84, 82, 116)),
+              (0.5, (114, 112, 148)), (0.7, (150, 146, 180))],
+}
+# Silhouette ramps: trusses and machinery are the darkest thing in the frame.
+SIL_RAMPS = {
+    "iron": [(0.0, (7, 7, 8)), (0.4, (20, 20, 21)), (0.75, (38, 36, 34)), (1.0, (58, 54, 48))],
+    "forge": [(0.0, (6, 3, 3)), (0.4, (17, 7, 6)), (0.75, (33, 14, 10)), (1.0, (58, 25, 15))],
+    "core": [(0.0, (5, 2, 2)), (0.4, (15, 6, 6)), (0.75, (30, 11, 9)), (1.0, (54, 21, 14))],
+    "slate": [(0.0, (8, 7, 11)), (0.4, (20, 18, 28)), (0.75, (38, 33, 50)), (1.0, (58, 52, 72))],
+}
+# Only the fire families get an ember seam in the masonry and a lit furnace mouth.
+EMBER_SEAM = {"forge": (198, 92, 38), "core": (232, 118, 44)}
+
+
+def _paint(img, x0, y0, x1, y1, rgb, a=255):
+    """Blit an axis-aligned box onto `img`; x wraps so 2-axis tile seams stay clean."""
+    px = img.load()
+    w, h = img.size
+    for y in range(max(0, y0), min(h, y1)):
+        for x in range(x0, x1):
+            px[x % w, y] = (rgb[0], rgb[1], rgb[2], a)
+
+
+def _paint_line(img, x0, y0, x1, y1, rgb, a=255):
+    px = img.load()
+    w, h = img.size
+    dx = abs(x1 - x0)
+    sx = 1 if x0 < x1 else -1
+    dy = -abs(y1 - y0)
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+    while True:
+        if 0 <= y0 < h:
+            px[x0 % w, y0] = (rgb[0], rgb[1], rgb[2], a)
+        if x0 == x1 and y0 == y1:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            err += dx
+            y0 += sy
+
+
+def _gear(img, cx, cy, radius, teeth, body, edge):
+    import math
+    px = img.load()
+    w, h = img.size
+    r_in = radius - 6
+    for y in range(max(0, cy - radius - 7), min(h, cy + radius + 7)):
+        for x in range(max(0, cx - radius - 7), min(w, cx + radius + 7)):
+            dx = x - cx
+            dy = y - cy
+            d = math.hypot(dx, dy)
+            ang = math.atan2(dy, dx)
+            rr = radius + (5 if math.sin(ang * teeth) > 0.35 else 0)
+            if d > rr:
+                continue
+            if d < r_in - 12:
+                px[x, y] = (0, 0, 0, 0)
+            elif d < r_in:
+                px[x, y] = (edge[0], edge[1], edge[2], 255)
+            else:
+                px[x, y] = (body[0], body[1], body[2], 255)
+    for i in range(4):
+        ang = i * math.pi / 2.0 + 0.4
+        _paint_line(img, int(cx), int(cy),
+                int(cx + math.cos(ang) * (r_in - 2)), int(cy + math.sin(ang) * (r_in - 2)), body)
+
+
+def wall_plate(style):
+    """192x192 seamless interior wall: masonry tile + I-columns + riveted beams +
+    pipes, with a vent and a couple of cracks. Wraps on both axes."""
+    ramp = WALL_RAMPS[style]
+    n = 192
+    out = Image.new("RGBA", (n, n), (0, 0, 0, 255))
+    for r in range(n // T):
+        for c in range(n // T):
+            t = masonry_tile(ramp, 907 + r * 37 + c * 11, face=(0.17, 0.31))
+            if (r * 5 + c * 3) % 4 == 0:
+                t = t.transpose(Image.FLIP_LEFT_RIGHT)
+            out.alpha_composite(t, (c * T, r * T))
+    dark = ramp_color(ramp, 0.10)
+    mid = ramp_color(ramp, 0.26)
+    lit = ramp_color(ramp, 0.56)
+    # I-columns every 96px, riveted
+    for cx in range(0, n, 96):
+        _paint(out, cx - 5, 0, cx + 5, n, mid)
+        _paint(out, cx - 5, 0, cx - 3, n, dark)
+        _paint(out, cx + 3, 0, cx + 5, n, dark)
+        for y in range(6, n, 16):
+            _paint(out, cx - 4, y, cx - 3, y + 1, lit)
+            _paint(out, cx + 4, y, cx + 5, y + 1, lit)
+    # riveted horizontal beams every 64px
+    for gy in range(22, n, 64):
+        _paint(out, 0, gy, n, gy + 7, mid)
+        _paint(out, 0, gy, n, gy + 1, dark)
+        _paint(out, 0, gy + 6, n, gy + 7, dark)
+        for x in range(8, n, 24):
+            _paint(out, x, gy + 3, x + 1, gy + 4, lit)
+    # pipe runs (vertical) with clamps
+    for cx in (44, 140):
+        _paint(out, cx, 0, cx + 4, n, ramp_color(ramp, 0.34))
+        _paint(out, cx, 0, cx + 1, n, dark)
+        for y in range(0, n, 64):
+            _paint(out, cx - 2, y, cx + 6, y + 3, mid)
+    # vent grates / blank name plates
+    for vx, vy in ((66, 100), (162, 36)):
+        _paint(out, vx, vy, vx + 24, vy + 14, dark)
+        for i in range(4):
+            _paint(out, vx + 2, vy + 2 + i * 3, vx + 22, vy + 3 + i * 3, ramp_color(ramp, 0.18))
+    # soot cracks; the fire families get one ember seam so the wall reads as heated
+    ember = EMBER_SEAM.get(style)
+    cracks = ((24, 150, 66, 194), (118, 40, 128, 92), (148, 174, 170, 214))
+    if ember is not None:
+        cracks = ((24, 150, 66, 194), (100, 54, 118, 96), (150, 176, 176, 218))
+    for i, (x0, y0, x1, y1) in enumerate(cracks):
+        _paint_line(out, x0, y0, x1, y1, dark)
+        if ember is not None and i % 2 == 0:
+            _paint_line(out, x0 + 1, y0 + 1, x1, y1, ember)
+    return out
+
+
+def truss_band(style):
+    """320x96 ceiling truss silhouette: top/bottom chords, posts, diagonal braces,
+    a pipe and two hanging chain hoists. Transparent below the band."""
+    ramp = SIL_RAMPS[style]
+    w, h = 320, 96
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    dark = ramp_color(ramp, 0.30)
+    mid = ramp_color(ramp, 0.55)
+    lit = ramp_color(ramp, 0.82)
+    _paint(out, 0, 0, w, 9, dark)
+    _paint(out, 0, 9, w, 11, ramp_color(ramp, 0.18))
+    _paint(out, 0, 66, w, 72, dark)
+    for x in range(0, w, 80):
+        _paint(out, x - 4, 9, x + 4, 72, mid)
+        _paint(out, x - 4, 9, x - 2, 72, dark)
+        _paint(out, x + 2, 9, x + 4, 72, dark)
+        _paint_line(out, x + 4, 10, x + 76, 65, mid)
+        _paint_line(out, x + 6, 65, x + 46, 10, dark)
+        _paint(out, x - 5, 7, x + 6, 13, dark)
+    _paint(out, 0, 22, w, 27, ramp_color(ramp, 0.40))
+    _paint(out, 0, 22, w, 24, dark)
+    for cx in (40, 200):
+        _paint_line(out, cx, 27, cx, 60, lit)
+        for y in range(28, 58, 4):
+            _paint(out, cx - 1, y, cx + 3, y + 1, mid)
+        _paint(out, cx - 2, 60, cx + 4, 64, dark)
+    return out
+
+
+def machinery_silhouette(style):
+    """640x128 mid-ground machinery standing on the floor line: a gear bank, a
+    riveted boiler with a lit hatch, a slim chimney and a press/flywheel cluster.
+
+    Deliberately NOT one solid black mass: the body sits one step under the wall
+    value and the edges take the lightest ramp stop, so the pieces read as
+    machines in a dim room instead of a hole punched in the backdrop. A 640px
+    repeat means one stamped module is never the whole screen."""
+    ramp = SIL_RAMPS[style]
+    w, h = 640, 128
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    body = ramp_color(ramp, 0.58)
+    edge = ramp_color(ramp, 0.97)
+    recess = ramp_color(ramp, 0.18)
+
+    def slab(x0, y0, x1, y1):
+        _paint(out, x0, y0, x1, y1, body)
+
+    def rim(x0, y0, x1, y1):
+        _paint(out, x0, y0, x1, y1, edge)
+
+    # gear bank
+    _gear(out, 52, 96, 24, 10, body, edge)
+    _gear(out, 100, 106, 14, 8, body, edge)
+    slab(52, 94, 100, 98)
+    rim(52, 94, 100, 95)
+    # boiler: tank with banded shell, rivets, lit hatch
+    slab(148, 76, 214, 128)
+    rim(148, 76, 214, 78)
+    slab(152, 96, 210, 100)
+    rim(152, 96, 210, 97)
+    for x in range(154, 208, 12):
+        rim(x, 84, x + 2, 86)
+        rim(x, 90, x + 2, 92)
+    _paint(out, 160, 108, 180, 124, recess)
+    rim(160, 108, 180, 110)
+    # top dome + valve
+    slab(162, 66, 200, 76)
+    rim(162, 66, 200, 68)
+    slab(176, 56, 182, 66)
+    rim(172, 54, 186, 57)
+    # slim chimney
+    slab(230, 36, 244, 128)
+    rim(230, 36, 233, 128)
+    rim(226, 34, 248, 38)
+    # pipe run between gear bank and boiler
+    slab(100, 116, 148, 120)
+    rim(100, 116, 148, 117)
+    slab(112, 112, 116, 124)
+    # press frame + flywheel cluster
+    slab(340, 62, 349, 128)
+    slab(388, 62, 397, 128)
+    slab(340, 62, 397, 70)
+    rim(340, 62, 397, 64)
+    rim(344, 74, 393, 75)
+    _gear(out, 432, 92, 20, 9, body, edge)
+    slab(397, 90, 414, 94)
+    # horizontal service pipe along the floor line
+    for x in range(214, 340, 4):
+        slab(x, 120, min(x + 4, 340), 128)
+    rim(214, 120, 340, 121)
+    ember = EMBER_SEAM.get(style)
+    if ember is not None:
+        # lit hatch + glowing crack: the only warm pixels in the silhouette
+        _paint(out, 164, 112, 176, 124, ember)
+        rim(164, 112, 176, 113)
+        _paint(out, 236, 40, 238, 128, ember)
+        _paint(out, 396, 88, 402, 92, ember)
+    return out
+
+
+WORKSHOP_RAMP = [(0.04, (10, 10, 12)), (0.2, (22, 23, 25)), (0.38, (38, 39, 40)),
+                 (0.56, (56, 54, 50)), (0.78, (80, 74, 64))]
+
+
+def save_to(folder, name, img):
+    path = os.path.join(folder, name)
+    img.save(path)
+    print("wrote", os.path.relpath(path, ROOT), img.size)
+
+
+def interior_backdrops():
+    """The interior vertical kit (wall / truss / machinery) plus the warm-iron
+    recolour of the industrial parallax pack. Deterministic and idempotent."""
+    out_dir = os.path.join(ENV, "backdrop")
+    os.makedirs(out_dir, exist_ok=True)
+    for style in ("iron", "forge", "core", "slate"):
+        save_to(out_dir, "wall_%s.png" % style, wall_plate(style))
+        save_to(out_dir, "truss_%s.png" % style, truss_band(style))
+    for style in ("iron", "forge", "core"):
+        save_to(out_dir, "machinery_%s.png" % style, machinery_silhouette(style))
+    # 工坊远景包是绿色的（design 上像车间外的林场），和「暖灰铁」身份色打架：
+    # 三张远景按明度重新映射到暖铁色阶，轮廓/alpha 不动，工程仍走原包。
+    for name, src in (("workshop_haze.png", "skill-desc_0003_bg.png"),
+                      ("workshop_far.png", "skill-desc_0002_far-buildings.png"),
+                      ("workshop_near.png", "skill-desc_0001_buildings.png")):
+        saved = gradient_map(load(os.path.join(IND, src)), WORKSHOP_RAMP)
+        save_to(out_dir, name, saved)
+
+
 def set_pieces(h):
     pieces = {
         "gh_furnace.png": (272, 64, 32, 96),
@@ -258,8 +560,18 @@ def set_pieces(h):
         "gh_brick_house.png": (416, 0, 384, 176),
         "gh_ruin_tower.png": (784, 16, 256, 160),
     }
+    # Flat tileset backdrop of tiles.png / the toppled-tower layer.
+    keyed = {
+        "gh_bones.png": (24, 18, 32),
+        "gh_skull_arch.png": (24, 18, 32),
+        "gh_rock_pile.png": (24, 18, 32),
+        "gh_furnace.png": (24, 18, 32),
+        "gh_ruin_tower.png": (30, 37, 45),
+    }
     for name, (x, y, w, hh) in pieces.items():
         img = tile(h, x, y, w, hh)
+        if name in keyed:
+            img = _key_tileset_bg(img, keyed[name])
         bbox = img.getbbox()
         if bbox:
             img = img.crop(bbox)
@@ -347,6 +659,72 @@ def prop_variants():
             img = gradient_map_norm(load(os.path.join(ENV, src)), ramp)
             img.save(os.path.join(out_dir, key + ".png"))
         print("wrote props/%s" % family)
+
+
+# 「世界历史细节」里的机械/管道/遗弃设施来自 Kenney Request pack：70×70、灰阶渐变、
+# 带抗锯齿边、多数还带不透明底板。直接 1x 种进 640×360 的关卡会读成一块光滑灰板
+# （正是这一轮要清掉的贴纸感）。和 rust_remains() 同样的做法，为用得上的素材族派生
+# 1x 版本：alpha 按阈值切硬边 → 裁内容框 → NEAREST 缩一半 → 亮度吸附到该族色阶。
+HISTORY_PROPS = {
+    "beam": "beam.png",
+    "beam_bolts": "beamBolts.png",
+    "beam_narrow": "beamNarrow.png",
+    "metal_panel": "metal.png",
+    "pipe_valve": "beamBoltsHoles.png",
+    "broken_machine": "beamHoles.png",
+    "girder_l": "beamDiagonalLeft.png",
+    "girder_r": "beamDiagonalRight.png",
+    "fence": "metalFence.png",
+    "warning_plate": "metalCenterWarning.png",
+}
+HISTORY_FAMILIES = ("iron", "basalt", "moss", "rampart")
+# 机械/管道件用比地面更暗的一档色阶：它们是被丢在墙角、退到背景里的残骸，
+# 用地面那套亮石色阶会变成一块发亮的橙板（在 640×360 里比角色还抢眼）。
+HISTORY_RAMPS = {
+    "iron": [(0.0, (12, 10, 9)), (0.3, (44, 34, 28)), (0.5, (72, 52, 38)),
+             (0.7, (104, 74, 50)), (1.0, (132, 96, 64))],
+    "basalt": [(0.0, (10, 5, 4)), (0.3, (40, 19, 14)), (0.5, (66, 30, 20)),
+               (0.7, (100, 46, 26)), (1.0, (132, 60, 32))],
+    "moss": [(0.0, (8, 12, 10)), (0.3, (32, 42, 36)), (0.5, (52, 68, 54)),
+             (0.7, (78, 94, 74)), (1.0, (104, 118, 92))],
+    "rampart": [(0.0, (12, 14, 18)), (0.3, (42, 46, 52)), (0.5, (68, 74, 82)),
+                (0.7, (96, 102, 110)), (1.0, (122, 128, 136))],
+}
+
+
+def history_prop_variants():
+    for family in HISTORY_FAMILIES:
+        out_dir = os.path.join(ENV, "props", family)
+        os.makedirs(out_dir, exist_ok=True)
+        ramp = HISTORY_RAMPS[family]
+        for key, src in HISTORY_PROPS.items():
+            img = _hard_alpha(load(os.path.join(KENNEY_REQUEST, src)))
+            bbox = img.getbbox()
+            if bbox:
+                img = img.crop(bbox)
+            w, h = img.size
+            img = img.resize((max(1, w // 2), max(1, h // 2)), Image.NEAREST)
+            img = _snap_ramp(img, ramp)
+            img.save(os.path.join(out_dir, key + ".png"))
+        # 骨渣 / 生活残留：底板已由 set_pieces() 抠掉，这里只做族色阶统一
+        # （骨色比铁件亮一档：它是骨头，不是铁）。
+        bones_ramp = [(t, tuple(min(255, int(c * 1.45)) for c in rgb)) for t, rgb in ramp]
+        bones = load(os.path.join(ENV, "gh_bones.png"))
+        bbox = bones.getbbox()
+        if bbox:
+            bones = bones.crop(bbox)
+        bones = _snap_ramp(bones, bones_ramp)
+        bones.save(os.path.join(out_dir, "bones.png"))
+        bones.save(os.path.join(out_dir, "life_remains.png"))
+        chain = _hard_alpha(load(os.path.join(KENNEY_ITEMS, "chain.png")))
+        bbox = chain.getbbox()
+        if bbox:
+            chain = chain.crop(bbox)
+        cw, ch = chain.size
+        chain = chain.resize((max(1, cw // 2), max(1, ch // 2)), Image.NEAREST)
+        chain = _snap_ramp(chain, ramp)
+        chain.save(os.path.join(out_dir, "chain.png"))
+        print("wrote props/%s history set" % family)
 
 
 # Cathedral / nave paving: the stock church slab is a saturated lavender that glows next to
@@ -705,8 +1083,10 @@ def main():
     nave_family()
     set_pieces(h)
     prop_variants()
+    history_prop_variants()
     plates()
     backdrops()
+    interior_backdrops()
     rust_moon_plates()
     rust_remains()
 
