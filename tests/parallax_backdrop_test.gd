@@ -1,11 +1,13 @@
 extends TestCase
-## The backdrop is the three authored Gothicvania plates on Parallax2D with
-## enough repeat copies that a zoomed / shaken 640px view never sees a seam.
+## The backdrop is the authored Gothicvania plates on Parallax2D with enough
+## repeat copies that a zoomed / shaken 640px view never sees a seam. The sky and
+## far-mountain plates are the derived rust pair for the graveyard identity; the
+## original magenta plates stay on disk as the fallback (see level01_backdrop_test).
 
 const LEVEL := "res://scenes/levels/Level01_Static.tscn"
 const PLATES := {
-	"Far": ["res://assets/env/parallax_sky.png", Vector2(0.08, 0.04), 1.9],
-	"Mid": ["res://assets/env/parallax_mountains.png", Vector2(0.22, 0.06), 1.7],
+	"Far": ["res://assets/env/parallax_sky_rust.png", Vector2(0.08, 0.04), 1.9],
+	"Mid": ["res://assets/env/parallax_mountains_rust.png", Vector2(0.22, 0.06), 1.7],
 	"Hills": ["res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), 1.85],
 }
 
@@ -41,7 +43,7 @@ func test_backdrop_is_a_canvas_layer_of_parallax2d_plates() -> void:
 		ok(spr != null and spr.texture != null, "%s carries the authored plate" % name)
 		if spr == null or spr.texture == null:
 			continue
-		eq(String(spr.texture.resource_path), spec[0], "%s uses the original Gothicvania plate" % name)
+		eq(String(spr.texture.resource_path), spec[0], "%s uses the rust-identity derived plate" % name)
 		almost(spr.scale.x, float(spec[2]), 0.001, "%s plate scale" % name)
 		eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
 	for name in ["CloudFar", "CloudLow", "FarMountains", "MidGrove", "NearGround"]:
@@ -51,8 +53,8 @@ func test_backdrop_is_a_canvas_layer_of_parallax2d_plates() -> void:
 	for child in backdrop.get_children():
 		if child is Parallax2D:
 			order.append(String(child.name))
-	eq(order.slice(0, 5), ["Far", "SkyCloudsHigh", "SkyCloudsLow", "Mid", "Hills"],
-			"sky, then drifting clouds, then mountains, then graveyard")
+	eq(order.slice(0, 6), ["Far", "SkyCloudsHigh", "SkyCloudsLow", "HorizonHaze", "Mid", "Hills"],
+			"sky, drifting clouds, horizon haze, mountains, graveyard")
 
 
 func test_plates_repeat_enough_copies_to_cover_the_view() -> void:

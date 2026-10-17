@@ -22,6 +22,18 @@ chapters that share a pack still read as different places (assets/env/backdrop/)
   wall_town   Gothic Horror town seen from the wall   -> 锈城城墙
   wall_clouds Gothic Horror clouds in night teal      -> 锈城城墙
 
+Level01's authored cemetery plates get rust variants next to the untouched
+originals (assets/env/parallax_sky_rust.png / parallax_mountains_rust.png /
+parallax_clouds_rust.png / parallax_clouds_low_rust.png):
+  parallax_sky.png       candy-magenta moon night -> dull blood moon, violet-soot
+                         sky warming to rust at the horizon
+  parallax_mountains.png flat lavender range      -> near-Void soot silhouette
+                         with a moonlit ember rim
+  parallax_clouds*.png   lavender painterly strips-> soot -> warm ash -> dust
+                         clouds lit by the rust moon
+The level swaps to the derived plates and falls back to the originals when they
+are missing, so the tools stays reproducible without becoming a boot dependency.
+
 Usage: python tools/gen_theme_tiles.py
 """
 import os
@@ -486,6 +498,203 @@ def backdrops():
     print("wrote", os.path.relpath(path, ROOT), img.size)
 
 
+# ------------------------------------------------ 锈月夜空板（Level01 视觉身份） --
+# The cemetery pack's night plate is candy magenta on purpose; the chapter's
+# identity at the title screen is rust/ember. Keep the original and ship a
+# derived copy: same geometry and alpha, every pixel gradient-mapped onto the
+# art-spec rust ramp, and the lower sky eased toward rust so the horizon meets
+# the graveyard warm instead of still glowing pink behind the silhouettes.
+# Luma stops follow the source plate: p2 0.096 / p50 0.112 / p98 0.252, moon
+# core 0.333. The moon peaks below the knight's #CD5C5C luminance (0.455) so the
+# backdrop can never outrank the player silhouette.
+RUST_SKY_RAMP = [
+    (0.000, (10, 9, 14)),      # soot-violet black under Void
+    (0.092, (26, 21, 30)),     # violet-soot sky base
+    (0.118, (40, 30, 34)),     # soot warming toward the horizon
+    (0.150, (74, 42, 24)),     # Rust Shadow          #4A2A18
+    (0.185, (139, 69, 19)),    # Rust Dark            #8B4513
+    (0.235, (160, 82, 45)),    # Rust Mid             #A0522D
+    (0.290, (174, 90, 62)),    # Rust Light, dulled toward blood
+    (0.340, (186, 92, 60)),    # dull blood-moon core (luma ≈ 0.43, under #CD5C5C's 0.455)
+]
+# Horizon warm-up: rows below the sky's upper third drift toward these rusts.
+RUST_HORIZON = [(0.0, (58, 34, 26)), (0.55, (108, 56, 28)), (1.0, (150, 78, 38))]
+# Mountains ship as one flat lavender body ((16,0,64), 95% of the pixels) with
+# lavender peaks. Remap that body to near-Void warm soot and let only the peaks
+# take rust: a silhouette with a moonlit ember rim, so the range keeps reading
+# as a silhouette behind the knight instead of a purple band behind the sky.
+RUST_MOUNTAIN_RAMP = [
+    (0.000, (22, 15, 18)),
+    (0.100, (30, 21, 22)),     # flat body (source luma 0.087)
+    (0.145, (74, 42, 24)),     # Rust Shadow
+    (0.180, (139, 69, 19)),    # Rust Dark
+    (0.225, (152, 78, 42)),    # Rust Mid
+    (0.300, (176, 98, 56)),    # ember-rimmed peaks (luma ≈ 0.44, under the knight)
+]
+# The two drifting cloud plates are the same lavender painterly strips
+# (parallax_clouds_px / parallax_clouds_low_px). Tinted magenta over a magenta
+# sky they read as clouds; tinted over the rust sky they read as neon ribbons.
+# Their shape and alpha stay the authored ones, but every pixel is remapped onto
+# soot -> warm ash -> dust, so the overcast is lit by the rust moon instead of
+# fighting it. Originals are kept as the runtime fallback.
+RUST_CLOUD_RAMP = [
+    (0.000, (14, 13, 13)),     # soot
+    (0.120, (34, 29, 26)),     # ash soot
+    (0.220, (58, 46, 38)),     # dark warm ash
+    (0.340, (86, 68, 54)),     # ash brown
+    (0.480, (118, 92, 70)),    # warm dust
+    (0.620, (150, 116, 88)),   # dust highlight
+    (0.800, (180, 140, 104)),  # ember-lit dust edge
+]
+
+
+def warm_horizon(img, horizon=0.18, strength=0.55):
+    """Ease the lower sky toward RUST_HORIZON. `horizon` is the row fraction where
+    the warm-up starts (0.18 puts it just below the moon so the upper sky keeps its
+    violet-soot night); the blend is a smooth quadratic, so no banding/pop rows."""
+    out = img.copy()
+    px = out.load()
+    w, h = out.size
+    for y in range(h):
+        v = y / float(h - 1)
+        t = max(0.0, min(1.0, (v - horizon) / (1.0 - horizon)))
+        if t <= 0.0:
+            continue
+        k = strength * t * t
+        target = ramp_color(RUST_HORIZON, v)
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            px[x, y] = (int(r + (target[0] - r) * k),
+                        int(g + (target[1] - g) * k),
+                        int(b + (target[2] - b) * k), a)
+    return out
+
+
+def rust_moon_plates():
+    """Write the derived Level01 night plates (sky, far mountains, two cloud strips).
+    Deterministic: re-running this tool reproduces byte-identical PNGs; the
+    authored originals are never modified and stay the runtime fallback."""
+    sky = warm_horizon(gradient_map(load(os.path.join(ENV, "parallax_sky.png")), RUST_SKY_RAMP))
+    save(sky, "parallax_sky_rust.png")
+    save(gradient_map(load(os.path.join(ENV, "parallax_mountains.png")), RUST_MOUNTAIN_RAMP),
+         "parallax_mountains_rust.png")
+    save(gradient_map(load(os.path.join(ENV, "parallax_clouds_px.png")), RUST_CLOUD_RAMP),
+         "parallax_clouds_rust.png")
+    save(gradient_map(load(os.path.join(ENV, "parallax_clouds_low_px.png")), RUST_CLOUD_RAMP),
+         "parallax_clouds_low_rust.png")
+
+
+# ------------------------------- 墓园锈铁残骸（Level01 中段攀爬 / 毒坑） --
+# 第一章的历史不止墓碑：墓园压在停工的锈炉城上。1A 要给中段攀爬「锈蚀管道 /
+# 坏机械 / 断链」，但这些符号在 PropCatalog 里只有 Kenney Request-pack 的原件
+# （70×70、灰阶渐变、抗锯齿边）——1x 种进 640×360 的像素关卡会读成一块光滑
+# 灰板，正是这一轮要清掉的「占位感」。
+# 这里派生墓园族（graveyard → family "ground"）的 1x 版本，只写
+# assets/env/props/ground/<key>.png；PropCatalog.path_for() 本来就会优先取
+# 素材族变体，所以 DECOR 键不动、别的主题和其它关卡的贴图不受影响：
+#   1. alpha 按阈值切成硬边（art-spec 禁止抗锯齿）；
+#   2. 裁到内容框后 NEAREST 缩到一半（1 画 px = 1 世界 px，与墓园贴图同密度）；
+#   3. 亮度吸附到 art-spec 锈色阶的最近一档（平涂像素阴影，不是重新渐变）。
+# 整族一次派生（工坊 / 熔渣的 iron / basalt 族同样整套落盘），但只种用得上的键；
+# warning_plate 是几乎填满画布的一块平板，映射后就是一整块纯色方块，故意不派生
+# （别把它当接地细节种进墓园）。
+# 幂等：无随机、无时间戳，重跑得到 byte-identical 的 PNG。来源与许可：
+# assets/external/kenney（CC0），见 assets/external/CREDITS.md。
+KENNEY_REQUEST = os.path.join(ROOT, "assets", "external", "kenney", "Art (5190 files)",
+    "Platformer assets (1330 assets)", "Request pack (100 assets)", "PNG")
+KENNEY_ITEMS = os.path.join(ROOT, "assets", "external", "kenney", "Art (5190 files)",
+    "Platformer assets (1330 assets)", "Base pack (360 assets)", "Items")
+GROUND_REMAINS = {
+    "pipe_valve": os.path.join(KENNEY_REQUEST, "beamBoltsHoles.png"),
+    "broken_machine": os.path.join(KENNEY_REQUEST, "beamHoles.png"),
+    "girder_l": os.path.join(KENNEY_REQUEST, "beamDiagonalLeft.png"),
+    "girder_r": os.path.join(KENNEY_REQUEST, "beamDiagonalRight.png"),
+    "fence": os.path.join(KENNEY_REQUEST, "metalFence.png"),
+    "chain": os.path.join(KENNEY_ITEMS, "chain.png"),
+}
+# art-spec 锈色阶的压暗版：Void → Rust Shadow #4A2A18 → Rust Dark #8B4513 →
+# Rust Mid #A0522D。夜关里残骸要比墓碑更暗，才不会抢前景。
+GROUND_REMAINS_RAMP = [
+    (0.00, (10, 8, 7)),
+    (0.30, (58, 36, 24)),
+    (0.50, (74, 42, 24)),
+    (0.68, (139, 69, 19)),
+    (0.86, (160, 82, 45)),
+]
+ALPHA_CUT = 96
+
+
+def _hard_alpha(img, cut=ALPHA_CUT):
+    """Threshold the alpha channel: no anti-aliased fringe (art-spec 禁止抗锯齿)."""
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            px[x, y] = (r, g, b, 255 if a > cut else 0)
+    return out
+
+
+def _snap_ramp(img, ramp):
+    """Nearest-stop luminance snap: flat pixel-art shades, not a fresh gradient."""
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if not a:
+                continue
+            lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+            stop = min(ramp, key=lambda s: abs(lum - s[0]))
+            px[x, y] = stop[1] + (255,)
+    return out
+
+
+# 骨渣（gh_bones）是从 Gothic Horror 的 tiles.png 整块切出来的，底板不透明——
+# 直接当接地道具种下去是一块深色方块。墓园族变体把底板颜色抠成透明，只留骨堆；
+# 贴图本身已是 1x 像素画，不再重采样/重新着色。
+GROUND_KEYED = {
+    "bones": os.path.join(ENV, "gh_bones.png"),
+}
+KEYED_BG = (24, 18, 32)
+
+
+def _key_flat_background(img, rgb):
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            px[x, y] = (r, g, b, 0 if (r, g, b) == rgb else a)
+    return out
+
+
+def rust_remains():
+    out_dir = os.path.join(ENV, "props", "ground")
+    os.makedirs(out_dir, exist_ok=True)
+    for key, src in GROUND_REMAINS.items():
+        img = _hard_alpha(load(src))
+        bbox = img.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+        w, h = img.size
+        img = img.resize((max(1, w // 2), max(1, h // 2)), Image.NEAREST)
+        img = _snap_ramp(img, GROUND_REMAINS_RAMP)
+        path = os.path.join(out_dir, key + ".png")
+        img.save(path)
+        print("wrote", os.path.relpath(path, ROOT), img.size)
+    for key, src in GROUND_KEYED.items():
+        img = _key_flat_background(load(src), KEYED_BG)
+        bbox = img.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+        if img.getbbox() is None:
+            continue
+        path = os.path.join(out_dir, key + ".png")
+        img.save(path)
+        print("wrote", os.path.relpath(path, ROOT), img.size)
+
+
 def main():
     h = load(HORROR)
     c = load(CASTLE)
@@ -498,6 +707,8 @@ def main():
     prop_variants()
     plates()
     backdrops()
+    rust_moon_plates()
+    rust_remains()
 
 
 if __name__ == "__main__":

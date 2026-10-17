@@ -136,6 +136,18 @@ func setup(pos: Vector2, sz: Vector2, col: Color) -> void:
 	fill = col
 
 
+## 重新上色并重建贴片视觉（碰撞体与 LightOccluder2D 不动）。
+## 关卡在自己的 `_ready` 里给种别统一材质色阶时用：子节点 `_ready` 已经跑过，
+## 只改 `tone` 不会重画。只重建 Sprite / ColorRect，不碰碰撞与遮挡。
+func apply_tone(new_tone: Color) -> void:
+	tone = new_tone
+	for child in get_children():
+		if child is Sprite2D or child is ColorRect:
+			remove_child(child)
+			child.free()
+	_build_visual()
+
+
 func _ready() -> void:
 	collision_layer = 1
 	collision_mask = 0

@@ -134,6 +134,46 @@ func _tune_play_layout() -> void:
 	if platforms == null:
 		return
 	place_teach_layout(platforms)
+	_grade_materials(platforms)
+
+
+## 第一章材质色阶（不换贴图、不动碰撞）：让墓园的地面、悬空石台和毒液
+## 收进同一个"锈/余烬"温度里，而不是鲜草绿 + 薰衣草紫 + 青苔绿三套色板打架。
+## 颜色经 SolidPlatform.apply_tone 乘在每一块贴片上；东翼的石头铺面同样收暖。
+const GROUND_TONE := Color(1.14, 0.76, 0.38)   # 草地 → 枯橄榄/墓土（去鲜绿）
+const FLOAT_TONE := Color(1.10, 0.88, 0.60)    # 悬浮石板 → 暖灰石（去薰衣草紫）
+const STONE_TONE := Color(1.12, 0.90, 0.62)    # 决斗台铺路 → 暖石
+const TOXIN_TINT := Color(1.16, 1.08, 0.48)    # 腐液 → 酸黄绿（与草地绿分开）
+
+
+func _grade_materials(platforms: Node2D) -> void:
+	for plat in _solid_platforms(platforms):
+		var skin := plat.skin
+		var grade := Color.WHITE
+		if skin == "floating" or (skin == "auto" and plat.size.y <= SolidPlatform.WORLD + 0.5
+				and plat.size.x > SolidPlatform.WORLD + 0.5):
+			grade = FLOAT_TONE
+		elif skin == "ground" or skin == "auto" or skin == "":
+			grade = GROUND_TONE
+		elif skin == "stone" or skin == "nave":
+			grade = STONE_TONE
+		if grade == Color.WHITE:
+			continue
+		plat.apply_tone(plat.tone * grade)
+	# 毒池调酸：墓园的青绿液体和草地同一个绿，读不出"危险"。
+	var toxin := get_node_or_null("Props/ToxinPool") as ToxinPool
+	if toxin != null:
+		toxin.tint = TOXIN_TINT
+
+
+func _solid_platforms(root: Node) -> Array[SolidPlatform]:
+	var out: Array[SolidPlatform] = []
+	for child in root.get_children():
+		if child is SolidPlatform:
+			out.append(child as SolidPlatform)
+		elif child is Node:
+			out.append_array(_solid_platforms(child))
+	return out
 
 
 ## 开局单跳链：地面 → 32px 实心教学台 → 再 32px 到 Plat_268。
@@ -203,7 +243,21 @@ func _spawn_decor() -> void:
 	layer.z_index = -2
 	add_child(layer)
 	for item in PLAY_DECOR:
-		Level01Env.plant(layer, String(item[0]), item[1] as Vector2, float(item[2]), Color.WHITE, true)
+		var path := String(item[0])
+		# 墓园里的活绿收成枯橄榄，墓石略暖：和地面 / 悬浮石台的色阶同一温度。
+		var tint := Color.WHITE
+		match Level01Env.hardness_of(path):
+			Level01Env.Hardness.TREE, Level01Env.Hardness.BUSH:
+				tint = FOLIAGE_TONE
+			Level01Env.Hardness.STONE:
+				tint = GRAVE_STONE_TONE
+		Level01Env.plant(layer, path, item[1] as Vector2, float(item[2]), tint, true)
+
+
+## 植被去饱和：鲜绿是"刚浇过水"，枯橄榄才是墓园长出来的东西。
+const FOLIAGE_TONE := Color(0.98, 0.80, 0.48)
+## 墓石统一微暖，避免灰蓝石头在暖锈天空下显脏。
+const GRAVE_STONE_TONE := Color(1.04, 0.94, 0.82)
 
 
 const STELE_SCENE := preload("res://scenes/interactables/LoreStele.tscn")
@@ -308,13 +362,14 @@ static func mark_executioner_slain() -> void:
 
 ## 视觉增强：光照 + 场景细节
 func _add_visual_enhancements() -> void:
-	# 添加环境光照系统
-	var lighting := AmbientLighting.create_for_level(self)
-	SceneDetails.add_level01_lighting(lighting)
-
-	# 添加场景细节
+	# 场景细节：PropCatalog 的真实贴图（脚点钉台面、1x 最近邻），画在玩法层后面。
 	var details_layer := Node2D.new()
 	details_layer.name = "SceneDetails"
 	details_layer.z_index = -1  # 在玩法层后面
 	add_child(details_layer)
-	SceneDetails.populate_level01(details_layer)
+	SceneDetails.populate_level01(self, details_layer)
+
+	# 环境光照：全部锚定到真实地标（余烬巢 / 毒池 / 门 / Boss 门 / 炉心），
+	# 不再用写死坐标——关卡布局一改，光池跟着地标走。
+	var lighting := AmbientLighting.create_for_level(self)
+	SceneDetails.add_level01_lighting(lighting, self)

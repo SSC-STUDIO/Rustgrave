@@ -80,12 +80,12 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
 
 | 章节 | 主题 | 身份色锚点 | 落点 |
 | --- | --- | --- | --- |
-| level01 墓园 | graveyard | 锈橙 + 品红夜 | `parallax_sky.png` 原板；锈块装饰 `iron_slab_a` |
+| level01 墓园 | graveyard | 锈月橙 + 烟紫夜 | `parallax_sky_rust.png` 锈月派生板（原 `parallax_sky.png` 品红板保留为回落）+ `parallax_mountains_rust.png`；锈块装饰 `iron_slab_a` |
 | level02 地窟 | undercroft | 青黑苔绿 | `MOSS_TONE`（青苔砖）、`TOXIN_TINT` 酸黄 |
 | level03 街巷 | town | 暖街灯黄 | `night-town-*` 原板 + `WARM_RAMP` 砖 |
 | level04 圣殿 | cathedral | 冷紫石 | `GOTHIC_CASTLE` 殿墙 + 烛火微粒 `candle` |
 | level05 工坊 | industrial | 暖灰铁 | `iron_*` 铁板 + 弧光火花微粒 `sparks` |
-| level06 墓园夜 | graveyard | 锈橙 + 雨青 | 同 level01 板 + `rust_rain` 混色 |
+| level06 墓园夜 | graveyard | 锈橙 + 雨青 | 同 level01 锈月派生板（`parallax_sky_rust` / `parallax_mountains_rust`）+ `rust_rain` 混色 |
 | level07 钟楼 | belltower | 橄榄城砖 | `tower_wall.png` 竖井 + 沉尘微粒 `dust` |
 | level08 熔渣 | forge | 炉口红 | `forge_*` 底板 + 升焰微粒 `embers` |
 | level09 城墙 | ramparts | 雾青 | `wall_clouds/wall_town` 底板 + 女墙剪影 |
@@ -120,9 +120,15 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
   给底板 CanvasLayer 额外 `darkened(0.24)`，所以远景永远输给玩法层。
 - 前景只允许剪影：`Level01Parallax.SIL_TINT` 明度 0.14–0.24，
   `Level01Parallax.SIL_FEET_MIN/MAX`（300..340）保证剪影落在地脚带，
-  不进可交互高度；石碑 / 雕像不进剪影层（`scripts/levels/level01_parallax.gd:29-31`）。
+  不进可交互高度；石碑 / 雕像不进剪影层（`scripts/levels/level01_parallax.gd:46-58`）。
 - 同一图层内：`ThemeBackdrop` 的每层 `tint` 明度按 scroll 递增
   （sky 0.13 → far 0.18 → mid 0.4 → near 0.62），形成 4 级层次对比。
+- 派生锈月板同样受这条约束（`tests/level01_backdrop_test.gd` 锁定）：
+  `parallax_sky_rust.png` 不透明像素平均明度 0.10–0.22，月亮核心 < 0.455
+  （玩家躯干 `#CD5C5C`），`parallax_mountains_rust.png` 平均明度 < 0.14、
+  峰尖暖脊 < 0.455——远山始终最先输给角色。地平线暖雾（`HorizonHaze`）与
+  月光束（`Moonbeams`）都是 backdrop CanvasLayer（layer < 0）内的加法光，
+  alpha ≤ 0.20，永远不盖住角色/平台。
 
 ## 素材来源与许可（可溯）
 
@@ -147,7 +153,7 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
 
 | 主题 | 独有元素 |
 | --- | --- |
-| graveyard | 原版哥特墓园三板（月亮 / 紫山 / 墓园）+ 剪影带 |
+| graveyard | 哥特墓园三板（锈月派生：月亮 / 锈山 / 原墓园）+ 灰烬暖尘云带 + 地平线暖雾 + 2–3 条月光束 + 剪影带 |
 | undercroft | 城堡内景拱窗 + 重复石柱剪影 |
 | forge | 炉口天空底板 `forge_sky` + 4 层剪影 |
 | forge_core | 烧红的殿厅 `core_hall` + 暗红柱影 |
@@ -162,6 +168,31 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
 `WindFx`；graveyard 复用 `Level01Parallax`（云 / 雾 / 月 / 前景草）。
 每层 Parallax2D 必须有 `repeat_times ≥ 4` 以盖住 640 视口 + 128 pad
 （`Level01Parallax.cover_layer()`，测试见 `tests/parallax_backdrop_test.gd`）。
+
+### Level01 / Level06 锈月夜空板（派生，不改原板）
+
+墓园包的 `parallax_sky.png` 是设计上的品红月夜，和标题的锈橙身份冲突；
+`parallax_mountains.png` 的紫罗兰山体、两层紫罗兰云带同样抢色。这**四张原板
+全部保留入库不动**，另出四张派生板：
+
+| 派生板 | 来源 | 处理 | 结果 |
+| --- | --- | --- | --- |
+| `assets/env/parallax_sky_rust.png` | `parallax_sky.png` | 亮度 → 锈色阶（Void → Rust Shadow → Rust Dark → Rust Mid → Ember），下半天空向锈色收拢 | 暗锈血月 / 烟紫夜空 / 地平线转暖 |
+| `assets/env/parallax_mountains_rust.png` | `parallax_mountains.png` | 扁平紫山体压到近 Void 暖灰，只留峰尖余烬山脊 | 能读成剪影、又不再是紫色带 |
+| `assets/env/parallax_clouds_rust.png` | `parallax_clouds_px.png` | 紫罗兰厚涂云的亮度 → soot → 暖灰 → 暖尘 | 被锈月照亮的灰烬云带 |
+| `assets/env/parallax_clouds_low_rust.png` | `parallax_clouds_low_px.png` | 同上（低云带） | 同一场阴云的两层灰烬色 |
+
+派生板只换颜色与色阶，轮廓、alpha、尺寸全部沿用原板；云量 / 漂移 / 雾幕仍由
+`WorldClock` 控制（「一朵风，多种 Telling」不变）。运行时光照强度、云量、风化
+数值都不变，所以昼夜/天气交叉仍按原来的混合曲线走。
+
+生成入口是 `tools/gen_theme_tiles.py`（`rust_moon_plates()`，确定性、幂等；
+重复跑只重写这四张 PNG）。运行时 `scripts/levels/level01_parallax.gd` 的
+`sky_plate_path()` / `mountains_plate_path()` / `plate_path()` 只在 graveyard
+主题换派生板，派生 PNG 缺失时回落原板（启动不依赖派生素材；回落紫云板时
+自动换回旧的提亮紫乘数）；许可链见 `assets/external/CREDITS.md`。验收：
+`tests/level01_backdrop_test.gd` 锁定「派生板是暖色、平均明度留在背景带、
+月亮核心低于玩家躯干明度、云是灰烬而不是霓虹紫」。
 
 ## 特效不遮挡原则（FX Occlusion）
 

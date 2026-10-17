@@ -264,7 +264,7 @@ static func is_indoor_theme(theme_id: String) -> bool:
 
 func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 	if theme_id == "graveyard":
-		_build_graveyard(host)
+		_build_graveyard(host, theme_id)
 		return
 	var theme: Dictionary = THEMES.get(theme_id, THEMES["undercroft"])
 	_indoors = bool(theme.get("indoors", true))
@@ -321,9 +321,13 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 
 
 ## Level01's authored sky stack, rebuilt in code, then handed to Level01Parallax
-## for clouds / fog / mood / weather / moon.
-func _build_graveyard(host: Node2D) -> void:
+## for clouds / fog / mood / weather / moon. The sky and far-mountain plates are
+## the derived rust pair for the graveyard identity (Level01Parallax decides and
+## falls back to the authored magenta plates if a derived asset is missing).
+func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 	_indoors = false
+	var sky_path := Level01Parallax.sky_plate_path(theme_id)
+	var mountain_path := Level01Parallax.mountains_plate_path(theme_id)
 	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	if backdrop == null:
 		backdrop = CanvasLayer.new()
@@ -331,8 +335,8 @@ func _build_graveyard(host: Node2D) -> void:
 		backdrop.layer = -10
 		backdrop.follow_viewport_enabled = false
 		host.add_child(backdrop)
-		_add_plate(backdrop, "Far", "res://assets/env/parallax_sky.png", Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
-		_add_plate(backdrop, "Mid", "res://assets/env/parallax_mountains.png", Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
+		_add_plate(backdrop, "Far", sky_path, Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
+		_add_plate(backdrop, "Mid", mountain_path, Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
 		_add_plate(backdrop, "Hills", "res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), Vector2(0, 168), 1.85)
 	var front := host.get_node_or_null("ParallaxForeground") as CanvasLayer
 	if front == null:
@@ -345,7 +349,7 @@ func _build_graveyard(host: Node2D) -> void:
 	var extras := Level01Parallax.new()
 	extras.name = "ParallaxExtras"
 	host.add_child(extras)
-	extras.build(host)
+	extras.build(host, theme_id)
 	_ensure_backdrop_tint(backdrop)
 
 

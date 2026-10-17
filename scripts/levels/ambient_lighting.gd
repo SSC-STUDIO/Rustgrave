@@ -124,6 +124,18 @@ func add_light(pos: Vector2, type: LightType) -> WorldLight:
 	return light
 
 
+## 把灯锚定到真实地标（余烬巢 / 毒池 / 门 / Boss 门 / 炉心 …）：
+## 灯位 = 地标节点的全局位置 + offset，不再把坐标写死在关卡里（缺陷 P2-1：
+## 光池落在空处）。地标不在树里/已释放时返回 null，调用方跳过即可。
+func add_light_on(anchor: Node2D, offset: Vector2, type: LightType) -> WorldLight:
+	if anchor == null or not is_instance_valid(anchor):
+		return null
+	var at := anchor.global_position + offset
+	if is_inside_tree():
+		at = to_local(at)
+	return add_light(at, type)
+
+
 ## 批量添加光源：用于关卡初始化
 func add_lights(light_data: Array) -> void:
 	for data in light_data:

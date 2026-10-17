@@ -126,6 +126,7 @@ Night is a cold corridor (`mood_tint` ≈ 30–40% luminance). Lights carve warm
 | `ToxinMeter` | `player/toxin_meter.gd` | Sludge exposure → overflow ticks |
 | `RustCoreInventory` | `player/rust_core_inventory.gd` | Pouch/socket ability cores |
 | `MeleeCombat` (`Node2D`) | `combat/melee_combat.gd` | Slash state machine: windup → active (== parry window) → recovery |
+| `Visual/Greatsword` | `player/greatsword.gd` | 锈蚀锯齿巨剑表现层（`tools/gen_greatsword.py` 烘焙的 1x 像素贴图）。背扛在身后、绕握柄轻微摆动；挥砍 / 死亡时淡出让位给帧动画自带的剑与 `SlashArc`。开场由 `OpeningCinematic` 显式管理（插在土里，起身后再上背）。 |
 | `HookshotTether` | `player/hookshot_tether.gd` | Grapple + heat-forge melt hook |
 | `Resonance` | `player/resonance.gd` | Dual-core combo window after a parry |
 

@@ -671,6 +671,56 @@ func test_play_layer_and_fx_depths_stay_split() -> void:
 		ok(sil.get_parent() == backdrop, "near silhouettes stay in the backdrop, never the play layer")
 
 
+## 1A 场景细节（docs/UPGRADE_PLAN.md P0-1）：SceneDetails 里必须都是真实贴图细节，
+## 全部踩在台面顶上，且不再有 ColorRect / Polygon2D 占位方块；光照不超过预算。
+func test_scene_details_are_grounded_real_props() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	var layer := level.get_node_or_null("SceneDetails") as Node2D
+	ok(layer != null, "SceneDetails layer is planted")
+	if layer == null:
+		return
+	for node in LevelSanity._descendants(layer):
+		ok(not (node is ColorRect), "%s is not a ColorRect placeholder" % node.name)
+		ok(not (node is Polygon2D), "%s is not a Polygon2D placeholder" % node.name)
+	eq(layer.get_child_count(),
+			SceneDetails.GROUND_DETAILS.size() + SceneDetails.HANGING_DETAILS.size(),
+			"one real detail node per authored row")
+	var tops := LevelSanity.top_segments(level)
+	var grounded := 0
+	for child in layer.get_children():
+		var spr := child as Sprite2D
+		ok(spr != null, "%s is a real sprite" % child.name)
+		if spr == null:
+			continue
+		ok(spr.texture != null and String(spr.texture.resource_path) != "",
+				"%s draws an imported texture, not a shape" % spr.name)
+		eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "%s is nearest-filtered" % spr.name)
+		eq(spr.scale, Vector2.ONE, "%s is drawn at world 1x" % spr.name)
+		if not spr.is_in_group("grounded"):
+			continue
+		grounded += 1
+		var feet: Vector2 = spr.get_meta("feet")
+		ok(LevelSanity.standing_on(tops, feet) != null,
+				"%s feet stand on a platform top (%s)" % [spr.name, feet])
+	eq(grounded, SceneDetails.GROUND_DETAILS.size(), "every ground detail is foot-pinned")
+	var lighting := level.get_node_or_null("AmbientLighting") as AmbientLighting
+	ok(lighting != null, "ambient lighting is planted")
+	if lighting != null:
+		ok(lighting.light_count() > 0, "level actually gets ambience lights")
+		ok(lighting.light_count() <= AmbientLighting.MAX_LIGHTS,
+				"light count stays inside the 12-light budget")
+		eq(lighting.light_count(), SceneDetails.LIGHT_ANCHORS.size(),
+				"every authored light anchor resolves")
+		for light in lighting.get_children():
+			var world_light := light as WorldLight
+			if world_light != null:
+				ok(String(world_light.get_meta(&"anchor_path", "")) != "",
+						"%s is anchored to a landmark, not a hardcoded coordinate" % world_light.name)
+
+
 func _bind_beats() -> Level01StoryBeats:
 	var beats := Level01StoryBeats.new()
 	add_child(beats)
