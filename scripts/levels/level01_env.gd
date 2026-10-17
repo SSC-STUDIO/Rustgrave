@@ -15,6 +15,12 @@ const DECOR_STONE_4 := "res://assets/external/gothicvania_cemetery/PNG/Environme
 const DECOR_STATUE := "res://assets/external/gothicvania_cemetery/PNG/Environment/sliced-objects/statue.png"
 ## 十字 + 草冢（objects.png 372,127 77×65 裁片）：一座有人埋过的坟。
 const DECOR_GRAVE_CROSS := "res://assets/env/grave_cross.png"
+## 1 倍最近邻裁切，用来替换运行时的小数缩放。文件名里的数字是当初的百分比。
+const DECOR_TREE_1_PX := "res://assets/env/normalized/props/tree-1_48.png"
+const DECOR_TREE_2_PX := "res://assets/env/normalized/props/tree-2_46.png"
+const DECOR_BUSH_L_65 := "res://assets/env/normalized/props/bush-large_65.png"
+const DECOR_BUSH_L_62 := "res://assets/env/normalized/props/bush-large_62.png"
+const DECOR_RUST_BLOCK := "res://assets/env/iron_slab_a.png"
 
 enum Hardness { STEEL, STONE, TREE, BUSH }
 

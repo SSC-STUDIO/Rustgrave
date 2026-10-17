@@ -179,6 +179,42 @@ func _plat(parent: Node2D, pos: Vector2, size: Vector2) -> void:
 	parent.add_child(p)
 
 
+## 玩法层墓园装饰：1 倍最近邻裁切，脚钉地面，不和路牌抢位。
+func test_play_decor_is_integer_and_grounded() -> void:
+	ok(Level01Static.PLAY_DECOR.size() >= 8, "west-to-east corridor keeps a full prop line")
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	for item in Level01Static.PLAY_DECOR:
+		var path := String(item[0])
+		var feet: Vector2 = item[1]
+		var scale_k := float(item[2])
+		almost(scale_k, 1.0, 0.001, "%s is drawn at world 1x" % path.get_file())
+		almost(feet.y, Level01Static.GROUND_TOP, 0.01, "%s feet sit on the ground top" % path.get_file())
+		ok(ResourceLoader.exists(path), "%s exists" % path)
+		if path.get_file().begins_with("tree-") or path.get_file().begins_with("bush-large"):
+			ok(path.contains("/normalized/props/"),
+					"%s uses a pre-cropped 1x prop, not a fractional runtime scale" % path.get_file())
+	var layer := level.get_node_or_null("GraveDecor") as Node2D
+	ok(layer != null, "GraveDecor layer is planted")
+	if layer == null:
+		return
+	var grounded := 0
+	for node in layer.get_children():
+		if node.is_in_group("grounded"):
+			grounded += 1
+			var feet_meta: Vector2 = node.get_meta("feet")
+			almost(feet_meta.y, Level01Static.GROUND_TOP, 0.5,
+					"%s meta feet stay on the ground line" % node.name)
+			if node is Sprite2D:
+				eq((node as Sprite2D).scale, Vector2.ONE, "%s sprite stays 1x" % node.name)
+			elif node.get_child_count() > 0 and node.get_child(0) is Sprite2D:
+				eq((node.get_child(0) as Sprite2D).scale, Vector2.ONE,
+						"%s foliage sprite stays 1x" % node.name)
+	ok(grounded >= Level01Static.PLAY_DECOR.size(), "every play-decor prop is grounded")
+
+
 func test_waymarks_name_the_route() -> void:
 	eq(Level01Static.WAYMARKS.size(), 4)
 	var labels: Array[String] = []
@@ -339,14 +375,30 @@ func test_first_core_and_parry_start_cutscenes() -> void:
 
 
 func test_wake_cutscene_marks_flag() -> void:
+	var saved_path := SaveData.save_path
+	SaveData.save_path = "user://rustgrave_level01_wake_test.cfg"
+	SaveData.delete_save()
+	SaveData.pending_spawn = Vector2.INF
+	SaveData.entering_from_checkpoint = false
+	OpeningCinematic.reset()
 	var beats := _bind_beats()
 	beats.try_wake()
-	ok(SaveData.has_flag("wake"))
+	ok(not SaveData.has_flag("wake"), "wake is marked when the opening ends, not when it starts")
 	ok(Director.playing, "first wake queues Director")
-	Director.abort()
+	var event := InputEventAction.new()
+	event.action = "ui_accept"
+	event.pressed = true
+	Director._unhandled_input(event)
+	ok(not Director.playing, "one skip ends the whole opening")
+	ok(SaveData.has_flag("wake"))
+	ok(SaveData.has_flag(OpeningCinematic.FLAG))
 	beats.try_wake()
 	ok(not Director.playing, "second wake is an announcement, not a script")
 	beats.queue_free()
+	Director.abort()
+	OpeningCinematic.reset()
+	SaveData.delete_save()
+	SaveData.save_path = saved_path
 
 
 func test_boss_slain_unlocks_heart_and_plays() -> void:
@@ -413,6 +465,137 @@ func test_enemies_stand_on_platforms_and_are_not_duplicated() -> void:
 				if child is Sprite2D and (child as Sprite2D).is_visible_in_tree():
 					sprites += 1
 			ok(sprites > 0, "%s's ledge %s is actually drawn" % [enemy.name, footing.name])
+
+
+func test_wall_plates_stand_on_floors() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	var tops := LevelSanity.top_segments(level)
+	var found := 0
+	for root_name in ["BastionDecor", "CathedralDecor"]:
+		var root := level.get_node_or_null(root_name)
+		ok(root != null, "%s exists" % root_name)
+		if root == null:
+			continue
+		for node in root.get_children():
+			if not _is_wall_plate(node):
+				continue
+			found += 1
+			var rect := _wall_rect(node as Node2D)
+			var foot := Vector2(rect.get_center().x, rect.end.y)
+			ok(LevelSanity.standing_on(tops, foot) != null,
+					"%s bottom-centre %s stands on a floor" % [node.name, foot])
+			var hang := _wall_overhang(rect, tops)
+			ok(hang <= 8.0, "%s hangs %.0f px past the floor under %s" % [node.name, hang, foot])
+	# West: 2 bastion rails. East: door_arch, 2 nave rails, forge altar, 1 shelter torch.
+	# Tall indoor plates (columns / skull / gargoyle / nave torch slabs) stay off the open sky.
+	ok(found >= 6, "bastion rails and forge-remnant plates are present (%d)" % found)
+	var bastion := level.get_node_or_null("BastionDecor")
+	if bastion != null:
+		for node in bastion.get_children():
+			ok(not (node is TorchLight), "open cemetery keeps the moon; no flat torch wall")
+	var cathedral := level.get_node_or_null("CathedralDecor")
+	if cathedral != null:
+		var nave_torches := 0
+		for node in cathedral.get_children():
+			if node is TorchLight:
+				nave_torches += 1
+			var path := _wall_tex_path(node)
+			ok(not path.ends_with("column_big.png"), "no cathedral column against outdoor sky")
+			ok(not path.ends_with("bg_column_skulls.png"), "no skull column against outdoor sky")
+			ok(not path.ends_with("bg_gargoyle.png"), "no gargoyle monolith against outdoor sky")
+		eq(nave_torches, 1, "only the forge-shelter torch plate remains")
+
+
+## EmberLedge is a thin floating skin at y=112 for the hook-shot pickup. Tall
+## cathedral wall plates on or beside that ledge read as floating masonry against
+## the mountains at the East Wing waymark. Keep the ledge; strip those plates.
+func test_ember_ledge_carries_no_tall_wall_plate() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	var ledge := level.get_node_or_null("Platforms/EmberLedge") as SolidPlatform
+	ok(ledge != null, "ember ledge remains for the hook / ember core")
+	if ledge == null:
+		return
+	eq(ledge.skin, "floating")
+	eq(ledge.position, Level01EastWing.EMBER_LEDGE_POS)
+	var ledge_rect := Rect2(ledge.global_position, ledge.size)
+	ok(level.get_node_or_null("CathedralDecor/EmberGargoyle") == null,
+			"no gargoyle monolith near the East Wing sky ledge")
+	var decor := level.get_node_or_null("CathedralDecor")
+	ok(decor != null)
+	if decor == null:
+		return
+	for node in decor.get_children():
+		if not _is_wall_plate(node):
+			continue
+		var rect := _wall_rect(node as Node2D)
+		var foot := Vector2(rect.get_center().x, rect.end.y)
+		ok(not ledge_rect.has_point(foot),
+				"%s must not stand on EmberLedge (foot %s)" % [node.name, foot])
+		ok(foot.y >= Level01Static.GROUND_TOP - 8.0,
+				"%s bottom is near ground top, not sky (y=%.0f)" % [node.name, foot.y])
+
+
+func _wall_tex_path(node: Node) -> String:
+	if node is Sprite2D and (node as Sprite2D).texture != null:
+		return String((node as Sprite2D).texture.resource_path)
+	for child in node.get_children():
+		if child is Sprite2D and (child as Sprite2D).texture != null:
+			return String((child as Sprite2D).texture.resource_path)
+	return ""
+
+
+func _is_wall_plate(node: Node) -> bool:
+	if node is TorchLight:
+		return true
+	var path := _wall_tex_path(node)
+	return path.ends_with("balustrade.png") or path.ends_with("column_big.png") \
+			or path.ends_with("bg_column_skulls.png") or path.ends_with("bg_gargoyle.png") \
+			or path.ends_with("bg_altar.png") or path.ends_with("door_arch.png")
+
+
+func _wall_rect(node: Node2D) -> Rect2:
+	if node is Sprite2D:
+		return node.get_global_transform() * node.get_rect()
+	var merged := Rect2()
+	var any := false
+	var stack: Array[Node] = [node]
+	while not stack.is_empty():
+		var current: Node = stack.pop_back()
+		for child in current.get_children():
+			stack.append(child)
+			if child is Sprite2D:
+				var spr := child as Sprite2D
+				var r: Rect2 = spr.get_global_transform() * spr.get_rect()
+				merged = r if not any else merged.merge(r)
+				any = true
+	return merged if any else Rect2(node.global_position, Vector2.ZERO)
+
+
+func _wall_overhang(rect: Rect2, tops: Array) -> float:
+	var y := rect.end.y
+	var bad := 0.0
+	var x := rect.position.x
+	while x < rect.end.x - 0.01:
+		var step := minf(4.0, rect.end.x - x)
+		var mid := x + step * 0.5
+		var supported := false
+		for t in tops:
+			if mid < t.x0 - 1.0 or mid > t.x1 + 1.0:
+				continue
+			var d := float(y) - float(t.y)
+			if d >= -6.0 and d <= 12.0:
+				supported = true
+				break
+		if not supported:
+			bad += step
+		x += step
+	return bad
 
 
 func test_parallax_adds_mood_tint() -> void:

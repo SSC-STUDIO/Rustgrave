@@ -33,24 +33,30 @@ const SIGN_FONT_SIZE := 12
 const TEACH_MID_Y := 256.0
 const WAYMARKS := [
 	[Vector2(118, 320), "余烬"],
-	[Vector2(344, 320), "腐液"],
+	# 牌面 35px，左缘 = 脚点 - 17。枯树右缘 264，石块从 330 起。
+	[Vector2(300, 320), "腐液"],
 	[Vector2(980, 320), "压板"],
-	[Vector2(1624, 320), "东翼"],
+	# 牌面 35px。再靠东会盖住决斗台前的碑（碑在 x=1636，宽 28）。
+	[Vector2(1548, 320), "东翼"],
 ]
 ## 硬物只在玩法层：scale=1，脚钉 GROUND_TOP，无 WindSway。近景视差条不画碑。
-## 坟从余烬巢一路排到 x≈1580 就断了——石板路（EastFloor 1600 起）之后再无墓碑。
+## 位置是贴图左缘。路牌牌面是脚点 x-17 起、宽 35。两边不许叠。
 const PLAY_DECOR := [
-	[Level01Env.DECOR_BUSH_L, Vector2(78, 320), 0.65],
-	[Level01Env.DECOR_STONE_1, Vector2(210, 320), 1.0],
-	[Level01Env.DECOR_TREE_2, Vector2(268, 320), 0.46],
-	[Level01Env.DECOR_STONE_3, Vector2(360, 320), 1.0],
-	[Level01Env.DECOR_STONE_4, Vector2(596, 320), 1.0],
-	[Level01Env.DECOR_BUSH_S, Vector2(620, 320), 1.0],
-	[Level01Env.DECOR_GRAVE_CROSS, Vector2(690, 320), 1.0],
+	# 大灌木 49px，右缘 89，离「余烬」牌面（101 起）还有空。
+	[Level01Env.DECOR_BUSH_L_65, Vector2(40, 320), 1.0],
+	[Level01Env.DECOR_STONE_1, Vector2(148, 320), 1.0],
+	# 枯树 76px，右缘 264。教学土丘从 228 起会挡住树干，树冠仍露在丘顶上面。
+	[Level01Env.DECOR_TREE_2_PX, Vector2(188, 320), 1.0],
+	[Level01Env.DECOR_STONE_3, Vector2(330, 320), 1.0],
+	# 坑东岸：碑在 548 附近，锈块贴着碑，再往东才是石和灌木。
+	[Level01Env.DECOR_RUST_BLOCK, Vector2(568, 320), 1.0],
+	[Level01Env.DECOR_STONE_4, Vector2(624, 320), 1.0],
+	[Level01Env.DECOR_BUSH_S, Vector2(656, 320), 1.0],
+	[Level01Env.DECOR_GRAVE_CROSS, Vector2(700, 320), 1.0],
 	[Level01Env.DECOR_STATUE, Vector2(880, 320), 1.0],
 	[Level01Env.DECOR_STONE_2, Vector2(1020, 320), 1.0],
-	[Level01Env.DECOR_TREE_1, Vector2(1210, 320), 0.48],
-	[Level01Env.DECOR_BUSH_L, Vector2(1440, 320), 0.62],
+	[Level01Env.DECOR_TREE_1_PX, Vector2(1210, 320), 1.0],
+	[Level01Env.DECOR_BUSH_L_62, Vector2(1440, 320), 1.0],
 	[Level01Env.DECOR_STONE_1, Vector2(1496, 320), 1.0],
 	[Level01Env.DECOR_STONE_4, Vector2(1580, 320), 1.0],
 ]
@@ -201,25 +207,26 @@ func _spawn_decor() -> void:
 
 
 const STELE_SCENE := preload("res://scenes/interactables/LoreStele.tscn")
-const TORCH_SCENE := preload("res://scenes/world/TorchLight.tscn")
 const BALUSTRADE_TEX := "res://assets/env/balustrade.png"
 
 
 func _spawn_steles_and_bastion_decor() -> void:
 	var props := get_node_or_null("Props") as Node2D
 	if props != null:
-		_add_stele(props, Vector2(56, 144), "炉约纪事 · 熔熄", "炉火熄灭之时，整座地下之城沉入岩层，用锈铁为自身造就棺椁。")
-		_add_stele(props, Vector2(320, 320), "工坊遗训 · 冷却液", "橙色的腐液本是冷却剂。它吃肺、吃记忆，却也使淬火之刃锋锐百倍。")
+		# Plat_48_144 只铺到 x=48..104。碑宽 28、以脚点为中心，放在石台中线才不探出左沿。
+		_add_stele(props, Vector2(76, 144), "炉约纪事 · 熔熄", "炉灭那夜，城自己沉进岩层。刮锈的偶没干完，先锈在废料里。")
+		# 枯树右缘 264，「腐液」牌面从 283 起。碑站在毒坑东岸，
+		# 左缘 534 离坑沿 512 有余，右缘 562 碰不到 x=568 的锈块。
+		_add_stele(props, Vector2(548, 320), "工坊遗训 · 冷却液", "橙色的是冷却剂。它吃肺，也把记忆淬进剑里。")
 
 	var decor_layer := Node2D.new()
 	decor_layer.name = "BastionDecor"
 	decor_layer.z_index = -2
 	add_child(decor_layer)
-	_add_balustrade(decor_layer, Vector2(1090, 242))
-	_add_balustrade(decor_layer, Vector2(1330, 242))
-	_add_torch(decor_layer, Vector2(1144, 180))
-	_add_torch(decor_layer, Vector2(1296, 230))
-	_add_torch(decor_layer, Vector2(1488, 220))
+	# 女墙 80×52，底边贴地面。墓园夜空不用 64×192 的壁炬墙板：
+	# 那张贴图几乎是一块平的暗矩形，会挡掉月亮和远山。火在栏杆贴图上。
+	_add_balustrade(decor_layer, Vector2(1130, GROUND_TOP))
+	_add_balustrade(decor_layer, Vector2(1370, GROUND_TOP))
 
 
 func _add_stele(parent: Node2D, pos: Vector2, title: String, text: String) -> void:
@@ -232,24 +239,20 @@ func _add_stele(parent: Node2D, pos: Vector2, title: String, text: String) -> vo
 	parent.add_child(stele)
 
 
-func _add_balustrade(parent: Node2D, pos: Vector2) -> void:
+## feet = 底边中点。贴图向上长，底边落在 feet.y。
+func _add_balustrade(parent: Node2D, feet: Vector2) -> void:
 	if not ResourceLoader.exists(BALUSTRADE_TEX):
 		return
+	var tex := load(BALUSTRADE_TEX) as Texture2D
 	var spr := Sprite2D.new()
-	spr.texture = load(BALUSTRADE_TEX) as Texture2D
+	spr.texture = tex
 	spr.centered = false
-	spr.position = pos
+	spr.position = Vector2(feet.x - float(tex.get_width()) * 0.5, feet.y - float(tex.get_height()))
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.modulate = Color(0.75, 0.7, 0.8, 0.85)
+	spr.set_meta("feet", feet)
+	spr.add_to_group("grounded")
 	parent.add_child(spr)
-
-
-func _add_torch(parent: Node2D, pos: Vector2) -> void:
-	if TORCH_SCENE == null:
-		return
-	var torch: Node2D = TORCH_SCENE.instantiate()
-	torch.position = pos
-	parent.add_child(torch)
 
 
 func _build_parallax_extras() -> void:
