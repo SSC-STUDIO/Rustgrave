@@ -22,6 +22,10 @@ static var _frame_cache: Array[AtlasTexture] = []
 var _frames: Array[AtlasTexture] = []
 var _elapsed := 0.0
 var _lifetime := PLAY_SECONDS
+## 毒素满溢：弧光在本色与过曝白之间闪（风险可读）。弹反炸亮后不再闪。
+var flicker := false
+var _base_modulate := Color.WHITE
+var _parried := false
 
 
 static func sheet_available() -> bool:
@@ -55,6 +59,7 @@ func _ready() -> void:
 		queue_free()  # 缺素材（如 headless 未导入）：立即退场
 		return
 	texture = _frames[0]
+	_base_modulate = modulate
 	GameEvents.parried.connect(_on_parried)
 
 
@@ -66,10 +71,14 @@ func _process(delta: float) -> void:
 	var count := mini(PLAY_FRAMES, _frames.size())
 	var idx: int = clampi(int(_elapsed / _lifetime * count), 0, count - 1)
 	texture = _frames[idx]
+	if flicker and not _parried:
+		# 每帧交替本色 / 过曝白：肉眼一闪一闪，比单纯调色更像「烫手」。
+		modulate = _base_modulate if int(_elapsed * 60.0) % 2 == 0 else Color(2.0, 2.0, 2.0, _base_modulate.a)
 
 
 func _on_parried(_projectile: Node, _by_actor: Node) -> void:
 	# 招架瞬间：同屏活跃弧光炸亮为近白、放大 1.4 倍并延长存活。
+	_parried = true
 	modulate = PARRY_MODULATE
 	scale = PARRY_SCALE
 	_lifetime = PARRY_SECONDS

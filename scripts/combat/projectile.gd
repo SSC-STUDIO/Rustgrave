@@ -16,6 +16,46 @@ const BOLT_CHAR := "spitter_hell_beast"
 @onready var _fill: ColorRect = $Fill
 var _sprite: Sprite2D
 
+## 同屏弹丸预算（CombatRules.BUDGET[projectiles]）：超出时收掉最老的敌方弹，
+## 被弹回的弹丸（玩家归属）永不被收。静态登记表只放弱引用，场景重载自动失效。
+static var _live: Array = []
+
+
+func _enter_tree() -> void:
+	_live.append(weakref(self))
+	_enforce_budget()
+
+
+func _exit_tree() -> void:
+	for i in range(_live.size() - 1, -1, -1):
+		var ref: WeakRef = _live[i]
+		if ref.get_ref() == null or ref.get_ref() == self:
+			_live.remove_at(i)
+
+
+static func live_count() -> int:
+	var n := 0
+	for ref in _live:
+		if (ref as WeakRef).get_ref() != null:
+			n += 1
+	return n
+
+
+static func _enforce_budget() -> void:
+	var cap := int(CombatRules.BUDGET[&"projectiles"])
+	var alive: Array = []
+	for ref in _live:
+		var bolt := (ref as WeakRef).get_ref() as Projectile
+		if bolt != null and not bolt.is_queued_for_deletion():
+			alive.append(bolt)
+	var excess := alive.size() - cap
+	for bolt in alive:
+		if excess <= 0:
+			break
+		if not (bolt as Projectile).deflected:
+			(bolt as Projectile).queue_free()
+			excess -= 1
+
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)

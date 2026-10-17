@@ -4,16 +4,26 @@ extends CharacterBody2D
 ## 死亡演出（尸体帧或通用烟雾 + 锈屑/火花 + 播报）、巡逻折返移动。
 ## 子类只保留各自的状态机与特殊攻击；静止敌人（喷吐者）把 _mobile
 ## 置 false，基类不施重力、不 move_and_slide。
+##
+## 受击反应（硬直 / 后仰 / 击退倍率）取自 CombatRules.HIT_FEEL，按本敌人的
+## hit_material 与出手分量查表；读招暗号、破绽标记、钩锁拽人也在这里统一提供。
+
+## 开始读招时发出（kind 是 CombatRules.TELEGRAPH 的键，duration 是暗号亮起到判定出现的秒数）。
+signal telegraph_started(kind: StringName, duration: float)
 
 const GRAVITY := 980.0
 ## Overbright modulate clamps to a white silhouette in the LDR framebuffer,
 ## which reads as a hit flash for sprites and ColorRect bodies alike.
 const FLASH_MODULATE := Color(6.0, 6.0, 6.0)
-## 受击硬直：挡住状态机改 velocity，否则巡逻/冲锋下一帧就把击退盖掉。
+## 受击硬直（flesh / light 的基准值）：挡住状态机改 velocity，否则巡逻/冲锋下一帧就把击退盖掉。
 const HURT_LOCK := 0.12
 ## 与玩家身体重叠时的挤开半径（像素）；不改玩家碰撞层，只推开重叠。
 const BODY_SEPARATE_X := 16.0
 const BODY_SEPARATE_Y := 26.0
+## 钩锁拽到骑士面前停下的距离。
+const YANK_STOP_DISTANCE := 26.0
+## 破绽 / 拽人时标记贴在头顶的位置（子类按身高覆盖）。
+const MARK_OFFSET := Vector2(0.0, -34.0)
 
 @export var patrol_range: float = 64.0
 @export var patrol_speed: float = 40.0
@@ -31,6 +41,15 @@ var _dead := false
 var _hurt_lock: float = 0.0
 var _recoil_home_x: float = 0.0
 var _recoil_home_ready := false
+## 受击材质（CombatRules.MATERIALS）：决定顿帧 / 火花 / 击退 / 硬直的矩阵行。
+var hit_material: StringName = &"flesh"
+## 最近一次读招的暗号键（测试 / 诊断读）。
+var telegraph_kind: StringName = &""
+var _riposte_left: float = 0.0
+var _riposte_mark: CombatMarker
+var _opening_mark: CombatMarker
+var _yank_tween: Tween
+var _knight_ref: Player
 
 
 func _ready() -> void:
@@ -51,6 +70,13 @@ func _enemy_ready() -> void:
 
 func is_hurt_locked() -> bool:
 	return _dead or _hurt_lock > 0.0
+
+
+## 缓存的骑士引用（场景重载后自动重取），避免每帧各敌人各自扫编组。
+func knight() -> Player:
+	if _knight_ref == null or not is_instance_valid(_knight_ref) or not _knight_ref.is_inside_tree():
+		_knight_ref = get_tree().get_first_node_in_group("player") as Player
+	return _knight_ref
 
 
 func _physics_process(delta: float) -> void:
@@ -82,6 +108,10 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_after_move()
 	_separate_from_player()
+
+
+func _process(delta: float) -> void:
+	tick_riposte(delta)
 
 
 ## 子类状态机步进（move_and_slide 之前）。
@@ -130,13 +160,15 @@ func _on_hit(attacker: Node, target: Node, amount: int) -> void:
 	_flash_white()
 	if amount <= 0:
 		return
-	_hurt_lock = HURT_LOCK
-	_pixel_recoil(attacker)
+	var killed := health != null and health.current <= 0
+	var row := CombatRules.feel(hit_material, CombatRules.weight_for(attacker, amount, killed))
+	_hurt_lock = maxf(_hurt_lock, float(row["lock"]))
+	_pixel_recoil(attacker, float(row["recoil"]))
 
 
-## 受击往攻击者反方向挪 2px，再弹回。只动视觉节点，不改碰撞原点。
-func _pixel_recoil(attacker: Node) -> void:
-	if _flash_target == null:
+## 受击往攻击者反方向挪 px 像素，再弹回。只动视觉节点，不改碰撞原点。
+func _pixel_recoil(attacker: Node, px: float = 2.0) -> void:
+	if _flash_target == null or px <= 0.0:
 		return
 	if not _recoil_home_ready:
 		_recoil_home_x = _flash_target.position.x
@@ -150,9 +182,15 @@ func _pixel_recoil(attacker: Node) -> void:
 		dir = -1.0
 	if _recoil_tween != null and _recoil_tween.is_valid():
 		_recoil_tween.kill()
-	_flash_target.position.x = _recoil_home_x + dir * 2.0
+	_flash_target.position.x = _recoil_home_x + dir * px
 	_recoil_tween = create_tween()
 	_recoil_tween.tween_property(_flash_target, "position:x", _recoil_home_x, 0.10)
+
+
+## 中心距超过这个范围就不再挤人。X 是脚点之间的横向净空，Y 是脚点之间的竖向净空
+## （脚必须抬过身体顶才算跳过去）。重甲子类按自己的躯干覆盖。
+func body_clearance() -> Vector2:
+	return Vector2(BODY_SEPARATE_X, BODY_SEPARATE_Y)
 
 
 ## 玩家与敌人互相不在对方 collision_mask 里，会穿模。从敌人侧把重叠的玩家挤开，
@@ -160,17 +198,127 @@ func _pixel_recoil(attacker: Node) -> void:
 func _separate_from_player() -> void:
 	if not _mobile:
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player == null or player.is_invincible():
 		return
 	var to_p := player.global_position - global_position
-	if absf(to_p.x) > BODY_SEPARATE_X or absf(to_p.y) > BODY_SEPARATE_Y:
+	var clear := body_clearance()
+	if absf(to_p.x) > clear.x or absf(to_p.y) > clear.y:
 		return
 	var push := signf(to_p.x)
 	if push == 0.0:
 		push = -_dir if _dir != 0.0 else 1.0
 	if absf(player.velocity.x) < 90.0 or signf(player.velocity.x) != push:
 		player.velocity.x = push * 88.0
+
+
+# ---------------------------------------------------------------------------
+# 破绽（弹反协同）：被弹回的弹丸打中 / 被盾挡下后，窗口内玩家近战第一击翻倍。
+# ---------------------------------------------------------------------------
+func is_marked() -> bool:
+	return _riposte_left > 0.0
+
+
+func riposte_left() -> float:
+	return _riposte_left
+
+
+## 打开破绽窗口：头顶出现青色菱形；非盾类敌人同时吃一小段硬直。
+func open_riposte(duration: float = CombatRules.RIPOSTE_TIME) -> void:
+	if _dead:
+		return
+	_riposte_left = maxf(_riposte_left, duration)
+	if _riposte_mark == null or not is_instance_valid(_riposte_mark):
+		_riposte_mark = CombatMarker.spawn(self, CombatMarker.Kind.RIPOSTE, _mark_offset(),
+				0.0, Color(0.6, 1.4, 1.7, 1.0))
+	_on_riposte_opened()
+
+
+## 子类可覆盖（盾类已有自己的硬直）。
+func _on_riposte_opened() -> void:
+	_hurt_lock = maxf(_hurt_lock, CombatRules.RIPOSTE_STAGGER)
+
+
+## 取走破绽：返回下一击的伤害倍率（没有标记返回 1）。窗口立刻关闭。
+func consume_riposte() -> int:
+	if _riposte_left <= 0.0:
+		return 1
+	_clear_riposte()
+	Fx.burst(&"ring", hit_point())
+	return CombatRules.RIPOSTE_MULT
+
+
+func tick_riposte(delta: float) -> void:
+	if _riposte_left <= 0.0:
+		return
+	_riposte_left = maxf(0.0, _riposte_left - delta)
+	if _riposte_left <= 0.0:
+		_clear_riposte()
+
+
+func _clear_riposte() -> void:
+	_riposte_left = 0.0
+	if _riposte_mark != null and is_instance_valid(_riposte_mark):
+		_riposte_mark.dismiss()
+	_riposte_mark = null
+
+
+func _mark_offset() -> Vector2:
+	return MARK_OFFSET
+
+
+## 命中点（Fx / 钩锁瞄准用）：Hurtbox 中心，没有就取身体中部。
+func hit_point() -> Vector2:
+	var hurt := get_node_or_null("Hurtbox") as Node2D
+	if hurt != null:
+		return hurt.global_position
+	return global_position + Vector2(0.0, -14.0)
+
+
+# ---------------------------------------------------------------------------
+# 钩锁拽人：小型敌人被拉到骑士面前，硬直并露出破绽（重甲 / 首领不吃）。
+# ---------------------------------------------------------------------------
+func is_yankable() -> bool:
+	return false
+
+
+func yank_to(point: Vector2, duration: float = 0.22) -> bool:
+	if _dead or not is_yankable():
+		return false
+	if _yank_tween != null and _yank_tween.is_valid():
+		_yank_tween.kill()
+	velocity = Vector2.ZERO
+	_hurt_lock = maxf(_hurt_lock, duration + CombatRules.RIPOSTE_STAGGER)
+	_yank_tween = create_tween()
+	_yank_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_yank_tween.tween_property(self, "global_position", point, duration)
+	_yank_tween.tween_callback(open_riposte)
+	return true
+
+
+# ---------------------------------------------------------------------------
+# 读招 / 破绽提示
+# ---------------------------------------------------------------------------
+## 宣告一次读招：发信号（测试与旁观者读）；暗号的具体画面由各敌人自己做。
+func begin_telegraph(kind: StringName, duration: float) -> void:
+	telegraph_kind = kind
+	telegraph_started.emit(kind, duration)
+
+
+## 出招后露出破绽：头顶一个金色箭头，持续 duration 秒。
+func show_opening(duration: float) -> void:
+	if _dead or duration <= 0.0:
+		return
+	if _opening_mark != null and is_instance_valid(_opening_mark):
+		_opening_mark.dismiss()
+	_opening_mark = CombatMarker.spawn(self, CombatMarker.Kind.OPENING, _mark_offset(),
+			duration, Palette.EMBER)
+
+
+func hide_opening() -> void:
+	if _opening_mark != null and is_instance_valid(_opening_mark):
+		_opening_mark.dismiss()
+	_opening_mark = null
 
 
 ## 装配 CharFrames 帧动画。specs 每行 [动作名, 帧目录名("" = 同动作名),
@@ -209,7 +357,7 @@ func _death_burst(frames: Array[Texture2D], fps: float, flip: bool,
 	Fx.hit_sparks(global_position)
 	if message != "":
 		GameEvents.announcement.emit(message)
-	Sfx.play(&"hit_flesh")
+	Sfx.play_at(CombatRules.sfx_key(&"enemy_die"), global_position)
 	queue_free()
 
 
@@ -217,9 +365,12 @@ func _death_burst(frames: Array[Texture2D], fps: float, flip: bool,
 func _disable_combat() -> void:
 	_dead = true
 	_hurt_lock = 0.0
+	_riposte_left = 0.0
 	velocity = Vector2.ZERO
 	collision_layer = 0
 	collision_mask = 0
+	if _yank_tween != null and _yank_tween.is_valid():
+		_yank_tween.kill()
 	for node in get_children():
 		if node is Hitbox or node is Hurtbox:
 			var area := node as Area2D

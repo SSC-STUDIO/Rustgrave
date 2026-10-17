@@ -34,13 +34,34 @@ func receive_hit(amount: int, attacker: Node) -> void:
 	# Blocking owners veto the damage before it reaches the health pool.
 	if block_check.is_valid() and block_check.call(attacker, amount):
 		return
+	var body := get_parent()
+	amount = _riposte_amount(body, attacker, amount)
 	_apply_knockback(attacker)
-	if _health:
-		_health.take_damage(amount, attacker)
+	if _health == null:
+		return
+	if _health.take_damage(amount, attacker):
+		# 打实了：挥砍取消窗口读这个标记（盾面挡下不会走到这里）。
+		if attacker is Hitbox:
+			(attacker as Hitbox).connected = true
+		# 被弹回的弹丸打中：露出破绽（盾类走自己的格挡分支，见 GearShieldEnemy）。
+		if attacker is Projectile and (attacker as Projectile).deflected \
+				and _health.current > 0 and body != null and body.has_method(&"open_riposte"):
+			body.call(&"open_riposte")
+
+
+## 破绽窗口里玩家近战的第一击伤害翻倍（消耗标记）；其它来源 / 无标记原样返回。
+func _riposte_amount(body: Node, attacker: Node, amount: int) -> int:
+	if body == null or not (attacker is Hitbox) or not body.has_method(&"consume_riposte"):
+		return amount
+	var box := attacker as Hitbox
+	if box.team != &"player" or not box.riposte_eligible:
+		return amount
+	return amount * maxi(1, int(body.call(&"consume_riposte")))
 
 
 ## Push the owning body away from the strike. Only moving bodies (enemies /
-## the knight) respond; static props are unaffected.
+## the knight) respond; static props are unaffected. 击退再乘材质倍率
+## （CombatRules.HIT_FEEL 的 knock：装甲减半，首领几乎不动）。
 func _apply_knockback(attacker: Node) -> void:
 	var body := get_parent()
 	if body is not CharacterBody2D:
@@ -54,6 +75,7 @@ func _apply_knockback(attacker: Node) -> void:
 		kb = dir * 70.0
 	if kb == Vector2.ZERO:
 		return
+	kb *= float(CombatRules.feel(CombatRules.material_of(body), &"light")["knock"])
 	(body as CharacterBody2D).velocity += kb
 
 

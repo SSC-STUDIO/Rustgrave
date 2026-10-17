@@ -135,6 +135,7 @@ func test_pause_notification_and_cancel_discard_link() -> void:
 	melee.notification(NOTIFICATION_PAUSED)
 	ok(not melee._link_buffered)
 	_until_phase("idle")
+	melee.tick(0.11)  # 补接窗口（0.10s）过期，之后的按键才走冷却缓冲
 	melee._cooldown = 0.1
 	melee.request_attack()
 	melee.clear_attack_buffer()

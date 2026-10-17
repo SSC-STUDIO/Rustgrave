@@ -6,6 +6,13 @@ extends Area2D
 @export var knockback: Vector2 = Vector2.ZERO
 var team: StringName = &"player"
 var already_hit: Array = []
+## 出手分量（CombatRules.WEIGHTS）：命中反馈矩阵按它挑行。MeleeCombat 每次判定期
+## 开头按连段步与毒素档位重写；其它判定体（敌人、火带、冲击波）自己标注。
+var blow: StringName = &"light"
+## 本次判定是否已造成伤害（挥砍取消窗口读它，arm / disarm 会清零）。
+var connected: bool = false
+## 只有剑本身的判定能吃掉破绽窗口的翻倍（火带 / 冲击波不行，免得它们抢走第一击）。
+var riposte_eligible: bool = false
 
 
 func _ready() -> void:
@@ -18,6 +25,7 @@ func _ready() -> void:
 ## 打开判定并清 already_hit。冲锋/挥砍每次出手都要调用，否则第一下命中后永远打不中。
 func arm(p_knockback: Vector2 = Vector2.ZERO) -> void:
 	already_hit.clear()
+	connected = false
 	knockback = p_knockback
 	monitoring = true
 

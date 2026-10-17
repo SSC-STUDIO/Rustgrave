@@ -24,17 +24,26 @@ signal jumped(is_extra: bool)
 @export var apex_window: float = 16.0
 @export var apex_gravity_scale: float = 0.62
 @export var max_fall_speed: float = 420.0
-@export var coyote_time: float = 0.12
-@export var jump_buffer_time: float = 0.14
+@export var coyote_time: float = CombatRules.COYOTE_TIME
+@export var jump_buffer_time: float = CombatRules.JUMP_BUFFER
 @export var land_probe: float = 12.0
 @export var land_grip_time: float = 0.08
 
 @export_group("Dash")
 @export var dash_speed: float = 236.0
-@export var dash_duration: float = 0.13
-@export var dash_cooldown: float = 0.42
-@export var iframe_duration: float = 0.13
+@export var dash_duration: float = CombatRules.DASH_DURATION
+@export var dash_cooldown: float = CombatRules.DASH_COOLDOWN
+@export var iframe_duration: float = CombatRules.DASH_IFRAMES
 @export var air_dashes: int = 1
+## 冲刺预输入：按早了（后摇取消窗口 / 冷却 / 空中无次数）不丢，最多等这么久。
+@export var dash_buffer_time: float = CombatRules.DASH_BUFFER
+
+## 事件线程里记下的按键只在这么多个物理帧内有效（见 MeleeCombat.LATCH_TICKS）。
+const LATCH_TICKS := 6
+
+## 提交锁（挥砍中）期间冲刺的闸门：由 MeleeCombat 注入 can_dash_cancel。
+## 无效 / 返回 false 时冲刺被预输入攒着，等窗口打开。
+var dash_cancel_gate: Callable = Callable()
 
 var facing: int = 1
 var _coyote: float = 0.0
@@ -51,6 +60,40 @@ var _cut_armed: bool = false
 var _land_grip: float = 0.0
 var _was_floor: bool = false
 var _floor_snap: float = 4.0
+var _dash_buffer: float = 0.0
+var _jump_latched_tick: int = -1000
+var _dash_latched_tick: int = -1000
+
+
+## 短按在两个物理帧之间按下又松开（顿帧 / 低帧率）时，Input.is_action_just_pressed
+## 会看漏；事件线程先记一笔，下一个物理帧补收。触控走 Input.action_press（无事件），
+## 仍由轮询覆盖。
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"jump"):
+		_jump_latched_tick = Engine.get_physics_frames()
+	if event.is_action_pressed(&"dash"):
+		_dash_latched_tick = Engine.get_physics_frames()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED:
+		clear_buffers()
+
+
+func _take_latch(latched_tick: int) -> bool:
+	return Engine.get_physics_frames() - latched_tick <= LATCH_TICKS
+
+
+## 清空预输入（暂停 / 过场 / 重生边界）。
+func clear_buffers() -> void:
+	_buffer = 0.0
+	_dash_buffer = 0.0
+	_jump_latched_tick = -1000
+	_dash_latched_tick = -1000
+
+
+func dash_buffered() -> float:
+	return _dash_buffer
 
 
 func is_dashing() -> bool:
@@ -89,26 +132,33 @@ func physics_tick(body: CharacterBody2D, delta: float, move_scale: float) -> voi
 		_coyote = maxf(0.0, _coyote - delta)
 	_was_floor = on_floor
 
-	if Input.is_action_just_pressed("jump"):
+	var jump_latched := _take_latch(_jump_latched_tick)
+	var dash_latched := _take_latch(_dash_latched_tick)
+	_jump_latched_tick = -1000
+	_dash_latched_tick = -1000
+	if Input.is_action_just_pressed("jump") or jump_latched:
 		_buffer = jump_buffer_time
 	elif not is_dashing():
 		# Dash lasts longer than a tap-buffer; freeze the window so a jump
 		# pressed mid-dash still fires on the first grounded/airborne tick after.
 		_buffer = maxf(0.0, _buffer - delta)
+	if Input.is_action_just_pressed("dash") or dash_latched:
+		_dash_buffer = dash_buffer_time
+	else:
+		_dash_buffer = maxf(0.0, _dash_buffer - delta)
 
 	if is_dashing():
 		_dash_timer = maxf(0.0, _dash_timer - delta)
-		var speed := dash_speed
-		if body is Player and (body as Player).toxin.potency() >= 0.5:
-			speed *= 1.12
-		body.velocity.x = _dash_dir * speed
+		body.velocity.x = _dash_dir * _dash_speed_for(body)
 		body.velocity.y = 0.0
 		return
 
 	_apply_gravity(body, delta)
 
-	if not _commit_lock and Input.is_action_just_pressed("dash"):
-		_try_dash(body)
+	# 挥砍提交锁期间冲刺只在取消窗口里放行（前摇 / 判定期永远不放行）；
+	# 按早了的冲刺攒在预输入里，窗口一开立刻出，从不缩短已承诺的阶段。
+	if _dash_buffer > 0.0 and _dash_gate_open() and _try_dash(body):
+		_dash_buffer = 0.0
 
 	if _buffer > 0.0:
 		_try_jump(body)
@@ -222,11 +272,26 @@ func _do_jump(body: CharacterBody2D, is_extra: bool) -> void:
 	Sfx.play(&"jump")
 
 
-func _try_dash(body: CharacterBody2D) -> void:
+func _dash_gate_open() -> bool:
+	if not _commit_lock:
+		return true
+	return dash_cancel_gate.is_valid() and bool(dash_cancel_gate.call())
+
+
+## 毒素档位的冲刺倍率（温档起 +12%，读 CombatRules.TOXIN_TIERS）。
+func _dash_speed_for(body: CharacterBody2D) -> float:
+	var speed := dash_speed
+	if body is Player:
+		speed *= float(CombatRules.toxin_tier((body as Player).toxin.band())["dash"])
+	return speed
+
+
+## 返回 true = 冲刺真的开始了（调用方据此消耗预输入）。
+func _try_dash(body: CharacterBody2D) -> bool:
 	if _dash_cd > 0.0:
-		return
+		return false
 	if not body.is_on_floor() and _air_dashes_left <= 0:
-		return
+		return false
 	if not body.is_on_floor():
 		_air_dashes_left -= 1
 
@@ -237,14 +302,12 @@ func _try_dash(body: CharacterBody2D) -> void:
 	else:
 		_dash_dir = float(facing)
 
-	var speed := dash_speed
-	if body is Player and (body as Player).toxin.potency() >= 0.5:
-		speed *= 1.12
 	_dash_timer = dash_duration
 	_dash_cd = dash_cooldown
 	_iframe = iframe_duration
-	body.velocity.x = _dash_dir * speed
+	body.velocity.x = _dash_dir * _dash_speed_for(body)
 	body.velocity.y = 0.0
 	dashed.emit()
 	GameEvents.dash_performed.emit()
 	Sfx.play(&"dash")
+	return true

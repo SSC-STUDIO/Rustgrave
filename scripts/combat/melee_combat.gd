@@ -2,22 +2,26 @@ class_name MeleeCombat
 extends Node2D
 ## Heavy slash with wind-up, active (parry) frames, and recovery.
 ## Parry is not a separate button — it is the active window of this swing.
+## 帧数、冷却、取消窗口都在 CombatRules；规则全文见 docs/combat-rules.md。
 
 enum State { IDLE, WINDUP, ACTIVE, RECOVERY }
 
-@export var windup_time: float = 0.18
-@export var active_time: float = 0.12
-@export var recovery_time: float = 0.26
-@export var cooldown: float = 0.40
+@export var windup_time: float = CombatRules.SWING_WINDUP[0]
+@export var active_time: float = CombatRules.SWING_ACTIVE[0]
+@export var recovery_time: float = CombatRules.SWING_RECOVERY[0]
+@export var cooldown: float = CombatRules.SWING_COOLDOWN
 @export var damage: int = 1
 
 ## Three-hit chain: index 0..2. Finishing blow (2) hits harder and lingers.
-const COMBO_WINDUP := [0.18, 0.14, 0.30]
-const COMBO_ACTIVE := [0.12, 0.12, 0.17]
-const COMBO_RECOVERY := [0.26, 0.20, 0.46]
-const COMBO_DAMAGE := [1, 1, 2]
-const ATTACK_BUFFER_TIME := 0.16
-const LINK_EARLY_TIME := 0.12
+const COMBO_WINDUP := CombatRules.SWING_WINDUP
+const COMBO_ACTIVE := CombatRules.SWING_ACTIVE
+const COMBO_RECOVERY := CombatRules.SWING_RECOVERY
+const COMBO_DAMAGE := CombatRules.SWING_DAMAGE
+const ATTACK_BUFFER_TIME := CombatRules.ATTACK_BUFFER
+const LINK_EARLY_TIME := CombatRules.LINK_EARLY
+## 事件线程里记下的按键只在这么多个物理帧内有效：越过过场 / 暂停的陈旧按键作废，
+## 而顿帧里（物理帧很稀）按下的键仍能被下一帧收下。
+const LATCH_TICKS := 6
 
 var _state: State = State.IDLE
 var _timer: float = 0.0
@@ -26,6 +30,12 @@ var _combo_index: int = 0
 var _link_buffered: bool = false
 var _attack_buffer: float = 0.0
 var _ignore_attack_until_release := false
+## 后摇刚结束的补接窗口：窗口内按下直接起下一刀，不再空等冷却。
+var _late_link_left: float = 0.0
+var _late_next: int = 0
+## 本刀是否弹反成功（命中另由 Hitbox.connected 记录）。
+var _parried_swing := false
+var _press_latched_tick: int = -1000
 
 @onready var hitbox: Hitbox = $Hitbox
 @onready var sword: Node2D = get_node_or_null("../Visual/Sword") as Node2D
@@ -42,10 +52,19 @@ func _ready() -> void:
 	if hitbox:
 		hitbox.damage = damage
 		hitbox.team = &"player"
+		hitbox.riposte_eligible = true
 		hitbox.monitoring = false
-	var hp := get_parent().get_node_or_null("Health") as Health
+	var host := get_parent()
+	var hp := host.get_node_or_null("Health") as Health
 	if hp != null:
 		hp.died.connect(cancel_attack)
+	# 取消窗口：冲刺要过闸门才能打断后摇；起跳 / 冲刺成功后由这里收尾。
+	# 只连宿主自己的控制器信号，不走全局总线，重生时不会重复连接。
+	var ctrl := host.get_node_or_null("PlayerController") as PlayerController
+	if ctrl != null:
+		ctrl.dash_cancel_gate = can_dash_cancel
+		ctrl.dashed.connect(_on_host_dashed)
+		ctrl.jumped.connect(_on_host_jumped)
 
 
 func _notification(what: int) -> void:
@@ -53,10 +72,26 @@ func _notification(what: int) -> void:
 		clear_attack_buffer()
 
 
+## 按键在事件线程先记一笔：物理帧很稀（顿帧 / 慢动作）时，按下又松开都落在两帧之间的
+## 短按不会被 Input.is_action_just_pressed 看漏。触控走 Input.action_press（无事件），
+## 仍由 tick() 里的轮询覆盖。
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"attack"):
+		_press_latched_tick = Engine.get_physics_frames()
+
+
+func _take_press() -> bool:
+	var fresh := Engine.get_physics_frames() - _press_latched_tick <= LATCH_TICKS
+	_press_latched_tick = -1000
+	return Input.is_action_just_pressed(&"attack") or fresh
+
+
 ## Pause/cutscene boundaries discard queued presses, including a held button.
 func clear_attack_buffer() -> void:
 	_attack_buffer = 0.0
 	_link_buffered = false
+	_late_link_left = 0.0
+	_press_latched_tick = -1000
 	_ignore_attack_until_release = Input.is_action_pressed("attack")
 
 
@@ -75,6 +110,14 @@ func request_attack() -> bool:
 	if _host_locked() or get_tree().paused or _ignore_attack_until_release:
 		return false
 	if _state == State.IDLE:
+		if _late_link_left > 0.0 and _late_next > 0:
+			# 后摇刚结束的补按：算接刀（第二刀前摇更短），不让空闲冷却吃掉这一按。
+			_combo_index = _late_next
+			_late_link_left = 0.0
+			_late_next = 0
+			_cooldown = 0.0
+			_attack_buffer = 0.0
+			return start_swing()
 		if start_swing():
 			_attack_buffer = 0.0
 		else:
@@ -101,14 +144,18 @@ func try_deflect(bolt: Projectile) -> bool:
 	var host := get_parent()
 	var actor: Node2D = (host as Node2D) if host is Node2D else self
 	bolt.deflect(actor)
+	_parried_swing = true
+	if hitbox != null:
+		hitbox.connected = true
 	if host is Player:
 		var knight := host as Player
-		knight.toxin.purify(0.12)
+		knight.toxin.purify(CombatRules.PARRY_PURIFY)
 		knight.resonance.pulse()
 		knight.controller.grant_air_jump()
 	GameEvents.parried.emit(bolt, actor)
 	GameEvents.announcement.emit("弹反！")
 	Sfx.play(&"parry")
+	Fx.burst(&"ring", bolt.global_position)
 	return true
 
 
@@ -118,6 +165,78 @@ func is_busy() -> bool:
 
 func is_parry_window() -> bool:
 	return _state == State.ACTIVE and not _host_locked()
+
+
+## 本刀是否已经「打实」：造成了伤害或弹反成功。盾面挡下不算。
+func swing_connected() -> bool:
+	return _parried_swing or (hitbox != null and hitbox.connected)
+
+
+## 后摇已走过的比例（0 = 刚进后摇，1 = 后摇结束）；不在后摇里返回 0。
+func recovery_progress() -> float:
+	if _state != State.RECOVERY:
+		return 0.0
+	return phase_progress()
+
+
+## 当前阶段走过的比例（0 = 刚进入，1 = 即将结束）。空闲返回 0。
+func phase_progress() -> float:
+	if _state == State.IDLE:
+		return 0.0
+	var total := 0.0
+	match _state:
+		State.WINDUP:
+			total = float(COMBO_WINDUP[_combo_index])
+		State.ACTIVE:
+			total = float(COMBO_ACTIVE[_combo_index])
+		State.RECOVERY:
+			total = float(COMBO_RECOVERY[_combo_index])
+	return clampf(1.0 - _timer / maxf(total, 0.001), 0.0, 1.0)
+
+
+## 冲刺此刻能否开始：空闲随时可以；后摇里命中过从头开始，挥空要过 60%；
+## 前摇与判定期任何动作都不能打断。
+func can_dash_cancel() -> bool:
+	if _state == State.IDLE:
+		return true
+	if _state != State.RECOVERY:
+		return false
+	var from := CombatRules.DASH_CANCEL_FROM_CONNECTED if swing_connected() \
+			else CombatRules.DASH_CANCEL_FROM
+	return recovery_progress() >= from
+
+
+## 起跳此刻能否同时收掉后摇。挥空要过 60%；打实从后摇开头就能收。
+## 前摇与判定期不能收刀，跳跃本身仍会离地。
+func can_jump_cancel() -> bool:
+	if _state != State.RECOVERY:
+		return false
+	var from := CombatRules.JUMP_CANCEL_FROM_CONNECTED if swing_connected() \
+			else CombatRules.JUMP_CANCEL_FROM
+	return recovery_progress() >= from
+
+
+## 收掉后摇回到空闲（丢掉预输入的下一刀，连段归零；空闲冷却照常走完）。
+## 前摇 / 判定期返回 false，什么也不改。
+func cancel_recovery() -> bool:
+	if _state != State.RECOVERY:
+		return false
+	_link_buffered = false
+	_late_link_left = 0.0
+	_combo_index = 0
+	_timer = 0.0
+	_state = State.IDLE
+	_set_lock(false)
+	return true
+
+
+func _on_host_dashed() -> void:
+	cancel_recovery()
+
+
+func _on_host_jumped(_is_extra: bool) -> void:
+	if can_jump_cancel():
+		cancel_recovery()
 
 
 func _physics_process(delta: float) -> void:
@@ -131,11 +250,12 @@ func tick(delta: float) -> void:
 		cancel_attack()
 		return
 	_attack_buffer = maxf(0.0, _attack_buffer - delta)
+	_late_link_left = maxf(0.0, _late_link_left - delta)
 	if _cooldown > 0.0:
 		_cooldown = maxf(0.0, _cooldown - delta)
 	if not Input.is_action_pressed("attack"):
 		_ignore_attack_until_release = false
-	if Input.is_action_just_pressed("attack"):
+	if _take_press():
 		request_attack()
 
 	match _state:
@@ -162,6 +282,9 @@ func tick(delta: float) -> void:
 					_combo_index += 1
 					_begin_windup()
 				else:
+					# 补接窗口：下一按算接上一刀，而不是被空闲冷却吃掉。
+					_late_next = _combo_index + 1 if _combo_index < 2 else 0
+					_late_link_left = CombatRules.LATE_LINK_GRACE if _late_next > 0 else 0.0
 					_combo_index = 0
 					_state = State.IDLE
 					_set_lock(false)
@@ -198,36 +321,47 @@ func phase_name() -> String:
 
 func _begin_windup() -> void:
 	_link_buffered = false
+	_late_link_left = 0.0
 	_state = State.WINDUP
 	_timer = float(COMBO_WINDUP[_combo_index])
 	_set_lock(true)
 	GameEvents.swing_started.emit(_combo_index)
-	Sfx.play(&"swing")
+	Sfx.play(CombatRules.sfx_key(&"swing_heavy" if _combo_index >= 2 else &"swing"))
 
 
 func _begin_active() -> void:
 	_state = State.ACTIVE
 	_timer = float(COMBO_ACTIVE[_combo_index])
+	_parried_swing = false
 	if hitbox:
-		var bonus := 0
 		var face := 1.0
+		var band: StringName = &"cold"
 		var host := get_parent()
-		var pot := 0.0
 		if host is Player:
 			var knight := host as Player
 			face = float(knight.controller.facing)
-			pot = knight.toxin.potency()
-			if pot >= 0.5:
-				bonus = 1
-		hitbox.damage = int(COMBO_DAMAGE[_combo_index]) + bonus
+			band = knight.toxin.band()
+		var tier := CombatRules.toxin_tier(band)
+		hitbox.damage = int(COMBO_DAMAGE[_combo_index]) + int(tier["damage"])
+		hitbox.blow = _blow_for(_combo_index, tier)
 		hitbox.already_hit.clear()
+		hitbox.connected = false
 		hitbox.monitoring = true
 		var power := 150.0 if _combo_index >= 2 else 90.0
-		if pot >= 0.85 and _combo_index >= 2:
-			power *= 1.35
+		if _combo_index >= 2:
+			power *= float(tier["finisher_knock"])
 		hitbox.knockback = Vector2(face * power, -40.0 if _combo_index >= 2 else -24.0)
 		if host is Player:
 			(host as Player).on_melee_active(_combo_index)
+
+
+## 出手分量：连段步给底（前两刀 light、终结击 finisher），毒素温档及以上把 light 抬成 heavy ——
+## 毒素越高，命中的手感越重，这是读得出来的奖励。
+func _blow_for(index: int, tier: Dictionary) -> StringName:
+	var blow: StringName = CombatRules.SWING_BLOW[index]
+	if blow == &"light" and bool(tier["weight_up"]):
+		return &"heavy"
+	return blow
 
 
 func _host_locked() -> bool:
