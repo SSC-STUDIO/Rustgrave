@@ -7,8 +7,12 @@ extends CanvasLayer
 
 const BTN := 56.0
 const BTN_LG := 68.0
+## 次级键（钩 / 1 / 2 / 暂停）与 UiKit.TOUCH_MIN 同高，不再缩到 47.6。
+const BTN_SUB := 52.0
 const GAP := 10.0
 const EDGE := 18.0
+## 动作簇的边长：大斩 68 + 间隙 10 + 小键 56。四个键都排在这个方框内。
+const ACTION_BOX := BTN_LG + GAP + BTN
 
 var _root: Control
 var _pad: Control
@@ -72,16 +76,18 @@ func _add_move_cluster() -> void:
 
 
 func _add_action_cluster() -> void:
-	# Right: Attack (large) + Jump / Dash / Interact in a compact diamond.
+	# 2×2 的动作方块：斩在右下（最大），跳在左下，冲在右上，互在左上。
+	# 旧版把"互"放在 120,120 + 56，实际会伸出屏幕右下 24px；这里全部收进
+	# ACTION_BOX，任何按键都不越出安全边。
 	var host := Control.new()
 	host.name = "ActionCluster"
 	host.anchor_left = 1.0
 	host.anchor_right = 1.0
 	host.anchor_top = 1.0
 	host.anchor_bottom = 1.0
-	host.offset_left = -(EDGE + BTN_LG + GAP + BTN)
+	host.offset_left = -(EDGE + ACTION_BOX)
 	host.offset_right = -EDGE
-	host.offset_top = -(EDGE + BTN_LG + GAP + BTN)
+	host.offset_top = -(EDGE + ACTION_BOX)
 	host.offset_bottom = -EDGE
 	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pad.add_child(host)
@@ -92,18 +98,17 @@ func _add_action_cluster() -> void:
 	host.add_child(attack)
 
 	var jump := _make_button(&"jump", "跳", BTN, false)
-	jump.position = Vector2(BTN + GAP + (BTN_LG - BTN) * 0.5, 0.0)
+	jump.position = Vector2(0.0, BTN + GAP)
 	jump.size = Vector2(BTN, BTN)
 	host.add_child(jump)
 
 	var dash := _make_button(&"dash", "冲", BTN, false)
-	dash.position = Vector2(0.0, BTN + GAP + (BTN_LG - BTN) * 0.5)
+	dash.position = Vector2(BTN + GAP, 0.0)
 	dash.size = Vector2(BTN, BTN)
 	host.add_child(dash)
 
 	var interact := _make_button(&"interact", "互", BTN, false)
-	interact.position = Vector2(BTN + GAP + BTN_LG - BTN * 0.25,
-			BTN + GAP + BTN_LG - BTN * 0.25)
+	interact.position = Vector2.ZERO
 	interact.size = Vector2(BTN, BTN)
 	host.add_child(interact)
 
@@ -116,35 +121,36 @@ func _add_secondary_cluster() -> void:
 	row.anchor_right = 1.0
 	row.anchor_top = 1.0
 	row.anchor_bottom = 1.0
-	var w := BTN * 3.0 + GAP * 1.6
+	var w := BTN_SUB * 3.0 + GAP * 1.6
 	row.offset_left = -(EDGE + w)
 	row.offset_right = -EDGE
-	row.offset_top = -(EDGE + BTN_LG + GAP + BTN + GAP + BTN * 0.85)
-	row.offset_bottom = -(EDGE + BTN_LG + GAP + BTN + GAP)
+	row.offset_top = -(EDGE + ACTION_BOX + GAP + BTN_SUB)
+	row.offset_bottom = -(EDGE + ACTION_BOX + GAP)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pad.add_child(row)
-	row.add_child(_make_button(&"hookshot", "钩", BTN * 0.85, true))
-	row.add_child(_make_button(&"socket_1", "1", BTN * 0.85, true))
-	row.add_child(_make_button(&"socket_2", "2", BTN * 0.85, true))
+	row.add_child(_make_button(&"hookshot", "钩", BTN_SUB, true))
+	row.add_child(_make_button(&"socket_1", "1", BTN_SUB, true))
+	row.add_child(_make_button(&"socket_2", "2", BTN_SUB, true))
 
 
 func _add_pause_button() -> void:
 	# PauseMenu listens for ui_cancel *events*, not Input.action_press — toggle directly.
-	var pause_btn := _make_button(&"", "Ⅱ", BTN * 0.85, false, true)
+	var pause_btn := _make_button(&"", "Ⅱ", BTN_SUB, false, true)
 	pause_btn.name = "PauseButton"
 	pause_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	pause_btn.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	pause_btn.grow_vertical = Control.GROW_DIRECTION_END
-	pause_btn.offset_left = -(EDGE + BTN * 0.85)
+	pause_btn.offset_left = -(EDGE + BTN_SUB)
 	pause_btn.offset_right = -EDGE
 	pause_btn.offset_top = EDGE
-	pause_btn.offset_bottom = EDGE + BTN * 0.85
+	pause_btn.offset_bottom = EDGE + BTN_SUB
 	_pad.add_child(pause_btn)
 
 
 func _make_button(action: StringName, caption: String, size: float,
 		tap_release: bool, is_pause: bool = false) -> Control:
 	var wrap := Panel.new()
+	wrap.name = "Btn_%s" % (String(action) if action != &"" else "pause")
 	wrap.custom_minimum_size = Vector2(size, size)
 	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
 	wrap.theme_type_variation = &"MenuRowNormal"
@@ -248,6 +254,18 @@ func release_all() -> void:
 	var keys: Array = _held.keys()
 	for action in keys:
 		_release_action(action as StringName)
+
+
+## 触控按钮（测试与无障碍检查用）：只收真正的可点板，不把装饰 Panel 算进去。
+func buttons() -> Array[Control]:
+	var out: Array[Control] = []
+	if _pad == null:
+		return out
+	for node in _pad.find_children("*", "Panel", true, false):
+		var control := node as Control
+		if control != null and control.mouse_filter == Control.MOUSE_FILTER_STOP:
+			out.append(control)
+	return out
 
 
 func _apply_safe_area() -> void:

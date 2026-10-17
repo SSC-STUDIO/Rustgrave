@@ -13,6 +13,9 @@ extends CanvasLayer
 
 signal closed
 
+const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
+const Modal := preload("res://scripts/ui/ui_modal.gd")
+
 ## 键位表：[键位模板, 说明]。{action} 在显示时换成当前绑定；{attack2} 是挥砍的备用键
 ## （K，Settings 不改它），移动行的箭头同理由 KeyLabels.extra_keys 补在后面。
 ## 固定的键（Tab、Esc、鼠标）直接写字。
@@ -20,17 +23,27 @@ const ROWS: Array[Array] = [
 	["{move_left} / {move_right}", "移动（沉重惯性）"],
 	["{jump}", "跳跃 · 落地后可再跳一次"],
 	["{dash}", "冲刺 · 带无敌帧"],
+	["{hookshot}", "钩锁 · 需先镶嵌钩锁核"],
 	["{attack} / 鼠标左键", "挥砍 · 判定帧碰到敌弹即弹反"],
 	["{attack2} / 鼠标右键", "同为挥砍 · 判定末段或收刀时再按可接三连"],
 	["{interact}", "交互 · 废料堆 / 插座台 / 净化祠"],
 	["{socket_1} / {socket_2}", "把锈核插入剑的 1 / 2 号插座"],
-	["{hookshot}", "钩锁 · 需先镶嵌钩锁核"],
 	["按住 Tab", "查看目标 · 天气 · 剑核名称"],
 	["Esc", "暂停 / 返回"],
 	["触控板", "手机/平板：左移右移 · 右斩跳冲互 · 上钩/1/2 · Ⅱ暂停"],
 ]
+## 分组：{起始行, 组名}。11 行摊成移动 / 战斗 / 交互与剑核 / 系统四段，
+## 比一堵 11 行的键位墙好扫；行序就是这个分组顺序，key_text(index) 仍按行号取。
+const GROUPS: Array[Dictionary] = [
+	{"start": 0, "count": 4, "title": "移 动"},
+	{"start": 4, "count": 2, "title": "战 斗"},
+	{"start": 6, "count": 2, "title": "交 互 · 剑 核"},
+	{"start": 8, "count": 3, "title": "系 统"},
+]
 
 var _root: Control
+var _shell: Dictionary = {}
+var _scroll: ScrollContainer
 var _key_labels: Array[Label] = []
 
 
@@ -48,56 +61,91 @@ func _exit_tree() -> void:
 
 
 func _build() -> void:
-	_root = Control.new()
-	_root.name = "Root"
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shell = Modal.build(self, {
+		"title": "操 作 说 明",
+		"size": Vector2(900.0, 620.0),
+		"hint": "↑↓ 滚动",
+		"back": "Esc / 回车 返回",
+	})
+	_root = _shell["root"] as Control
+	_root.theme = UiKit.extras_theme()
 	# 遮罩会吃掉鼠标事件，所以点击关闭必须走 gui_input —— 被 GUI 消化的事件
 	# 不会再进 _unhandled_input。
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
 			close())
-	add_child(_root)
 
-	_root.add_child(UiKit.scrim(0.86, 0.86, 0.86))
-
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.offset_left = 140.0
-	frame.offset_right = -140.0
-	frame.offset_top = 32.0
-	frame.offset_bottom = -32.0
-	_root.add_child(frame)
+	var body := _shell["body"] as Control
+	_scroll = ScrollContainer.new()
+	_scroll.name = "Scroll"
+	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(_scroll)
 
 	var column := VBoxContainer.new()
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.name = "Column"
+	column.alignment = BoxContainer.ALIGNMENT_BEGIN
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
-	frame.add_child(column)
+	_scroll.add_child(column)
 
-	column.add_child(UiKit.label("操 作 说 明", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.divider())
+	for group in GROUPS:
+		if int(group["start"]) > 0:
+			var air := Control.new()
+			air.custom_minimum_size = Vector2(0.0, 8.0)
+			column.add_child(air)
+		# 每组是一只居中的小方块：标题横线正好压在键位列的宽度上，
+		# 不会出现"标题贴左墙、键位表居中"的错位。
+		var block := VBoxContainer.new()
+		block.name = "Block_" + String(group["title"]).replace(" ", "")
+		block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		block.add_theme_constant_override("separation", 2)
+		column.add_child(block)
+		block.add_child(_group_header(String(group["title"])))
+		var grid := GridContainer.new()
+		grid.name = "Grid_" + String(group["title"]).replace(" ", "")
+		grid.columns = 2
+		grid.add_theme_constant_override("v_separation", 2)
+		grid.add_theme_constant_override("h_separation", 24)
+		block.add_child(grid)
+		var start_index := int(group["start"])
+		for i in range(start_index, start_index + int(group["count"])):
+			var row: Array = ROWS[i]
+			var key := UiKit.label(String(row[0]), &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+			key.custom_minimum_size = Vector2(250.0, 0.0)
+			key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			grid.add_child(key)
+			_key_labels.append(key)
+			var desc := UiKit.label(String(row[1]), &"BodyLabel")
+			desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			grid.add_child(desc)
 
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	grid.add_theme_constant_override("v_separation", 4)
-	column.add_child(grid)
-	for row in ROWS:
-		var key := UiKit.label(String(row[0]), &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-		key.custom_minimum_size = Vector2(250.0, 0.0)
-		grid.add_child(key)
-		_key_labels.append(key)
-		grid.add_child(UiKit.label(String(row[1]), &"BodyLabel"))
-
-	column.add_child(UiKit.divider())
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0.0, 8.0)
+	column.add_child(spacer)
+	var rule := UiKit.divider()
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(rule)
 	column.add_child(UiKit.label("弹反不是单独的格挡键 —— 巨剑的判定帧打中弹丸就会把它打回去",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	column.add_child(UiKit.label("键位可在 设置 → 键位 里修改",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.label("Esc / 回车  返回", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	refresh()
+
+
+## 分段标题：12px 小字 + 一道锈色发丝线，把 11 行键位墙切成四段。
+func _group_header(title: String) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "Group_" + title.replace(" ", "")
+	row.add_theme_constant_override("separation", 10)
+	var label := UiKit.label(title, &"TinyStrongLabel")
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+	var rule := Ornaments.stub_rule(false)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(rule)
+	return row
 
 
 ## 把键位列重写成当前绑定（含备用键）。公开：测试与改键后直接调用。
@@ -140,6 +188,7 @@ func _on_setting_changed(key: StringName) -> void:
 func open() -> void:
 	refresh()
 	visible = true
+	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_select")
 
@@ -158,4 +207,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept"):
 		close()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_down"):
+		_scroll.scroll_vertical += 48
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up"):
+		_scroll.scroll_vertical = maxi(0, _scroll.scroll_vertical - 48)
 		get_viewport().set_input_as_handled()

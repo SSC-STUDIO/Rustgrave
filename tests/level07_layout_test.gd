@@ -87,3 +87,28 @@ func test_lift_carries_player_up_and_middle_plate_opens_gate() -> void:
 	player.velocity = Vector2.ZERO
 	var door := host.get_node("Props/BellGateDoor") as ArenaDoor
 	ok(await wait_until(func() -> bool: return door.is_open), "normal landing activates the middle plate")
+
+
+func test_hookshot_nook_branch_is_off_main_route() -> void:
+	var host := _build()
+	var nook := host.get_node("Platforms/NookDeck") as SolidPlatform
+	var anchor := host.get_node("Hooks/HookUpper") as HookAnchor
+	var stele := host.get_node("Props/SteleNook") as LoreStele
+	ok(nook != null and anchor != null and stele != null, "nook deck, hook anchor and branch stele exist")
+	if nook == null or anchor == null or stele == null:
+		return
+	# 锚点在壁龛正上方、GalleryC（-400）起跳在 250px 索距内；落台在锚点下方 40px。
+	ok(anchor.position.y < nook.position.y, "anchor hangs above the nook ledge")
+	ok(nook.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "landing ledge is under the anchor")
+	ok(anchor.position.distance_to(Vector2(anchor.position.x, -400 - 48.0)) <= LevelSanity.HOOK_REACH,
+			"anchor is within hookshot reach of the GalleryC launch deck")
+	# 支路用钩锁可达（有钩锁时），但主路线不依赖它：allow_hook=false 时不可达。
+	var with_hook := LevelSanity.reachable_segments(host, LAYOUT.ENTRY_SPAWN, true)
+	var nook_reached_with_hook := false
+	for seg in with_hook:
+		if seg.owner_name == "NookDeck":
+			nook_reached_with_hook = true
+	ok(nook_reached_with_hook, "NookDeck reachable when the hookshot is available")
+	var nook_feet := LevelSanity.feet_of(stele)
+	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, nook_feet, false),
+			"NookDeck is NOT required: main route (allow_hook=false) cannot reach it")

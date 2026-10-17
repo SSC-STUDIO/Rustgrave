@@ -63,7 +63,8 @@ func try_wake() -> void:
 
 
 ## 刽子手：镜头锁他，吼一声，一句誓言。名号卡由 boss_appeared 另画，不抢操作。
-## 约 3.8 秒，按一次确认键整段跳过。
+## 约 4.2 秒，按一次确认键整段跳过。
+## 画面先讲清楚三件事（门是关的、他有多大、斧上还有火），字幕才落誓词。
 func on_boss_gate(body: Node) -> void:
 	if SaveData.has_flag("boss_dead") or not body is Player:
 		return
@@ -71,19 +72,24 @@ func on_boss_gate(body: Node) -> void:
 		return
 	if not StoryStage.once("boss_intro"):
 		return
+	var gate: Node2D = _boss
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "gate"},
+		{"kind": "cam_focus", "target": gate, "zoom": 1.15, "duration": 0.55},
 		{"kind": "sfx", "id": "boss_roar"},
-		{"kind": "cam_focus", "target": _boss, "zoom": 1.2, "duration": 0.55},
-		{"kind": "fx", "id": "boss_roar", "target": _boss, "seconds": 0.3},
+		{"kind": "fx", "id": "boss_roar", "target": gate, "seconds": 0.3},
+		# 一拍静默：让他先站着，别急着解释。
+		{"kind": "wait", "seconds": 0.45},
+		{"kind": "fx", "id": "phase_flash", "target": gate, "seconds": 0.35},
 		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.4},
 		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
 	], true)
 
 
-## 刽子手跪下：慢放 + 一震，镜头先给跪倒的他，再移到残芯的光上。约 4 秒，可跳过。
+## 刽子手跪下：慢放 + 一震，镜头先给跪倒的他，再移到残芯的光上。约 4.6 秒，可跳过。
+## 倒下不是终点：镜头离开他、停在残芯上，玩家已经知道下一站在哪。
 func on_boss_slain() -> void:
 	var heart: ForgeHeart = null
 	if _host != null:
@@ -100,6 +106,8 @@ func on_boss_slain() -> void:
 		{"kind": "fx", "id": "slowmo", "ms": 700, "scale": 0.25, "seconds": 0.0},
 		{"kind": "fx", "id": "shake", "px": 5.0, "ms": 400, "seconds": 0.0},
 		{"kind": "cam_focus", "target": _boss, "zoom": 1.3, "duration": 0.4},
+		# 跪着的他留一拍，再让镜头自己走到残芯上 —— 目标的交接全在镜头里。
+		{"kind": "wait", "seconds": 0.3},
 		{"kind": "cam_focus", "target": heart, "zoom": 1.0, "duration": 0.7},
 		{"kind": "sfx", "id": "forge_pulse"},
 		{"kind": "fx", "id": "heart_pulse", "target": heart, "seconds": 0.4},
@@ -117,7 +125,9 @@ func _on_toxin_story(current: float, _maximum: float) -> void:
 		pool = _host.get_node_or_null("Props/ToxinPool")
 	Director.play([
 		{"kind": "lock"},
+		# 先让镜头看见那片橙色，再让字幕说它曾是冷却剂。
 		{"kind": "cam_focus", "target": pool, "duration": 0.4},
+		{"kind": "fx", "id": "ash_fall", "target": pool, "seconds": 0.5},
 		{"kind": "caption", "text": "它曾是冷却剂。吃肺，也把记忆淬进剑里。", "hold": 1.6},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
@@ -135,8 +145,12 @@ func _on_core_story(core: Resource) -> void:
 func _on_parry_story(_bolt: Node, _by: Node) -> void:
 	if not StoryStage.once("parry"):
 		return
+	# 弹回去的火替玩家说话：镜头只轻轻推一下，字幕钉一句。
 	Director.play([
 		{"kind": "lock"},
+		{"kind": "cam_focus", "target": _player, "zoom": 1.35, "duration": 0.3},
+		{"kind": "fx", "id": "shock_ring", "target": _player, "seconds": 0.1},
 		{"kind": "caption", "text": "打回去的是他们的火。锈被你炼过一次。", "hold": 1.6},
+		{"kind": "cam_release", "duration": 0.35},
 		{"kind": "unlock"},
 	], true)

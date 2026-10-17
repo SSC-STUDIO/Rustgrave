@@ -10,6 +10,13 @@ extends Node
 
 const SAVE_VERSION := 1
 
+const DEFAULT_EQUIPMENT := {
+	"weapon": "broken_sword",
+	"armor": "broken_armor",
+	"trinket": "broken_pendant",
+	"bag": []
+}
+
 var save_path := "user://rustgrave_save.cfg"
 
 ## Currently loaded save dictionary (empty until load_game / save_game).
@@ -17,6 +24,7 @@ var save_path := "user://rustgrave_save.cfg"
 ##   meta      = { version, scene, saved_at }
 ##   player    = { hp, max_hp, toxin, max_toxin, pos (Vector2), facing }
 ##   inventory = { pouch: [core ids], sockets: [core ids or ""] }
+##   equipment = { weapon: id, armor: id, trinket: id, bag: [id, ...] }
 ##   world     = { "Props/Door": {...}, ... }  # scene-relative; old /root keys still resolve
 ##   atmosphere = { time_of_day (0–1), weather }
 var data: Dictionary = {}
@@ -61,6 +69,7 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 	var inv_state := _collect_inventory(player)
 	player_state["pouch"] = inv_state["pouch"]
 	player_state["sockets"] = inv_state["sockets"]
+	var equip_state := _collect_equipment(player)
 	var world := _collect_world()
 	var cfg := ConfigFile.new()
 	data = {
@@ -70,6 +79,7 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 			"saved_at": Time.get_datetime_string_from_system(),
 		},
 		"player": player_state,
+		"equipment": equip_state,
 		"world": world,
 	}
 	cfg.set_value("meta", "version", SAVE_VERSION)
@@ -91,6 +101,18 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 	for core in ps.get("sockets", []):
 		socket_ids.append(core)
 	cfg.set_value("player", "sockets", socket_ids)
+	var w_val: Variant = equip_state.get("weapon", "broken_sword")
+	cfg.set_value("equipment", "weapon", "" if w_val == null else String(w_val))
+	var a_val: Variant = equip_state.get("armor", "broken_armor")
+	cfg.set_value("equipment", "armor", "" if a_val == null else String(a_val))
+	var t_val: Variant = equip_state.get("trinket", "broken_pendant")
+	cfg.set_value("equipment", "trinket", "" if t_val == null else String(t_val))
+	var bag_ids: Array = []
+	for id_val in equip_state.get("bag", []):
+		var id_str := String(id_val).strip_edges()
+		if id_str != "":
+			bag_ids.append(id_str)
+	cfg.set_value("equipment", "bag", bag_ids)
 	for key in world:
 		cfg.set_value("world", key, world[key])
 	cfg.set_value("consumed", "paths", Array(consumed))
@@ -130,6 +152,23 @@ func load_game() -> bool:
 		"pouch": cfg.get_value("player", "pouch", []),
 		"sockets": cfg.get_value("player", "sockets", []),
 	}
+	if cfg.has_section("equipment"):
+		var raw_bag: Variant = cfg.get_value("equipment", "bag", [])
+		var clean_bag: Array = []
+		if raw_bag is Array:
+			for item_id in raw_bag:
+				if item_id is String or item_id is StringName:
+					var s := String(item_id).strip_edges()
+					if s != "":
+						clean_bag.append(s)
+		data["equipment"] = {
+			"weapon": String(cfg.get_value("equipment", "weapon", "broken_sword")),
+			"armor": String(cfg.get_value("equipment", "armor", "broken_armor")),
+			"trinket": String(cfg.get_value("equipment", "trinket", "broken_pendant")),
+			"bag": clean_bag,
+		}
+	else:
+		data["equipment"] = DEFAULT_EQUIPMENT.duplicate(true)
 	data["world"] = {}
 	if cfg.has_section("world"):
 		for key in cfg.get_section_keys("world"):
@@ -280,6 +319,81 @@ func _collect_inventory(player: Node) -> Dictionary:
 	return {"pouch": [], "sockets": []}
 
 
+func _collect_equipment(player: Node) -> Dictionary:
+	var result := DEFAULT_EQUIPMENT.duplicate(true)
+	if player == null:
+		return result
+	var eq: EquipmentInventory = null
+	if player is Player:
+		eq = (player as Player).equipment_inventory
+		if eq == null:
+			eq = (player as Player).equipment
+	if eq == null:
+		if "equipment_inventory" in player and player.equipment_inventory != null:
+			eq = player.equipment_inventory
+		elif "equipment" in player and player.equipment != null:
+			eq = player.equipment
+		elif player.has_node("EquipmentInventory"):
+			eq = player.get_node("EquipmentInventory") as EquipmentInventory
+	if eq != null:
+		if eq.has_method("serialize"):
+			return eq.serialize()
+		result["weapon"] = _item_to_id(eq.get_equipped(EquipmentInventory.SLOT_WEAPON))
+		result["armor"] = _item_to_id(eq.get_equipped(EquipmentInventory.SLOT_ARMOR))
+		result["trinket"] = _item_to_id(eq.get_equipped(EquipmentInventory.SLOT_TRINKET))
+		var bag_ids: Array = []
+		for it in eq.bag:
+			var item_id := _item_to_id(it)
+			if item_id != "":
+				bag_ids.append(item_id)
+		result["bag"] = bag_ids
+	return result
+
+
+func _item_to_id(item: Variant) -> String:
+	if item == null:
+		return ""
+	if item is String or item is StringName:
+		return String(item)
+	if "id" in item:
+		return String(item.id)
+	return ""
+
+
+## Persist player equipment to save file independently.
+func save_equipment(player: Node = null) -> bool:
+	if player == null:
+		var tree := get_tree()
+		if tree != null:
+			var players := tree.get_nodes_in_group("player")
+			if not players.is_empty():
+				player = players[0]
+	if player == null:
+		return false
+	var equip_state := _collect_equipment(player)
+	if data == null:
+		data = {}
+	data["equipment"] = equip_state
+	var cfg := _load_cfg()
+	if cfg == null:
+		cfg = ConfigFile.new()
+		cfg.set_value("meta", "version", SAVE_VERSION)
+		cfg.set_value("meta", "saved_at", Time.get_datetime_string_from_system())
+	var w_val: Variant = equip_state.get("weapon", "broken_sword")
+	cfg.set_value("equipment", "weapon", "" if w_val == null else String(w_val))
+	var a_val: Variant = equip_state.get("armor", "broken_armor")
+	cfg.set_value("equipment", "armor", "" if a_val == null else String(a_val))
+	var t_val: Variant = equip_state.get("trinket", "broken_pendant")
+	cfg.set_value("equipment", "trinket", "" if t_val == null else String(t_val))
+	var bag_ids: Array = []
+	for id_val in equip_state.get("bag", []):
+		var id_str := String(id_val).strip_edges()
+		if id_str != "":
+			bag_ids.append(id_str)
+	cfg.set_value("equipment", "bag", bag_ids)
+	return _write_cfg(cfg)
+
+
 func _collect_world() -> Dictionary:
 	var world: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("persistent"):
@@ -317,43 +431,84 @@ func apply_lit_nests(node: Node) -> void:
 
 ## Populate a freshly-instantiated player from the stored save.
 func apply_player(player: Node) -> void:
-	if player == null or data.is_empty() or not data.has("player"):
+	if player == null or data.is_empty():
 		return
-	var p: Dictionary = data["player"]
-	var hp := player.get_node_or_null("Health") as Health
-	if hp:
-		hp.max_hp = int(p.get("max_hp", hp.max_hp))
-		hp.current = clampi(int(p.get("hp", hp.max_hp)), 0, hp.max_hp)
-		hp.changed.emit(hp.current, hp.max_hp)
-	var tox := player.get_node_or_null("ToxinMeter") as ToxinMeter
-	if tox:
-		tox.toxin = clampf(float(p.get("toxin", 0.0)), 0.0, tox.max_toxin)
-		GameEvents.toxin_changed.emit(tox.toxin, tox.max_toxin)
+	if not data.has("player") and not data.has("equipment"):
+		return
+
+	# 1. Restore equipment first so character stats & max HP bonuses update before health clamping
+	var eq: EquipmentInventory = null
 	if player is Player:
-		var face := int(p.get("facing", 1))
-		if face == 0:
-			face = 1
-		(player as Player).controller.facing = face
-		(player as Player).visual.scale.x = float(face)
-		var inv := (player as Player).inventory
-		inv.pouch.clear()
-		inv.sockets.clear()
-		for i in inv.socket_count:
-			inv.sockets.append(null)
-		for id_str in p.get("pouch", []):
-			var core := AbilityCatalog.for_id(StringName(id_str))
-			if core:
-				inv.pouch.append(core)
-		var sockets: Array = p.get("sockets", [])
-		for i in mini(sockets.size(), inv.socket_count):
-			var id_str: String = sockets[i]
-			if id_str == "":
-				continue
-			var core := AbilityCatalog.for_id(StringName(id_str))
-			if core:
-				inv.sockets[i] = core
-		inv.sockets_changed.emit()
-		inv.pouch_changed.emit()
+		eq = (player as Player).equipment_inventory
+		if eq == null:
+			eq = (player as Player).equipment
+	if eq == null and player != null:
+		if "equipment_inventory" in player and player.equipment_inventory != null:
+			eq = player.equipment_inventory
+		elif "equipment" in player and player.equipment != null:
+			eq = player.equipment
+		elif player.has_node("EquipmentInventory"):
+			eq = player.get_node("EquipmentInventory") as EquipmentInventory
+
+	if eq != null:
+		var equip_data: Dictionary = data.get("equipment", DEFAULT_EQUIPMENT)
+		if equip_data.is_empty():
+			equip_data = DEFAULT_EQUIPMENT
+		if eq.has_method("deserialize"):
+			eq.deserialize(equip_data)
+		else:
+			eq.equipped[EquipmentInventory.SLOT_WEAPON] = EquipmentCatalog.for_id(StringName(equip_data.get("weapon", "")))
+			eq.equipped[EquipmentInventory.SLOT_ARMOR] = EquipmentCatalog.for_id(StringName(equip_data.get("armor", "")))
+			eq.equipped[EquipmentInventory.SLOT_TRINKET] = EquipmentCatalog.for_id(StringName(equip_data.get("trinket", "")))
+			eq.bag.clear()
+			for b in equip_data.get("bag", []):
+				var it = EquipmentCatalog.for_id(StringName(b))
+				if it != null and eq.bag.size() < EquipmentInventory.MAX_BAG_CAPACITY:
+					eq.bag.append(it)
+			eq.equipment_changed.emit()
+			if eq.has_signal("bag_changed"):
+				eq.bag_changed.emit()
+
+	# 2. Restore health & toxin
+	if data.has("player"):
+		var p: Dictionary = data["player"]
+		var hp := player.get_node_or_null("Health") as Health
+		if hp:
+			if player is Player and (player as Player).stats != null:
+				hp.max_hp = (player as Player).stats.get_effective_max_hp()
+			else:
+				hp.max_hp = int(p.get("max_hp", hp.max_hp))
+			hp.current = clampi(int(p.get("hp", hp.max_hp)), 0, hp.max_hp)
+			hp.changed.emit(hp.current, hp.max_hp)
+		var tox := player.get_node_or_null("ToxinMeter") as ToxinMeter
+		if tox:
+			tox.toxin = clampf(float(p.get("toxin", 0.0)), 0.0, tox.max_toxin)
+			GameEvents.toxin_changed.emit(tox.toxin, tox.max_toxin)
+		if player is Player:
+			var face := int(p.get("facing", 1))
+			if face == 0:
+				face = 1
+			(player as Player).controller.facing = face
+			(player as Player).visual.scale.x = float(face)
+			var inv := (player as Player).inventory
+			inv.pouch.clear()
+			inv.sockets.clear()
+			for i in inv.socket_count:
+				inv.sockets.append(null)
+			for id_str in p.get("pouch", []):
+				var core := AbilityCatalog.for_id(StringName(id_str))
+				if core:
+					inv.pouch.append(core)
+			var sockets: Array = p.get("sockets", [])
+			for i in mini(sockets.size(), inv.socket_count):
+				var id_str: String = sockets[i]
+				if id_str == "":
+					continue
+				var core := AbilityCatalog.for_id(StringName(id_str))
+				if core:
+					inv.sockets[i] = core
+			inv.sockets_changed.emit()
+			inv.pouch_changed.emit()
 
 
 ## Record the scene we should boot into and the spawn point, then reload there.
@@ -511,7 +666,7 @@ func _remove_if_exists(path: String) -> void:
 
 
 func _cfg_is_usable(cfg: ConfigFile) -> bool:
-	return cfg.has_section("player") or cfg.has_section("meta")
+	return cfg.has_section("player") or cfg.has_section("meta") or cfg.has_section("equipment")
 
 
 func _load_cfg() -> ConfigFile:

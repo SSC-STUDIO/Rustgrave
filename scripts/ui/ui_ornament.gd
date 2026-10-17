@@ -1,7 +1,8 @@
 extends Control
-## 标题屏的像素铁件：插座剑、墓志短铆钉、主横线。
+## 全 UI 共用的像素铁件：插座剑（标题屏）、墓志短铆钉、铆钉横线、菜单架竖脊。
 ##
-## 全部落在 2px 栅格上（与 UI 套件的 DESIGN_SCALE 一致），用绘制而不是新贴图。
+## 全部落在 2px 栅格上（与 UI 套件的 DESIGN_SCALE 一致），用绘制而不是新贴图，
+## 因此标题屏 / 暂停菜单 / 设置页可以共用同一套铁件而不用各存一张 png。
 ## 不在本文件里写类名：这个脚本第一次被编译时全局类还没注册。
 
 const CELL := 2
@@ -11,6 +12,9 @@ const SWORD_W := 13
 const KIND_SWORD := 0
 const KIND_RULE := 1
 const KIND_STUB := 2
+## 菜单架左侧的竖脊：把整列按钮串成一只挂在墙上的铁架。
+const KIND_SPINE := 3
+const SPINE_W := 20
 const PAL := {
 	"0": Color("#120E14"),
 	"7": Color("#4A2A18"),
@@ -63,16 +67,25 @@ static func sword() -> Control:
 	return _make(KIND_SWORD)
 
 
-static func rivet_rule() -> Control:
-	return _make(KIND_RULE)
+static func rivet_rule(rule_width: float = 722.0) -> Control:
+	var mark = _make(KIND_RULE)
+	mark.custom_minimum_size = Vector2(rule_width, 16)
+	return mark
 
 
 static func stub_rule(on_left: bool) -> Control:
 	return _make(KIND_STUB, on_left)
 
 
+## 竖脊：一条 2px 锈线 + 一道压影，两端铆钉、中段一颗菱形铁花。
+static func spine(height: float = 300.0) -> Control:
+	var mark = _make(KIND_SPINE)
+	mark.custom_minimum_size = Vector2(SPINE_W, height)
+	return mark
+
+
 static func _make(which: int, on_left: bool = true) -> Control:
-	var mark = load("res://scripts/ui/title_ornament.gd").new()
+	var mark = load("res://scripts/ui/ui_ornament.gd").new()
 	mark.kind = which
 	mark.rivet_on_left = on_left
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -85,6 +98,8 @@ func _apply_size() -> void:
 		custom_minimum_size = Vector2((SWORD_W + 2) * SWORD_CELL, (SWORD.size() + 2) * SWORD_CELL)
 	elif kind == KIND_RULE:
 		custom_minimum_size = Vector2(722, 16)
+	elif kind == KIND_SPINE:
+		custom_minimum_size = Vector2(SPINE_W, 300)
 	else:
 		custom_minimum_size = Vector2(104, 16)
 
@@ -94,6 +109,8 @@ func _draw() -> void:
 		_draw_sword()
 	elif kind == KIND_RULE:
 		_draw_rule()
+	elif kind == KIND_SPINE:
+		_draw_spine()
 	else:
 		_draw_stub()
 
@@ -140,6 +157,19 @@ func _draw_rule() -> void:
 	_rivet(left_break - 6.0, 6.0)
 	_rivet(right_break, 6.0)
 	_diamond(Vector2(diamond_x, 2.0))
+
+
+## 竖脊：锈线在左、压影在右，两端各一颗铆钉，中段一颗菱形铁花。
+## 菜单每一行都从这道脊上"挂"出来，整列才不会散在半空中。
+func _draw_spine() -> void:
+	var height := custom_minimum_size.y
+	var line_x := 8.0
+	draw_rect(Rect2(line_x, 4.0, 2.0, height - 8.0), PAL["9"])
+	draw_rect(Rect2(line_x + 2.0, 4.0, 2.0, height - 8.0), PAL["0"])
+	draw_rect(Rect2(line_x, 4.0, 2.0, height * 0.35), PAL["8"])
+	_rivet(line_x - 2.0, 0.0)
+	_rivet(line_x - 2.0, height - 6.0)
+	_diamond(Vector2(line_x - 6.0, height * 0.5 - 7.0))
 
 
 func _draw_stub() -> void:

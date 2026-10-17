@@ -125,3 +125,24 @@ func test_apply_ambient_moves_the_clock_once() -> void:
 	ChapterLevel.apply_ambient({})
 	eq(WorldClock.weather, WorldClock.Weather.RAIN, "an empty ambient leaves the clock alone")
 	WorldClock.reset()
+
+
+## 特效不遮挡（docs/art-spec.md「特效不遮挡原则」）：环境浮尘是氛围层，
+## z_index 必须低于玩法层（角色 0）、高于 backdrop（CanvasLayer -10），
+## 永远不横穿脸、敌人前摇、台缘或地面陷阱。
+func test_motes_stay_below_the_play_layer() -> void:
+	var motes := ThemeMotes.new()
+	add_child(motes)
+	eq(motes.z_index, ThemeMotes.DEPTH_Z)
+	ok(motes.z_index < 0, "motes draw behind the knight (z=0), not across the silhouette")
+	ok(motes.z_index >= -5, "motes stay above the backdrop canvas (layer -10)")
+	var seen := 0
+	for id in ThemeMotes.FLAVORS:
+		var probe := ThemeMotes.new()
+		probe.flavor = id
+		add_child(probe)
+		if probe.z_index == ThemeMotes.DEPTH_Z:
+			seen += 1
+		probe.queue_free()
+	eq(seen, ThemeMotes.FLAVORS.size(), "every flavour keeps the same presentation depth")
+	ok(ThemeMotes.MAX_MOTES <= 40, "the pool stays capped; it is atmosphere, not a screen wash")

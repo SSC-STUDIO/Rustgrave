@@ -360,3 +360,30 @@ func test_backdrop_is_forge_and_indoor() -> void:
 			torches += 1
 			ok((child as Node2D).modulate.r > (child as Node2D).modulate.b, "torch plates are warmed")
 	ok(torches >= 6, "a torch every few hundred pixels (%d)" % torches)
+
+
+## 渣河 A 上方的排气龛：本章支路。主路线跳不上去，钩锁从 StoneA2/A3 拉上去；
+## 龛里是一条熔渣纪事（世界信息），不是第二枚核。
+func test_vent_branch_is_an_optional_lore_ledge() -> void:
+	var host := _build()
+	var ledge := host.get_node_or_null("Platforms/VentLedge") as SolidPlatform
+	var anchor := host.get_node_or_null("Hooks/HookVent") as HookAnchor
+	var stele := host.get_node_or_null("Props/SteleVent") as LoreStele
+	ok(ledge != null and anchor != null and stele != null, "vent ledge, anchor and stele exist")
+	if ledge == null or anchor == null or stele == null:
+		return
+	ok(anchor.position.y < ledge.position.y, "anchor hangs above the vent ledge")
+	ok(ledge.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "ledge is a tether drop under the anchor")
+	var stone_a2 := _rect(host, "StoneA2")
+	var launch := Vector2(clampf(anchor.position.x, stone_a2.position.x, stone_a2.end.x), stone_a2.position.y - 48.0)
+	ok(launch.distance_to(anchor.position) <= LevelSanity.HOOK_REACH, "anchor is within tether reach of StoneA2")
+	var tops := LevelSanity.top_segments(host)
+	ok(LevelSanity.standing_on(tops, LevelSanity.feet_of(stele)) != null, "stele stands on the vent ledge")
+	ok(String(stele.lore_title).begins_with("熔渣纪事"), "vent stele is slag lore")
+	ok(String(stele.lore_text) != "", "vent stele says something")
+	var feet := LevelSanity.feet_of(stele)
+	var spawn: Vector2 = _consts()["ENTRY_SPAWN"]
+	ok(not LevelSanity.is_reachable(host, spawn, feet, false),
+			"the main route cannot read the vent stele")
+	ok(LevelSanity.is_reachable(host, spawn, feet, true),
+			"the hookshot reaches the vent stele")

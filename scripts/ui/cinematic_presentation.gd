@@ -10,6 +10,11 @@ const HINT_ACTIONS: Array[StringName] = [
 	&"socket_1", &"socket_2",
 ]
 const HINT_FADE := 0.35
+const BOSS_CARD_SECONDS := 2.6
+const ABILITY_CARD_SECONDS := 2.0
+## A phase tick that arrives after the nameplate timed out brings a short reminder
+## card back, so the player still sees the count climb while the camera pushes in.
+const PHASE_CARD_SECONDS := 1.8
 
 var front
 var back
@@ -23,6 +28,10 @@ var _hint_age := 0.0
 var _card_left := 0.0
 var _hint_left := 0.0
 var _hint_held: Dictionary = {}
+## Last announced boss, kept after the nameplate times out: a phase change re-raises
+## the same name with the new tick. Cleared by defeat and by a hard dismiss (abort).
+var _boss_title := ""
+var _boss_subtitle := ""
 
 
 func _ready() -> void:
@@ -52,6 +61,7 @@ func _ready() -> void:
 	Director.finished.connect(_on_finished)
 	GameEvents.boss_appeared.connect(_on_boss_appeared)
 	GameEvents.boss_defeated.connect(_on_boss_defeated)
+	GameEvents.boss_phase_changed.connect(_on_boss_phase)
 	GameEvents.player_died.connect(hide_hint)
 
 
@@ -135,7 +145,7 @@ func _make_canvas() -> Control:
 
 
 func show_shot(id: String, title: String = "", subtitle: String = "") -> void:
-	if id != "chapter" and id != "boss":
+	if id != "chapter" and id != "boss" and id != "ability":
 		return
 	# Swap two bounded canvases, preserving the outgoing frame during a dissolve.
 	var previous = back
@@ -146,12 +156,19 @@ func show_shot(id: String, title: String = "", subtitle: String = "") -> void:
 	front.age = 0.0
 	front.heading = title
 	front.subheading = subtitle
+	# A new encounter starts at phase one; the phase ticks follow from signals.
+	front.phase_marks = 1
 	front.visible = true
 	front.modulate.a = 0.0
 	active_shot = id
 	_blend = 0.0
 	_leaving = false
-	_card_left = 2.6 if id == "boss" else 0.0
+	if id == "boss":
+		_card_left = BOSS_CARD_SECONDS
+	elif id == "ability":
+		_card_left = ABILITY_CARD_SECONDS
+	else:
+		_card_left = 0.0
 	front.queue_redraw()
 
 
@@ -166,6 +183,10 @@ func dismiss(immediate: bool = false) -> void:
 		_leaving = false
 		skip_button.visible = false
 		hide_hint()
+		# Abort means death or a scene change: no stale boss should answer a later
+		# phase signal from the old level.
+		_boss_title = ""
+		_boss_subtitle = ""
 
 
 func _on_step(_index: int, step: Dictionary) -> void:
@@ -183,17 +204,48 @@ func _on_step(_index: int, step: Dictionary) -> void:
 func _on_boss_appeared(title: String, current_hp: int, _max_hp: int) -> void:
 	# Combat owns the encounter and announces once. This flourish never changes
 	# aggro, health, saves, input locks or the boss's punish windows.
-	if current_hp <= 0 or (active_shot != "" and active_shot != "boss"):
+	if current_hp <= 0:
 		return
 	var parts := title.split("·", false, 1)
 	var heading := String(parts[0]).replace(" ", "")
 	var subtitle := String(parts[1]).strip_edges() if parts.size() > 1 else "守 芯 者"
+	_boss_title = heading
+	_boss_subtitle = subtitle
+	# A chapter card is a bigger arrival than the encounter: never cover it. The
+	# next boss signal (or the phase reminder) can still raise the name later.
+	if active_shot == "chapter":
+		return
+	# The encounter may be announced again after a resume/reload; refresh the card
+	# instead of dropping the signal or resetting the phase ticks.
+	if active_shot == "boss":
+		front.heading = heading
+		front.subheading = subtitle
+		front.queue_redraw()
+		return
 	show_shot("boss", heading, subtitle)
 
 
 func _on_boss_defeated() -> void:
+	_boss_title = ""
+	_boss_subtitle = ""
 	if active_shot == "boss":
 		dismiss()
+
+
+## 阶段变化更新名号卡上的相数刻度：字没变，玩家抬头就知道对手升了相。
+## 名号早已退场时把同一块卡短暂重新举起 —— 否则相变演出时看不到刻度。
+func _on_boss_phase(_boss_name: String, phase: int) -> void:
+	if _boss_title == "":
+		return
+	if active_shot == "chapter":
+		return
+	if active_shot != "boss":
+		show_shot("boss", _boss_title, _boss_subtitle)
+		_card_left = PHASE_CARD_SECONDS
+	front.phase_marks = maxi(phase, 1)
+	back.phase_marks = maxi(phase, 1)
+	front.queue_redraw()
+	back.queue_redraw()
 
 
 func _on_finished() -> void:

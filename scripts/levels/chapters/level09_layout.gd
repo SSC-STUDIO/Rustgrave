@@ -10,8 +10,8 @@ extends ChapterLayout
 ##   ④ 长缺口     1152–1472 排水沟 B：三块浮石 + 两只飞行恶魔
 ##   ⑤ 中段       1472–2048 第二巢、碑；塔楼二顶上的压板开步道上的闸门
 ##   ⑥ 风口       2048–2512 排水沟 C：五块短浮石（间距 48）+ 飞行恶魔
-##   ⑦ 塔楼三     2512–3200 第三巢；96px 塔顶喷吐者；钩锁捷径接余烬核；幽魂与
-##                          碎铁犬守着炉心大门
+##   ⑦ 塔楼三     2512–3200 第三巢；96px 塔顶喷吐者；钩锁捷径接余烬核 + 碑文「鹰」
+##                         ——本章支路；幽魂与碎铁犬守着炉心大门
 
 const EAST_LIMIT := 3200
 const ENTRY_SPAWN := Vector2(96, 300)
@@ -31,15 +31,23 @@ const PITS: Array = [
 	["PitB", 1152.0, 1472.0],
 	["PitC", 2048.0, 2512.0],
 ]
-## [name, pos, size] —— 塔楼与台阶：stone 方块，每级抬 32px
+## [name, pos, size] —— 塔楼与台阶：stone 方块，每级抬 32px。
+## 64/96 高的塔身拆成 32px 的叠石：LevelSanity 的净空检查会把一整块
+## 从地面砌到塔顶的实心读成「没有净空的墙」；叠成每层 32 后，
+## 每一层都只是上一层的台阶，墙顶仍能站人。
 const TOWERS: Array = [
 	["TowerAStep", Vector2(832, 288), Vector2(64, 32)],
-	["TowerA", Vector2(896, 256), Vector2(96, 64)],
+	["TowerABase", Vector2(896, 288), Vector2(96, 32)],
+	["TowerA", Vector2(896, 256), Vector2(96, 32)],
 	["TowerBStep", Vector2(1744, 288), Vector2(64, 32)],
-	["TowerB", Vector2(1808, 256), Vector2(128, 64)],
+	["TowerBBase", Vector2(1808, 288), Vector2(128, 32)],
+	["TowerB", Vector2(1808, 256), Vector2(128, 32)],
 	["TowerCStep1", Vector2(2736, 288), Vector2(64, 32)],
-	["TowerCStep2", Vector2(2800, 256), Vector2(64, 64)],
-	["TowerC", Vector2(2864, 224), Vector2(96, 96)],
+	["TowerCStep2Base", Vector2(2800, 288), Vector2(64, 32)],
+	["TowerCStep2", Vector2(2800, 256), Vector2(64, 32)],
+	["TowerCBase2", Vector2(2864, 288), Vector2(96, 32)],
+	["TowerCBase1", Vector2(2864, 256), Vector2(96, 32)],
+	["TowerC", Vector2(2864, 224), Vector2(96, 32)],
 ]
 ## [name, pos, width] —— 浮石（16px 厚，教堂浮石皮肤）
 const STONES: Array = [
@@ -73,6 +81,8 @@ const PLATE_FEET := Vector2(1904, 256)
 const GATE_DOOR_POS := Vector2(1984, 256)
 const HOOK_POS := Vector2(2992, 80)
 const EMBER_CORE_POS := Vector2(2992, 136)
+## 支路碑文站在哨台西端：和核、锚点错开，只有钩锁上得来。
+const STELE_EYRIE_POS := Vector2(2968, 160)
 const EXIT_X := 3096.0
 
 ## [name, kind, pos, overrides]
@@ -146,6 +156,34 @@ func ambient() -> Dictionary:
 	return {"time": 0.56, "weather": "ember_wind", "hold": 360.0}
 
 
+## 城墙上没有"随便什么天"：要么炉风，要么放晴，要么被风推着下雨。
+## 换天比城里快 —— 站在风口上，天就是一阵一阵的。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.EMBER_WIND, WorldClock.Weather.CLEAR,
+				WorldClock.Weather.HAZE, WorldClock.Weather.RAIN],
+		"weights": {
+			"dusk": {"ember_wind": 5, "rain": 3, "clear": 1, "haze": 1},
+			"night": {"rain": 4, "ember_wind": 3, "clear": 2, "haze": 1},
+			"*": {"ember_wind": 4, "clear": 3, "haze": 2, "rain": 1},
+		},
+		"hold": Vector2(90.0, 170.0),
+		"intensity": Vector2(0.7, 1.0),
+	}
+
+
+## ⑥ 风口（2048–2512）是三塔之间最敞的一段：雨直接打进来，风把余烬吹成横的。
+## ⑦ 塔楼三的墙根（2512–2800）挡住大半炉风，只剩慢慢飘的灰 —— 不指定天气，
+## 跟着基础态走，只把强度和风力压下来。
+func weather_regions() -> Array:
+	return [
+		{"name": "GaleGap", "rect": Rect2(2048, 232, 464, 168),
+			"weather": WorldClock.Weather.RAIN, "intensity": 1.0, "wind_scale": 1.5},
+		{"name": "TowerLee", "rect": Rect2(2512, 236, 288, 164),
+			"intensity": 0.4, "wind_scale": 0.35},
+	]
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -181,6 +219,8 @@ func _build_props(host: Node2D) -> void:
 	plate_door(host, "WallGate", PLATE_FEET, GATE_DOOR_POS)
 	hook(host, "HookTower", HOOK_POS)
 	pickup(host, "EmberCore", EMBER_CORE_POS, &"ember_core")
+	stele(host, "SteleEyrie", STELE_EYRIE_POS, "城墙铭 · 鹰",
+			"哨位空着。风替守墙人看路，看久了，把眼睛也磨成了灰。")
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 

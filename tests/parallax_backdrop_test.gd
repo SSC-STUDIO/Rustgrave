@@ -234,6 +234,152 @@ func test_sky_and_fog_follow_the_clock() -> void:
 	ok(far.scroll_offset.x != x0, "wind drifts the sky through scroll_offset")
 
 
+## 每章一个视觉身份：不能只换底色（docs/art-spec.md「环境层次」）。
+## SIGNATURE_LAYERS 是 theme_backdrop.gd 里登记的独有层名；build() 之后这些层
+## 必须真的存在、贴最近邻采样、并以足够副本覆盖 640 视口。
+func test_every_theme_has_its_signature_layers() -> void:
+	var seen := {}
+	var ids: Array = ["level03", "level04", "level05", "level06", "level07", "level08", "level09", "level10"]
+	# level01/level02 走各自的场景脚本（ThemeBackdrop 同样经 ChapterLayout.finish 落地），
+	# 这里只覆盖 GameContext.LAYOUTS 里的 ChapterLayout 子类。
+	for layout_id in ids:
+		var script: GDScript = load(String(GameContext.LAYOUTS[layout_id]))
+		ok(script != null, "%s layout script loads" % layout_id)
+		if script == null:
+			continue
+		var layout := script.new() as ChapterLayout
+		if layout == null:
+			ok(true, "%s is not a ChapterLayout — skip" % layout_id)
+			continue
+		var theme_id: String = layout.theme()
+		seen[theme_id] = true
+		var host := Node2D.new()
+		add_child(host)
+		# build() 在 host 下创建 / 复用名为 "ParallaxBackdrop" 的 CanvasLayer 并挂层。
+		var director := ThemeBackdrop.new()
+		director.build(host, theme_id)
+		var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
+		if theme_id == "graveyard":
+			ok(backdrop != null, "%s reuses the Level01 stack" % layout_id)
+			layout.free()
+			continue
+		ok(backdrop != null, "%s builds a ParallaxBackdrop CanvasLayer" % layout_id)
+		ok(ThemeBackdrop.has_theme(theme_id), "%s names a known theme (%s)" % [layout_id, theme_id])
+		var want: Array = ThemeBackdrop.SIGNATURE_LAYERS.get(theme_id, [])
+		ok(not want.is_empty(), "%s registers signature layers for '%s'" % [layout_id, theme_id])
+		for layer_name in want:
+			var layer := backdrop.get_node_or_null(String(layer_name)) as Parallax2D
+			ok(layer != null, "%s signature layer %s exists" % [theme_id, layer_name])
+			if layer == null:
+				continue
+			var spr := layer.get_node_or_null("Sprite") as Sprite2D
+			ok(spr != null and spr.texture != null, "%s/%s carries a plate" % [theme_id, layer_name])
+			if spr == null:
+				continue
+			ok(spr.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST,
+					"%s/%s stays nearest-neighbour" % [theme_id, layer_name])
+			# 平铺竖井墙（belltower tower_wall 的 tile 模式）用 texture_repeat 的
+			# 大 region 覆盖整座塔，不靠 repeat_times；其余层靠 repeat_times 平铺。
+			if layer.repeat_size == Vector2.ZERO and spr.texture_repeat == CanvasItem.TEXTURE_REPEAT_ENABLED:
+				ok(true, "%s/%s tiles via texture_repeat (no seam in a tall shaft)" % [theme_id, layer_name])
+			else:
+				ok(layer.repeat_times >= Level01Parallax.MIN_REPEAT_TIMES,
+						"%s/%s repeats enough copies (%d)" % [theme_id, layer_name, layer.repeat_times])
+		# 注：「层 tint 明度 ≤ 0.62」是运行期 WorldAtmosphere 把 backdrop 压暗一档后
+		# 的约束（见 world_atmosphere_test.test_backdrop_stays_subordinate_at_every_phase），
+		# 作者写的 tint 允许为白（1.0）——夜幕由 WorldAtmosphere 统一压暗，不在此断言。
+		layout.free()
+	# 每章身份色必须至少登记一次；登记表本身要覆盖 build() 用得到的主题。
+	ok(seen.size() >= 8, "chapters cover at least 8 distinct themes (got %d)" % seen.size())
+	# 登记表覆盖 THEMES 全部键：新增主题忘了登记 SIGNATURE_LAYERS 就过不了。
+	for theme_id in ThemeBackdrop.THEMES:
+		ok(ThemeBackdrop.SIGNATURE_LAYERS.has(theme_id),
+				"SIGNATURE_LAYERS registers '%s'" % theme_id)
+
+
+## 环境层次 + 轮廓对比（docs/art-spec.md）：每章必须有「独有光型 + 雾层 +
+## 被压暗的 BackdropTint」，且每层平均明度被 cap 到 LAYER_LUMA_CAP。
+## 这些不是只看背景色的换皮——身份色只能取 Palette 的 16 色之一。
+func test_every_theme_has_identity_light_fog_and_subordinate_tint() -> void:
+	var palette: Array[Color] = [
+		Palette.VOID, Palette.SHADOW, Palette.IRON, Palette.CONCRETE, Palette.PALE,
+		Palette.RUST_SHADOW, Palette.RUST_DARK, Palette.RUST_MID, Palette.RUST_LIGHT,
+		Palette.EMBER_ASH, Palette.TOXIC_DARK, Palette.TOXIC, Palette.EMBER,
+		Palette.TEAL_DEEP, Palette.TEAL, Palette.FOG,
+	]
+	var seen_identity := {}
+	for theme_id in ThemeBackdrop.THEMES:
+		WorldClock.set_zone(WorldClock.Zone.INDOORS if ThemeBackdrop.is_indoor_theme(theme_id) \
+				else WorldClock.Zone.OUTDOORS)
+		var host := Node2D.new()
+		add_child(host)
+		var director := ThemeBackdrop.new()
+		host.add_child(director)
+		director.build(host, theme_id)
+		var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
+		ok(backdrop != null, "%s builds a backdrop" % theme_id)
+		if backdrop == null:
+			host.free()
+			continue
+		var sig := backdrop.get_node_or_null(ThemeBackdrop.SIGNATURE_NODE) as Parallax2D
+		ok(sig != null, "%s plants its own signature light" % theme_id)
+		if sig != null:
+			eq(String(sig.get_meta("theme", "")), theme_id)
+			eq(String(sig.get_meta("kind", "")), ThemeBackdrop.signature_kind(theme_id))
+			ok(float(sig.get_meta("occlusion_alpha", 1.0)) <= 0.45,
+					"%s signature never becomes a screen wash" % theme_id)
+			var additive := 0
+			for child in sig.get_children():
+				var spr := child as Sprite2D
+				ok(spr != null and spr.texture != null, "%s signature child carries art" % theme_id)
+				if spr == null or spr.texture == null:
+					continue
+				eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
+				var mat := spr.material as CanvasItemMaterial
+				if mat != null and mat.blend_mode == CanvasItemMaterial.BLEND_MODE_ADD:
+					additive += 1
+			ok(additive >= 1, "%s signature is made of additive light, not an opaque plate" % theme_id)
+		var fog := backdrop.get_node_or_null("FogNear") as Parallax2D
+		ok(fog != null, "%s has a near fog band that ties the layers together" % theme_id)
+		if fog != null:
+			ok(fog.repeat_times >= Level01Parallax.MIN_REPEAT_TIMES, "%s fog covers the view" % theme_id)
+			var fsp := fog.get_node_or_null("Sprite") as Sprite2D
+			ok(fsp != null and fsp.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST)
+			if fsp != null:
+				ok(fsp.modulate.a <= 0.3, "%s fog is air, not a grey curtain" % theme_id)
+		var tint := backdrop.get_node_or_null("BackdropTint") as CanvasModulate
+		var mood := host.get_node_or_null("MoodTint") as CanvasModulate
+		ok(tint != null and mood != null, "%s has both play and backdrop tint" % theme_id)
+		if tint != null and mood != null:
+			ok(ThemeBackdrop.srgb_luma(tint.color) < ThemeBackdrop.srgb_luma(mood.color),
+					"%s backdrop is subordinate to the play canvas" % theme_id)
+		var capped := 0
+		for child in backdrop.get_children():
+			if child is Parallax2D and child.has_meta("luma"):
+				capped += 1
+				ok(float(child.get_meta("luma")) <= float(child.get_meta("luma_cap")) + 0.001,
+						"%s/%s average luma stays under the cap" % [theme_id, child.name])
+				ok(float(child.get_meta("luma_gain")) <= 1.0, "%s only darkens, never brightens" % theme_id)
+		ok(capped >= 2, "%s keeps at least two measured backdrop layers (%d)" % [theme_id, capped])
+		host.free()
+	# 身份色 / 光型登记必须覆盖 THEMES，且（色, 型）组合唯一。
+	for theme_id in ThemeBackdrop.THEMES:
+		ok(ThemeBackdrop.IDENTITY_COLOR.has(theme_id), "IDENTITY_COLOR registers %s" % theme_id)
+		ok(ThemeBackdrop.signature_kind(theme_id) != "", "SIGNATURE_KIND registers %s" % theme_id)
+		var c := ThemeBackdrop.identity_color(theme_id)
+		ok(palette.has(c), "%s identity color %s is one of the 16 palette colors" % [theme_id, c.to_html(false)])
+		var pair := "%s/%s" % [ThemeBackdrop.signature_kind(theme_id), c.to_html(false)]
+		ok(not seen_identity.has(pair), "%s keeps a unique light-type/color identity" % theme_id)
+		seen_identity[pair] = true
+	ok(ThemeBackdrop.IDENTITY_COLOR.has("graveyard"), "graveyard is registered too")
+	ok(ThemeBackdrop.signature_kind("graveyard") == "moon", "the graveyard's identity is its moon/silhouette stack")
+	ok(ThemeBackdrop.SILHOUETTE_STEPS_MIN >= 2, "spec requires at least two luminance steps")
+	ok(ThemeBackdrop.PLAYER_BODY_LUMA - ThemeBackdrop.LAYER_LUMA_CAP * (1.0 - ThemeBackdrop.BACKDROP_SUBORDINATE) \
+			>= ThemeBackdrop.SILHOUETTE_STEPS_MIN * ThemeBackdrop.SILHOUETTE_STEP,
+			"player body is at least %d steps above the capped backdrop" % ThemeBackdrop.SILHOUETTE_STEPS_MIN)
+	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
+
+
 func _load_level() -> Node:
 	var packed := load(LEVEL) as PackedScene
 	ok(packed != null, "Level01_Static packs")

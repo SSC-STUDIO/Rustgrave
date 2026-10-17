@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="2_ctrl"]
@@ -12,6 +12,8 @@
 [ext_resource type="Script" path="res://scripts/player/sword_visual.gd" id="10_sword"]
 [ext_resource type="Script" path="res://scripts/player/hookshot_tether.gd" id="11_hook"]
 [ext_resource type="Script" path="res://scripts/player/resonance.gd" id="12_reso"]
+[ext_resource type="Script" path="res://scripts/player/character_stats.gd" id="13_stats"]
+[ext_resource type="Script" path="res://scripts/player/equipment_inventory.gd" id="14_equip"]
 
 [sub_resource type="RectangleShape2D" id="body"]
 size = Vector2(14, 26)
@@ -118,3 +120,9 @@ script = ExtResource("11_hook")
 
 [node name="Resonance" type="Node" parent="."]
 script = ExtResource("12_reso")
+
+[node name="CharacterStats" type="Node" parent="."]
+script = ExtResource("13_stats")
+
+[node name="EquipmentInventory" type="Node" parent="."]
+script = ExtResource("14_equip")

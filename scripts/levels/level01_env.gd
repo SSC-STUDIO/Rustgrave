@@ -38,6 +38,9 @@ const SWAY_FREQ := {
 }
 const OPAQUE_ALPHA := 0.04
 
+## 贴图不透明底行按资源路径缓存：整关几十件道具时不必反复解图扫像素。
+static var _opaque_bottom_cache: Dictionary = {}
+
 
 static func hardness_of(path: String) -> int:
 	var name := path.get_file().get_basename().to_lower()
@@ -67,9 +70,16 @@ static func is_foliage(path: String) -> bool:
 	return h == Hardness.TREE or h == Hardness.BUSH
 
 
+## 贴图最下面一行不透明像素的 y（画布坐标）。接地物用这一行而不是画布底边，
+## 否则底部带透明留白的素材会看起来悬空。按 resource_path 缓存。
 static func opaque_bottom_px(tex: Texture2D) -> int:
 	if tex == null:
 		return 0
+	var key := tex.resource_path
+	if key == "":
+		key = "rid:%d" % tex.get_instance_id()
+	if _opaque_bottom_cache.has(key):
+		return int(_opaque_bottom_cache[key])
 	var img := tex.get_image()
 	if img == null:
 		return maxi(tex.get_height() - 1, 0)
@@ -80,7 +90,9 @@ static func opaque_bottom_px(tex: Texture2D) -> int:
 	for y in range(h - 1, -1, -1):
 		for x in w:
 			if img.get_pixel(x, y).a > OPAQUE_ALPHA:
+				_opaque_bottom_cache[key] = y
 				return y
+	_opaque_bottom_cache[key] = maxi(h - 1, 0)
 	return maxi(h - 1, 0)
 
 
@@ -127,7 +139,7 @@ static func plant_texture(parent: Node2D, tex: Texture2D, path: String, feet: Ve
 		var h := float(tex.get_height()) * scale
 		var pivot := Node2D.new()
 		pivot.name = "Sway_%s" % path.get_file().get_basename()
-		pivot.position = Vector2(feet.x + w * 0.5, feet.y)
+		pivot.position = Vector2(roundf(feet.x + w * 0.5), roundf(feet.y))
 		if in_world_space(parent):
 			pivot.set_meta("feet", pivot.position)
 			pivot.add_to_group("grounded")
@@ -146,9 +158,15 @@ static func plant_texture(parent: Node2D, tex: Texture2D, path: String, feet: Ve
 			parent.add_child(shed)
 		return spr
 	var land := float(opaque_bottom_px(tex) + 1) * scale
-	spr.position = Vector2(feet.x, feet.y - land)
+	# 硬装饰（石/碑/像）：feet.x 是贴图左缘（历史 API，Level01 的 PLAY_DECOR 按左缘
+	# 摆位）；脚点元数据写底边中点，LevelSanity 与轮廓对比都用它。新章节请优先用
+	# ChapterLayout.prop()，那里 feet 是底边中点。
+	var left := roundf(feet.x)
+	# y 不取整：小数缩放时取整会把不透明底行从 feet 上挪开最多半像素。
+	spr.position = Vector2(left, feet.y - land)
 	if in_world_space(parent):
-		spr.set_meta("feet", Vector2(feet.x + w * 0.5, feet.y))
+		spr.set_meta("feet", Vector2(roundf(left + w * 0.5), roundf(feet.y)))
+		spr.set_meta("foot_anchor", "bottom_center_meta")
 		spr.add_to_group("grounded")
 	parent.add_child(spr)
 	return spr

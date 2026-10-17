@@ -8,6 +8,9 @@ extends Node2D
 
 const MAX_MOTES := 40
 const MARGIN := Vector2(340.0, 200.0)
+## 特效不遮挡（docs/art-spec.md）：浮尘是氛围层，画在玩法层（角色 z=0）之后、
+## 地形贴片（z=-1）之前。之前 z=4 会让 2px 亮粒横穿脸和敌人前摇。
+const DEPTH_Z := -2
 
 ## count / size / color / alpha / vel (px/s) / jitter / gravity / sway (px/s²-ish) /
 ## life range / spawn: "any" (anywhere in view), "bottom", "top", "burst" /
@@ -65,7 +68,7 @@ static func has_flavor(id: String) -> bool:
 
 
 func _ready() -> void:
-	z_index = 4
+	z_index = DEPTH_Z
 	_headless = DisplayServer.get_name() == "headless"
 	_rng.seed = hash(flavor) ^ 0x51ed
 	configure(flavor)

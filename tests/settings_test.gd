@@ -155,3 +155,101 @@ func test_slider_drags_coalesce_into_one_delayed_write() -> void:
 	var cfg := ConfigFile.new()
 	eq(cfg.load(TEST_PATH), OK)
 	almost(float(cfg.get_value("audio", "Music", -1.0)), 39.0, 0.01, "the final value is what got written")
+
+
+## 设置页必须把持久化过的每一项都摆出来：四条总线、震屏 / 闪光、全屏 / 平滑、
+## 教学提示，以及全部可改键动作。
+func test_settings_screen_exposes_every_persisted_option() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	for bus in Settings.VOLUME_BUSES:
+		ok(screen.slider_for(bus) != null, "声音页有 %s 滑条" % String(bus))
+	ok(screen.slider_for(&"shake") != null, "震屏强度滑条")
+	ok(screen.slider_for(&"flash") != null, "闪光强度滑条")
+	ok(screen.toggle_for(SettingsScreen.OPT_FULLSCREEN) != null, "全屏开关")
+	ok(screen.toggle_for(SettingsScreen.OPT_SMOOTHING) != null, "像素平滑开关")
+	ok(screen.toggle_for(HintService.SETTING_ENABLED) != null, "教学提示开关")
+	screen.show_tab(SettingsScreen.TAB_KEYS)
+	for action in Settings.REBINDABLE:
+		ok(screen.key_button_for(action) != null, "键位页有 %s" % String(action))
+	screen.queue_free()
+	await get_tree().process_frame
+
+
+## 滑条拖动只改内存；关闭 / 停手后由设置页 flush 落盘，且持久化格式不变。
+func test_settings_screen_slider_flushes_to_the_same_config_file() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	var slider := screen.slider_for(&"Sfx")
+	ok(slider != null, "Sfx slider exists")
+	if slider != null:
+		slider.value = 45.0
+		await get_tree().process_frame
+		almost(Settings.volume_percent(&"Sfx"), 45.0, 0.01, "slider reaches Settings live")
+		screen.flush()
+		var cfg := ConfigFile.new()
+		eq(cfg.load(TEST_PATH), OK, "settings file stays readable")
+		almost(float(cfg.get_value("audio", "Sfx", -1.0)), 45.0, 0.01,
+				"slider value persisted in the audio section")
+		eq(int(cfg.get_value("meta", "version", 0)), Settings.VERSION, "version unchanged")
+	screen.queue_free()
+	await get_tree().process_frame
+
+
+## 键位页的两列网格必须装进 900px 花边卡的内容宽（832），不能在中文键名和
+## 「恢复默认键位」同时在场时向两侧挤出卡片。
+func test_settings_key_grid_fits_inside_the_card() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	screen.show_tab(SettingsScreen.TAB_KEYS)
+	await get_tree().process_frame
+	var card := screen.get_node_or_null("ModalRoot/Card") as Control
+	var grid := screen.find_child("KeyGrid", true, false) as GridContainer
+	ok(card != null, "settings card exists")
+	ok(grid != null, "key grid exists")
+	if card != null and grid != null:
+		var card_rect := card.get_global_rect()
+		var body_width := card_rect.size.x - 68.0
+		ok(grid.get_combined_minimum_size().x <= body_width,
+				"key grid fits the card content width (%.0f <= %.0f)"
+				% [grid.get_combined_minimum_size().x, body_width])
+		var grid_rect := grid.get_global_rect()
+		ok(card_rect.encloses(grid_rect),
+				"key grid stays inside the ornate card (%s in %s)" % [grid_rect, card_rect])
+		for action in Settings.REBINDABLE:
+			var button := screen.key_button_for(action)
+			if button != null:
+				ok(card_rect.encloses(button.get_global_rect()),
+						"%s row stays inside the card" % String(action))
+	screen.queue_free()
+	await get_tree().process_frame
+
+
+## 键盘 / 手柄焦点：页内第一行 ↑ 回本页标签，页脚 ↑ 回当前页最后一行；
+## 页尾 ↓ 到「返回」，键位页的「恢复默认」与「返回」用 ←→ 相连。
+func test_settings_focus_chain_links_tabs_pages_and_footer() -> void:
+	var screen := SettingsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	screen.open()
+	await get_tree().process_frame
+	var first := screen.first_control()
+	ok(first != null, "声音页有第一焦点")
+	if first != null:
+		ok(not first.focus_neighbor_top.is_empty(), "第一行有 ↑ 邻居")
+		var tab := first.get_node_or_null(first.focus_neighbor_top)
+		ok(tab is Button, "第一行 ↑ 回到标签")
+		if tab is Button:
+			eq((tab as Button).theme_type_variation, &"TabButton", "回到的是本页标签")
+	var back := screen.back_button()
+	ok(back != null, "页脚有返回按钮")
+	if back != null:
+		ok(not back.focus_neighbor_top.is_empty(), "返回按钮有 ↑ 邻居")
+		var last := back.get_node_or_null(back.focus_neighbor_top)
+		ok(last != null and last.is_visible_in_tree(), "返回 ↑ 回到当前页最后一行")
+	screen.close()
+	screen.queue_free()
+	await get_tree().process_frame

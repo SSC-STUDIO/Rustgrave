@@ -483,3 +483,54 @@ func test_swing_move_scale_matches_the_rules() -> void:
 	var src := FileAccess.get_file_as_string("res://scripts/player/player.gd")
 	ok(src.contains("CombatRules.SWING_MOVE_SCALE"), "player.gd reads the swing slow-down from CombatRules")
 	p.queue_free()
+
+
+# ---------------------------------------------------------------------------
+# 读招表与敌人状态机的实际常量对齐（表不是孤立的文档）
+# ---------------------------------------------------------------------------
+func test_telegraph_table_matches_enemy_behaviour_constants() -> void:
+	var tg := CombatRules.TELEGRAPH
+	# 喷吐者
+	almost(SpitterEnemy.CHARGE_TIME, float(tg[&"spitter"]["time"]), 0.0001, "spitter charge")
+	almost(SpitterEnemy.EXHALE_TIME, float(tg[&"spitter"]["punish"]), 0.0001, "spitter exhale")
+	# 碎甲者
+	almost(ScrapperEnemy.MISS_STUN_TIME, float(tg[&"scrapper"]["punish"]), 0.0001, "scrapper miss stun")
+	var scrapper := ScrapperEnemy.new()
+	almost(scrapper.windup_time, float(tg[&"scrapper"]["time"]), 0.0001, "scrapper windup")
+	scrapper.free()
+	# 骸骨
+	almost(SkeletonEnemy.BITE_WINDUP, float(tg[&"skeleton"]["time"]), 0.0001, "skeleton lean")
+	almost(SkeletonEnemy.BITE_RECOVERY, float(tg[&"skeleton"]["punish"]), 0.0001, "skeleton open mouth")
+	# 幽魂
+	almost(GhostEnemy.ATTACK_WINDUP, float(tg[&"ghost"]["time"]), 0.0001, "ghost wail ring")
+	almost(GhostEnemy.ATTACK_RECOVERY, float(tg[&"ghost"]["punish"]), 0.0001, "ghost freeze")
+	# 火骷髅
+	almost(FireSkullEnemy.FLARE_TIME, float(tg[&"fire_skull"]["time"]), 0.0001, "skull flare")
+	almost(FireSkullEnemy.RETREAT_PAUSE, float(tg[&"fire_skull"]["punish"]), 0.0001, "skull pause")
+	# 飞行恶魔
+	almost(FlyingDemonEnemy.ATTACK_WINDUP, float(tg[&"flying_demon"]["time"]), 0.0001, "demon flap")
+	almost(FlyingDemonEnemy.RECOVERY_TIME, float(tg[&"flying_demon"]["punish"]), 0.0001, "demon hover")
+	# 齿轮盾卫
+	var guard := GearShieldEnemy.new()
+	almost(guard.charge_time, float(tg[&"gear_shield"]["time"]), 0.0001, "guard arm raise")
+	almost(guard.stagger_time, float(tg[&"gear_shield"]["punish"]), 0.0001, "guard shield break")
+	guard.free()
+	# 刽子手
+	almost(ExecutionerBoss.SLASH_WINDUP, float(tg[&"executioner"]["time"]), 0.0001, "executioner axe zone")
+	almost(ExecutionerBoss.SLASH_RECOVERY, float(tg[&"executioner"]["punish"]), 0.0001, "executioner recovery")
+	# 梦魇（一阶段；二阶段的收紧值由 CombatRules 单独给出）
+	var nightmare_script := load("res://scripts/enemies/nightmare_boss.gd") as Script
+	var nightmare := nightmare_script.new() as Node
+	almost(float(nightmare.get("windup_time")), float(tg[&"nightmare"]["time"]), 0.0001, "nightmare windup")
+	almost(float(nightmare.get("rest_time")), float(tg[&"nightmare"]["punish"]), 0.0001, "nightmare rest")
+	nightmare.free()
+	almost(CombatRules.NIGHTMARE_P2_WINDUP, 0.58, 0.0001)
+	almost(CombatRules.NIGHTMARE_P2_REST, 0.90, 0.0001)
+	ok(CombatRules.NIGHTMARE_P2_WINDUP >= CombatRules.TELEGRAPH_MIN, "even the tightened windup stays readable")
+	ok(CombatRules.NIGHTMARE_P2_SPEED_K > 1.0, "phase two charges harder")
+	almost(CombatRules.EXECUTIONER_P2_FOLLOWUP, 0.55, 0.0001)
+	# 表本身：每个暗号够长、每个破绽都真的留得出来。
+	for kind in tg:
+		ok(float(tg[kind]["time"]) >= CombatRules.TELEGRAPH_MIN, "%s telegraph >= 0.25 s" % kind)
+		ok(float(tg[kind]["punish"]) > 0.0, "%s leaves a punish window" % kind)
+		ok(StringName(tg[kind]["signature"]) != &"", "%s has a named signature" % kind)

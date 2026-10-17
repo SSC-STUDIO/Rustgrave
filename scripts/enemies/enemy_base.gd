@@ -27,6 +27,9 @@ const MARK_OFFSET := Vector2(0.0, -34.0)
 
 @export var patrol_range: float = 64.0
 @export var patrol_speed: float = 40.0
+@export var drop_equipment: EquipmentItem = null
+@export var drop_equipment_id: StringName = &""
+@export_range(0.0, 1.0) var drop_equipment_chance: float = 1.0
 
 var health: Health
 var _dir: float = -1.0
@@ -344,10 +347,48 @@ static func _hide_placeholder_rects(container: Node) -> void:
 			c.visible = false
 
 
+func _try_drop_equipment() -> void:
+	if drop_equipment == null and drop_equipment_id == &"":
+		return
+	if drop_equipment_chance < 1.0 and randf() > drop_equipment_chance:
+		return
+
+	var item: EquipmentItem = drop_equipment
+	if item == null and drop_equipment_id != &"" and ResourceLoader.exists("res://scripts/data/equipment_catalog.gd"):
+		var catalog: GDScript = load("res://scripts/data/equipment_catalog.gd")
+		if catalog != null and catalog.has_method("for_id"):
+			item = catalog.call("for_id", drop_equipment_id)
+	if item == null:
+		return
+
+	var parent_node := get_parent()
+	if parent_node == null:
+		return
+
+	var pickup_name := "EquipDrop_%s" % name
+	var saved_path := SaveData.persist_path(self).get_base_dir() + "/" + pickup_name
+	if SaveData.is_consumed(saved_path):
+		return
+
+	if not ResourceLoader.exists("res://scenes/interactables/EquipmentPickup.tscn"):
+		return
+	var pickup_scene: PackedScene = load("res://scenes/interactables/EquipmentPickup.tscn")
+	if pickup_scene == null:
+		return
+
+	var pickup = pickup_scene.instantiate()
+	pickup.name = pickup_name
+	if "item" in pickup:
+		pickup.set("item", item)
+	pickup.position = position + Vector2(0, -8)
+	parent_node.add_child(pickup)
+
+
 ## 死亡通用演出：尸体帧动画（空帧列表退化为通用烟雾）+ 锈屑 + 火花 +
 ## 播报，最后 queue_free。掉落物等差异由子类在调用前自行生成。
 func _death_burst(frames: Array[Texture2D], fps: float, flip: bool,
 		baseline: float, message: String) -> void:
+	_try_drop_equipment()
 	_disable_combat()
 	if frames.is_empty():
 		Fx.enemy_death_smoke(global_position)

@@ -10,6 +10,12 @@ const MOTE_PATH := "res://assets/ui/ember_motes.png"
 const GLOW_PATH := "res://assets/env/glow_soft.png"
 ## Story halos alive at once (the forge answering from down the corridor, a core's flare).
 const GLOW_CAP := 3
+## 特效不遮挡（docs/art-spec.md）：世界尘埃与故事光晕都在玩法层之后。
+## 玩家 / 敌人 z=0；把它们放在 -2 就不会用加法亮斑盖住剪影、前摇和台缘。
+const DEPTH_Z := -2
+const GLOW_Z := -2
+## 故事光晕的 alpha 上限：再亮就会把角色轮廓洗白。
+const GLOW_ALPHA_CAP := 0.5
 
 static var _glow_mat: CanvasItemMaterial
 static var _glows: Array[Sprite2D] = []
@@ -24,7 +30,7 @@ var _mid_suppressed := false
 
 
 func _ready() -> void:
-	z_index = 3
+	z_index = DEPTH_Z
 	_headless = DisplayServer.get_name() == "headless"
 	_mote_tex = _load_motes()
 	_shaft = Sprite2D.new()
@@ -69,9 +75,10 @@ static func glow_pulse(host: Node, world_pos: Vector2, tint: Color, seconds: flo
 	spr.centered = true
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.material = _glow_mat
-	spr.z_index = 60
+	spr.z_index = GLOW_Z
 	spr.scale = Vector2.ONE * glow_scale * 0.7
 	spr.modulate = Color(tint.r, tint.g, tint.b, 0.0)
+	var peak := minf(tint.a, GLOW_ALPHA_CAP)
 	layer.add_child(spr)
 	spr.global_position = world_pos
 	_glows.append(spr)
@@ -79,7 +86,7 @@ static func glow_pulse(host: Node, world_pos: Vector2, tint: Color, seconds: flo
 	var swell := spr.create_tween()
 	swell.tween_property(spr, "scale", Vector2.ONE * glow_scale, span).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	var fade := spr.create_tween()
-	fade.tween_property(spr, "modulate:a", tint.a, span * 0.35)
+	fade.tween_property(spr, "modulate:a", peak, span * 0.35)
 	fade.tween_property(spr, "modulate:a", 0.0, span * 0.65)
 	fade.tween_callback(spr.queue_free)
 	return spr

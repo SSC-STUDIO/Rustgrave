@@ -34,6 +34,12 @@ const BANNER_TOP := 14.0
 const PROMPT_BOTTOM := 10.0
 ## Boss 条在底边中央占的高度；交互提示在 Boss 战中抬到它上面，两者不重叠。
 const BOSS_BAR_LIFT := 56.0
+## 长文案的边界（设计像素）。短句保持自然宽；超出后单行提示用省略号收尾，
+## 目标行折成最多两行。所有上限定在 1280 宽的 HUD 画布内，任何语言都不溢出。
+const PROMPT_MAX_WIDTH := 1080.0
+const BANNER_MAX_WIDTH := 1040.0
+const OBJECTIVE_MAX_WIDTH := 860.0
+const BOSS_TITLE_MAX_WIDTH := 400.0
 
 # 危险反馈：毒素报警脉动 + 低血量血雾呼吸。
 const TOXIN_ALARM_RATIO := 0.8
@@ -315,7 +321,10 @@ func _build_banner(root: Control) -> void:
 	_banner.modulate.a = 0.0
 	root.add_child(_banner)
 	_announce_label = UiKit.label("", &"AnnounceLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_announce_label.name = "AnnounceLabel"
 	_announce_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# 横幅钉死在贴图原高：长句只在单行内省略，不允许把两条尖角拉长。
+	_announce_label.max_lines_visible = 1
 	_banner.add_child(_announce_label)
 
 
@@ -337,9 +346,9 @@ func _build_boss_bar(root: Control) -> void:
 	col.add_theme_constant_override("separation", 2)
 	_boss_bar_panel.add_child(col)
 
-	_boss_title_label = UiKit.label("炉 约 刽 子 手 · 铸 渣 残 躯", &"HudStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_boss_title_label = UiKit.label("炉 约 刽 子 手 · 铸 渣 残 躯", &"BossTitleLabel",
+			HORIZONTAL_ALIGNMENT_CENTER)
 	_boss_title_label.name = "BossTitle"
-	_boss_title_label.add_theme_color_override("font_color", Palette.EMBER)
 	col.add_child(_boss_title_label)
 
 	_boss_hp_bar = ProgressBar.new()
@@ -364,7 +373,8 @@ func _build_prompt(root: Control) -> void:
 	_prompt_panel.visible = false
 	root.add_child(_prompt_panel)
 	_prompt_label = UiKit.label("", &"PromptLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_prompt_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_prompt_label.name = "PromptLabel"
+	_prompt_label.max_lines_visible = 1
 	_prompt_panel.add_child(_prompt_label)
 
 
@@ -378,6 +388,9 @@ func _build_atmosphere(root: Control) -> void:
 	_atmos_label.offset_right = -18.0
 	_atmos_label.offset_top = 14.0
 	_atmos_label.offset_bottom = 32.0
+	_atmos_label.max_lines_visible = 1
+	_atmos_label.clip_text = true
+	_atmos_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_atmos_label.modulate.a = 0.0
 	root.add_child(_atmos_label)
 
@@ -531,11 +544,48 @@ func _refresh_objective() -> void:
 	if not _tracker.has_scanned():
 		_tracker.scan(GameContext.world_root(player))
 	_objective_label.text = _tracker.line(player, _boss_name)
+	_fit_wrapped(_objective_label, _objective_label.text, OBJECTIVE_MAX_WIDTH)
 
 
 ## 当前显示的目标行（测试用）。
 func objective_text() -> String:
 	return _objective_label.text
+
+
+## 量一行字在设计像素里的自然宽度。字体与字号都从主题取，12/24/36 的像素栅格不变。
+func _text_width(label: Label, text: String) -> float:
+	if label == null or text == "":
+		return 0.0
+	var font := label.get_theme_font("font")
+	var font_size := label.get_theme_font_size("font_size")
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x
+
+
+## 单行文案的边界：短句保持自然宽，长句压到 max_width 并用省略号收尾。
+## 只对实际超长的文本打开 clip，避免短提示被无谓地裁掉阴影 / 末字。
+func _fit_single_line(label: Label, text: String, max_width: float) -> void:
+	if label == null:
+		return
+	var width := _text_width(label, text)
+	var clipped := width > max_width
+	label.max_lines_visible = 1
+	label.clip_text = clipped
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS \
+			if clipped else TextServer.OVERRUN_NO_TRIMMING
+	label.custom_minimum_size.x = minf(width, max_width)
+
+
+## 目标行可以折行，但最多两行；短句不折，保持和状态带同一行的紧凑节奏。
+func _fit_wrapped(label: Label, text: String, max_width: float) -> void:
+	if label == null:
+		return
+	var width := _text_width(label, text)
+	var wrapped := width > max_width
+	label.clip_text = false
+	label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrapped else TextServer.AUTOWRAP_OFF
+	label.max_lines_visible = 2 if wrapped else -1
+	label.custom_minimum_size.x = minf(width, max_width)
 
 
 func _on_chapter_started(_level_id: String) -> void:
@@ -647,6 +697,7 @@ func _on_boss_appeared(boss_name: String, current_hp: int, max_hp: int) -> void:
 	_boss_name = boss_name
 	_boss_max_hp = maxi(1, max_hp)
 	_boss_title_label.text = boss_name
+	_fit_single_line(_boss_title_label, boss_name, BOSS_TITLE_MAX_WIDTH)
 	_boss_hp_bar.max_value = float(_boss_max_hp)
 	_boss_hp_bar.value = float(current_hp)
 	_boss_bar_panel.modulate.a = 0.0
@@ -683,6 +734,7 @@ func _on_prompt(text: String) -> void:
 	_prompt_text = text
 	if _prompt_label != null:
 		_prompt_label.text = KeyLabels.localize_prompt(text)
+		_fit_single_line(_prompt_label, _prompt_label.text, PROMPT_MAX_WIDTH)
 	_sync_prompt()
 
 
@@ -717,7 +769,12 @@ func _on_announce(text: String) -> void:
 ## 横幅只有一条补间：每次显示 / 隐藏先杀掉上一条，否则上一次淡出末尾的"清文字"
 ## 回调会在新播报已经亮起之后把它擦成空白条。
 func _show_announce(text: String) -> void:
-	_announce_label.text = text
+	# 碑文之类的播报可能带作者换行；横幅是单行铁牌，先压成一行再量宽度。
+	var line := text.replace("\r", " ").replace("\n", " ").strip_edges()
+	if line == "":
+		return
+	_announce_label.text = line
+	_fit_single_line(_announce_label, line, BANNER_MAX_WIDTH)
 	_announce_time = ANNOUNCE_HOLD
 	_kill_banner_tween()
 	_banner_tween = create_tween()

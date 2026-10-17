@@ -93,34 +93,48 @@ static func insert_line(core: RustCore) -> String:
 	return String(CORE_VOICE.get(core.ability_id, ""))
 
 
-## Push-in, ring, 0.4 s freeze, one caption, hand the lens back. About 3 s.
-## With no knight in the scene (unit fixtures) only the caption survives.
-static func core_steps(player: Node2D, line: String) -> Array:
+## 获得一枚核：戒指与冻帧先把「这不是普通战利品」演出来，字幕只念那句职称。
+## 嵌进插座时再给一张紧凑的「新动词」卡：能力名由画面报，不再靠一行字幕解释。
+## 没有骑士的场景（单元夹具）也能显示这张卡；镜头步骤则省略。
+static func core_steps(player: Node2D, line: String, ability_name: String = "") -> Array:
+	var card: Array = []
+	if ability_name != "":
+		card.append({"kind": "tableau", "id": "ability", "title": ability_name,
+				"subtitle": "新 的 动 词", "seconds": 2.0})
 	if player == null:
-		return [
+		var fixture: Array = [
 			{"kind": "lock"},
 			{"kind": "caption", "text": line, "hold": 1.3},
-			{"kind": "unlock"},
 		]
-	return [
+		fixture.append_array(card)
+		fixture.append({"kind": "unlock"})
+		return fixture
+	var steps: Array = [
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "core_get"},
 		{"kind": "cam_focus", "target": player, "zoom": 1.5, "duration": 0.3},
 		{"kind": "fx", "id": "core_ring", "target": player, "seconds": 0.05},
 		{"kind": "fx", "id": "freeze", "ms": 400, "seconds": 0.0},
+		# 冻帧解开的瞬间：剑背上的插座亮一下，再开口说话。
+		{"kind": "fx", "id": "ember_rise", "target": player, "seconds": 0.6},
 		{"kind": "caption", "text": line, "hold": 1.3},
-		{"kind": "cam_release", "duration": 0.4},
-		{"kind": "unlock"},
 	]
+	steps.append_array(card)
+	steps.append({"kind": "cam_release", "duration": 0.4})
+	steps.append({"kind": "unlock"})
+	return steps
 
 
+## 登场：先把竞技场交出来（1.05x），吼声与冲击环把体量压到画面上，
+## 再往身上推近（1.2x）留一拍。名号卡由 boss_appeared 另画，不抢操作。
 static func boss_intro_steps(boss: Node2D) -> Array:
 	return [
 		{"kind": "lock"},
+		{"kind": "cam_focus", "target": boss, "zoom": 1.05, "duration": 0.3},
 		{"kind": "sfx", "id": "boss_roar"},
-		{"kind": "cam_focus", "target": boss, "zoom": 1.2, "duration": 0.5},
-		{"kind": "fx", "id": "boss_roar", "target": boss, "seconds": 0.5},
-		{"kind": "wait", "seconds": 0.45},
+		{"kind": "fx", "id": "boss_roar", "target": boss, "seconds": 0.35},
+		{"kind": "cam_focus", "target": boss, "zoom": 1.2, "duration": 0.35},
+		{"kind": "wait", "seconds": 0.35},
 		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
 	]
@@ -132,13 +146,34 @@ static func boss_defeat_steps(boss: Node2D, door: Node2D) -> Array:
 		{"kind": "fx", "id": "slowmo", "ms": 700, "scale": 0.25, "seconds": 0.0},
 		{"kind": "fx", "id": "shake", "px": 5.0, "ms": 420, "seconds": 0.0},
 		{"kind": "cam_focus", "target": boss, "zoom": 1.3, "duration": 0.45},
+		# 跪下的身子留一拍，让「他不会再起来了」先落地。
+		{"kind": "wait", "seconds": 0.3},
 	]
 	if door != null:
+		# 再把镜头交给门里的火 —— 下一站不用字幕交代。
 		steps.append({"kind": "cam_focus", "target": door, "zoom": 1.0, "duration": 0.8})
 		steps.append({"kind": "sfx", "id": "door_open"})
 		steps.append({"kind": "fx", "id": "heart_pulse", "target": door, "seconds": 0.45})
 		steps.append({"kind": "caption", "text": "门里的火亮了一下。", "hold": 1.2})
 	steps.append({"kind": "cam_release", "duration": 0.4})
+	steps.append({"kind": "unlock"})
+	return steps
+
+
+## 阶段变化：吼叫、相变光环与镜头推近，但镜头也锁一次 —— 玩家看清「它换了样子」，
+## 才谈得上调整打法。约 2.6 秒，可跳过；Juice 的慢放/震屏仍受 Settings 缩放保护。
+## 台词不在这里重复：Boss 自己的 announcement / 名号卡相数刻度已经把同一句话说完了。
+static func phase_steps(boss: Node2D, line: String) -> Array:
+	var steps: Array = [
+		{"kind": "lock"},
+		{"kind": "sfx", "id": "boss_roar", "db": -6.0},
+		{"kind": "fx", "id": "phase_flash", "target": boss, "seconds": 0.35},
+		{"kind": "cam_focus", "target": boss, "zoom": 1.25, "duration": 0.35},
+		{"kind": "wait", "seconds": 0.25},
+	]
+	if line != "":
+		steps.append({"kind": "caption", "text": line, "hold": 1.5})
+	steps.append({"kind": "cam_release", "duration": 0.35})
 	steps.append({"kind": "unlock"})
 	return steps
 
@@ -193,7 +228,7 @@ func _on_core_inserted(core: Resource, _socket_index: int) -> void:
 	if player == null or line == "" or not StoryStage.once("stage_ins_%s" % String(rust.id)):
 		return
 	StoryStage.once("insert")
-	Director.play(core_steps(player, line), true)
+	Director.play(core_steps(player, line, AbilityIds.display_name(rust.ability_id)), true)
 
 
 func _on_boss_intro(boss_name: String) -> void:
@@ -219,9 +254,13 @@ func _on_boss_phase(boss_name: String, phase: int) -> void:
 	Juice.flash(Color(0.9, 0.16, 0.1, 0.42), 240)
 	if not live():
 		return
-	var caption := Director.caption()
-	if caption != null:
-		caption.enqueue(phase_line(boss_name, phase), 1.5)
+	var boss := _find_boss()
+	if boss == null or not StoryStage.once("boss_phase_%d_%s" % [phase, boss_name.replace(" ", "")]):
+		return
+	# The boss already announced the change in the HUD banner ("炉渣在……");
+	# repeating it as a subtitle under the shot would be the same sentence twice.
+	# CinematicPresentation also re-raises the nameplate with the new phase tick.
+	Director.play(phase_steps(boss, ""), true)
 
 
 func _on_boss_defeated() -> void:
@@ -241,13 +280,18 @@ func _on_boss_defeated() -> void:
 
 func _on_chapter_started(_level_id: String) -> void:
 	Music.set_state(&"calm")
-	# A scene (re)load must not inherit a stale lock or hint from the one before it.
-	Director.hide_hint()
-	if not Director.playing and Director.is_input_locked():
-		Director.abort()
+	# A scene (re)load must not inherit a stale lock, hint, caption, letterbox or
+	# camera from the one before it. `reset_view` is stronger than abort(): the bars
+	# close in the same frame the new level appears, so the chapter card starts from
+	# a clean composition and no old script can keep the new knight locked.
+	Director.reset_view()
 
 
 func _on_player_died() -> void:
+	# Death wins over any live story beat: release the camera/caption/hint now, then
+	# play the death cue over a clean screen. The player already calls abort() before
+	# emitting, so this is normally idempotent.
+	Director.reset_view()
 	Music.stinger(&"death")
 	Music.set_state(&"calm")
 
@@ -256,6 +300,7 @@ func _on_ending_chosen(kind: StringName) -> void:
 	var stinger := ending_stinger(kind)
 	if stinger == &"":
 		return
+	Director.hide_hint()
 	Music.set_state(&"ending")
 	Music.stinger(stinger)
 

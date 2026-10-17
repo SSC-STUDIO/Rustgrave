@@ -35,6 +35,36 @@ func disarm() -> void:
 	already_hit.clear()
 
 
+## 刺出那一帧的立即结算：Area2D 的 overlapping_areas 在 monitoring 刚打开时
+## 还是空的（物理服务器要到下一次 step 才刷新），贴身敌人 / 已经压进剑里的弹丸
+## 会晚一帧才命中或弹反。这里用空间查询把「判定开始的这一刻已经重叠」的目标
+## 直接交给对应入口；already_hit / can_deflect 保证不会与随后的物理信号重复。
+func sweep_now() -> void:
+	if not monitoring or not is_inside_tree():
+		return
+	var shape_node := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if shape_node == null or shape_node.shape == null or shape_node.disabled:
+		return
+	var space := get_world_2d().direct_space_state
+	if space == null:
+		return
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape_node.shape
+	query.transform = shape_node.global_transform
+	query.collision_mask = 16 | 32  # projectile + hurtbox
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	query.exclude = [get_rid()]
+	for hit in space.intersect_shape(query, 16):
+		var area := hit.get("collider") as Area2D
+		if area == null or not is_instance_valid(area):
+			continue
+		if area is Hurtbox:
+			(area as Hurtbox)._on_area_entered(self)
+		elif area is Projectile:
+			area_entered.emit(area)
+
+
 func _physics_process(_delta: float) -> void:
 	if not monitoring:
 		return

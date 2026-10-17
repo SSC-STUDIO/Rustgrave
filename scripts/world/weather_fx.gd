@@ -24,8 +24,23 @@ const DEFAULT_TOXIN := Rect2(400.0, 336.0, 112.0, 32.0)
 const HIT_NONE := 0
 const HIT_WATER := 1
 const HIT_GROUND := 2
+## 特效不遮挡（docs/art-spec.md）：雨幕画在 backdrop（-10）与玩法画布（0）之间。
+## 玩家 / 敌人 / 台缘 / 前摇都在雨滴前面；地面水痕与涟漪仍由 RainGroundFx 挂回
+## 玩法画布，落在脚下而不盖住轮廓。
+const WEATHER_LAYER := -5
+## 全屏雨幕的 alpha 上限。再高就会把远处剪影洗成一层灰。
+const RAIN_ALPHA_CAP := 0.42
+## 余烬风微粒的 alpha 上限（小、暖、非加法）。
+const EMBER_ALPHA_CAP := 0.22
 ## While it rains the ground / water spans are refreshed at most this often (seconds).
 const SPAN_REFRESH_RAINING := 2.0
+## 远景雨层：每 3 滴里 1 滴画得更小更暗更慢，和近景拉开纵深（不加新贴图）。
+const FAR_EVERY := 3
+const FAR_SCALE := 0.72
+const FAR_ALPHA := 0.55
+const FAR_SPEED := 0.78
+## 顶板遮挡：雨滴不允许出现在这一列最近的顶板底面之上（洞里/屋檐下不下雨）。
+const ROOF_PAD := 2.0
 
 var _drops: Array[Sprite2D] = []
 var _drop_vy: PackedFloat32Array = PackedFloat32Array()
@@ -45,6 +60,14 @@ var _wet_by_cell: Dictionary = {}
 var _span_x0: PackedFloat32Array = PackedFloat32Array()
 var _span_x1: PackedFloat32Array = PackedFloat32Array()
 var _span_y: PackedFloat32Array = PackedFloat32Array()
+## 每个实心体的底面：判断"这一列上方有没有顶板"用。
+var _span_bottom: PackedFloat32Array = PackedFloat32Array()
+## 每滴雨在本列上方的顶板底面（世界 y）；-INF 表示这一列没有顶板。
+var _drop_roof: PackedFloat32Array = PackedFloat32Array()
+## 远层标记。
+var _drop_far: PackedByteArray = PackedByteArray()
+## 强度换算出的活动雨滴数（池子不变，只是可见/推进的数量变）。
+var _active_drops: int = DROP_COUNT
 var _water_x0: PackedFloat32Array = PackedFloat32Array()
 var _water_x1: PackedFloat32Array = PackedFloat32Array()
 var _water_y: PackedFloat32Array = PackedFloat32Array()
@@ -68,7 +91,7 @@ var _wet_dead: Array[int] = []
 
 
 func _ready() -> void:
-	layer = 4
+	layer = WEATHER_LAYER
 	follow_viewport_enabled = false
 	_headless = DisplayServer.get_name() == "headless"
 	_ensure_ground_fx()
@@ -85,6 +108,8 @@ func _ready() -> void:
 	_wet_tex = _make_wet_tex()
 	_drop_vy.resize(DROP_COUNT)
 	_drop_phase.resize(DROP_COUNT)
+	_drop_far.resize(DROP_COUNT)
+	_drop_roof.resize(DROP_COUNT)
 	for i in DROP_COUNT:
 		var spr := Sprite2D.new()
 		spr.texture = _tex
@@ -95,8 +120,12 @@ func _ready() -> void:
 		spr.visible = false
 		add_child(spr)
 		_drops.append(spr)
-		_drop_vy[i] = FALL_SPEED
+		_drop_far[i] = 1 if i % FAR_EVERY == 0 else 0
+		if _drop_far[i] == 1:
+			spr.scale = Vector2(FAR_SCALE, FAR_SCALE)
+		_drop_vy[i] = FALL_SPEED * (FAR_SPEED if _drop_far[i] == 1 else 1.0)
 		_drop_phase[i] = PHASE_FALL
+		_drop_roof[i] = -INF
 	_ember_tex = _load_ember_tex()
 	for i in EMBER_COUNT:
 		var spr := Sprite2D.new()
@@ -172,6 +201,7 @@ func _process(delta: float) -> void:
 	if (target > 0.0 or _alpha > 0.001) and (_surfaces_dirty or _span_t >= SPAN_REFRESH_RAINING):
 		_span_t = 0.0
 		_rebuild_spans()
+		_settle_drops_under_roofs()
 	if _alpha <= 0.001 and target <= 0.0:
 		if not _drops_hidden:
 			for spr in _drops:
@@ -183,9 +213,17 @@ func _process(delta: float) -> void:
 			for spr in _drops:
 				spr.visible = true
 			_drops_hidden = false
-		var vis := _alpha * 0.58
+		# 强度决定"这一片下多大"：可见雨滴数按强度收放，池子本身不变。
+		var intensity := clampf(WorldClock.weather_intensity(), 0.0, 1.0)
+		_active_drops = clampi(roundi(float(DROP_COUNT) * intensity), 0, DROP_COUNT)
+		var vis := _alpha * RAIN_ALPHA_CAP
 		for i in _drops.size():
-			_tick_drop(i, delta, rain_col, vis)
+			if i >= _active_drops:
+				_drops[i].modulate.a = 0.0
+				_drops[i].visible = false
+				continue
+			_drops[i].visible = true
+			_tick_drop(i, delta, rain_col, vis * (FAR_ALPHA if _drop_far[i] == 1 else 1.0))
 	_tick_embers(delta)
 	_tick_wets(delta)
 	_tick_ground_fx(delta)
@@ -242,8 +280,52 @@ func _tick_drop(i: int, delta: float, rain_col: Color, vis: float) -> void:
 
 func _recycle_drop(i: int, spr: Sprite2D) -> void:
 	_drop_phase[i] = PHASE_FALL
-	_drop_vy[i] = FALL_SPEED
-	spr.position = Vector2(randf() * 1280.0, -8.0)
+	_drop_vy[i] = FALL_SPEED * (FAR_SPEED if _drop_far[i] == 1 else 1.0)
+	var sx := randf() * 1280.0
+	var sy := -8.0
+	# 顶板遮挡：这一列盖着顶板/屋檐就从它下面开始下，别让雨穿过天花板落进屋。
+	var roof := roof_y_at(_screen_to_world(Vector2(sx, 0.0)).x)
+	if roof > -INF:
+		var roof_screen := _world_to_screen(Vector2(0.0, roof)).y + ROOF_PAD
+		if roof_screen > sy:
+			sy = roof_screen
+	spr.position = Vector2(sx, sy)
+
+
+## 这一列上方最近的顶板底面（世界 y）。上面什么都没有就返回 -INF。
+## 用实心底面而不是顶面：屋檐下、坑道里、室内都一样成立。
+func roof_y_at(world_x: float) -> float:
+	var best := -INF
+	for i in _span_x0.size():
+		if world_x < _span_x0[i] or world_x >= _span_x1[i]:
+			continue
+		var bottom := _span_bottom[i]
+		if bottom > best:
+			best = bottom
+	return best
+
+
+func _world_to_screen(world: Vector2) -> Vector2:
+	if _view_ok:
+		return (world - _cam_origin) * _cam_zoom + _vp_half
+	var vp := get_viewport()
+	if vp == null:
+		return world
+	return vp.get_canvas_transform() * world
+
+
+## 顶板数据刚刷新：已经在天上的雨滴按新顶板重新落位，别留一屏穿顶的雨。
+func _settle_drops_under_roofs() -> void:
+	for i in _drops.size():
+		if i >= _active_drops:
+			continue
+		var spr := _drops[i]
+		var roof := roof_y_at(_screen_to_world(spr.position).x)
+		if roof <= -INF:
+			continue
+		var floor_screen := _world_to_screen(Vector2(0.0, roof)).y + ROOF_PAD
+		if spr.position.y < floor_screen:
+			spr.position.y = floor_screen
 
 
 func _on_ground_hit(world: Vector2) -> void:
@@ -388,7 +470,7 @@ func _tick_embers(delta: float) -> void:
 		for spr in _embers:
 			spr.visible = true
 		_embers_hidden = false
-	var vis := _ember_alpha * 0.28
+	var vis := _ember_alpha * EMBER_ALPHA_CAP
 	for spr in _embers:
 		var p := spr.position
 		p.x += _wind_x * (EMBER_DRIFT / 36.0) * delta
@@ -479,6 +561,7 @@ func _rebuild_spans() -> void:
 	_span_x0.clear()
 	_span_x1.clear()
 	_span_y.clear()
+	_span_bottom.clear()
 	_water_x0.clear()
 	_water_x1.clear()
 	_water_y.clear()
@@ -489,9 +572,11 @@ func _rebuild_spans() -> void:
 		_span_x0.append(0.0)
 		_span_x1.append(400.0)
 		_span_y.append(DEFAULT_GROUND_Y)
+		_span_bottom.append(DEFAULT_GROUND_Y + 80.0)
 		_span_x0.append(512.0)
 		_span_x1.append(2240.0)
 		_span_y.append(DEFAULT_GROUND_Y)
+		_span_bottom.append(DEFAULT_GROUND_Y + 80.0)
 	if _water_x0.is_empty():
 		_water_x0.append(DEFAULT_TOXIN.position.x)
 		_water_x1.append(DEFAULT_TOXIN.end.x)
@@ -517,6 +602,7 @@ func _collect_ground(n: Node) -> void:
 		_span_x0.append(p.global_position.x)
 		_span_x1.append(p.global_position.x + p.size.x)
 		_span_y.append(p.global_position.y)
+		_span_bottom.append(p.global_position.y + p.size.y)
 	_try_append_water(n)
 	for child in n.get_children():
 		_collect_ground(child)

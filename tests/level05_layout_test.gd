@@ -348,3 +348,27 @@ func test_level_sanity_is_clean_on_a_bare_host() -> void:
 			ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest)), "%s reachable from spawn" % nest.name)
 	var exit := host.get_node("Props/Exit") as Node2D
 	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit)), "exit reachable from spawn")
+
+
+## 长冷却池上方的检修龛：本章的支路。主路线（allow_hook=false）跳不上去，
+## 有钩锁时从 FloorC 东端拉上去；龛里是最后一条工坊遗训，不是第二枚同名核。
+func test_hook_nook_is_an_optional_lore_branch() -> void:
+	var host := _build()
+	var nook := host.get_node_or_null("Platforms/NookDeck") as SolidPlatform
+	var anchor := host.get_node_or_null("Hooks/HookNook") as HookAnchor
+	var stele := host.get_node_or_null("Props/SteleNook") as LoreStele
+	ok(nook != null and anchor != null and stele != null, "nook deck, anchor and stele exist")
+	if nook == null or anchor == null or stele == null:
+		return
+	ok(anchor.position.y < nook.position.y, "anchor hangs above the nook")
+	ok(nook.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "nook is a tether drop under the anchor")
+	var floor_c := _rect_named(host, "FloorC")
+	var launch := Vector2(clampf(anchor.position.x, floor_c.position.x, floor_c.end.x), floor_c.position.y - 48.0)
+	ok(launch.distance_to(anchor.position) <= LevelSanity.HOOK_REACH, "anchor is within tether reach of FloorC")
+	ok(_standing_on(_tops(host), LevelSanity.feet_of(stele), LevelSanity.FOOT_SLACK_DOWN), "stele stands on the nook")
+	ok(String(stele.lore_title).begins_with("工坊遗训"), "nook stele is workshop lore")
+	var feet := LevelSanity.feet_of(stele)
+	ok(not LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, false),
+			"the main route cannot reach the nook")
+	ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, true),
+			"the hookshot reaches the nook")

@@ -16,6 +16,9 @@ const INDOOR_OUTDOOR_RADIUS := 72.0
 @export var lit: bool = false
 ## 0 = use the follow default cap. Hosts may tighten further.
 @export var radius_cap: float = 0.0
+## follow = &"authored" 时的世界半径（像素）。场景氛围灯由宿主给死值，
+## 相机不改它、时钟也不改它，只让 apply() 把它换算成 texture_scale。
+@export var authored_radius: float = 96.0
 
 var _flame_frame: int = 0
 ## Host-authored brightness for followers the clock does not drive (torch, skull, ghost).
@@ -70,6 +73,11 @@ func _bind_presentation() -> void:
 			blend_mode = Light2D.BLEND_MODE_ADD
 			height = 0.22
 			texture = _tight_texture()
+		&"authored":
+			# 场景氛围灯：宿主给死半径，不加投影，光心不外扩。
+			blend_mode = Light2D.BLEND_MODE_ADD
+			height = 0.20
+			texture = _tight_texture()
 		_:
 			blend_mode = Light2D.BLEND_MODE_ADD
 			# height 0 wraps every occluder; 0.40 keeps a readable nest shadow.
@@ -122,6 +130,8 @@ func _target_radius() -> float:
 			return WorldClock.indoor_fill_radius()
 		&"heart":
 			return WorldClock.heart_light_radius()
+		&"authored":
+			return authored_radius
 		_:
 			return TEX_SIZE * texture_scale * 0.5
 

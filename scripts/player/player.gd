@@ -11,6 +11,11 @@ extends CharacterBody2D
 @onready var visual: Node2D = $Visual
 @onready var hookshot: HookshotTether = $HookshotTether
 @onready var resonance: Resonance = $Resonance
+@onready var stats: CharacterStats = $CharacterStats
+@onready var equipment: EquipmentInventory = get_node_or_null("EquipmentInventory")
+@onready var equipment_inventory: EquipmentInventory = get_node_or_null("EquipmentInventory")
+
+@export var auto_equip_starter: bool = true
 
 ## Director sets this during a cutscene. Input is ignored; gravity still applies.
 var cutscene_locked: bool = false
@@ -35,9 +40,10 @@ const HURT_POSE_SECONDS := 0.18
 ## 判定帧前冲（世界单位/秒），克制到不破坏沉重移动手感。
 const SLASH_LUNGE := 78.0
 const AFTERIMAGE_LIFE := 0.16
-## 受击红闪（纯表现）：染红后 tween 回白，~120ms。
+## 受击红闪（纯表现）：与 CombatRules.PLAYER_HURT["flash_ms"] 的 90 ms 同一拍。
+## 以前是 120 ms，屏幕闪已经结束、身上的红还在，读起来像两次受击。
 const HIT_FLASH_COLOR := Color(1.9, 0.35, 0.35)
-const HIT_FLASH_SECONDS := 0.12
+const HIT_FLASH_SECONDS := 0.09
 ## 落地速度达到这个值算「重落地」：换重音效、扬尘加一团。
 const HEAVY_LAND_SPEED := 300.0
 ## 火带 / 冲击波的存活时间。同屏数量受 CombatRules.BUDGET 限制。
@@ -83,6 +89,19 @@ func _ready() -> void:
 	GameEvents.dash_performed.connect(_on_dash_performed)
 	inventory.sockets_changed.connect(_refresh_heat_lick)
 	_refresh_heat_lick()
+	if stats != null:
+		stats.stats_changed.connect(_on_stats_changed)
+		_on_stats_changed()
+	if equipment == null:
+		equipment = get_node_or_null("EquipmentInventory")
+	if equipment_inventory == null:
+		equipment_inventory = equipment
+	if equipment != null:
+		equipment.equipment_changed.connect(_on_equipment_changed)
+		if _should_auto_equip_starter() and equipment.is_completely_unequipped():
+			initialize_starter_equipment()
+		else:
+			_on_equipment_changed()
 	GameEvents.swing_started.connect(_on_swing_started)
 	if not _setup_knight_anim():
 		_setup_kenney_sprite()
@@ -523,8 +542,15 @@ func _spawn_blast() -> void:
 	Fx.hit_sparks(origin)
 	Fx.burst(&"ring", origin)
 	Sfx.play_at(CombatRules.sfx_key(&"swing_heavy"), origin, 0.06, -4.0)
-	_spawn_temp_hitbox(BLAST_SIZE, origin, &"heavy", BLAST_LIFE, Vector2(face * 80.0, -30.0),
-			_blasts, int(CombatRules.BUDGET[&"blasts"]), BLAST_DAMAGE)
+	var blast := _spawn_temp_hitbox(BLAST_SIZE, origin, &"heavy", BLAST_LIFE,
+			Vector2(face * 80.0, -30.0), _blasts,
+			int(CombatRules.BUDGET[&"blasts"]), BLAST_DAMAGE)
+	if blast != null:
+		# 共鸣终结击的视觉边界：外框就是 56x22 判定盒本身，玩家能看见哪一段会吃到。
+		var wave := BlastWave.new()
+		wave.size = BLAST_SIZE
+		wave.life = BLAST_LIFE
+		blast.add_child(wave)
 	for node in get_tree().get_nodes_in_group("pressure_plate"):
 		if node is PressurePlate and (node as Node2D).global_position.distance_to(origin) < 56.0:
 			(node as PressurePlate).slam()
@@ -571,6 +597,36 @@ func _on_health_changed(current: int, maximum: int) -> void:
 	if current > _hp_seen and _hp_seen > 0:
 		Sfx.play(CombatRules.sfx_key(&"heal"))
 	_hp_seen = current
+
+
+func _on_stats_changed() -> void:
+	if stats != null and health != null:
+		health.set_max_hp(stats.get_effective_max_hp())
+
+
+func _on_equipment_changed() -> void:
+	if stats != null and equipment != null:
+		stats.recalculate(equipment.get_all_equipped(), equipment.get_active_set_bonuses())
+
+
+func initialize_starter_equipment(force: bool = false) -> bool:
+	if equipment != null:
+		return equipment.initialize_starter_kit(force)
+	return false
+
+
+func _should_auto_equip_starter() -> bool:
+	if not auto_equip_starter:
+		return false
+	if get_tree() != null and get_tree().current_scene != null:
+		var scene_name := get_tree().current_scene.name
+		if "Test" in scene_name or "test" in scene_name:
+			return false
+	return true
+
+
+func take_mitigated_damage(amount: int, attacker: Node = null) -> bool:
+	return health.take_damage(amount, attacker)
 
 
 func _on_toxin_overflow() -> void:
@@ -626,3 +682,40 @@ func _resolve_lit_nest() -> Node2D:
 	if nest is Node2D and is_instance_valid(nest):
 		return nest as Node2D
 	return null
+
+
+## 共鸣终结击的可视边界：自绘的横向冲击波，外框与 BLAST_SIZE 判定盒同尺寸。
+## 挂在冲击波 Hitbox 身上，随它一起释放；加法混合、不参与任何判定。
+class BlastWave extends Node2D:
+	var size := Vector2.ZERO
+	var life := 0.18
+	var color := Color(1.65, 0.82, 0.38)
+	var _age := 0.0
+
+	func _ready() -> void:
+		z_index = 11
+		material = Fx.additive_mat()
+
+	func _process(delta: float) -> void:
+		_age += delta
+		if _age >= life:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		if size.x <= 0.0 or size.y <= 0.0:
+			return
+		var k := clampf(_age / maxf(life, 0.001), 0.0, 1.0)
+		var fade := 1.0 - k
+		var half := size * 0.5
+		# 外框 = 判定盒的真实边界；内芯是一条收束的亮线；两端竖向收口。
+		draw_rect(Rect2(-half, size), _tint(0.75 * fade), false, 1.0)
+		var core := size * Vector2(0.78, 0.42)
+		draw_rect(Rect2(-core * 0.5, core), Color(1.0, 0.95, 0.86, 0.85 * fade), false, 1.0)
+		for side in [-1.0, 1.0]:
+			var x: float = side * (half.x - 1.0)
+			draw_line(Vector2(x, -half.y * 0.7), Vector2(x, half.y * 0.7), _tint(0.9 * fade), 1.0)
+
+	func _tint(alpha: float) -> Color:
+		return Color(color.r, color.g, color.b, clampf(alpha, 0.0, 1.0))

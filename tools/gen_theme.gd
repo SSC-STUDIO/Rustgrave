@@ -22,6 +22,8 @@ const EMBER_ASH := Color("#E8B090")
 const RUST_LIGHT := Color("#CD5C5C")
 const SLUDGE_LIT := Color("#9ED092")
 const TEXT_DISABLED := Color("#5E574F")
+## 12px 小字的描边色：与文字投影同源的暗色，alpha 略高，保证压在任何背景上都读得出。
+const OUTLINE_DARK := Color(0.04, 0.03, 0.06, 0.92)
 const SHADOW := Color(0.04, 0.03, 0.06, 0.85)
 
 
@@ -83,6 +85,8 @@ func _setup_labels(theme: Theme) -> void:
 	theme.set_constant("line_spacing", "Label", 4)
 
 	## 变体清单：名称 -> [字号, 颜色, 是否要投影]
+	## HUD 紧凑小字（Hud* / Tiny*，12px）改用 1px 描边而不是投影：投影在 12px 字上
+	## 会把笔画糊成一团，描边能保证压在任何背景上都读得出。
 	var variations := {
 		"HeadLabel": [SIZE_HEAD, EMBER, true],
 		"SubHeadLabel": [SIZE_BODY, EMBER_ASH, true],
@@ -93,6 +97,11 @@ func _setup_labels(theme: Theme) -> void:
 		"HudLabel": [SIZE_SMALL, BONE_DIM, true],
 		"HudStrongLabel": [SIZE_SMALL, EMBER_ASH, true],
 		"HudToxinLabel": [SIZE_SMALL, SLUDGE_LIT, true],
+		# Tiny* 是 HUD 紧凑小字的同一档（12px + 1px 描边），与 Hud* 同源同色；
+		# 两个名字都保留，免得 UI 脚本一半用 Tiny 一半用 Hud。
+		"TinyLabel": [SIZE_SMALL, BONE_DIM, true],
+		"TinyStrongLabel": [SIZE_SMALL, EMBER_ASH, true],
+		"TinyToxinLabel": [SIZE_SMALL, SLUDGE_LIT, true],
 		"PromptLabel": [SIZE_BODY, EMBER, true],
 		"AnnounceLabel": [SIZE_BODY, EMBER_ASH, true],
 		"FootnoteLabel": [SIZE_SMALL, BONE_FAINT, true],
@@ -108,6 +117,18 @@ func _setup_labels(theme: Theme) -> void:
 		if not bool(spec[2]):
 			theme.set_constant("shadow_offset_x", name, 0)
 			theme.set_constant("shadow_offset_y", name, 0)
+	# 24px 的强调字（横幅 / 交互提示 / 播报）保留 2px 暗描边，和投影叠加出立体感；
+	# 12px 的小字只描 1px —— 描边一粗，像素字的笔画就被吃掉了。
+	for name in ["PromptLabel", "AnnounceLabel", "MenuItemLabel", "MenuItemLabelSelected",
+			"SubHeadLabel", "HeadLabel", "EpitaphLabel"]:
+		theme.set_color("font_outline_color", name, OUTLINE_DARK)
+		theme.set_constant("outline_size", name, 2)
+	# 12px 的小字统一走 1px 暗描边，不要 2px 投影（会把像素笔画糊掉）。
+	for name in ["HudLabel", "HudStrongLabel", "HudToxinLabel",
+			"TinyLabel", "TinyStrongLabel", "TinyToxinLabel", "FootnoteLabel"]:
+		theme.set_color("font_outline_color", name, OUTLINE_DARK)
+		theme.set_constant("outline_size", name, 1)
+		theme.set_constant("line_spacing", name, 0)
 
 
 func _setup_panels(theme: Theme) -> void:

@@ -1,6 +1,10 @@
 class_name PauseMenu
 extends CanvasLayer
-## 暂停菜单：Esc 开合，继续 / 设置 / 教程回看 / 操作说明 / 地图 / 返回标题。
+## 暂停菜单：Esc 开合；左列是"铁架"式动作栏，右列是本次行程的档案卡。
+##
+## 版式沿用标题屏那套语言：主行动（回到锈墓）是一整块箭头板，系统类动作是燕尾小板，
+## 回标题是只有四只角标的第三层，中间用铆钉横线分组；右列的石头档案板放章节、当前目标、
+## 剑核、余烬巢和视口—— HUD 只报"此刻"，暂停屏回答"我在哪、还剩什么"。
 ##
 ## 整棵子树 PROCESS_MODE_ALWAYS，所以 get_tree().paused 之后自己还能动。
 ## 全屏、像素平滑、音量、键位等选项都搬进了设置界面（SettingsScreen）；
@@ -8,6 +12,8 @@ extends CanvasLayer
 ## 不碰暂停状态，关闭后菜单光标回到原来那一行。
 
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
+const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
+const Modal := preload("res://scripts/ui/ui_modal.gd")
 
 const ID_RESUME := &"resume"
 const ID_SETTINGS := &"settings"
@@ -16,13 +22,33 @@ const ID_CONTROLS := &"controls"
 const ID_MAP := &"map"
 const ID_TITLE := &"title"
 
+## 左列铁架：竖脊贴左缘，板面从 RAIL_X 挂出去；行距由空白节点控，主/次/第三层分开。
+const RAIL_X := 24.0
+const RAIL_W := 482.0
+const DIVIDER_W := 440.0
+const MENU_TOP := 8.0
+const GAP_GROUP := 18.0
+const GAP_DIVIDER := 14.0
+const GAP_SECONDARY := 6.0
+const RAIL_H := 424.0
+## 右列档案卡的固定键列宽（12px 小字，和 HUD 的紧凑小字同档）。
+const KEY_COLUMN := 92.0
+
 var _root: Control
+var _shell: Dictionary = {}
+var _layout: Control
 var _menu: MenuList
-var _res_label: Label
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _tutorial: TutorialRecall
 var _map: MapScreen
+
+var _dossier_chapter: Label
+var _dossier_objective: Label
+var _dossier_cores: Label
+var _dossier_nests: Label
+var _dossier_viewport: Label
+var _tracker: ObjectiveTracker
 
 
 func _ready() -> void:
@@ -35,53 +61,27 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	_root = Control.new()
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(_root)
+	# 暂停菜单也是"弹出来的卡片"：卡片四周还看得见被压暗的战场，而不是一整页紫板。
+	_shell = Modal.build(self, {
+		"title": "暂 停",
+		"size": Vector2(1020.0, 640.0),
+		"hint": "↑↓ 选择 · Enter 确认",
+		"back": "Esc 继续",
+		"veil": 0.62,
+	})
+	_root = _shell["root"] as Control
+	var body := _shell["body"] as Control
 
-	# 整屏遮罩：2.5K 上半透明卡片会把左上角心槽透出来，先铺实底再压一层渐变。
-	var veil := ColorRect.new()
-	veil.name = "Veil"
-	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
-	veil.color = Color(UiKit.SCRIM.r, UiKit.SCRIM.g, UiKit.SCRIM.b, 0.90)
-	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(veil)
-	_root.add_child(UiKit.scrim(0.46, 0.22, 0.58))
-
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.name = "PauseFrame"
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.offset_left = 120.0
-	frame.offset_right = -120.0
-	frame.offset_top = 36.0
-	frame.offset_bottom = -36.0
-	_root.add_child(frame)
-
-	var column := VBoxContainer.new()
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	frame.add_child(column)
-	column.add_child(UiKit.label("暂 停", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.divider())
-
-	_menu = MenuList.new()
-	_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	column.add_child(_menu)
-	_menu.add_item(ID_RESUME, "回 到 锈 墓")
-	_menu.add_item(ID_SETTINGS, "设 置")
-	_menu.add_item(ID_TUTORIAL, "教 程 回 看")
-	_menu.add_item(ID_CONTROLS, "操 作 说 明")
-	_menu.add_item(ID_MAP, "地 图")
-	_menu.add_item(ID_TITLE, "返 回 标 题")
-	_menu.chosen.connect(_on_chosen)
-
-	_res_label = UiKit.label("视口: %s" % DisplayFit.get_resolution_string(),
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	column.add_child(_res_label)
-	column.add_child(UiKit.label("进度在余烬巢刻录 · 回标题不会丢档",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	var layout := HBoxContainer.new()
+	layout.name = "PauseLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.add_theme_constant_override("separation", 28)
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_layout = layout
+	body.add_child(layout)
+	_build_rail(layout)
+	_build_dossier(layout)
 
 	_controls = ControlsPanel.new()
 	_controls.layer = 21
@@ -99,6 +99,165 @@ func _build() -> void:
 	_map.layer = 21
 	_map.closed.connect(_resume_menu)
 	add_child(_map)
+	_refresh_dossier()
+
+
+## 左列：标题 + 铆钉横线 + 挂在竖脊上的六格动作。
+func _build_rail(parent: Control) -> void:
+	var rail := Control.new()
+	rail.name = "Rail"
+	rail.custom_minimum_size = Vector2(RAIL_W, RAIL_H)
+	rail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(rail)
+
+	_menu = MenuList.new()
+	_menu.name = "Menu"
+	# 行距交给下面的空白节点：主行动 / 系统动作 / 回标题三档之间要不同的呼吸。
+	_menu.add_theme_constant_override("separation", 0)
+	_menu.position = Vector2(RAIL_X, MENU_TOP)
+	rail.add_child(_menu)
+
+	_menu.add_item(ID_RESUME, "回 到 锈 墓", false, MenuItem.Kind.PRIMARY)
+	_gap(GAP_GROUP)
+	_menu.add_child(_rail_divider())
+	_gap(GAP_DIVIDER)
+	var systems := [[ID_SETTINGS, "设 置"], [ID_MAP, "地 图"],
+			[ID_TUTORIAL, "教 程 回 看"], [ID_CONTROLS, "操 作 说 明"]]
+	for i in systems.size():
+		_menu.add_item(StringName(systems[i][0]), String(systems[i][1]), false,
+				MenuItem.Kind.SECONDARY)
+		if i + 1 < systems.size():
+			_gap(GAP_SECONDARY)
+	_menu.add_item(ID_TITLE, "返 回 标 题", false, MenuItem.Kind.GHOST)
+	_menu.reset_size()
+	_menu.chosen.connect(_on_chosen)
+
+	# 竖脊串起六格；两端铆钉+中段菱形和标题屏是同一只铁件。
+	var spine := Ornaments.spine(_menu.size.y - 16.0)
+	spine.name = "Spine"
+	spine.position = Vector2(0.0, MENU_TOP + 6.0)
+	rail.add_child(spine)
+	rail.move_child(spine, 0)
+
+
+## 右列：石头档案板（章节 / 目标 / 剑核 / 余烬巢 / 视口）+ 底部两行提示。
+func _build_dossier(parent: Control) -> void:
+	var column := VBoxContainer.new()
+	column.name = "DossierColumn"
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 12)
+	parent.add_child(column)
+
+	var plaque := UiKit.panel()
+	plaque.name = "Dossier"
+	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(plaque)
+
+	var inner := VBoxContainer.new()
+	inner.name = "Inner"
+	inner.add_theme_constant_override("separation", 8)
+	plaque.add_child(inner)
+
+	var kicker := HBoxContainer.new()
+	kicker.add_theme_constant_override("separation", 10)
+	inner.add_child(kicker)
+	var tag := UiKit.label("行 程 档 案", &"TinyStrongLabel")
+	tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	kicker.add_child(tag)
+	var stub := Ornaments.stub_rule(false)
+	stub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kicker.add_child(stub)
+
+	_dossier_chapter = _dossier_row(inner, "章 节")
+	_dossier_objective = _dossier_row(inner, "目 标")
+	_dossier_cores = _dossier_row(inner, "锈 核")
+	_dossier_nests = _dossier_row(inner, "余 烬 巢")
+	_dossier_viewport = _dossier_row(inner, "视 口")
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(spacer)
+
+	var rule := Ornaments.stub_rule(true)
+	rule.name = "DossierRule"
+	inner.add_child(rule)
+	inner.add_child(UiKit.label("剑核随时可在插座台换装 · 进度在余烬巢刻录",
+			&"FootnoteLabel"))
+
+
+## 一行档案：左边 12px 的键，右边 24px 的值（值可换行，章节名/目标句可能很长）。
+func _dossier_row(parent: VBoxContainer, key: String) -> Label:
+	var row := HBoxContainer.new()
+	row.name = "Row_" + key.replace(" ", "")
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+	var key_label := UiKit.label(key, &"TinyStrongLabel")
+	key_label.custom_minimum_size = Vector2(KEY_COLUMN, 0.0)
+	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(key_label)
+	var value := UiKit.label("—", &"BodyLabel")
+	value.name = "Value"
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(value)
+	return value
+
+
+func _rail_divider() -> Control:
+	var rule := Ornaments.rivet_rule(DIVIDER_W)
+	rule.name = "RailDivider"
+	return rule
+
+
+func _gap(height: float) -> void:
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0.0, height)
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_menu.add_child(spacer)
+
+
+## 每次打开都重算一遍：章节、当前目标、剑核、余烬巢、视口都可能变过。
+func _refresh_dossier() -> void:
+	_dossier_chapter.text = _chapter_title()
+	_dossier_objective.text = _objective_line()
+	_dossier_cores.text = _cores_summary()
+	_dossier_nests.text = "已刻录 %d 处" % SaveData.lit_nests.size()
+	_dossier_viewport.text = DisplayFit.get_resolution_string()
+
+
+## 当前章节名：与地图共用 MapScreen.chapter_title() 这一份口径，避免档案卡和
+## 地图对同一关写出两个名字（第一章的名字只在开场分镜里写一次）。
+func _chapter_title() -> String:
+	var title := MapScreen.chapter_title(GameContext.world_root(self))
+	return title if title != "" else "—"
+
+
+func _objective_line() -> String:
+	var world := GameContext.world_root(self)
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if world == null or player == null:
+		return "—"
+	if _tracker == null:
+		_tracker = ObjectiveTracker.new()
+	_tracker.scan(world)
+	var line := _tracker.line(player)
+	return line.trim_prefix("目标 · ") if line != "" else "—"
+
+
+func _cores_summary() -> String:
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if player == null or player.inventory == null:
+		return "—"
+	var sockets := player.inventory.sockets
+	var filled := 0
+	for core in sockets:
+		if core != null:
+			filled += 1
+	return "剑 %d/%d · 囊 %d" % [filled, sockets.size(), player.inventory.pouch.size()]
 
 
 func is_open() -> bool:
@@ -121,8 +280,8 @@ func open() -> void:
 	visible = true
 	_menu.active = true
 	_set_play_hud_visible(false)
-	if _res_label != null:
-		_res_label.text = "视口: %s" % DisplayFit.get_resolution_string()
+	_refresh_dossier()
+	(_shell.get("play_intro") as Callable).call()
 	get_tree().paused = true
 	Director.suspend()
 	UiKit.sfx(&"ui_pause", &"ui_select")
@@ -209,3 +368,18 @@ func map_screen() -> MapScreen:
 
 func controls_panel() -> ControlsPanel:
 	return _controls
+
+
+func dossier_label(key: String) -> Label:
+	match key:
+		"chapter":
+			return _dossier_chapter
+		"objective":
+			return _dossier_objective
+		"cores":
+			return _dossier_cores
+		"nests":
+			return _dossier_nests
+		"viewport":
+			return _dossier_viewport
+	return null

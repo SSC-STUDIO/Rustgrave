@@ -19,6 +19,24 @@ func test_unusual_windows_have_integer_centered_content() -> void:
 	eq(small["scale"], 1)
 
 
+## 根窗口里的普通 Control（标题屏）也必须吃同一条 ui_transform，而不是铺满带黑边的窗口。
+func test_control_ui_uses_the_same_integer_content_rect() -> void:
+	var control := Control.new()
+	add_child(control)
+	var fake := Window.new()
+	fake.size = Vector2i(1366, 768)
+	PresentationMetrics.apply_control(control, fake)
+	var expected: Transform2D = PresentationMetrics.calculate(Vector2i(1366, 768))["ui_transform"]
+	ok(control.position.is_equal_approx(expected.origin),
+			"control origin equals the UI layer origin at 1366x768")
+	ok(control.scale.is_equal_approx(expected.get_scale()),
+			"control scale equals the UI layer scale at 1366x768")
+	almost(control.rotation, expected.get_rotation(), 0.0001, "control has no extra rotation")
+	fake.free()
+	control.queue_free()
+	await flush(1)
+
+
 func test_ui_and_world_share_the_same_final_physical_rect() -> void:
 	for size in [Vector2i(1366, 768), Vector2i(1920, 1080), Vector2i(1280, 800), Vector2i(3440, 1440), Vector2i(3841, 2161)]:
 		var metrics := PresentationMetrics.calculate(size)

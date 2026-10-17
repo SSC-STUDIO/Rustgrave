@@ -29,6 +29,10 @@ func _ready() -> void:
 		return
 	layout.name = "Layout"
 	add_child(layout)
+	# 上一关的局部天气区域不能漏进这一关；本章配方在建关卡之前装好，
+	# finish() 再铺出本关自己的区域。
+	WorldClock.clear_weather_regions()
+	WorldClock.set_weather_profile(layout.weather_recipe())
 	WorldClock.set_zone(WorldClock.Zone.INDOORS if layout.indoors() else WorldClock.Zone.OUTDOORS)
 	layout.build(self)
 	if not layout.indoors() and not SaveData.has_flag("%s_wake" % layout.level_id()):

@@ -128,8 +128,9 @@ func test_new_game_plays_the_beat_sheet_then_marks_seen_without_ending() -> void
 	eq(texts, Opening.LINES)
 	eq(fx_ids, ["rust_flake", "rust_flake", "plant", "bell_ring"])
 	eq(tableau_ids, ["chapter", "world"])
-	# 身份拍的两个 tag 把镜头和坟群的回应绑在同一条字幕上。
-	eq(tags, ["rouse", "stand", "pullback", "grave_row", "toll", "card", "handoff"])
+	# 身份拍的两个 tag 把镜头和坟群的回应绑在同一条字幕上；目标拍带 line_forge，
+	# 截图夹具按 tag 认它，不按第几句认。
+	eq(tags, ["rouse", "stand", "pullback", "grave_row", "toll", "line_forge", "card", "handoff"])
 	ok(SaveData.has_flag(Opening.FLAG))
 	ok(SaveData.has_flag("wake"), "wake is marked with the opening")
 	eq(SaveData.flags.count(Opening.FLAG), 1)
@@ -174,6 +175,28 @@ func test_handoff_prompt_arrives_only_after_the_script_is_over() -> void:
 	ok(presentation.hint_visible(), "the hand-off prompt is up the moment control returns")
 	ok(presentation.hint_label.text == Opening.move_prompt(),
 			"the prompt reads from the player's own key bindings")
+
+
+## If another Director script is already queued behind the opening (a forced beat that
+## fired during it), the move prompt must not flash under that script. It waits for the
+## queue to go dry, then hands over.
+func test_handoff_prompt_waits_for_a_queued_script() -> void:
+	var presentation := Director.get_node("CinematicPresentation")
+	ok(Opening.try_start())
+	Director.play([
+		{"kind": "lock"},
+		{"kind": "wait", "seconds": 8.0},
+		{"kind": "unlock"},
+	])
+	_accept()
+	ok(SaveData.has_flag(Opening.FLAG), "skipping the opening still counts it as seen")
+	ok(Director.playing, "the queued beat owns the screen next")
+	ok(not presentation.hint_visible(), "no hand-off prompt under a queued beat")
+	_accept()
+	ok(not Director.playing, "the queued beat is over")
+	ok(presentation.hint_visible(), "the prompt arrives once the queue is dry")
+	ok(presentation.hint_label.text == Opening.move_prompt(),
+			"the delayed prompt is still the move prompt")
 
 
 ## A death mid-piece aborts instead of finishing: no prompt, no seen flag, no music
@@ -406,12 +429,11 @@ func test_handoff_prompt_states_the_keys_and_leaves_the_direction_to_the_camera(
 func test_lines_are_short_enough_for_the_picture_to_lead() -> void:
 	for line in Opening.LINES:
 		ok(String(line).length() <= 16, "line is a pin, not a paragraph: %s" % line)
-	ok(Opening.IDENTITY_ECHO.length() <= 12, "the identity echo is shorter still")
 	# The objective beat names the furnace and the ones below in the same breath.
 	ok(Opening.LINES[4].contains("炉") and Opening.LINES[4].contains("他们"),
 			"the objective names both the furnace and who has to be taken down")
 	# The identity beat says what the knight is, not what he must do.
-	ok(Opening.IDENTITY_ECHO.contains("偶"), "the identity echo calls the knight what he is")
+	ok(Opening.LINES[2].contains("偶"), "the identity echo calls the knight what he is")
 	# The anomaly is one sentence; the graves' answers are the picture.
 	ok(Opening.LINES[3].contains("钟") and Opening.LINES[3].contains("数"),
 			"the anomaly beat says the bell is counting")
@@ -427,6 +449,22 @@ func test_objective_shot_pushes_in_and_pulses_twice() -> void:
 	ok(Opening.HEART.x >= 2000.0, "the forge remnant sits at the east end of the map")
 	ok(Opening.HEART_SECOND_BEAT > 0.2 and Opening.HEART_SECOND_BEAT < 1.2,
 			"the heart's second beat is a delayed answer, not a double flicker")
+
+
+## The world mystery and the immediate goal are the same place: while the bell is still
+## counting graves, the corridor's end answers with a low, far pulse before the camera
+## gets there. The echo must land inside the travel and stay in frame at the arrival.
+func test_corridor_echo_answers_before_the_camera_arrives() -> void:
+	ok(Opening.ECHO_AT > 0.2 and Opening.ECHO_AT < 0.9,
+			"the far answer is a mid-pan beat, not the arrival itself")
+	var at := Opening.PAN_SECONDS * Opening.ECHO_AT
+	ok(at > 1.0 and at < Opening.PAN_SECONDS,
+			"the echo lands inside the pan (%.2fs of %.2fs)" % [at, Opening.PAN_SECONDS])
+	ok(absf(Opening.HEART.x - Opening.PAN_END_X) < 320.0,
+			"the corridor's end and the forge remnant stay in the same arrival frame")
+	# Calling the echo with no dolly (unit fixture / aborted scene) is inert, not an error.
+	Opening.reset()
+	Opening._heart_echo()
 
 
 ## The mystery beat is carried by the graves answering in order, so the pan must expose

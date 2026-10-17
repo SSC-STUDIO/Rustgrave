@@ -129,3 +129,65 @@ func test_boss_title_times_out_without_a_director_sequence() -> void:
 	ok(hidden, "standalone title expires and dissolves without needing finished")
 	ok(not presentation.back.visible)
 	ok(not presentation.skip_button.visible)
+
+
+## The phase ticks on the boss name card follow boss_phase_changed without a new
+## Director sequence: the words stay the same, only the marker under the title climbs.
+func test_boss_phase_ticks_follow_the_signal() -> void:
+	GameEvents.boss_appeared.emit("炉约刽子手 · 铸渣残躯", 13, 13)
+	eq(presentation.active_shot, "boss")
+	eq(presentation.front.phase_marks, 1, "a fresh encounter starts at phase one")
+	GameEvents.boss_phase_changed.emit("炉约刽子手 · 铸渣残躯", 2)
+	eq(presentation.front.phase_marks, 2, "the tick climbs on phase two")
+	eq(presentation.back.phase_marks, 2, "the back canvas mirrors it")
+	GameEvents.boss_phase_changed.emit("炉约刽子手 · 铸渣残躯", 3)
+	eq(presentation.front.phase_marks, 3, "and keeps climbing")
+	# A phase signal with no live boss card is ignored, not stored.
+	GameEvents.boss_defeated.emit()
+	eq(presentation.active_shot, "", "defeat dismisses the card")
+	GameEvents.boss_phase_changed.emit("炉约刽子手 · 铸渣残躯", 2)
+	eq(presentation.front.phase_marks, 3, "no card means the tick is not moved")
+	Director.abort()
+
+
+## The nameplate is a 2.6 s flourish, but a phase-two fight usually lasts longer than
+## that. When the signal arrives after the card has gone, the card must come back with
+## the new tick — the phase cinematic depends on the player seeing that mark climb.
+func test_boss_phase_re_raises_the_nameplate_after_it_timed_out() -> void:
+	GameEvents.boss_appeared.emit("炉约刽子手 · 铸渣残躯", 13, 13)
+	eq(presentation.active_shot, "boss")
+	var gone := await wait_until(func() -> bool: return not presentation.front.visible, 220)
+	ok(gone, "the standalone nameplate expires on its own")
+	eq(presentation.active_shot, "", "no shot is active after the timeout")
+	GameEvents.boss_phase_changed.emit("炉约刽子手 · 铸渣残躯", 2)
+	eq(presentation.active_shot, "boss", "phase two re-raises the same name")
+	eq(presentation.front.heading, "炉约刽子手", "the name is preserved")
+	eq(presentation.front.phase_marks, 2, "with the new phase tick")
+	ok(presentation.front.visible, "and it is visible during the phase beat")
+	ok(not Director.is_input_locked(), "the reminder card never locks combat")
+	GameEvents.boss_defeated.emit()
+	eq(presentation.active_shot, "", "defeat clears it again")
+	Director.abort()
+
+
+## A new ability gets a compact card of its own: the name of the verb is shown as a
+## picture-layer beat, without stealing input from a live fight.
+func test_ability_card_names_the_new_verb_without_locking_combat() -> void:
+	presentation.show_shot("ability", "热锻", "新 的 动 词")
+	eq(presentation.active_shot, "ability")
+	eq(presentation.front.heading, "热锻", "the card is titled with the ability")
+	eq(presentation.front.subheading, "新 的 动 词", "the subtitle frames it as a verb, not loot")
+	ok(presentation.front.visible, "the card is drawn")
+	ok(not Director.playing, "the card does not queue a story by itself")
+	ok(not Director.is_input_locked(), "and cannot steal input")
+	presentation.dismiss(true)
+	ok(not presentation.front.visible, "a hard dismiss clears it")
+	eq(presentation.active_shot, "", "and leaves no active shot")
+
+	# The stage's insert script uses the same shot id, so a live ability insert shows it.
+	var card := {}
+	for step in StoryStage.core_steps(null, "窑匠：把火留在刃上。", "热锻"):
+		if step.get("id", "") == "ability":
+			card = step
+	eq(String(card.get("title", "")), "热锻", "core_steps carries the ability name")
+	eq(String(card.get("subtitle", "")), "新 的 动 词", "and the new-verb subtitle")

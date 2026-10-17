@@ -194,7 +194,7 @@ func _decorate_cathedral(host: Node2D) -> void:
 	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。
 	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png", Vector2(1616, 224), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
 
-	_plant_lore_stele(host, Vector2(1636, 320), "断头者誓言", "我守残芯。谁来点这炉，谁就先被斩。直到我自己化成灰。")
+	_plant_lore_stele(host, Vector2(1636, 320), "SteleExecutioner", "断头者誓言", "我守残芯。谁来点这炉，谁就先被斩。直到我自己化成灰。")
 
 
 func _plant_balustrade(parent: Node2D, feet: Vector2) -> void:
@@ -275,13 +275,14 @@ func _mark_ground(node: Node2D, feet: Vector2) -> void:
 	node.add_to_group("grounded")
 
 
-func _plant_lore_stele(parent: Node2D, pos: Vector2, title: String, text: String) -> void:
+func _plant_lore_stele(parent: Node2D, pos: Vector2, stele_name: String, title: String, text: String) -> void:
 	var props := parent.get_node_or_null("Props") as Node2D
 	if props == null:
 		props = parent
 	if STELE_SCENE == null:
 		return
 	var stele: Node2D = STELE_SCENE.instantiate()
+	stele.name = stele_name
 	stele.position = pos
 	stele.set("lore_title", title)
 	stele.set("lore_text", text)

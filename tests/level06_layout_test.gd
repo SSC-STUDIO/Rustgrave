@@ -308,3 +308,52 @@ func test_backdrop_is_the_open_graveyard_night() -> void:
 				torches += 1
 		ok(grounded >= 18, "graveyard dressing is dense (%d grounded pieces)" % grounded)
 		eq(torches, 0, "open graveyard has no indoor torch wall plates")
+
+
+## 本章的玩法变化是能见度：坟堆上空压一片浓雾、长毒沟上空落斜锈雨。
+## 两个区域只覆盖各自路段，基础天气/存档不变；雾里的骸骨是巡逻节奏的一部分。
+func test_visibility_pockets_and_tree_branch() -> void:
+	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
+	var regions := layout.weather_regions()
+	eq(regions.size(), 2, "two local visibility pockets")
+	var fog: Dictionary = {}
+	var squall: Dictionary = {}
+	for spec in regions:
+		var s: Dictionary = spec
+		if String(s.get("name", "")) == "GraveFog":
+			fog = s
+		elif String(s.get("name", "")) == "DitchSquall":
+			squall = s
+	ok(not fog.is_empty() and not squall.is_empty(), "the fog and squall are named")
+	if not fog.is_empty():
+		var fog_rect: Rect2 = fog["rect"]
+		eq(int(fog["weather"]), WorldClock.Weather.FOG, "the graves sit under fog")
+		almost(float(fog["intensity"]), 1.0, 0.01, "the fog pocket is thick")
+		ok(float(fog["wind_scale"]) < 1.0, "the fog pocket is still air")
+		ok(fog_rect.position.x <= 448.0 and fog_rect.end.x >= 928.0, "fog covers the mound stretch")
+	if not squall.is_empty():
+		var squall_rect: Rect2 = squall["rect"]
+		eq(int(squall["weather"]), WorldClock.Weather.RUST_RAIN, "the long ditch is under rust rain")
+		almost(float(squall["intensity"]), 1.0, 0.01, "the squall is at full strength")
+		ok(float(squall["wind_scale"]) > 1.0, "the squall is windier than the rest of the graveyard")
+		ok(squall_rect.position.x <= 2304.0 and squall_rect.end.x >= 2608.0, "the squall covers the long ditch")
+	layout.free()
+	var host := _build()
+	var stele := host.get_node_or_null("Props/SteleTree") as LoreStele
+	ok(stele != null, "the tree branch carries a stele")
+	if stele != null:
+		ok(String(stele.lore_title).begins_with("墓志"), "tree stele is an epitaph")
+		ok(_standing_on(_solids(host), LevelSanity.feet_of(stele)), "tree stele stands on the tree-top stone")
+		var feet := LevelSanity.feet_of(stele)
+		ok(not LevelSanity.is_reachable(host, Vector2(96, 300), feet, false),
+				"the main route cannot read the tree stele")
+		ok(LevelSanity.is_reachable(host, Vector2(96, 300), feet, true),
+				"the hookshot reaches the tree stele")
+	# The extra skeleton waits inside the fog pocket, not at the entry checkpoint.
+	var skeleton := host.get_node_or_null("Enemies/Skeleton5") as SkeletonEnemy
+	ok(skeleton != null, "the fog pocket has its own buried skeleton")
+	if skeleton != null:
+		eq(skeleton.position, Vector2(864, 320), "it waits between the mounds and the poison ditch")
+		var fog_center := Rect2(448, 0, 480, 324)
+		ok(fog_center.has_point(skeleton.position), "it rises inside the fog pocket")
+		ok(_standing_on(_solids(host), skeleton.position, 4.0), "it has ground under its feet")

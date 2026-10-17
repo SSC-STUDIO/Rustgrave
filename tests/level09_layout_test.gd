@@ -109,8 +109,22 @@ func test_towers_climb_in_32px_steps() -> void:
 		if block == null:
 			continue
 		eq(block.skin, "rampart", "%s is rampart masonry" % t[0])
-		almost(block.position.y + block.size.y, FLOOR_Y, 0.01, "%s stands on the walkway" % t[0])
+		ok(block.position.y + block.size.y <= FLOOR_Y + 0.01, "%s never sinks below the walkway" % t[0])
 		ok(is_zero_approx(fmod(FLOOR_Y - block.position.y, 32.0)), "%s top is a multiple of 32 above the floor" % t[0])
+		# Stacked tower blocks: every block either stands on the walkway or is
+		# supported across its full width by the block directly beneath it.
+		if block.position.y + block.size.y < FLOOR_Y - 0.01:
+			var supported := false
+			for other in LAYOUT.TOWERS:
+				if other == t:
+					continue
+				var o_pos: Vector2 = other[1]
+				var o_size: Vector2 = other[2]
+				if absf(o_pos.y - (block.position.y + block.size.y)) <= 0.01 \
+						and o_pos.x <= block.position.x + 0.01 \
+						and o_pos.x + o_size.x >= block.position.x + block.size.x - 0.01:
+					supported = true
+			ok(supported, "%s rests on the block directly beneath it" % t[0])
 	almost(_rect_of(host, "TowerA").position.y, 256.0, 0.01, "tower one is 64 high")
 	almost(_rect_of(host, "TowerC").position.y, 224.0, 0.01, "tower three is 96 high")
 
@@ -322,3 +336,23 @@ func test_backdrop_is_the_windy_outdoor_town() -> void:
 	var decor := host.get_node_or_null("Decor")
 	ok(decor != null and decor.get_child_count() >= LAYOUT.PROPS.size() + LAYOUT.BUSHES.size(),
 			"balustrades, door arches, rubble and bushes were planted")
+
+
+## 塔楼三旁的哨台（EyrieC）是本章支路：只有钩锁上得去，余烬核之外还有
+## 一块城墙铭（世界信息），主路线（allow_hook=false）够不到它。
+func test_eyrie_branch_carries_world_information() -> void:
+	var host := _build()
+	var stele := host.get_node_or_null("Props/SteleEyrie") as LoreStele
+	ok(stele != null, "the eyrie carries a stele")
+	if stele == null:
+		return
+	ok(String(stele.lore_title).begins_with("城墙铭"), "eyrie stele is a rampart inscription")
+	ok(String(stele.lore_text) != "", "eyrie stele says something")
+	var eyrie := _rect_of(host, "EyrieC")
+	var feet := LevelSanity.feet_of(stele)
+	ok(feet.x >= eyrie.position.x and feet.x <= eyrie.end.x, "stele stands within the eyrie ledge")
+	ok(_standing_on(_solids(host), feet), "stele has masonry under its feet")
+	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),
+			"the main route cannot read the eyrie stele")
+	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, true),
+			"the hookshot reaches the eyrie stele")

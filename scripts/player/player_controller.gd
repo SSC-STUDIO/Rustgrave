@@ -216,9 +216,21 @@ func _apply_gravity(body: CharacterBody2D, delta: float) -> void:
 		body.velocity.y = max_fall_speed
 
 
+var stats: Object = null
+
+
+func _speed_multiplier_for(body: CharacterBody2D) -> float:
+	if stats != null and stats.has_method(&"get_speed_multiplier"):
+		return clampf(float(stats.get_speed_multiplier()), 0.1, 3.0)
+	if body != null and "stats" in body and body.stats != null and body.stats.has_method(&"get_speed_multiplier"):
+		return clampf(float(body.stats.get_speed_multiplier()), 0.1, 3.0)
+	return 1.0
+
+
 func _apply_move(body: CharacterBody2D, axis: float, delta: float, move_scale: float) -> void:
 	var on_floor := body.is_on_floor()
-	var target := axis * max_speed * move_scale
+	var spd_mult := _speed_multiplier_for(body)
+	var target := axis * max_speed * spd_mult * move_scale
 	var accel := acceleration if on_floor else air_acceleration
 	var decel := deceleration if on_floor else air_deceleration
 	if _land_grip > 0.0:
@@ -283,6 +295,7 @@ func _dash_speed_for(body: CharacterBody2D) -> float:
 	var speed := dash_speed
 	if body is Player:
 		speed *= float(CombatRules.toxin_tier((body as Player).toxin.band())["dash"])
+	speed *= _speed_multiplier_for(body)
 	return speed
 
 

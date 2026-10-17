@@ -70,6 +70,35 @@ static func bind_layer(layer: CanvasLayer) -> void:
 	apply_layer(layer)
 
 
+## Root-window Control UI (the title screen is a plain scene Control, not a
+## CanvasLayer) sits inside the same centred integer content rectangle as the
+## world image and every bound CanvasLayer. Without this it would stretch over
+## the letterbox at non-16:9 windows while the in-game UI stayed inset.
+static func apply_control(control: Control, win: Window = null) -> void:
+	if not is_instance_valid(control):
+		return
+	var root := win if is_instance_valid(win) else _root_window()
+	var transform: Transform2D = for_window(root)["ui_transform"]
+	# Control 没有 CanvasItem.transform：把内容矩形的位移 / 缩放拆到
+	# position / scale / rotation（当前变换只有位移与统一缩放）。
+	control.position = transform.origin
+	control.scale = transform.get_scale()
+	control.rotation = transform.get_rotation()
+
+
+static func bind_control(control: Control) -> void:
+	if control == null or not control.is_inside_tree() or control.has_meta("presentation_control_bound"):
+		return
+	control.set_meta("presentation_control_bound", true)
+	control.add_child(ControlBinding.new())
+	apply_control(control)
+
+
+static func _root_window() -> Window:
+	var loop := Engine.get_main_loop()
+	return (loop as SceneTree).root if loop is SceneTree else null
+
+
 class LayerBinding extends Node:
 	func _ready() -> void:
 		get_tree().root.size_changed.connect(_refresh)
@@ -77,3 +106,12 @@ class LayerBinding extends Node:
 
 	func _refresh() -> void:
 		PresentationMetrics.apply_layer(get_parent() as CanvasLayer)
+
+
+class ControlBinding extends Node:
+	func _ready() -> void:
+		get_tree().root.size_changed.connect(_refresh)
+
+
+	func _refresh() -> void:
+		PresentationMetrics.apply_control(get_parent() as Control)

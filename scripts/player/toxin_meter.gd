@@ -61,9 +61,36 @@ static func band_label_for(id: StringName) -> String:
 			return "冷"
 
 
+var stats: Object = null
+
+
+func _get_toxin_resistance() -> float:
+	var s: Object = stats
+	if s == null:
+		var p := get_parent()
+		if p != null and "stats" in p:
+			s = p.stats
+	if s != null and s.has_method(&"get_toxin_resistance"):
+		return clampf(float(s.get_toxin_resistance()), 0.0, 0.8)
+	return 0.0
+
+
+func _get_toxin_decay_bonus() -> float:
+	var s: Object = stats
+	if s == null:
+		var p := get_parent()
+		if p != null and "stats" in p:
+			s = p.stats
+	if s != null and s.has_method(&"get_toxin_decay_bonus"):
+		return float(s.get_toxin_decay_bonus())
+	return 0.0
+
+
 func _process(delta: float) -> void:
 	if not _exposing and toxin > 0.0:
-		toxin = maxf(0.0, toxin - drain_per_second * delta)
+		var decay_bonus := _get_toxin_decay_bonus()
+		var effective_drain := drain_per_second * maxf(0.0, 1.0 + decay_bonus)
+		toxin = maxf(0.0, toxin - effective_drain * delta)
 		GameEvents.toxin_changed.emit(toxin, max_toxin)
 
 	if toxin >= max_toxin - 0.01:
@@ -79,7 +106,9 @@ func _process(delta: float) -> void:
 
 func expose(amount: float) -> void:
 	_exposing = true
-	toxin = clampf(toxin + amount, 0.0, max_toxin)
+	var res := _get_toxin_resistance()
+	var effective_amount := amount * (1.0 - res) if amount > 0.0 else amount
+	toxin = clampf(toxin + effective_amount, 0.0, max_toxin)
 	GameEvents.toxin_changed.emit(toxin, max_toxin)
 
 

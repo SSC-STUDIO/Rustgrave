@@ -21,12 +21,20 @@ const YANK_REACH := 180.0
 const YANK_AIM_DOT_MIN := 0.55
 const YANK_STOP_DISTANCE := 26.0
 const YANK_ROPE_TIME := 0.22
+## 被拽的空中敌人落在剑的判定期高度（与玩家 Hitbox 中心 -14 同一水平），
+## 而不是留在自己的巡逻高度——拽到面前就得真能砍到。地面敌人保持自己的脚点。
+const YANK_CHEST_HEIGHT := 14.0
+## 目标命中点高出这个余量才算「空中」。骸骨的受击盒中心在脚点上方 16 px，
+## 余量必须大于它，否则同层的骸骨会被当成飞行的往上提。
+const YANK_AIRBORNE_MARGIN := 20.0
 
 var _anchor: Node2D = null
 var _cooldown_left: float = 0.0
 var _rope: Line2D
 var _yank_target: Node2D = null
 var _yank_left: float = 0.0
+## 拽人真正落地（到达停止点）的次数：诊断 / 测试读，确保命中音与到达同一拍。
+var _yank_landings: int = 0
 
 
 func _ready() -> void:
@@ -72,25 +80,33 @@ func try_fire(player: Player) -> bool:
 	return true
 
 
+## 拽人的落点：横向固定在骑士面前；空中的目标压到剑的判定高度，地面目标
+## 保持原脚点（不能把骸骨提离台面）。纯函数，测试可直接对比两条路线。
+func yank_stop_point(player: Player, target: EnemyBase) -> Vector2:
+	var face := float(player.controller.facing)
+	if face == 0.0:
+		face = 1.0
+	var y := target.global_position.y
+	if target.hit_point().y < player.global_position.y - YANK_AIRBORNE_MARGIN:
+		y = player.global_position.y - YANK_CHEST_HEIGHT
+	return Vector2(player.global_position.x + face * YANK_STOP_DISTANCE, y)
+
+
 ## 战斗用法：把瞄准锥里最合适的小型敌人拽到骑士面前。只在按下钩锁键时扫一次编组。
 func _try_yank(player: Player) -> bool:
 	var target := _pick_yank_target(player)
 	if target == null:
 		return false
-	var face := signf(player.visual.scale.x)
-	if face == 0.0:
-		face = 1.0
-	# 敌人保持自己的高度（飞行的拽到骑士胸前，地面的仍踩在原来的台面上）。
-	var stop := Vector2(player.global_position.x + face * YANK_STOP_DISTANCE, target.global_position.y)
+	var stop := yank_stop_point(player, target as EnemyBase)
 	if not (target as EnemyBase).yank_to(stop):
 		return false
 	_yank_target = target
 	_yank_left = YANK_ROPE_TIME
 	_rope.visible = true
 	_set_cooldown()
+	# 出索只有出索声；命中声与火花留到敌人真正被拽到面前那一拍（_land_yank），
+	# 与敌人的硬直 / 破绽标记同一帧出现。
 	Sfx.play_at(CombatRules.sfx_key(&"hook_fire"), player.global_position)
-	Sfx.play_at(CombatRules.sfx_key(&"hook_hit"), target.global_position)
-	Fx.hit_sparks(target.global_position + Vector2(0.0, -14.0))
 	return true
 
 
@@ -123,7 +139,15 @@ func _tick_yank_rope(delta: float) -> void:
 	if _yank_left <= 0.0:
 		return
 	_yank_left = maxf(0.0, _yank_left - delta)
-	if _yank_left <= 0.0 or _yank_target == null or not is_instance_valid(_yank_target):
+	if _yank_left <= 0.0:
+		# 到达停止点：与敌人补间结束的 open_riposte 同一拍，命中音 / 火花 / 圆环
+		# 在这里才落下；出索瞬间只有出索声。
+		_land_yank(_yank_target)
+		_yank_target = null
+		if not is_active():
+			_rope.visible = false
+		return
+	if _yank_target == null or not is_instance_valid(_yank_target):
 		_yank_target = null
 		_yank_left = 0.0
 		if not is_active():
@@ -135,8 +159,24 @@ func _tick_yank_rope(delta: float) -> void:
 	_rope.points = PackedVector2Array([from, mid, to])
 
 
+func _land_yank(target: Node2D) -> void:
+	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion() \
+			or not (target is EnemyBase):
+		return
+	var at := (target as EnemyBase).hit_point()
+	Fx.hit_sparks(at)
+	Fx.burst(&"ring", at)
+	Sfx.play_at(CombatRules.sfx_key(&"hook_hit"), at)
+	_yank_landings += 1
+
+
 func yank_rope_active() -> bool:
 	return _yank_left > 0.0
+
+
+## 拽人成功落地的次数（测试 / 诊断读）。
+func yank_landings() -> int:
+	return _yank_landings
 
 
 func cooldown_left() -> float:
@@ -183,7 +223,16 @@ func _hook_reach(player: Player) -> float:
 
 
 func _aim_dir(player: Player) -> Vector2:
-	return Vector2(signf(player.visual.scale.x), -0.35).normalized()
+	# 读 controller.facing，不读上一帧才同步的 visual.scale.x：转身同帧按钩锁
+	# 也能朝新的方向出索。visual 只是朝向的显示副本。
+	var face := 1.0
+	if player.controller != null:
+		face = float(player.controller.facing)
+	if face == 0.0:
+		face = signf(player.visual.scale.x)
+		if face == 0.0:
+			face = 1.0
+	return Vector2(face, -0.35).normalized()
 
 
 ## 每物理帧由 Player 在 controller 之后调用：直接接管速度。

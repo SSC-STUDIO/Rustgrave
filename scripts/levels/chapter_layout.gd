@@ -111,6 +111,25 @@ func ambient() -> Dictionary:
 	return {}
 
 
+## 这一关的天气配方（见 WorldClock.set_weather_profile）。{} = 沿用全局阶段权重表。
+##   allowed:   Array[int]               本章只会出现这些天气
+##   weights:   Dictionary               {阶段 id: {天气 id: 权重}}，缺的阶段回落全局表
+##   hold:      float | Vector2(min,max) 一次天气持续多久
+##   intensity: float | Vector2(min,max) 强度区间
+## 例：墓园夜雨 {"allowed": [4, 2], "intensity": Vector2(0.7, 1.0), "hold": 180.0}
+func weather_recipe() -> Dictionary:
+	return {}
+
+
+## 关卡里的局部天气区域。每项：
+##   {"name": "RampartGale", "rect": Rect2(1200, 0, 480, 384),
+##    "weather": WorldClock.Weather.RAIN, "intensity": 1.0, "wind_scale": 1.4,
+##    "indoor": true}      # indoor=true 时同时把玩家切进室内（炉口/天井）
+## 不给 `weather` 就沿用当前基础天气，只改强度和风力。
+func weather_regions() -> Array:
+	return []
+
+
 ## 子类在这里铺关卡。
 func build(_host: Node2D) -> void:
 	pass
@@ -381,7 +400,9 @@ func skin_family() -> String:
 	return PropCatalog.family_for(theme())
 
 
-## 接地装饰：feet = 脚点（底边中点）。用 DECOR 键或直接给路径。
+## 接地装饰：feet = 脚点（底边中点，四舍五入到整像素）。用 DECOR 键或直接给路径。
+## 贴图的「最后一行不透明像素」坐在 feet 上，而不是画布底边——Kenney / 墓园素材
+## 底部常有 1–8px 透明留白，按画布底边摆会看起来悬空（docs/art-spec.md「角色接地」）。
 func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0, tint: Color = Color.WHITE,
 		z: int = 0) -> Sprite2D:
 	if DECOR.has(key_or_path) and not prop_allowed(key_or_path):
@@ -391,14 +412,18 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 	if not ResourceLoader.exists(path):
 		return null
 	var tex := load(path) as Texture2D
+	if tex == null:
+		return null
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.scale = Vector2(scale_k, scale_k)
+	var pinned := feet.round()
 	var w := float(tex.get_width()) * scale_k
-	var h := float(tex.get_height()) * scale_k
-	spr.position = Vector2(feet.x - w * 0.5, feet.y - h)
+	var opaque_bottom := Level01Env.opaque_bottom_px(tex)
+	var land := float(opaque_bottom + 1) * scale_k
+	spr.position = Vector2(roundf(pinned.x - w * 0.5), pinned.y - land)
 	spr.modulate = tint
 	# 尖窗、石像鬼、祭坛、立柱是墙，不是路上的道具。画在角色后面，才不会
 	# 变成一块竖在街心或台面上的板子。
@@ -406,7 +431,9 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 			"brick_house", "ruin_tower"]:
 		z = -3
 	spr.z_index = z
-	spr.set_meta("feet", feet)
+	spr.set_meta("feet", pinned)
+	spr.set_meta("foot_anchor", "bottom_center")
+	spr.set_meta("opaque_bottom", opaque_bottom)
 	spr.add_to_group("grounded")
 	decor_layer(host).add_child(spr)
 	return spr
@@ -430,12 +457,16 @@ func hanging(host: Node2D, key_or_path: String, top: Vector2, tint: Color = Colo
 	if not ResourceLoader.exists(path):
 		return null
 	var tex := load(path) as Texture2D
+	if tex == null:
+		return null
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.position = Vector2(top.x - float(tex.get_width()) * 0.5, top.y)
+	spr.position = Vector2(roundf(top.x - float(tex.get_width()) * 0.5), roundf(top.y))
 	spr.modulate = tint
+	spr.set_meta("hang_top", top.round())
+	spr.set_meta("foot_anchor", "top_center")
 	decor_layer(host).add_child(spr)
 	return spr
 
@@ -501,3 +532,48 @@ func finish(host: Node2D) -> void:
 		col.position = Vector2(float(east_limit()) * 0.5, (zone_top + 464.0) * 0.5)
 		zone.add_child(col)
 		host.add_child(zone)
+	for spec in weather_regions():
+		_add_weather_region(host, spec as Dictionary)
+
+
+## 局部天气区域：位置取 rect 左上角，形状从原点铺到 +size。
+func _add_weather_region(host: Node2D, spec: Dictionary) -> WeatherRegion:
+	var rect: Rect2 = spec.get("rect", Rect2())
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return null
+	var region := WeatherRegion.new()
+	region.name = String(spec.get("name", "WeatherRegion"))
+	region.position = rect.position
+	region.rect = rect.size
+	if spec.has("weather_id"):
+		region.weather = WorldClock.weather_from_id(String(spec["weather_id"]))
+	elif spec.has("weather"):
+		region.weather = int(spec["weather"])
+	else:
+		# 没指定天气 = 这一片只改强度/风力，天气跟着基础态走。
+		region.weather = -1
+	region.intensity = clampf(float(spec.get("intensity", 1.0)), 0.0, 1.0)
+	region.wind_scale = maxf(float(spec.get("wind_scale", 1.0)), 0.0)
+	group(host, "Props").add_child(region)
+	if bool(spec.get("outdoor", false)):
+		# 室内关里挖出来的露天中庭：站进去真的会淋到雨，走出来回到室内。
+		_add_zone_rect(host, String(region.name) + "Open", rect, WorldClock.Zone.OUTDOORS, WorldClock.Zone.INDOORS)
+	elif bool(spec.get("indoor", false)):
+		_add_zone_rect(host, String(region.name) + "Indoor", rect, WorldClock.Zone.INDOORS, WorldClock.Zone.OUTDOORS)
+	return region
+
+
+func _add_zone_rect(host: Node2D, zone_name: String, rect: Rect2, zone_kind: int,
+		restore_kind: int) -> AtmosphereZone:
+	var zone := AtmosphereZone.new()
+	zone.name = zone_name
+	zone.zone = zone_kind
+	zone.restore_zone = restore_kind
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size * 0.5
+	zone.add_child(col)
+	group(host, "Props").add_child(zone)
+	return zone

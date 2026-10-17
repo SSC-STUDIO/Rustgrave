@@ -184,3 +184,83 @@ func test_holding_attack_does_not_generate_links() -> void:
 	melee.tick(0.5)
 	Input.action_release("attack")
 	eq(melee.phase_name(), "idle", "held input cannot restart or chain")
+
+
+# ---------------------------------------------------------------------------
+# 判定起点 / 打实后的收刀（真实骑士）
+# ---------------------------------------------------------------------------
+func _spawn_duel() -> Array:
+	var arena := Node2D.new()
+	add_child(arena)
+	build_floor(arena)
+	var player := await spawn_player(arena, Vector2(320, -24))
+	player.set_physics_process(false)
+	player.melee.set_physics_process(false)
+	return [arena, player]
+
+
+## 判定开始时已经压在剑里的目标必须在同一帧结算：贴脸挥砍不再白等一个物理帧。
+func test_an_overlapping_enemy_is_hit_the_moment_active_begins() -> void:
+	var pair := await _spawn_duel()
+	var arena: Node2D = pair[0]
+	var player: Player = pair[1]
+	var skel := preload("res://scenes/enemies/SkeletonEnemy.tscn").instantiate() as SkeletonEnemy
+	skel.position = Vector2(336, 0)
+	arena.add_child(skel)
+	await flush(2)
+	skel.set_physics_process(false)
+	skel._state = SkeletonEnemy.State.WALK
+	skel._set_tangible(true)
+	skel.visual.visible = true
+	await flush(1)
+	var hp := skel.health.current
+	ok(player.melee.start_swing())
+	for i in 60:
+		if player.melee.phase_name() == "active":
+			break
+		player.melee.tick(1.0 / 60.0)
+	eq(player.melee.phase_name(), "active")
+	eq(skel.health.current, hp - 1,
+			"a bone already inside the blade is cut on the active-entry frame")
+
+
+## 打实 + 玩家在判定期里已经起跳：后摇第一帧就收刀，不再把骑士锁在空中。
+func test_a_jump_inside_a_connected_swing_ends_recovery_at_once() -> void:
+	var pair := await _spawn_duel()
+	var player: Player = pair[1]
+	ok(player.melee.start_swing())
+	for i in 60:
+		if player.melee.phase_name() == "active":
+			break
+		player.melee.tick(1.0 / 60.0)
+	eq(player.melee.phase_name(), "active")
+	player.melee.hitbox.connected = true
+	player.controller._do_jump(player, false)
+	eq(player.melee.phase_name(), "active", "the jump never shortens the committed active frames")
+	ok(player.velocity.y < -100.0, "the jump itself launched")
+	for i in 30:
+		if player.melee.phase_name() != "active":
+			break
+		player.melee.tick(1.0 / 60.0)
+	eq(player.melee.phase_name(), "idle",
+			"a connected swing releases the first recovery frame once the knight is already airborne")
+
+
+## 同一按键时序打在挥空上：完整后摇照旧，沉重感不被削弱。
+func test_a_jump_inside_a_whiffed_swing_keeps_the_full_recovery() -> void:
+	var pair := await _spawn_duel()
+	var player: Player = pair[1]
+	ok(player.melee.start_swing())
+	for i in 60:
+		if player.melee.phase_name() == "active":
+			break
+		player.melee.tick(1.0 / 60.0)
+	eq(player.melee.phase_name(), "active")
+	ok(not player.melee.swing_connected(), "nothing was hit")
+	player.controller._do_jump(player, false)
+	for i in 30:
+		if player.melee.phase_name() != "active":
+			break
+		player.melee.tick(1.0 / 60.0)
+	eq(player.melee.phase_name(), "recovery", "a whiff keeps its committed recovery in the air")
+	ok(player.melee.recovery_progress() < 0.6, "the whiff cancel window is still closed")

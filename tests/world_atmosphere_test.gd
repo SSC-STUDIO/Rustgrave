@@ -51,6 +51,31 @@ func test_decorative_torch_uses_shared_local_light() -> void:
 	ok(not light.shadow_enabled, "decorative torches do not add full shadow passes")
 
 
+## 轮廓对比度（docs/art-spec.md「轮廓对比度」）：backdrop 永远比玩法层暗一档。
+## 玩家最低明度 0.227（披风）在 MoodTint 之前，所以 backdrop tint 压暗后必须
+## 仍然明显低于玩法层色调——远景不抢角色。
+func test_backdrop_stays_subordinate_at_every_phase() -> void:
+	for time_val in [0.05, 0.28, 0.55, 0.80]:
+		WorldClock.set_time(time_val)
+		var host := Node2D.new()
+		add_child(host)
+		var backdrop := CanvasLayer.new()
+		host.add_child(backdrop)
+		var atmosphere := WorldAtmosphere.new()
+		host.add_child(atmosphere)
+		atmosphere.build(host, backdrop)
+		var tint := host.get_node("MoodTint") as CanvasModulate
+		var distant := backdrop.get_node("BackdropTint") as CanvasModulate
+		ok(distant.color.v < tint.color.v,
+				"time %.2f: backdrop %.3f < play %.3f" % [time_val, distant.color.v, tint.color.v])
+		var ambient: Color = WorldClock.outdoor_tint()
+		almost(distant.color.v, ambient.darkened(ThemeBackdrop.BACKDROP_SUBORDINATE).v, 0.02,
+				"time %.2f: backdrop is exactly one 0.24 step below ambient" % time_val)
+		host.queue_free()
+	WorldClock.set_time(0.80)
+	WorldClock.set_weather(WorldClock.Weather.HAZE, true)
+
+
 func test_torch_wall_has_a_broken_crown_not_a_box() -> void:
 	var torch := TorchLight.new()
 	torch.position = Vector2(1296, 230)

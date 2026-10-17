@@ -6,9 +6,10 @@ extends ChapterLayout
 ##   ② 洗礼池    544–864   毒池上的三块浮石；幽魂守着落点
 ##   ③ 唱诗台    864–1360  两级石阶 → 唱诗台（压板）；闸门锁在中殿地面；幽魂在台上，碎铁犬在台下
 ##   ④ 齿盾卫走廊 1360–1856 第一只齿盾卫守窄路；走廊尽头是讲坛，喷吐者站在上面
-##   ⑤ 廊桥      1856–2336 六跳悬空石链，下方毒池
+##   ⑤ 廊桥      1856–2336 六跳悬空石链，下方毒池；第四块石上有中段余烬巢
 ##   ⑥ 祭坛区    2336–3008 第二余烬巢、碑文「炉约」、祭坛、第二只齿盾卫、锈门（热锻）、工坊暗门
-##   可选：祭坛上方拱顶下有钩锁锚点 + 高台，台上悬着一枚余烬核
+##   可选：祭坛上方拱顶下有钩锁锚点 + 高台，台上悬着一枚余烬核；
+##         高台东端还有一块碑文（世界信息），让支路不只是多一枚核。
 
 const EAST_LIMIT := 3008
 const CAMERA_TOP := -96
@@ -49,13 +50,17 @@ const STEPS: Array = [
 	["VaultLedge", Vector2(2432, 152), 96.0],
 ]
 ## 实心石台 [name, pos, size]（stone 皮肤）：唱诗台的两级台阶与台面、讲坛与它的台阶。
+## 64 高的台面拆成两块 32 高的叠石：LevelSanity 会把整块 64 高的实心读成
+## 压在地面上的墙（没有净空），拆开后每一级都只是一步台阶。
 const BLOCKS: Array = [
 	["ChoirStep1", Vector2(976, 288), Vector2(48, 32)],
-	["ChoirStep2", Vector2(1056, 256), Vector2(48, 64)],
+	["ChoirStep2Base", Vector2(1056, 288), Vector2(48, 32)],
+	["ChoirStep2", Vector2(1056, 256), Vector2(48, 32)],
 	["ChoirRecoveryStep", Vector2(1104, 288), Vector2(32, 32)],
 	["ChoirLoft", Vector2(1136, 224), Vector2(160, 32)],
 	["PulpitStep", Vector2(1728, 288), Vector2(48, 32)],
-	["Pulpit", Vector2(1776, 256), Vector2(64, 64)],
+	["PulpitBase", Vector2(1776, 288), Vector2(64, 32)],
+	["Pulpit", Vector2(1776, 256), Vector2(64, 32)],
 ]
 ## 台阶链（平台名），测试逐段验证一跳可达。
 const FONT_CHAIN: Array = ["FloorA", "StoneF1", "StoneF2", "StoneF3", "FloorB"]
@@ -65,6 +70,10 @@ const BRIDGE_CHAIN: Array = ["FloorC", "BridgeB1", "BridgeB2", "BridgeB3", "Brid
 
 const NEST_NAVE_X := 176.0
 const NEST_ALTAR_X := 2384.0
+## 廊桥第四块浮石上的小巢：桥中段唯一一处落在喷吐者 380px 射程外的平面。
+## 死在中段的人从 2224 重来，而不是走回 176。
+const NEST_BRIDGE_X := 2224.0
+const NEST_BRIDGE_Y := 264.0
 const STELE_A_POS := Vector2(248, 320)
 const STELE_B_POS := Vector2(2496, 320)
 ## 压板在唱诗台面上（脚点 y=224）；闸门立在中殿地面，门顶 256、门底 320。
@@ -74,6 +83,9 @@ const GATE_POS := Vector2(2800, 256)
 ## 拱顶锚点：从祭坛区地面（起跳面 320-48）到锚点 176px，落到 VaultLedge（152）在锚点下方 56px。
 const HOOK_POS := Vector2(2416, 96)
 const PICKUP_POS := Vector2(2480, 136)
+## 支路碑文：拱顶高台东端，和余烬核错开。只有钩锁能读，是本章的支路奖励。
+## 它说的是「灯照不到的地方」——炉约的代价被谁收走了。
+const STELE_VAULT_POS := Vector2(2504, 152)
 const EXIT_X := 2928.0
 const WAYMARKS: Array = [[Vector2(300, 320), "圣殿"], [Vector2(2440, 320), "祭坛"]]
 
@@ -142,6 +154,24 @@ func motes() -> String:
 	return "candle"
 
 
+## 圣殿有顶：天上是什么只在破顶的天窗那一片算数，整关的天气就压在薄雾/晴之间。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.HAZE, WorldClock.Weather.CLEAR],
+		"hold": Vector2(320.0, 520.0),
+		"intensity": Vector2(0.4, 0.8),
+	}
+
+
+## ⑤ 廊桥（1856–2336）：拱顶在这里塌了，是整座圣殿唯一淋得到雨的地方。
+## 站上桥面，室内感就地让位给雨；走回走廊或祭坛区，又是干燥的室内。
+func weather_regions() -> Array:
+	return [
+		{"name": "BrokenVault", "rect": Rect2(1856, -32, 480, 432),
+			"weather": WorldClock.Weather.RAIN, "intensity": 0.85, "outdoor": true},
+	]
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -168,6 +198,7 @@ func _build_terrain(host: Node2D) -> void:
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestNave", NEST_NAVE_X)
+	nest(host, "EmberNestBridge", NEST_BRIDGE_X, NEST_BRIDGE_Y)
 	nest(host, "EmberNestAltar", NEST_ALTAR_X)
 	stele(host, "SteleCompact", STELE_A_POS, "圣殿铭 · 炉约誓",
 			"以剑饲炉，以火养城。一百年的灯，是用签过名的剑换的。")
@@ -177,6 +208,8 @@ func _build_props(host: Node2D) -> void:
 	rusty_gate(host, "RustyGate", GATE_POS)
 	hook(host, "Hook_Vault", HOOK_POS)
 	pickup(host, "EmberCoreVault", PICKUP_POS, &"ember_core")
+	stele(host, "SteleVault", STELE_VAULT_POS, "炉约 · 顶",
+			"吊灯照不到拱顶。签过名的人把名字留在下面，把剑举到上面。")
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 

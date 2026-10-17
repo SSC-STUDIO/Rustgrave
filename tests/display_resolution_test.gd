@@ -87,6 +87,10 @@ func test_title_screen_anchors() -> void:
 	await get_tree().process_frame
 
 	eq(title.size, Vector2(1280, 720), "TitleScreen keeps the native UI design size")
+	ok(title.has_meta("presentation_control_bound"),
+			"TitleScreen binds its transform to the presentation content rect")
+	ok(title.get_node_or_null("WindowBackdrop/Black") != null,
+			"TitleScreen keeps the letterbox bars black, like GamePresentation")
 	var presentation: Transform2D = PresentationMetrics.for_window(get_tree().root)["ui_transform"]
 	ok(title.position.is_equal_approx(presentation.origin), "TitleScreen shares the physical content origin")
 	ok(title.scale.is_equal_approx(presentation.get_scale()), "TitleScreen compensates for per-axis root scaling")

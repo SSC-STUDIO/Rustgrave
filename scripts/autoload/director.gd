@@ -378,6 +378,24 @@ func abort() -> void:
 	_aborting = false
 
 
+## Hard reset for a scene change or a death: nothing may own the screen afterwards.
+## abort() already releases the lock/camera/caption, but it lets the bars recede over
+## a few frames; here they close instantly so the death overlay or the next chapter
+## card starts from a clean composition. Idempotent, and safe with no script running.
+func reset_view() -> void:
+	abort()
+	set_letterbox(false, true)
+	hide_hint()
+	if _caption != null:
+		_caption.clear()
+	var cam := _camera()
+	if cam != null:
+		cam.release()
+	_clear_time_effects()
+	_skip_to_end = false
+	_release_pending = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not playing or _suspended or get_tree().paused:
 		return
@@ -387,11 +405,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	# 暂停 / 挂起时整条演出（含遮幅的收放）一起冻住：过场中间按下暂停，
+	# 黑边不许在玩家背后继续爬。
+	if _suspended or get_tree().paused:
+		return
 	_tick_letterbox(delta)
 	if not _deferred.is_empty() and _clear_to_start():
 		_start_deferred()
-	if _suspended or get_tree().paused:
-		return
 	if not playing or not _waiting:
 		return
 	if _wait_kind == "caption":

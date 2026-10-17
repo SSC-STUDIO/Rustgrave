@@ -2,13 +2,19 @@ extends ChapterLayout
 ## 锈墓・陆 — 墓园夜雨。从工坊的运渣道爬回地面，是墓园的另一侧：锈雨、幽魂、
 ## 从土里起来的骸骨。室外，第一关同款天空（graveyard 主题）。
 ##
+## 玩法变化（能见度与巡逻节奏）：墓园不是一片均匀的雨。坟堆段压着一片浓雾，
+## 骸骨在雾里起身，巡逻范围读不出来，只能靠土丘轮廓和墓碑定位；长毒沟上空的
+## 锈雨被风扯斜，能见度最差的一段正好是最长的一次跳石。走出雾/雨区，视野恢复。
+## 这两块局部天气由 weather_regions() 装配，存档只记基础天气。
+##
 ## 结构（地面 y=320，一跳 ≤32px 高 / ≤72px 远）：
 ##   ① 出土口   0–450     运渣道石门洞、余烬巢、墓志、老树、路牌「墓园」
 ##   ② 坟堆丛   450–928   一座 32px 土坟（顶上十字）、骸骨 ×2、墓碑密集
 ##   ③ 腐液沟   928–1152  毒坑上两块浮石（288 / 272），落点一只幽魂
 ##   ④ 陵门     1152–1520 压板在 32px 土丘上，闸门在地面，两侧壁炬石墩；门后守着第二只幽魂
 ##   ⑤ 高坟台   1520–1900 两级 32px 土台，台顶喷吐者，台下碎铁犬巡逻
-##   ⑥ 骸骨林   1900–2304 骸骨 ×2、第二余烬巢、墓志；老树顶上一块浮石，钩锁锚点通向余烬核
+##   ⑥ 骸骨林   1900–2304 骸骨 ×2、第二余烬巢、墓志；老树顶上一块浮石，
+##                     钩锁锚点通向余烬核 + 碑文「树」——本章支路（世界信息）
 ##   ⑦ 长毒沟   2304–2608 更长的毒坑，三块浮石（288 / 272 / 288）
 ##   ⑧ 钟楼门   2608–2880 路牌「钟楼」、两侧壁炬石墩夹着出口
 ##
@@ -65,7 +71,9 @@ const CHAINS: Array = [
 const PLATE_FEET := Vector2(1272, 288)
 const DOOR_POS := Vector2(1400, 256)
 const HOOK_POS := Vector2(2046, 144)
-const PICKUP_POS := Vector2(2046, 192)
+## 核悬在石面上方 48；碑文站在石面东端，和核错开（核 184，碑顶 196）。
+const PICKUP_POS := Vector2(2046, 184)
+const STELE_TREE_POS := Vector2(2030, 232)
 const NEST_START_X := 176.0
 const NEST_GROVE_X := 2120.0
 const STELE_A_POS := Vector2(256, 320)
@@ -81,6 +89,8 @@ const ENEMIES: Array = [
 	["Spitter1", "spitter", Vector2(1744, 256)],
 	["Skeleton3", "skeleton", Vector2(2020, 320)],
 	["Skeleton4", "skeleton", Vector2(2236, 320)],
+	# 雾里多一具：站在坟堆与毒沟之间，等玩家按脚步靠近才发现。
+	["Skeleton5", "skeleton", Vector2(864, 320)],
 ]
 ## 陵门 / 钟楼门两侧：低石栏，不用 bg_wall_torch（室外墓园天空上的室内墙板）。
 const GATE_RAILS: Array = [1360.0, 1456.0, 2708.0, 2812.0]
@@ -124,6 +134,33 @@ func ambient() -> Dictionary:
 	return {"time": 0.82, "weather": "rain", "hold": 420.0}
 
 
+## 这一关的招牌就是锈雨：夜里几乎天天下，强度拉满，偶尔放晴让月亮照一下坟头。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.RAIN, WorldClock.Weather.RUST_RAIN,
+				WorldClock.Weather.FOG, WorldClock.Weather.CLEAR],
+		"weights": {
+			"night": {"rust_rain": 6, "rain": 3, "fog": 1},
+			"*": {"rain": 4, "rust_rain": 3, "fog": 2, "clear": 1},
+		},
+		"hold": Vector2(220.0, 360.0),
+		"intensity": Vector2(0.75, 1.0),
+	}
+
+
+## 能见度就是这一关的玩法：两段局部天气把「看路」变成压力。
+##   · 坟堆 448–928 压一片落地浓雾：骸骨在雾里起身，巡逻边界读不出来；
+##   · 长毒沟 2304–2608 的锈雨被风扯斜：最长的跳石正好在最差的视野里。
+## 区域只改经过这里时的生效天气，基础天气和存档不变。
+func weather_regions() -> Array:
+	return [
+		{"name": "GraveFog", "rect": Rect2(448, 96, 480, 160),
+			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
+		{"name": "DitchSquall", "rect": Rect2(2304, 128, 304, 160),
+			"weather": WorldClock.Weather.RUST_RAIN, "intensity": 1.0, "wind_scale": 1.35},
+	]
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -159,6 +196,9 @@ func _build_props(host: Node2D) -> void:
 	plate_door(host, "Mausoleum", PLATE_FEET, DOOR_POS)
 	hook(host, "HookTreeTop", HOOK_POS)
 	pickup(host, "EmberCoreTreeTop", PICKUP_POS, &"ember_core")
+	# 树顶支路：一枚可选的核之外，补一块只有钩锁能读的墓志。
+	stele(host, "SteleTree", STELE_TREE_POS, "墓志 · 树",
+			"树根穿过两口空棺。哈伦的剑做了门闩，薇尔的剑自己走了，树哪里也不去。")
 	for w in WAYMARKS:
 		waymark(host, w[0] as Vector2, String(w[1]))
 

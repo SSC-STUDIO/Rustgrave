@@ -101,9 +101,11 @@ func _open_ending_choice(actor: Player) -> void:
 	column.add_child(UiKit.label("送剑，火会稳。守火，你留下。",
 			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	var menu := MenuList.new()
+	menu.add_theme_constant_override("separation", 12)
 	column.add_child(menu)
-	menu.add_item(&"give", "送 剑")
-	menu.add_item(&"keep", "守 火")
+	# 送剑是默认项（燕尾板），守火是留在原地的第三层（四只角标）。
+	menu.compact(menu.add_item(&"give", "送 剑", false, MenuItem.Kind.SECONDARY))
+	menu.compact(menu.add_item(&"keep", "守 火", false, MenuItem.Kind.GHOST))
 	menu.chosen.connect(confirm_ending)
 	get_tree().paused = true
 

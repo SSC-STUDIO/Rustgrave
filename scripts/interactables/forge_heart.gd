@@ -99,9 +99,11 @@ func _open_choice() -> void:
 	column.add_child(UiKit.label("复燃会唤醒整座陵墓。熄灭，连你一并散掉。",
 			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	_menu = MenuList.new()
+	_menu.add_theme_constant_override("separation", 12)
 	column.add_child(_menu)
-	_menu.add_item(ID_REKINDLE, "复 燃")
-	_menu.add_item(ID_SNUFF, "熄 灭")
+	# 复燃是默认项（燕尾板），熄灭是不可逆的第三层（只剩四只角标）。
+	_menu.compact(_menu.add_item(ID_REKINDLE, "复 燃", false, MenuItem.Kind.SECONDARY))
+	_menu.compact(_menu.add_item(ID_SNUFF, "熄 灭", false, MenuItem.Kind.GHOST))
 	_menu.chosen.connect(_on_chosen)
 	get_tree().paused = true
 

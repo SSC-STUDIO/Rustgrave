@@ -33,8 +33,18 @@ var _ignore_attack_until_release := false
 ## 后摇刚结束的补接窗口：窗口内按下直接起下一刀，不再空等冷却。
 var _late_link_left: float = 0.0
 var _late_next: int = 0
+## 收刀（冲刺 / 跳跃取消）之后、冷却走完之前按下的攻击：仍算接刀，被空闲冷却
+## 吞掉就是纯粹的输入迟滞。收刀是「想继续打」的强信号，所以开一个补按窗口：
+## 窗口从收刀起、到冷却走完为止；窗口里玩家的任意一按都记住，冷却一归零立刻起刀。
+## 不记倒计时（会和冷却同速清零、正好错过那一帧），也不自动出刀——必须玩家真按。
+## _cancel_window = 窗口是否开着；_cancel_link_next = 窗口内挂起的接刀（-1 表示没挂）。
+var _cancel_window: bool = false
+var _cancel_link_next: int = -1
 ## 本刀是否弹反成功（命中另由 Hitbox.connected 记录）。
 var _parried_swing := false
+## 这一刀的前摇 / 判定期里玩家已经按了跳：跳跃本身照常离地，但打实之后
+## 后摇不该再把人锁在空中。后摇开始那一帧消费这个标记。
+var _jump_during_swing := false
 var _press_latched_tick: int = -1000
 
 @onready var hitbox: Hitbox = $Hitbox
@@ -91,6 +101,8 @@ func clear_attack_buffer() -> void:
 	_attack_buffer = 0.0
 	_link_buffered = false
 	_late_link_left = 0.0
+	_cancel_window = false
+	_cancel_link_next = -1
 	_press_latched_tick = -1000
 	_ignore_attack_until_release = Input.is_action_pressed("attack")
 
@@ -100,6 +112,7 @@ func cancel_attack() -> void:
 	_state = State.IDLE
 	_combo_index = 0
 	_timer = 0.0
+	_jump_during_swing = false
 	if hitbox != null:
 		hitbox.monitoring = false
 	_set_lock(false)
@@ -118,9 +131,23 @@ func request_attack() -> bool:
 			_cooldown = 0.0
 			_attack_buffer = 0.0
 			return start_swing()
+		if _cancel_window and _cancel_link_next >= 0:
+			# 收刀之后冷却尾巴上的补按：直接起刀。收刀已经证明玩家想继续打，
+			# 这一按被冷却吞掉就是纯粹的输入迟滞。窗口里玩家真按了才挂起，不会自动出刀。
+			_combo_index = _cancel_link_next
+			_cancel_window = false
+			_cancel_link_next = -1
+			_cooldown = 0.0
+			_attack_buffer = 0.0
+			return start_swing()
 		if start_swing():
 			_attack_buffer = 0.0
 		else:
+			# 冷却期内普通挥砍：普通缓冲只够 0.16 s，而冷却有 0.40 s，最后一段会落空。
+			# 只有身处「收刀补按窗口」才把这一按挂起、等冷却走完立刻起刀；
+			# 普通挥砍的过期按键不挂起（保持 0.16 s 上限，不会自动出刀）。
+			if _cancel_window:
+				_cancel_link_next = _combo_index
 			_attack_buffer = ATTACK_BUFFER_TIME
 		return true
 	if _combo_index < 2 and (_state == State.RECOVERY \
@@ -218,11 +245,18 @@ func can_jump_cancel() -> bool:
 
 ## 收掉后摇回到空闲（丢掉预输入的下一刀，连段归零；空闲冷却照常走完）。
 ## 前摇 / 判定期返回 false，什么也不改。
+## 收刀（冲刺 / 跳跃取消）是「我想继续打」的强信号：随后冷却尾巴上的补按仍算
+## 接刀，不让空闲冷却把玩家的下一刀吞掉。
 func cancel_recovery() -> bool:
 	if _state != State.RECOVERY:
 		return false
 	_link_buffered = false
 	_late_link_left = 0.0
+	# 收刀是「想继续打」的强信号：开一个补按窗口直到冷却走完；窗口里玩家真按了
+	# 才挂起接刀、冷却归零立刻起刀。窗口不自动出刀、不放大普通挥砍的 0.16 s 缓冲。
+	# 收刀本身把连段归零（escape 而非接刀），挂起的是重新起的第一刀（0）。
+	_cancel_window = true
+	_cancel_link_next = -1
 	_combo_index = 0
 	_timer = 0.0
 	_state = State.IDLE
@@ -235,6 +269,10 @@ func _on_host_dashed() -> void:
 
 
 func _on_host_jumped(_is_extra: bool) -> void:
+	# 跳跃本身从不打断前摇 / 判定期；但这一跳已经离地，如果这刀随后打实，
+	# 后摇一开始就该收掉，而不是把骑士锁在空中等完 0.26 / 0.46 秒。
+	if _state == State.WINDUP or _state == State.ACTIVE:
+		_jump_during_swing = true
 	if can_jump_cancel():
 		cancel_recovery()
 
@@ -263,6 +301,9 @@ func tick(delta: float) -> void:
 			_rest_sword(delta)
 			if _attack_buffer > 0.0 and start_swing():
 				_attack_buffer = 0.0
+			elif _cancel_window and _cancel_link_next >= 0 and _cooldown <= 0.0:
+				# 收刀补按窗口里玩家真按过：冷却一走完立刻起刀（挂起的补按不丢）。
+				request_attack()
 		State.WINDUP:
 			_timer -= delta
 			_tween_sword(-1.35 if _combo_index >= 2 else -0.9, delta, 14.0)
@@ -285,9 +326,15 @@ func tick(delta: float) -> void:
 					# 补接窗口：下一按算接上一刀，而不是被空闲冷却吃掉。
 					_late_next = _combo_index + 1 if _combo_index < 2 else 0
 					_late_link_left = CombatRules.LATE_LINK_GRACE if _late_next > 0 else 0.0
+					_jump_during_swing = false
 					_combo_index = 0
 					_state = State.IDLE
 					_set_lock(false)
+	# 冷却走完、窗口里没挂起补按：关窗（有挂起补按则上面已起刀、request_attack 已关）。
+	# 放 match 之后，让「冷却归零那一帧挂着补按」也有机会在本帧出刀，而不是被先关窗吞掉。
+	if _cancel_window and _cooldown <= 0.0:
+		_cancel_window = false
+		_cancel_link_next = -1
 
 
 ## Parry acknowledgement sampled during idle-phase processing: area-pair data
@@ -322,6 +369,7 @@ func phase_name() -> String:
 func _begin_windup() -> void:
 	_link_buffered = false
 	_late_link_left = 0.0
+	_jump_during_swing = false
 	_state = State.WINDUP
 	_timer = float(COMBO_WINDUP[_combo_index])
 	_set_lock(true)
@@ -337,12 +385,15 @@ func _begin_active() -> void:
 		var face := 1.0
 		var band: StringName = &"cold"
 		var host := get_parent()
+		var attack_bonus: int = 0
 		if host is Player:
 			var knight := host as Player
 			face = float(knight.controller.facing)
 			band = knight.toxin.band()
+			if "stats" in knight and knight.stats != null and knight.stats.has_method(&"get_attack_bonus"):
+				attack_bonus = knight.stats.get_attack_bonus()
 		var tier := CombatRules.toxin_tier(band)
-		hitbox.damage = int(COMBO_DAMAGE[_combo_index]) + int(tier["damage"])
+		hitbox.damage = maxi(1, int(COMBO_DAMAGE[_combo_index]) + int(tier["damage"]) + attack_bonus)
 		hitbox.blow = _blow_for(_combo_index, tier)
 		hitbox.already_hit.clear()
 		hitbox.connected = false
@@ -351,6 +402,9 @@ func _begin_active() -> void:
 		if _combo_index >= 2:
 			power *= float(tier["finisher_knock"])
 		hitbox.knockback = Vector2(face * power, -40.0 if _combo_index >= 2 else -24.0)
+		# 判定开始那一刻就结算已经压进剑刃的目标：贴身敌人不再晚一帧、弹反不再
+		# 等到下一次物理 step；也保证剑先于火带 / 冲击波拿第一击（破绽翻倍归剑）。
+		hitbox.sweep_now()
 		if host is Player:
 			(host as Player).on_melee_active(_combo_index)
 
@@ -378,6 +432,12 @@ func _begin_recovery() -> void:
 	_cooldown = cooldown
 	if hitbox:
 		hitbox.monitoring = false
+	# 打实的那一刀：如果玩家在判定期里已经按了跳，离地是既成事实，后摇从第一帧
+	# 就收掉（与「打实从后摇开头可跳取消」同一规则，只是按键早了几帧）。
+	# 挥空则保持承诺的完整后摇，沉重感不变。
+	if _jump_during_swing and swing_connected():
+		_jump_during_swing = false
+		cancel_recovery()
 
 
 func _set_lock(locked: bool) -> void:

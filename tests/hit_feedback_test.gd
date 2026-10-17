@@ -392,3 +392,8 @@ func test_juice_sets_the_window_title_once_not_every_frame() -> void:
 	var body := src.substr(start, stop - start)
 	ok(not body.contains("window_set_title"), "_process no longer writes the window title every frame")
 	ok(src.contains("window_set_title"), "the title is still set (in _ready)")
+
+
+func test_knight_red_flash_matches_the_player_hurt_beat() -> void:
+	eq(int(round(Player.HIT_FLASH_SECONDS * 1000.0)), int(CombatRules.PLAYER_HURT["flash_ms"]),
+			"the knight's red flash lasts exactly the matrix's 90 ms")

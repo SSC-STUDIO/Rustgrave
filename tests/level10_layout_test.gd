@@ -284,6 +284,29 @@ func test_slain_nightmare_does_not_respawn_and_ending_stays_open() -> void:
 	ok(not (host.get_node("Props/Exit") as LevelExit).is_locked())
 
 
+## 入口回廊上方的守夜台：本章支路。主路线跳不上去，钩锁从巢旁地面拉上去；
+## 台上碑文把门后的两个选择先讲清楚（世界信息 / 选择），且整个支路在竞技场之外。
+func test_vigil_deck_is_an_optional_ending_lore_branch() -> void:
+	var host := _build()
+	var deck := host.get_node_or_null("Platforms/VigilDeck") as SolidPlatform
+	var anchor := host.get_node_or_null("Hooks/HookVigil") as HookAnchor
+	var stele := host.get_node_or_null("Props/SteleVigil") as LoreStele
+	ok(deck != null and anchor != null and stele != null, "vigil deck, anchor and stele exist")
+	if deck == null or anchor == null or stele == null:
+		return
+	ok(deck.position.x < LAYOUT.ARENA_X0, "the branch stays out of the boss arena")
+	ok(anchor.position.y < deck.position.y, "anchor hangs above the deck")
+	ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "deck is a tether drop under the anchor")
+	ok(_standing_on(_rects(host), LevelSanity.feet_of(stele), 0.5), "stele stands on the vigil deck")
+	ok(String(stele.lore_title).begins_with("炉心铭"), "vigil stele belongs to the forge-core inscriptions")
+	ok(String(stele.lore_text).contains("选择"), "it names the choice behind the door")
+	var feet := LevelSanity.feet_of(stele)
+	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),
+			"the main route cannot read the vigil stele")
+	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, true),
+			"the hookshot reaches the vigil stele")
+
+
 func test_room_is_sealed_and_reads_as_a_forge() -> void:
 	var host := _build()
 	var platforms := host.get_node("Platforms")
@@ -299,7 +322,8 @@ func test_room_is_sealed_and_reads_as_a_forge() -> void:
 		ok(_right(p) <= float(LAYOUT.EAST_LIMIT) + 16.0, "%s stays inside the east limit" % p.name)
 		if String(p.name) != "SlagBed":
 			ok(p.position.y <= 320.0, "%s is not walkable ground below the floor line" % p.name)
-		var footing := String(p.name).begins_with("SlagStone") or String(p.name).begins_with("Perch")
+		var footing := String(p.name).begins_with("SlagStone") or String(p.name).begins_with("Perch") \
+				or String(p.name) == "VigilDeck"
 		eq(p.tone, LAYOUT.STONE_TONE if footing else LAYOUT.TONE, "%s is pressed into amber" % p.name)
 		ok(p.tone.r > p.tone.g and p.tone.g > p.tone.b, "%s tone is warm (r > g > b)" % p.name)
 	var mood := host.get_node_or_null("MoodTint") as CanvasModulate
@@ -315,7 +339,9 @@ func test_room_is_sealed_and_reads_as_a_forge() -> void:
 		if child is LoreStele:
 			steles += 1
 			ok(String((child as LoreStele).lore_title).begins_with("炉心铭"), "%s is a forge-core inscription" % child.name)
-	eq(steles, 2, "two inscriptions")
+	eq(steles, 3, "three inscriptions: two on the road, one on the vigil deck")
+	var vigil := props.get_node_or_null("SteleVigil") as LoreStele
+	ok(vigil != null, "the optional vigil deck carries a stele")
 	# torches every screen, none missing from the arena; grounded decor never floats
 	var decor := host.get_node("Decor")
 	var torches := 0

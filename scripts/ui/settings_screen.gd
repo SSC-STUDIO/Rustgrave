@@ -15,6 +15,8 @@ extends CanvasLayer
 
 signal closed
 
+const Modal := preload("res://scripts/ui/ui_modal.gd")
+
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
 const TAB_KEYS := 2
@@ -24,8 +26,10 @@ const STEP := 5.0
 const SAVE_DELAY := 0.5
 const NOTICE_HOLD := 4.0
 const ROW_WIDTH := 700.0
-const KEY_COLUMN_WIDTH := 480.0
-const PAGE_HEIGHT := 330.0
+## 两列键位在 900px 卡片里：2×380 + 24 = 784，仍小于 832 的内容宽。
+## 旧值 480 时网格 984px，会从花边卡两侧各挤出 76px。
+const KEY_COLUMN_WIDTH := 380.0
+const PAGE_HEIGHT := 308.0
 const TICK_INTERVAL := 0.045
 
 const BUS_NAMES := {
@@ -40,6 +44,7 @@ const OPT_FULLSCREEN := &"fullscreen"
 const OPT_SMOOTHING := &"pixel_smoothing"
 
 var _root: Control
+var _shell: Dictionary = {}
 var _tab_buttons: Array[Button] = []
 var _pages: Array[Control] = []
 var _tab := TAB_AUDIO
@@ -81,37 +86,29 @@ func _exit_tree() -> void:
 
 func _build() -> void:
 	_building = true
-	_root = Control.new()
-	_root.name = "Root"
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	# 弹窗卡片：背景只压暗、不铺黑；标题带与底部提示带由外壳统一给。
+	_shell = Modal.build(self, {
+		"title": "设 置",
+		"size": Vector2(900.0, 640.0),
+		"hint": "↑↓ 选择 · ←→ 调整 · Enter 确认",
+		"back": "Esc 返回",
+	})
+	_root = _shell["root"] as Control
 	_root.theme = UiKit.extras_theme()
-	add_child(_root)
-	_root.add_child(UiKit.scrim(0.90, 0.90, 0.90))
-
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.name = "Frame"
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.offset_left = 100.0
-	frame.offset_right = -100.0
-	frame.offset_top = 24.0
-	frame.offset_bottom = -24.0
-	_root.add_child(frame)
+	# 设置页点空白处不关闭：误触会丢掉正在拖的滑条 / 改键，只走 Esc 与"返回"。
+	var body := _shell["body"] as Control
 
 	var column := VBoxContainer.new()
 	column.name = "Column"
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 6)
-	frame.add_child(column)
-	column.add_child(UiKit.label("设 置", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.divider())
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
+	column.add_theme_constant_override("separation", 8)
+	body.add_child(column)
 
 	var tabs := HBoxContainer.new()
 	tabs.name = "Tabs"
 	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
 	tabs.add_theme_constant_override("separation", 12)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(tabs)
 	var group := ButtonGroup.new()
 	for i in TAB_TITLES.size():
@@ -122,7 +119,7 @@ func _build() -> void:
 		tab.toggle_mode = true
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
-		tab.custom_minimum_size = Vector2(190.0, UiKit.TOUCH_MIN)
+		tab.custom_minimum_size = Vector2(210.0, UiKit.TOUCH_MIN)
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
@@ -133,14 +130,15 @@ func _build() -> void:
 	host.name = "Pages"
 	host.custom_minimum_size = Vector2(0.0, PAGE_HEIGHT)
 	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(host)
 	_pages.append(_build_audio_page(host))
 	_pages.append(_build_display_page(host))
 	_pages.append(_build_keys_page(host))
 
-	_notice = UiKit.label("", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_notice = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_notice.name = "Notice"
-	_notice.custom_minimum_size = Vector2(0.0, 30.0)
+	_notice.custom_minimum_size = Vector2(0.0, 18.0)
 	column.add_child(_notice)
 
 	var footer := HBoxContainer.new()
@@ -155,8 +153,6 @@ func _build() -> void:
 	_back.pressed.connect(close)
 	footer.add_child(_back)
 
-	column.add_child(UiKit.label("↑↓ 选择 · ←→ 调整 · Enter 确认 · Esc 返回",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	_building = false
 	_wire_focus()
 	_sync_all()
@@ -179,6 +175,25 @@ func _wire_focus() -> void:
 		_tab_buttons[i].focus_neighbor_bottom = _tab_buttons[i].get_path_to(first[0])
 
 
+## 每页最后一行 ↓ 落到页脚「返回」，页脚 ↑ 回到当前页最后一行；键位页的
+## 「恢复默认键位」与「返回」用 ←→ 串起来。换页时重算，避免焦点走进隐藏页。
+func _wire_page_tail() -> void:
+	if _back == null or _pages.is_empty():
+		return
+	var controls := _page_controls(_pages[_tab])
+	if controls.is_empty():
+		return
+	var last := controls[controls.size() - 1]
+	last.focus_neighbor_bottom = last.get_path_to(_back)
+	_back.focus_neighbor_top = _back.get_path_to(last)
+	if _reset_keys.visible:
+		_reset_keys.focus_neighbor_right = _reset_keys.get_path_to(_back)
+		_back.focus_neighbor_left = _back.get_path_to(_reset_keys)
+	else:
+		_reset_keys.focus_neighbor_right = NodePath()
+		_back.focus_neighbor_left = NodePath()
+
+
 func _page_controls(page: Control) -> Array[Control]:
 	var out: Array[Control] = []
 	for node in page.find_children("*", "Control", true, false):
@@ -192,7 +207,7 @@ func _footer_button(text: String, node_name: StringName) -> Button:
 	var button := Button.new()
 	button.name = String(node_name)
 	button.text = text
-	button.theme_type_variation = &"SettingsButton"
+	button.theme_type_variation = &"PlateButton"
 	button.focus_mode = Control.FOCUS_ALL
 	button.custom_minimum_size = Vector2(230.0, UiKit.TOUCH_MIN)
 	button.mouse_entered.connect(button.grab_focus)
@@ -203,7 +218,7 @@ func _page(host: Control, node_name: String) -> VBoxContainer:
 	var page := VBoxContainer.new()
 	page.name = node_name
 	page.set_anchors_preset(Control.PRESET_FULL_RECT)
-	page.alignment = BoxContainer.ALIGNMENT_BEGIN
+	page.alignment = BoxContainer.ALIGNMENT_CENTER
 	page.add_theme_constant_override("separation", 6)
 	host.add_child(page)
 	return page
@@ -216,6 +231,8 @@ func _build_audio_page(host: Control) -> Control:
 		if AudioServer.get_bus_index(bus) < 0:
 			continue
 		page.add_child(_slider_row(bus, String(BUS_NAMES.get(bus, String(bus)))))
+	page.add_child(_page_note("拖动即时生效 · 松手后自动写入设置文件"))
+	page.add_child(_page_note("主音量同时压住音乐与氛围的上限"))
 	return page
 
 
@@ -229,6 +246,7 @@ func _build_display_page(host: Control) -> Control:
 	_viewport_label = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_viewport_label.name = "ViewportInfo"
 	page.add_child(_viewport_label)
+	page.add_child(_page_note("震动 / 闪光强度同时作用于战斗反馈与过场演出"))
 	return page
 
 
@@ -259,6 +277,11 @@ func _build_keys_page(host: Control) -> Control:
 
 
 ## 行底（Panel）+ 内容。焦点 / 悬停时行底换成"选中"贴图，名字变琥珀色。
+## 页面底部的 12px 脚注：让页面下半屏有东西可看，也顺手解释这一页在改什么。
+func _page_note(text: String) -> Label:
+	return UiKit.label(text, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+
+
 func _row_bg() -> Panel:
 	var bg := Panel.new()
 	bg.name = "Bg"
@@ -448,6 +471,7 @@ func _show_page(index: int) -> void:
 		_tab_buttons[i].set_pressed_no_signal(false)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
 	_reset_keys.visible = _tab == TAB_KEYS
+	_wire_page_tail()
 	if _viewport_label != null and _tab == TAB_DISPLAY:
 		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
 
@@ -481,6 +505,7 @@ func open() -> void:
 	_sync_all()
 	_show_page(TAB_AUDIO)
 	visible = true
+	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
 	UiKit.sfx(&"ui_select")
 	# 可见之后才能拿焦点。

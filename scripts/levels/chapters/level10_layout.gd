@@ -2,6 +2,11 @@ extends ChapterLayout
 ## 锈墓・拾 — 炉心深处（终关）。第一关点燃的那颗残芯真正的所在；
 ## 梦魇——炉火熄灭时最后一匹没被熔掉的战马——守在这里。
 ##
+## 玩法变化（平地 Boss 竞技场）：入口回廊是跳石与火骷髅，门前厅是安全巢；
+## 锈门之后 1200px 全平，没有坑、没有台阶，只有两端的窄高台，逼玩家在
+## 梦魇的冲锋里用翻滚、弹反与钩锁处理空间。
+## 可选支路：入口回廊上方的守夜台（钩锁），碑文「守」讲清门后的两个选择。
+##
 ## 结构（地面 y=320，一跳台阶 ≤32px）：
 ##   ① 入口回廊 0–800     余烬巢、碑文、路牌、幽魂 ×2 + 火骷髅 ×2、熔渣河（三块浮石）
 ##   ② 门前厅 800–1100    Boss 前的余烬巢、第二块碑、锈门（热锻）= 竞技场门
@@ -61,6 +66,11 @@ const EXIT_LABEL := "炉心之门"
 const EXIT_FLAG := "game_complete"
 const EXIT_REQUIRES := "nightmare_dead"
 const EXIT_LOCKED_PROMPT := "梦魇还在喘。门不开。"
+## 可选支路：入口回廊上方的守夜台。从巢旁的地面起钩（152px 索距），
+## 落台在锚点下方 72px；没有钩锁时落差 128px，跳不上去。
+const VIGIL_DECK := Rect2(160, 192, 96, 16)
+const HOOK_VIGIL_POS := Vector2(208, 120)
+const STELE_VIGIL_POS := Vector2(232, 192)
 const GIVE_CAPTIONS: Array = [
 	"剑进了炉。里面的人跟着进去。",
 	"火稳了。骑士散成铁。陵墓睡下。",
@@ -119,6 +129,16 @@ func motes() -> String:
 	return "cinders"
 
 
+## 炉心最深处：不下雨，只有被炉膛抽着走的余烬风，和一层压得人喘不过气的热雾。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.EMBER_WIND, WorldClock.Weather.HAZE],
+		"weights": {"*": {"ember_wind": 5, "haze": 3}},
+		"hold": Vector2(300.0, 520.0),
+		"intensity": Vector2(0.7, 1.0),
+	}
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -135,6 +155,8 @@ func _build_terrain(host: Node2D) -> void:
 	toxin(host, "SlagPool", Vector2(SLAG_X0, SLAG_BED_Y - 16.0), Vector2(SLAG_X1 - SLAG_X0, 32.0), SLAG_TINT)
 	for s in SLAG_STONES:
 		step(host, String(s[0]), s[1], float(s[2]), "basalt_float", STONE_TONE)
+	# 守夜台：悬在入口回廊上方，只有钩锁能上；不在竞技场里，不误导 Boss 落点。
+	step(host, "VigilDeck", VIGIL_DECK.position, VIGIL_DECK.size.x, "basalt_float", STONE_TONE)
 	# 门前厅 + 竞技场 + 终局门共用一块地：竞技场必须是连续平地，Boss 来回冲锋。
 	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "basalt", true, false, FLOOR_Y, TONE)
 	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "basalt", true, true, STONE_TONE)
@@ -151,6 +173,10 @@ func _build_props(host: Node2D) -> void:
 			"炉约末条：把火还给炉，把锈还给铁。谁带着别人的声音走到这里，谁就得自己选。")
 	waymark(host, WAYMARK_POS, "炉心")
 	rusty_gate(host, "ArenaGate", ARENA_GATE_POS)
+	# 支路：入口回廊的守夜台。只有钩锁能读，碑文把门后的选择先摆在玩家面前。
+	hook(host, "HookVigil", HOOK_VIGIL_POS)
+	stele(host, "SteleVigil", STELE_VIGIL_POS, "炉心铭 · 守",
+			"马不肯进炉，因为它记得骑手。门后只有两个选择：把剑还回去，或者留下来守火。")
 	var door := exit_door(host, EXIT_X, EXIT_LABEL, PackedStringArray(), EXIT_FLAG, "",
 			FLOOR_Y, EXIT_REQUIRES, EXIT_LOCKED_PROMPT)
 	door.ending_choice = true

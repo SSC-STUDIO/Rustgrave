@@ -327,6 +327,44 @@ func test_vault_hook_and_ember_core_are_an_optional_detour() -> void:
 	var floor_d: Rect2 = rects["FloorD"]
 	var from := Vector2(clampf(hook.position.x, floor_d.position.x, floor_d.end.x), floor_d.position.y - 48.0)
 	ok(from.distance_to(hook.position) <= 250.0, "anchor is within tether reach of the altar floor")
+	# The detour also carries world information: a stele only the hook can read.
+	var stele := host.get_node_or_null("Props/SteleVault") as LoreStele
+	ok(stele != null, "the vault ledge carries a stele")
+	if stele != null:
+		ok(String(stele.lore_title).begins_with("炉约"), "vault stele is part of the Compact lore")
+		ok(String(stele.lore_text) != "", "vault stele says something")
+		ok(_on_named(rects, "VaultLedge", LevelSanity.feet_of(stele), 0.5), "vault stele stands on the ledge")
+		var feet := LevelSanity.feet_of(stele)
+		ok(not LevelSanity.is_reachable(host, Vector2(L4.ENTRY_SPAWN.x, 320.0), feet, false),
+				"the main route cannot read the vault stele")
+		ok(LevelSanity.is_reachable(host, Vector2(L4.ENTRY_SPAWN.x, 320.0), feet, true),
+				"the hookshot reaches the vault stele")
+
+
+## 桥中段的巢落在 BridgeB4 上：它是整座廊桥唯一在喷吐者 380px 射程外的
+## 落脚面，死在桥中段的人不用走回教堂前厅。
+func test_bridge_checkpoint_is_safe_and_reachable() -> void:
+	var host := _build()
+	var rects := _rects(host)
+	var nest := host.get_node_or_null("Props/EmberNestBridge") as EmberNest
+	ok(nest != null, "the bridge has a mid-span checkpoint")
+	if nest == null:
+		return
+	ok(_on_named(rects, "BridgeB4", Vector2(nest.position.x + 6.0, nest.position.y + 14.0), 0.5),
+			"the nest rests on BridgeB4")
+	var spitter := host.get_node("Enemies/Spitter1") as SpitterEnemy
+	ok(nest.position.distance_to(spitter.position) > spitter.aggro_range,
+			"the pulpit spitter cannot reach the bridge nest")
+	for shield_name in ["GearShield1", "GearShield2"]:
+		var shield := host.get_node("Enemies/" + shield_name) as GearShieldEnemy
+		ok(nest.position.distance_to(shield.position) > shield.aggro_range,
+				"%s cannot fire at the bridge nest" % shield_name)
+	for ghost_name in ["Ghost1", "Ghost2"]:
+		var ghost := host.get_node("Enemies/" + ghost_name) as GhostEnemy
+		ok(nest.position.distance_to(ghost.position) > ghost.wake_range,
+				"%s sleeps away from the bridge nest" % ghost_name)
+	ok(LevelSanity.is_reachable(host, Vector2(L4.ENTRY_SPAWN.x, 320.0), LevelSanity.feet_of(nest), false),
+			"the bridge nest is reachable without optional abilities")
 
 
 func test_backdrop_decor_and_mood_are_cathedral() -> void:
@@ -373,12 +411,17 @@ func test_backdrop_decor_and_mood_are_cathedral() -> void:
 	var worst := 0.0
 	for i in range(1, xs.size()):
 		var gap := xs[i] - xs[i - 1]
-		var over_pit := false
+		# Only undressed *floor* counts. A gap that runs over a pit is not a
+		# dressable stretch: subtract the pit span it crosses instead of
+		# excusing the whole gap only when it happens to span the pit end to end
+		# (a checkpoint on a bridge stone would otherwise hide a real bare floor).
+		var floor_gap := gap
 		for p in L4.PITS:
-			if xs[i - 1] <= float(p[1]) + 8.0 and xs[i] >= float(p[2]) - 8.0:
-				over_pit = true
-		if not over_pit:
-			worst = maxf(worst, gap)
+			var a := maxf(xs[i - 1], float(p[1]))
+			var b := minf(xs[i], float(p[2]))
+			if b > a:
+				floor_gap -= b - a
+		worst = maxf(worst, floor_gap)
 	ok(worst <= 260.0, "longest undressed stretch of floor is %.0f px" % worst)
 	# No big wall panel is centred above a floating stone's landing.
 	var rects := _rects(host)

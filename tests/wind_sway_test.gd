@@ -174,6 +174,37 @@ func test_hard_plant_lands_on_opaque_bottom() -> void:
 	almost(Level01Env.sprite_opaque_bottom_y(statue), 80.0, 0.01, "statue opaque bottom on feet")
 
 
+## 特效不遮挡（docs/art-spec.md「特效不遮挡原则」）：风尘是 1–3px 的氛围粒，
+## 不是亮斑。它可以在角色前（读风），但必须远低于剑光（z=10），且尺寸封顶，
+## 不形成遮挡面。真正会盖住轮廓的浮尘层（ThemeMotes/CineFx）已放到 z<0。
+func test_wind_fx_stays_below_the_play_layer() -> void:
+	var wind := WindFx.new()
+	add_child(wind)
+	eq(wind.z_index, 1, "wind dust stays a thin near-air layer")
+	ok(wind.z_index > -10, "wind dust still draws in front of the backdrop")
+	ok(wind.z_index < 10, "wind dust never reaches the SlashArc layer")
+	var mote := wind.spawn_mote(Rect2(Vector2.ZERO, Vector2(640, 360)))
+	ok(mote != null, "a wind mote can be inspected")
+	if mote != null:
+		var poly := mote.get_child(0) as Polygon2D
+		ok(poly != null, "wind mote is a polygon")
+		if poly != null:
+			var area := 0.0
+			var pts := poly.polygon
+			for i in pts.size():
+				var a := pts[i]
+				var b := pts[(i + 1) % pts.size()]
+				area += a.x * b.y - b.x * a.y
+			area = absf(area) * 0.5
+			ok(area <= 6.0, "wind dust is 1–3px (area %.1f), not an occluding shape" % area)
+	var pivot := Node2D.new()
+	add_child(pivot)
+	var sway := WindSway.new()
+	pivot.add_child(sway)
+	ok(sway.get_parent() is Node2D, "sway pivot is a plain Node2D — z stays at the planted sprite")
+	eq(pivot.z_index, 0, "the sway pivot never lifts decor above the play layer")
+
+
 func test_play_decor_feet_sit_on_ground() -> void:
 	eq(Level01Static.GROUND_TOP, 320.0)
 	ok(Level01Static.PLAY_DECOR.size() >= 8, "grave props are listed")

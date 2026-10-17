@@ -45,6 +45,38 @@ const DECOR := {
 	"rock_pile": "res://assets/env/gh_rock_pile.png",     # 32×45 碎石堆，接地
 	"bones": "res://assets/env/gh_bones.png",             # 32×16 骨渣，接地
 	"skull_arch": "res://assets/env/gh_skull_arch.png",   # 32×48 骷髅炉口，接地
+	# 世界历史细节（docs/art-spec.md「世界历史细节」）：损坏机械、生活残留、
+	# 锈蚀管道、炉火。全部复用仓库里已入库的素材（可溯），不新下载：
+	#   pipe_valve — 锈阀管道：Kenney Request pack 的 beamBoltsHoles 裁片
+	#     （CC0，assets/external/kenney）。法兰 + 螺栓孔，是「锈蚀管道」的
+	#     可读符号。
+	"pipe_valve": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamBoltsHoles.png",
+	#   broken_machine — 损坏机械：Kenney Request pack 的 beamHoles 裁片
+	#     （CC0）。断裂的工字梁断面，工坊 / 熔渣的坏机械。
+	"broken_machine": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamHoles.png",
+	#   life_remains — 生活残留：Gothic Horror 的骨渣裁片（gh_bones.png，
+	#     tools/gen_theme_tiles.py 的 set_pieces 写入，OGA CC0）。木箱与陶罐
+	#     之外，骨渣是「上一班人没回来」的直接证据。
+	"life_remains": "res://assets/env/gh_bones.png",
+	#   fire_vent — 炉火 / 排渣口：Gothic Horror 的矮烟囱裁片（gh_furnace.png，
+	#     tools/gen_theme_tiles.py 的 set_pieces 写入，OGA CC0）。熔炉边
+	#     的排气口，和壁炬的炉膛同一族。
+	"fire_vent": "res://assets/env/gh_furnace.png",
+	#   以下是第二组「世界历史」符号，同样只复用仓库已入库的 Kenney CC0 素材
+	#   （assets/external/kenney，许可证见 kenney/LICENSE.md）：
+	#   chain — 垂链：Base pack Items/chain.png。钟楼吊钟、工坊吊装、废井的
+	#     遗弃设施；用 hanging() 挂、或盘在 prop() 的地面上。
+	"chain": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Base pack (360 assets)/Items/chain.png",
+	#   girder_l / girder_r — 断裂的斜撑钢梁：Request pack beamDiagonalLeft/Right。
+	#     塌掉一半的厂房 / 矿道支架，比水平 beam 更像「坏在这里」。
+	"girder_l": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamDiagonalLeft.png",
+	"girder_r": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/beamDiagonalRight.png",
+	#   warning_plate — 褪色的危险告示板：Request pack metalCenterWarning.png。
+	#     遗弃设施上最后一条人写的字，颜色压到锈灰。
+	"warning_plate": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/metalCenterWarning.png",
+	#   fence — 拆掉一半的铁栏：Request pack metalFence.png。城垛 / 工坊平台
+	#     边缘的遗弃护栏。
+	"fence": "res://assets/external/kenney/Art (5190 files)/Platformer assets (1330 assets)/Request pack (100 assets)/PNG/metalFence.png",
 	"stone_1": Level01Env.DECOR_STONE_1,
 	"stone_2": Level01Env.DECOR_STONE_2,
 	"stone_3": Level01Env.DECOR_STONE_3,
@@ -64,8 +96,11 @@ const THEME_PROPS := {
 		"stone_1", "stone_2", "stone_3", "stone_4",
 		"tree_1", "tree_2", "bush_l", "bush_s",
 	],
+	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。管道与遗弃设施属于「城沉下去之前」
+	# 的生活残留。
 	"undercroft": [
 		"vine", "arch", "rubble", "stair", "wall_block", "door", "balustrade",
+		"life_remains", "pipe_valve", "chain", "warning_plate",
 	],
 	"cathedral": [
 		"balustrade", "column", "gargoyle", "altar", "window", "skull_column",
@@ -79,16 +114,23 @@ const THEME_PROPS := {
 	"ramparts": [
 		"balustrade_wall", "door_arch_wall", "balustrade", "door_arch", "rubble_dry", "rubble_dry_b", "rubble_dry_c",
 		"bush_s", "slab", "plate", "ruin_tower", "rock_pile",
+		# 城墙脚下的遗弃设施与生活残留（砖石城垛族同源重着色）。
+		"life_remains", "broken_machine", "fence", "warning_plate", "chain",
 	],
-	# 钟楼沿用圣殿的墙板族。
+	# 钟楼沿用圣殿的墙板族；吊钟链是它唯一「还在用的机械」。
 	"belltower": [
 		"balustrade", "column", "gargoyle", "altar", "window", "skull_column",
 		"vine", "door_arch", "slab", "rubble_dry", "rubble_dry_b", "rubble_dry_c",
+		"chain",
 	],
 	"industrial": [
 		"beam", "beam_bolts", "beam_narrow", "metal_panel",
 		"plate", "slab", "rubble_dry", "rubble_dry_b", "rubble_dry_c", "vine",
 		"rock_pile", "bones", "skull_arch",
+		# 工坊：锈蚀管道、损坏机械、生活残留、炉火排气口——造锈核的车间要有
+		# 「上一班没干完的活」的痕迹。斜梁 / 铁栏 / 告示牌是停工那天的现场。
+		"pipe_valve", "broken_machine", "life_remains", "fire_vent",
+		"girder_l", "girder_r", "warning_plate", "fence", "chain",
 	],
 	# Level10 forge-core keeps altar / column / skull_column as ending setpieces.
 	# Level08 slag uses plate/slab/rubble only — do not reintroduce cathedral columns there.
@@ -96,10 +138,14 @@ const THEME_PROPS := {
 		"beam", "beam_bolts", "beam_narrow", "metal_panel",
 		"plate", "slab", "rubble_dry", "rubble_dry_b", "rubble_dry_c",
 		"column", "altar", "skull_column", "vine", "rock_pile", "bones", "skull_arch",
+		# 熔渣深渊：坏在炉边的机械与排渣口，比工坊更焦。
+		"pipe_valve", "broken_machine", "fire_vent",
+		"girder_l", "girder_r", "warning_plate", "chain",
 	],
 	"forge_core": [
 		"plate", "slab", "rubble_dry", "rubble_dry_b", "rubble_dry_c",
 		"column", "altar", "skull_column", "vine", "rock_pile", "bones", "skull_arch",
+		"chain", "warning_plate",
 	],
 }
 
@@ -115,6 +161,22 @@ const FAMILY := {
 	"forge_core": "basalt",
 	"ramparts": "rampart",
 }
+## 「世界历史细节」的显式分类（docs/art-spec.md）。不是新贴图，而是把已有
+## 装饰键按叙事功能分组，关卡作者和测试都从这里取。
+const HISTORY_KEYS := {
+	"graves": ["grave_cross", "statue", "stone_1", "stone_2", "stone_3", "stone_4", "bones"],
+	"machines": ["beam", "beam_bolts", "beam_narrow", "metal_panel",
+			"broken_machine", "girder_l", "girder_r"],
+	"pipes": ["pipe_valve", "vine"],
+	"fire": ["fire_vent", "skull_arch"],
+	"ruins": ["door_arch", "door_arch_wall", "door_arch_town", "balustrade",
+			"balustrade_wall", "balustrade_town", "window", "fence", "warning_plate"],
+	"debris": ["rubble", "rubble_dry", "rubble_dry_b", "rubble_dry_c", "rock_pile",
+			"plate", "slab", "stair", "life_remains", "chain"],
+}
+## 必须用 hanging() 挂起来、不能 prop() 接地的键（测试会检查它们没有 feet 元数据）。
+const HANGING_KEYS := ["vine", "chain"]
+
 const PROPS_DIR := "res://assets/env/props/"
 
 

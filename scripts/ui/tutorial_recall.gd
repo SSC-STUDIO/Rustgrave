@@ -6,9 +6,12 @@ extends CanvasLayer
 
 signal closed
 
+const Modal := preload("res://scripts/ui/ui_modal.gd")
+
 const SCROLL_STEP := 56.0
 
 var _root: Control
+var _shell: Dictionary = {}
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _empty: Label
@@ -22,39 +25,25 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	_root = Control.new()
-	_root.name = "Root"
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shell = Modal.build(self, {
+		"title": "教 程 回 看",
+		"size": Vector2(880.0, 580.0),
+		"hint": "↑↓ 滚动",
+		"back": "Esc / 回车 返回",
+	})
+	_root = _shell["root"] as Control
+	_root.theme = UiKit.extras_theme()
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed \
 				and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			close())
-	add_child(_root)
-	_root.add_child(UiKit.scrim(0.90, 0.90, 0.90))
 
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.offset_left = 140.0
-	frame.offset_right = -140.0
-	frame.offset_top = 32.0
-	frame.offset_bottom = -32.0
-	_root.add_child(frame)
-
-	var column := VBoxContainer.new()
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 6)
-	frame.add_child(column)
-	column.add_child(UiKit.label("教 程 回 看", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.divider())
-
+	var body := _shell["body"] as Control
 	_scroll = ScrollContainer.new()
 	_scroll.name = "Scroll"
-	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	column.add_child(_scroll)
+	body.add_child(_scroll)
 
 	_list = VBoxContainer.new()
 	_list.name = "List"
@@ -66,14 +55,11 @@ func _build() -> void:
 			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_empty.name = "Empty"
 	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_empty.custom_minimum_size = Vector2(700.0, 0.0)
-	_empty.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_empty.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	column.add_child(_empty)
-
-	column.add_child(UiKit.label("↑↓ 滚动 · Esc / 回车 返回", &"SubHeadLabel",
-			HORIZONTAL_ALIGNMENT_CENTER))
+	body.add_child(_empty)
 
 
 ## 重新读取已看过的提示并重排。
@@ -114,6 +100,7 @@ func _make_entry(title: String, text: String) -> Control:
 func open() -> void:
 	refresh()
 	visible = true
+	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_select")
 

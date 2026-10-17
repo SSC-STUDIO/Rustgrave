@@ -1,15 +1,45 @@
 extends ChapterLayout
-## 四段吊台沿两侧竖井交替上升；薄楼板接住失足者，给吊台和骑士留出净空。
+## 锈墓・柒 — 钟楼：竖向塔身，四段吊台沿两侧竖井交替上升；薄楼板接住失足者。
+##
+## 玩法变化（竖向关）：主路线是「吊台 + 跳」的节奏循环，两侧竖井交替使用；
+## 塔顶窄台（Summit 只有 256px）把存档点、路牌、出口门、火把挤在一起，
+## 是一关里唯一「一步都不能走错」的高潮。
+##
+## 有奖励支路（HookUpper 支线）：GalleryC 正上方的钩锁锚点把骑士拉进 NookDeck
+## （贴着顶板的壁龛，只有钩锁能上）。壁龛里是守钟人最后一句碑文——
+## 全章都在说「钟舌铸成最后一枚核、又被系在链尾」，这里就是那枚核的归处与收束。
+## 支路奖励是「世界信息 + 一个选择」（上去读最后一句 / 不上去），不是「第二插座」：
+## 玩家到第七章一定有钩锁，再给一枚系核只是同名能力，无新增空间许可。
+## 主路线不经过这里，没有钩锁也能通关（level_sanity 主路线 allow_hook=false）。
+##
+## 结构（竖向；单跳 ≤32px 高、≤72px 跨）：
+##   ① 井底   y=320    地面 Floor、入口巢、入口碑、骸骨伏击、第一座吊台
+##   ② 一层   y=80     GalleryA；中层巢；吊台 B 把骑士送到东侧
+##   ③ 二层   y=-160   GalleryB；中层压板开「BellGate」；上层巢
+##   ④ 三层   y=-400   GalleryC；吊台 D；守钟人碑文
+##   ⑤ 塔顶   y=-640   Summit（256px）；第三巢、路牌、出口「运渣井门」
+##   可选：顶板壁龛 NookDeck（y=-560）——钩锁锚点 HookUpper + 碑文
 
 const ENTRY_SPAWN := Vector2(96, 300)
 const EAST_LIMIT := 1280
 const TOP_Y := -640.0
 const CEILING_Y := -800.0
+## 顶板壁龛（NookDeck）：贴着顶板下方、避开碑文嵌入顶板的死区。
+## 钩锁锚点（HookUpper）悬在壁龛正上方，从 GalleryC（-400）起跳在 250px 索距内，
+## 落台 NookDeck 在锚点下方 40px、横向 0px，是标准钩锁降落。
+const NOOK_Y := -560.0
+const HOOK_UPPER_POS := Vector2(384, -600)
+## 支路碑文：站在壁龛台面上读（台面顶 -560，碑底贴台面顶）。
+const STELE_NOOK_POS := Vector2(384, NOOK_Y)
 const DECKS: Array = [
 	["GalleryA", Vector2(480, 80), 432.0],
 	["GalleryB", Vector2(480, -160), 432.0],
 	["GalleryC", Vector2(480, -400), 432.0],
 	["Summit", Vector2(1024, TOP_Y), 256.0],
+	# 可选支路台面：贴顶板下方，宽 96，钩锁落点。
+	# 名字不能以 Ceiling 开头：LevelSanity.top_segments() 会把顶板类平台
+	# 当不可站立的屋顶跳过，支路台面必须叫 NookDeck。
+	["NookDeck", Vector2(336, NOOK_Y), 96.0],
 ]
 const LIFTS: Array = [
 	["LiftA", Vector2(384, 304)], ["LiftB", Vector2(928, 64)],
@@ -78,12 +108,16 @@ func build(host: Node2D) -> void:
 	nest(host, "EmberNestSummit", 1052, TOP_Y)
 	stele(host, "SteleChain", Vector2(248, 320), "守钟人 · 链", "钟不响，链不停。钟舌不在了。它被熔成一枚核。")
 	stele(host, "SteleBell", Vector2(624, -160), "守钟人 · 舌", "他们熔掉钟舌，铸了最后一枚锈核。你剑上的回声，就是它。")
+	# 支路碑文：贴顶板的壁龛里，只有钩锁上去的人读得到。
+	stele(host, "SteleNook", STELE_NOOK_POS, "守钟人 · 余", "他们把剩下的核系在最后一根链上。上去读它的人，替守钟人把索收完。")
 	waymark(host, Vector2(336, 320), "上行")
 	# 塔顶只有 256px：栏杆让出来，巢、路牌、门、火把才排得开。
 	# 巢视觉 1036..1084，牌 1099..1134，门 1148..1196，火把 1216..1280。
 	waymark(host, Vector2(1116, TOP_Y), "渣井")
 	hook(host, "HookGallery", Vector2(940, -216))
-	hook(host, "HookUpper", Vector2(396, -456))
+	# 支路锚点：从 GalleryC（-400）起跳在 250px 索距内，落点 NookDeck 在锚点下方
+	# 40px、横向 0px，是标准钩锁降落。没有钩锁也能通关（主路线不依赖它）。
+	hook(host, "HookUpper", HOOK_UPPER_POS)
 	exit_door(host, EXIT_POS.x, "运渣井门", PackedStringArray([
 		"井下的渣还热。", "它记得每一把剑，包括你这一把。",
 	]), "level07_done", "level08", TOP_Y)

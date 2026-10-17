@@ -1,7 +1,11 @@
 class_name MenuList
 extends VBoxContainer
 ## 一列 MenuItem 的键鼠导航容器：上下键跳过禁用项并回环，回车/点击确认，
-## 鼠标悬停同步选中。标题屏与暂停菜单共用。
+## 鼠标悬停同步选中。暂停菜单 / 结局选择 / 覆盖确认用默认行（主题样式盒），
+## 标题屏的菜单架用 kind 指定三档异形板（见 MenuItem.Kind）。
+##
+## 导航只看 add_item 进来的项：标题屏在项之间插的空白、铆钉横线是普通子节点，
+## 不参与上下键的顺序。
 ##
 ## `active` 为 false 时不吃输入 —— 打开操作说明这类子面板时由上层置 false。
 
@@ -14,8 +18,9 @@ var _ids: Array[StringName] = []
 var _index := -1
 
 
-func add_item(id: StringName, text: String, item_disabled: bool = false) -> MenuItem:
-	var item := MenuItem.new(text)
+func add_item(id: StringName, text: String, item_disabled: bool = false,
+		kind: MenuItem.Kind = MenuItem.Kind.DEFAULT) -> MenuItem:
+	var item := MenuItem.new(text, kind)
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))
@@ -24,6 +29,14 @@ func add_item(id: StringName, text: String, item_disabled: bool = false) -> Menu
 	_ids.append(id)
 	if _index < 0 and not item_disabled:
 		select(_items.size() - 1, false)
+	return item
+
+
+## 对话框用：关掉铁架的挂钉；第三层（GHOST）比上面窄，居中放才不歪。
+func compact(item: MenuItem) -> MenuItem:
+	item.show_tick = false
+	if item.kind == MenuItem.Kind.GHOST:
+		item.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	return item
 
 

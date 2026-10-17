@@ -151,13 +151,15 @@ func _draw_opening() -> void:
 	draw_colored_polygon(pts, c)
 
 
-## 反击菱形：青白，轻微脉动。
+## 反击菱形：青白，轻微脉动。向右偏 6 px：盾卫被弹反时金色破绽箭头与
+## 青色菱形会同时出现，两个符号必须并排可读而不是互相盖住。
 func _draw_riposte() -> void:
 	var pulse := 0.75 + 0.25 * sin(_age * 12.0)
 	var c := _tint(color.a * pulse)
 	var bob := roundf(sin(_age * 6.0))
-	var pts := PackedVector2Array([Vector2(0, -6 + bob), Vector2(4, -2 + bob),
-			Vector2(0, 2 + bob), Vector2(-4, -2 + bob)])
+	var ox := 6.0
+	var pts := PackedVector2Array([Vector2(ox, -6 + bob), Vector2(ox + 4, -2 + bob),
+			Vector2(ox, 2 + bob), Vector2(ox - 4, -2 + bob)])
 	draw_colored_polygon(pts, c)
 	draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[3], pts[0]]),
 			Color(1.0, 1.0, 1.0, 0.7 * pulse), 1.0)

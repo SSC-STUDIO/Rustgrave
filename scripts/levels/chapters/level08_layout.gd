@@ -2,6 +2,10 @@ extends ChapterLayout
 ## 锈墓・捌「熔渣深渊」——钟楼底下的渣海。渣还记得剑的形状，火骷髅在上面飘。
 ## 全关只用 ChapterLayout 的助手铺设；测试可以在一个空 Node2D 上 build()。
 ##
+## 玩法变化（热渣上的跳石 + 火骷髅走廊）：所有主路都架在熔渣池上，
+## 跳石间距固定、火焰骷髅只守着两条短渣沟；掉进渣里一定能一跳爬出。
+## 支路：渣河 A 上方的排气龛（VentLedge），只有钩锁能上，读一条熔渣纪事。
+##
 ## 结构（地面 y=320，一跳 ≤32 高 / ≤72 远）：
 ##   ① 落口       0–416      渣口拱、余烬巢、碑「渣」、路牌「渣渊」
 ##   ② 渣河 A     416–848    四块浮石跨第一条熔渣河（间距 48–56，高差 ≤32）
@@ -76,6 +80,11 @@ const GEARS: Array = [
 ## 两段熔渣中间的渣柱：吊台接力的落脚点，也是掉下去的人爬出来的地方。
 const PILLAR_POS := Vector2(1456, 320)
 const PILLAR_SIZE := Vector2(32, 80)
+## 可选支路：渣河 A 上方的排气龛。从 StoneA2/A3 起钩（索距 ≤250），
+## 落台在锚点下方 56px；没有钩锁时落差 88px，跳不上去。
+const VENT_LEDGE := Rect2(672, 176, 96, 16)
+const HOOK_VENT_POS := Vector2(720, 120)
+const STELE_VENT_POS := Vector2(744, 176)
 ## 双吊台：A 从渣堤出发向东，B 相位错开 0.5——A 到东端时 B 正好回到渣柱旁。
 const LIFT_A_POS := Vector2(1216, 296)
 const LIFT_A_TRAVEL := Vector2(168, 0)
@@ -158,6 +167,16 @@ func motes() -> String:
 	return "embers"
 
 
+## 熔渣深渊在岩层下面：不下雨，只有热雾和一阵阵余烬风。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.EMBER_WIND, WorldClock.Weather.HAZE, WorldClock.Weather.CLEAR],
+		"weights": {"*": {"ember_wind": 5, "haze": 3, "clear": 1}},
+		"hold": Vector2(240.0, 400.0),
+		"intensity": Vector2(0.6, 1.0),
+	}
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -179,6 +198,8 @@ func _build_terrain(host: Node2D) -> void:
 		_slag_pit(host, String(p[0]), p[1], p[2])
 	for s in STEPS:
 		step(host, String(s[0]), s[1], s[2], "basalt_float")
+	# 排气龛：悬在渣河 A 上方，只有钩锁能到，钩锁之外不影响主路。
+	step(host, "VentLedge", VENT_LEDGE.position, VENT_LEDGE.size.x, "basalt_float")
 	platform(host, "SlagPillar", PILLAR_POS, PILLAR_SIZE, "basalt", true, true)
 	for g in GEARS:
 		var octagon := gear(host, String(g[0]), g[1], g[2])
@@ -210,6 +231,10 @@ func _build_props(host: Node2D) -> void:
 		waymark(host, w[0], String(w[1]))
 	plate_door(host, "Sluice", PLATE_FEET, DOOR_POS)
 	rusty_gate(host, "RustGate", GATE_POS)
+	# 支路：从渣河 A 的跳石上钩进排气龛。奖励是世界信息，不是又一枚核。
+	hook(host, "HookVent", HOOK_VENT_POS)
+	stele(host, "SteleVent", STELE_VENT_POS, "熔渣纪事 · 气",
+			"渣面下还有风。风从炉心漏出来，吹了两百年，没吹冷。")
 
 
 func _build_enemies(host: Node2D) -> void:

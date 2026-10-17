@@ -9,6 +9,8 @@ extends CanvasLayer
 
 signal closed
 
+const Modal := preload("res://scripts/ui/ui_modal.gd")
+
 const VIEW_SIZE := Vector2(1000.0, 320.0)
 const PAD := 40.0
 const MIN_SCALE := 0.02
@@ -24,6 +26,7 @@ const COL_EXIT_LOCKED := Color("#6E5A50")
 const COL_PLAYER := Color("#FFFFFF")
 
 var _root: Control
+var _shell: Dictionary = {}
 var _view: MapView
 var _title: Label
 var _empty: Label
@@ -38,36 +41,32 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	_root = Control.new()
-	_root.name = "Root"
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shell = Modal.build(self, {
+		"title": "地 图",
+		"size": Vector2(1120.0, 640.0),
+		"hint": "实心余烬 = 已点燃 · 空心 = 未点燃 · 白箭头是你",
+		"back": "Esc / 回车 返回",
+	})
+	_root = _shell["root"] as Control
+	_root.theme = UiKit.extras_theme()
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed \
 				and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			close())
-	add_child(_root)
-	_root.add_child(UiKit.scrim(0.90, 0.90, 0.90))
 
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.offset_left = 80.0
-	frame.offset_right = -80.0
-	frame.offset_top = 48.0
-	frame.offset_bottom = -48.0
-	_root.add_child(frame)
-
+	var body := _shell["body"] as Control
 	var column := VBoxContainer.new()
+	column.name = "Column"
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 8)
-	frame.add_child(column)
-	column.add_child(UiKit.label("地 图", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	body.add_child(column)
 	_title = UiKit.label("", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_title.name = "Title"
 	column.add_child(_title)
-	column.add_child(UiKit.divider())
+	var rule := UiKit.divider()
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(rule)
 
 	var holder := Control.new()
 	holder.custom_minimum_size = VIEW_SIZE
@@ -86,6 +85,7 @@ func _build() -> void:
 	holder.add_child(_empty)
 
 	var legend := HBoxContainer.new()
+	legend.name = "Legend"
 	legend.alignment = BoxContainer.ALIGNMENT_CENTER
 	legend.add_theme_constant_override("separation", 10)
 	column.add_child(legend)
@@ -93,7 +93,6 @@ func _build() -> void:
 	_legend(legend, MapView.GLYPH_NEST_DIM, "未点燃")
 	_legend(legend, MapView.GLYPH_EXIT, "出口")
 	_legend(legend, MapView.GLYPH_PLAYER, "你")
-	column.add_child(UiKit.label("Esc / 回车 返回", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
 
 
 func _legend(row: HBoxContainer, kind: int, text: String) -> void:
@@ -114,17 +113,44 @@ static func collect(world: Node, player: Node2D) -> Dictionary:
 		_gather(world, platforms, nests, exits)
 	if platforms.is_empty():
 		return {}
-	var title := ""
-	var layout := world.get_node_or_null("Layout") if world != null else null
-	if layout != null and layout.has_method("title"):
-		title = String(layout.call("title"))
 	return {
 		"platforms": platforms,
 		"nests": nests,
 		"exits": exits,
 		"player": player.global_position if player != null else Vector2.INF,
-		"title": title,
+		"title": chapter_title(world),
 	}
+
+
+## 当前关的章节名。暂停菜单档案与地图共用这一份口径：
+## 数据驱动章节读 layout.title()，旧章节读脚本常量，第一章读开场分镜的 CHAPTER。
+## 任何一个来源都取不到时返回 ""（地图不显示空标题，档案显示破折号）。
+static func chapter_title(world: Node) -> String:
+	if world == null or not is_instance_valid(world):
+		return ""
+	var layout: Variant = world.get("layout")
+	if layout != null and layout.has_method("title"):
+		var from_property := String(layout.call("title"))
+		if from_property != "":
+			return from_property
+	var node := world.get_node_or_null("Layout")
+	if node != null and node.has_method("title"):
+		var from_node := String(node.call("title"))
+		if from_node != "":
+			return from_node
+	var script := world.get_script() as Script
+	if script != null:
+		var consts := script.get_script_constant_map()
+		if consts.has("LEVEL_TITLE"):
+			return String(consts["LEVEL_TITLE"])
+		if consts.has("CHAPTER"):
+			return String(consts["CHAPTER"])
+	# 第一章的名字只在 ChapterTitles 里写一次。不要 preload opening_cinematic.gd：
+	# HUD.tscn → PauseMenu → MapScreen 已经在 preload 链上，开场分镜又引 ChapterLevel
+	# （它 preload HUD.tscn），这条链会让所有关卡拿到空 PackedScene。
+	if script != null and script.resource_path.get_file() == "level01_static.gd":
+		return String(ChapterTitles.LEVEL01)
+	return ""
 
 
 static func _gather(node: Node, platforms: Array[Rect2], nests: Array[Dictionary],

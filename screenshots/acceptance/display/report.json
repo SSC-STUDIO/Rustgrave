@@ -1,6 +1,6 @@
 {
     "capture_type":  "native root render-target PNG from a window positioned offscreen; not a desktop screenshot",
-    "captured_at_utc":  "2026-09-06T08:25:14",
+    "captured_at_utc":  "2026-10-17T04:07:15",
     "completed":  true,
     "display_server":  "Windows",
     "driver":  "opengl3",
@@ -44,7 +44,7 @@
                                                           1280.0,
                                                           720.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "start_day_1366x768.png",
                             "rendered_image_size":  [
                                                         1366.0,
@@ -85,10 +85,10 @@
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           59.0,
-                                                                           35.9999961853027,
-                                                                           336.0,
-                                                                           194.0
+                                                                           54.9999961853027,
+                                                                           32.0,
+                                                                           180.0,
+                                                                           63.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -141,7 +141,7 @@
                                                           1280.0,
                                                           720.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "start_night_rain_1366x768.png",
                             "rendered_image_size":  [
                                                         1366.0,
@@ -182,10 +182,10 @@
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           59.0,
-                                                                           35.9999961853027,
-                                                                           336.0,
-                                                                           194.0
+                                                                           54.9999961853027,
+                                                                           32.0,
+                                                                           180.0,
+                                                                           63.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -238,7 +238,7 @@
                                                           1280.0,
                                                           720.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "boss_night_rain_1366x768.png",
                             "rendered_image_size":  [
                                                         1366.0,
@@ -270,19 +270,19 @@
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        669.000061035156,
-                                                                        714.0,
-                                                                        28.0,
-                                                                        20.0
+                                                                        668.500061035156,
+                                                                        625.999938964844,
+                                                                        29.0,
+                                                                        52.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           59.0,
-                                                                           35.9999961853027,
-                                                                           336.0,
-                                                                           194.0
+                                                                           54.9999961853027,
+                                                                           32.0,
+                                                                           216.0,
+                                                                           63.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -335,7 +335,7 @@
                                                           1280.0,
                                                           720.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "boss_day_1366x768.png",
                             "rendered_image_size":  [
                                                         1366.0,
@@ -367,19 +367,19 @@
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        669.000061035156,
-                                                                        714.0,
-                                                                        28.0,
-                                                                        20.0
+                                                                        668.500061035156,
+                                                                        625.999938964844,
+                                                                        29.0,
+                                                                        52.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           59.0,
-                                                                           35.9999961853027,
-                                                                           336.0,
-                                                                           194.0
+                                                                           54.9999961853027,
+                                                                           32.0,
+                                                                           216.0,
+                                                                           63.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -432,7 +432,7 @@
                                                           1920.0,
                                                           1080.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "start_day_1920x1080.png",
                             "rendered_image_size":  [
                                                         1920.0,
@@ -460,23 +460,23 @@
                                                                          690.0,
                                                                          96.0
                                                                      ],
-                                                            "visible":  false
+                                                            "visible":  true
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        939.0,
-                                                                        1035.0,
-                                                                        42.0,
-                                                                        30.0
+                                                                        938.25,
+                                                                        903.0,
+                                                                        43.5,
+                                                                        78.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           24.0,
                                                                            18.0,
-                                                                           504.0,
-                                                                           291.0
+                                                                           12.0,
+                                                                           270.0,
+                                                                           94.5
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -529,7 +529,7 @@
                                                           1920.0,
                                                           1080.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "start_night_rain_1920x1080.png",
                             "rendered_image_size":  [
                                                         1920.0,
@@ -561,19 +561,19 @@
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        939.0,
-                                                                        1035.0,
-                                                                        42.0,
-                                                                        30.0
+                                                                        938.25,
+                                                                        987.0,
+                                                                        43.5,
+                                                                        78.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           24.0,
                                                                            18.0,
-                                                                           504.0,
-                                                                           291.0
+                                                                           12.0,
+                                                                           270.0,
+                                                                           94.5
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -626,7 +626,7 @@
                                                           1920.0,
                                                           1080.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "boss_night_rain_1920x1080.png",
                             "rendered_image_size":  [
                                                         1920.0,
@@ -658,19 +658,19 @@
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        939.0,
-                                                                        1035.0,
-                                                                        42.0,
-                                                                        30.0
+                                                                        938.25,
+                                                                        903.0,
+                                                                        43.5,
+                                                                        78.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           24.0,
                                                                            18.0,
-                                                                           504.0,
-                                                                           291.0
+                                                                           12.0,
+                                                                           270.0,
+                                                                           66.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -723,7 +723,7 @@
                                                           1920.0,
                                                           1080.0
                                                       ],
-                            "physics_body_count":  69,
+                            "physics_body_count":  70,
                             "png":  "boss_day_1920x1080.png",
                             "rendered_image_size":  [
                                                         1920.0,
@@ -755,19 +755,19 @@
                                                         },
                                             "Prompt":  {
                                                            "rect":  [
-                                                                        939.0,
-                                                                        1035.0,
-                                                                        42.0,
-                                                                        30.0
+                                                                        938.25,
+                                                                        903.0,
+                                                                        43.5,
+                                                                        78.0
                                                                     ],
                                                            "visible":  false
                                                        },
                                             "StatPanel":  {
                                                               "rect":  [
-                                                                           24.0,
                                                                            18.0,
-                                                                           504.0,
-                                                                           291.0
+                                                                           12.0,
+                                                                           270.0,
+                                                                           66.0
                                                                        ],
                                                               "visible":  true
                                                           }
@@ -814,10 +814,10 @@
                                                       2880.0,
                                                       1620.0
                                                   ],
-                        "wall_frame_max_ms":  10.574,
-                        "wall_frame_mean_ms":  6.03804166666667,
-                        "wall_frame_median_ms":  5.736,
-                        "wall_frame_p95_ms":  8.601,
+                        "wall_frame_max_ms":  3.26,
+                        "wall_frame_mean_ms":  2.60383333333333,
+                        "wall_frame_median_ms":  2.553,
+                        "wall_frame_p95_ms":  3.092,
                         "warmup_frames":  150,
                         "window_size":  [
                                             1920.0,
@@ -886,15 +886,15 @@
                                               "animation":  "idle",
                                               "png":  "wing_a_1920x1080.png",
                                               "saved":  true,
-                                              "texture":  "res://assets/characters/flying_demon/idle/idle_1.png",
-                                              "wall_ms":  10093
+                                              "texture":  "res://assets/characters/flying_demon_px/idle/idle_5.png",
+                                              "wall_ms":  6498
                                           },
                                           {
                                               "animation":  "idle",
                                               "png":  "wing_b_1920x1080.png",
                                               "saved":  true,
-                                              "texture":  "res://assets/characters/flying_demon/idle/idle_2.png",
-                                              "wall_ms":  10242
+                                              "texture":  "res://assets/characters/flying_demon_px/idle/idle_0.png",
+                                              "wall_ms":  6646
                                           }
                                       ],
                            "note":  "unmodified animation process at one frozen actor position; not combat acceptance",

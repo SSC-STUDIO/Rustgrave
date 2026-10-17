@@ -209,10 +209,38 @@ func test_play_decor_is_integer_and_grounded() -> void:
 					"%s meta feet stay on the ground line" % node.name)
 			if node is Sprite2D:
 				eq((node as Sprite2D).scale, Vector2.ONE, "%s sprite stays 1x" % node.name)
+				almost(Level01Env.sprite_opaque_bottom_y(node as Sprite2D), feet_meta.y, 1.01,
+						"%s opaque pixels sit on its feet, not on transparent padding" % node.name)
 			elif node.get_child_count() > 0 and node.get_child(0) is Sprite2D:
 				eq((node.get_child(0) as Sprite2D).scale, Vector2.ONE,
 						"%s foliage sprite stays 1x" % node.name)
+				eq((node as Node2D).position, feet_meta,
+						"%s pivot origin is its foot point" % node.name)
 	ok(grounded >= Level01Static.PLAY_DECOR.size(), "every play-decor prop is grounded")
+
+
+## 角色接地（docs/art-spec.md）：玩家节点原点就是脚点（碰撞盒底边），
+## 站在整数像素上；重力和相机都以这个脚点为准。
+func test_player_origin_is_the_foot_point() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	var player := get_tree().get_first_node_in_group("player") as CharacterBody2D
+	ok(player != null, "level spawns the knight")
+	if player == null:
+		return
+	eq(player.z_index, 0, "the knight lives on the play canvas (z=0)")
+	var col := player.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	ok(col != null, "player has a body collision shape")
+	if col != null:
+		var rect := col.shape as RectangleShape2D
+		ok(rect != null)
+		if rect != null:
+			almost(col.position.y + rect.size.y * 0.5, 0.0, 0.01,
+					"collision bottom == node origin y (feet at origin)")
+			almost(col.position.x, 0.0, 0.01, "collision is centred on the origin")
+	eq(player.position, player.position.round(), "the foot point stays on the pixel grid")
 
 
 func test_waymarks_name_the_route() -> void:
@@ -611,6 +639,36 @@ func test_parallax_adds_mood_tint() -> void:
 	add_child(extras)
 	extras.build(host)
 	ok(host.get_node_or_null("MoodTint") != null, "mood tint lands on the host")
+
+
+## 角色接地 + 特效不遮挡（docs/art-spec.md「角色接地」「特效不遮挡」）：
+## 玩家/敌人本体 z=0，剑光弧 z=10 只覆盖判定区，余烬巢 / 壁炬的 WorldLight
+## 是局部照明而非遮挡层；地平线剪影永远在 backdrop 一侧。
+func test_play_layer_and_fx_depths_stay_split() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(2)
+	# 玩家本体：默认 z=0（玩法层）。
+	var player := level.get_tree().get_first_node_in_group("player") as Node2D
+	ok(player != null, "level spawns a knight")
+	if player != null:
+		eq(player.z_index, 0, "the knight sits on the play canvas")
+	# 前景草（ParallaxForeground）在玩法层之上，但只画贴地草叶，不遮角色头部。
+	var front := level.get_node_or_null("ParallaxForeground") as CanvasLayer
+	ok(front != null and front.layer > 0, "foreground grass draws over the play canvas")
+	var fore := level.get_node_or_null("ParallaxForeground/Foreground") as Parallax2D
+	if fore != null:
+		var spr := fore.get_node_or_null("Sprite") as Sprite2D
+		if spr != null:
+			ok(spr.modulate.a <= 0.8, "foreground stays translucent (%.2f)" % spr.modulate.a)
+	# backdrop 永远在玩法层后面。
+	var backdrop := level.get_node_or_null("ParallaxBackdrop") as CanvasLayer
+	ok(backdrop != null and backdrop.layer < 0, "backdrop layer is negative")
+	# 剪影带（NearSilhouette）属于 backdrop 侧：脚落在 300..340 地脚带。
+	var sil := backdrop.get_node_or_null("NearSilhouette") if backdrop != null else null
+	if sil != null:
+		ok(sil.get_parent() == backdrop, "near silhouettes stay in the backdrop, never the play layer")
 
 
 func _bind_beats() -> Level01StoryBeats:

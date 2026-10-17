@@ -170,3 +170,86 @@ func test_held_jump_height_stays_level_tuned() -> void:
 	var height := (ctrl.jump_velocity * ctrl.jump_velocity) / (2.0 * g)
 	ok(height >= 34.0 and height <= 40.0, "single jump ~37px (%.1f)" % height)
 	almost(ctrl.jump_velocity, -268.0, 0.01)
+
+
+# ---------------------------------------------------------------------------
+# 钩锁 / 共鸣：战斗里读得出来
+# ---------------------------------------------------------------------------
+func _arena_player() -> Array:
+	var arena := Node2D.new()
+	add_child(arena)
+	build_floor(arena)
+	var player := await spawn_player(arena, Vector2(320, -24))
+	player.set_physics_process(false)
+	return [arena, player]
+
+
+func test_hookshot_aim_reads_facing_not_the_last_visual_frame() -> void:
+	var pair := await _arena_player()
+	var player: Player = pair[1]
+	player.controller.facing = -1
+	player.visual.scale.x = 1.0
+	var aim := player.hookshot._aim_dir(player)
+	ok(aim.x < 0.0, "turning and firing on the same frame goes the new way")
+
+
+## 飞行敌人被拽到剑的判定高度，命中音 / 火花 / 破绽在同一拍落下。
+func test_yank_pulls_airborne_prey_into_sword_height_and_lands_on_the_hit_beat() -> void:
+	var pair := await _arena_player()
+	var arena: Node2D = pair[0]
+	var player: Player = pair[1]
+	var demon := preload("res://scenes/enemies/FlyingDemonEnemy.tscn").instantiate() as FlyingDemonEnemy
+	demon.position = Vector2(400, -110)
+	arena.add_child(demon)
+	await flush(2)
+	demon.set_physics_process(false)
+	player.controller.facing = 1
+	var stop := player.hookshot.yank_stop_point(player, demon)
+	almost(stop.y, player.global_position.y - HookshotTether.YANK_CHEST_HEIGHT, 0.01,
+			"airborne prey comes down to the sword's active height")
+	almost(stop.x, player.global_position.x + HookshotTether.YANK_STOP_DISTANCE, 0.01)
+	var skel := preload("res://scenes/enemies/SkeletonEnemy.tscn").instantiate() as SkeletonEnemy
+	skel.position = player.global_position + Vector2(40, 0)
+	skel._state = SkeletonEnemy.State.WALK
+	var ground_stop := player.hookshot.yank_stop_point(player, skel)
+	almost(ground_stop.y, skel.global_position.y, 0.01,
+			"a same-floor skeleton keeps its feet instead of being lifted")
+	skel.free()
+	var before := player.hookshot.yank_landings()
+	ok(player.hookshot._try_yank(player), "the tether finds the demon")
+	ok(player.hookshot.yank_rope_active())
+	eq(player.hookshot.yank_landings(), before, "no hit before the prey arrives")
+	await get_tree().create_timer(HookshotTether.YANK_ROPE_TIME + 0.12).timeout
+	eq(player.hookshot.yank_landings(), before + 1, "the hit lands exactly once")
+	almost(demon.global_position.y, stop.y, 1.5, "the demon is pulled into sword reach")
+	ok(demon.is_marked(), "arrival opens the riposte window")
+
+
+## 共鸣终结击的视觉边界必须就是判定盒的 56x22 足迹。
+func test_resonance_finisher_wave_matches_the_hitbox_footprint() -> void:
+	var pair := await _arena_player()
+	var player: Player = pair[1]
+	player.inventory.add_to_pouch(AbilityCatalog.kiln_core())
+	player.inventory.add_to_pouch(AbilityCatalog.ember_core())
+	player.inventory.insert_into_socket(0)
+	player.inventory.insert_into_socket(1)
+	player.resonance.pulse()
+	player.on_melee_active(2)
+	var effects := GameContext.world_effects(player)
+	ok(effects != null)
+	var blast: Hitbox = null
+	for child in effects.get_children():
+		if child is Hitbox and (child as Hitbox).damage == Player.BLAST_DAMAGE:
+			blast = child
+			break
+	ok(blast != null, "the finisher spawned its blast")
+	if blast == null:
+		return
+	var wave: Node2D = null
+	for child in blast.get_children():
+		if child is Node2D and child.get("size") is Vector2:
+			wave = child as Node2D
+			break
+	ok(wave != null, "the blast carries a visible bounding wave")
+	if wave != null:
+		eq(wave.get("size"), Player.BLAST_SIZE, "the wave is the hitbox footprint")

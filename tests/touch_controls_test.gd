@@ -65,3 +65,22 @@ func test_hud_mounts_touch_controls_child() -> void:
 func test_safe_insets_headless_are_zero() -> void:
 	var insets := TouchInput.safe_insets_ui(get_tree().root)
 	eq(insets, Vector4.ZERO, "headless safe insets stay zero")
+
+
+## 触控板不能有半个按钮伸出 1280×720，也不能有低于 52px 的命中格。
+## 旧版动作簇把"互"摆在 120,120 + 56，右下角会伸出屏幕 24px；次级键只有 47.6。
+func test_pad_buttons_stay_inside_design_rect_and_touch_sized() -> void:
+	TouchInput.force_show = 1
+	var pad := TouchControls.new()
+	add_child(pad)
+	await flush(3)
+	var buttons := pad.buttons()
+	eq(buttons.size(), 10, "two move + four action + three secondary + pause")
+	var screen := Rect2(Vector2.ZERO, Vector2(PresentationMetrics.UI_SIZE))
+	for button in buttons:
+		var rect := button.get_global_rect()
+		ok(rect.size.x >= UiKit.TOUCH_MIN and rect.size.y >= UiKit.TOUCH_MIN,
+				"%s 触控高度够 (%.1f×%.1f)" % [button.name, rect.size.x, rect.size.y])
+		ok(screen.encloses(rect), "%s 完整落在设计画布内 %s" % [button.name, rect])
+	pad.queue_free()
+	await flush(1)

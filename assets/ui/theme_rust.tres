@@ -1,18 +1,18 @@
 [gd_resource type="Theme" format=3 uid="uid://cdynlwbujaduc"]
 
-[ext_resource type="Texture2D" uid="uid://bt6ftx7nhi376" path="res://assets/ui/banner.png" id="1_fxawi"]
-[ext_resource type="Texture2D" uid="uid://btpe8eepofffv" path="res://assets/ui/band_edge.png" id="1_jh1ye"]
-[ext_resource type="Texture2D" uid="uid://b148p4k88xlx" path="res://assets/ui/btn_disabled.png" id="2_jh1ye"]
-[ext_resource type="Texture2D" uid="uid://jlqltves34n3" path="res://assets/ui/btn_hover.png" id="3_51j20"]
-[ext_resource type="Texture2D" uid="uid://cbnxpuwdsrgjy" path="res://assets/ui/btn_normal.png" id="4_xgwhs"]
-[ext_resource type="Texture2D" uid="uid://m2ht2v2brgeh" path="res://assets/ui/btn_pressed.png" id="5_ojcqm"]
-[ext_resource type="Texture2D" uid="uid://bf4umccm6xkbi" path="res://assets/ui/bar_fill_ember.png" id="6_lheu4"]
-[ext_resource type="Texture2D" uid="uid://dy5p2ivfoikof" path="res://assets/ui/panel_hud.png" id="7_k8rnt"]
-[ext_resource type="Texture2D" uid="uid://wijck6s50sx1" path="res://assets/ui/panel_ornate.png" id="8_lhe8w"]
-[ext_resource type="Texture2D" uid="uid://dlhq6v8afm0hg" path="res://assets/ui/panel_stone.png" id="9_d3vf0"]
-[ext_resource type="Texture2D" uid="uid://dr81jhfgxodqp" path="res://assets/ui/bar_track.png" id="10_jlemo"]
-[ext_resource type="Texture2D" uid="uid://c7if62dd5ctfa" path="res://assets/ui/bar_fill_toxin.png" id="11_1gp4e"]
-[ext_resource type="FontFile" uid="uid://duluynxkdt1cg" path="res://assets/fonts/fusion-pixel-12px-proportional-zh_hans.ttf" id="12_35dpl"]
+[ext_resource type="Texture2D" path="res://assets/ui/banner.png" id="1_fxawi"]
+[ext_resource type="Texture2D" path="res://assets/ui/band_edge.png" id="1_jh1ye"]
+[ext_resource type="Texture2D" path="res://assets/ui/btn_disabled.png" id="2_jh1ye"]
+[ext_resource type="Texture2D" path="res://assets/ui/btn_hover.png" id="3_51j20"]
+[ext_resource type="Texture2D" path="res://assets/ui/btn_normal.png" id="4_xgwhs"]
+[ext_resource type="Texture2D" path="res://assets/ui/btn_pressed.png" id="5_ojcqm"]
+[ext_resource type="Texture2D" path="res://assets/ui/bar_fill_ember.png" id="6_jh1ye"]
+[ext_resource type="Texture2D" path="res://assets/ui/panel_hud.png" id="6_lheu4"]
+[ext_resource type="Texture2D" path="res://assets/ui/panel_ornate.png" id="7_k8rnt"]
+[ext_resource type="Texture2D" path="res://assets/ui/panel_stone.png" id="9_d3vf0"]
+[ext_resource type="Texture2D" path="res://assets/ui/bar_track.png" id="10_jlemo"]
+[ext_resource type="Texture2D" path="res://assets/ui/bar_fill_toxin.png" id="11_1gp4e"]
+[ext_resource type="FontFile" path="res://assets/fonts/fusion-pixel-12px-proportional-zh_hans.ttf" id="12_35dpl"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_jh1ye"]
 content_margin_left = 24.0
@@ -93,7 +93,7 @@ content_margin_left = 0.0
 content_margin_top = 0.0
 content_margin_right = 0.0
 content_margin_bottom = 0.0
-texture = ExtResource("6_lheu4")
+texture = ExtResource("6_jh1ye")
 texture_margin_left = 4.0
 texture_margin_top = 4.0
 texture_margin_right = 4.0
@@ -104,7 +104,7 @@ content_margin_left = 14.0
 content_margin_top = 10.0
 content_margin_right = 14.0
 content_margin_bottom = 10.0
-texture = ExtResource("7_k8rnt")
+texture = ExtResource("6_lheu4")
 texture_margin_left = 8.0
 texture_margin_top = 8.0
 texture_margin_right = 8.0
@@ -117,7 +117,7 @@ content_margin_left = 34.0
 content_margin_top = 30.0
 content_margin_right = 34.0
 content_margin_bottom = 30.0
-texture = ExtResource("8_lhe8w")
+texture = ExtResource("7_k8rnt")
 texture_margin_left = 18.0
 texture_margin_top = 18.0
 texture_margin_right = 18.0
@@ -178,6 +178,12 @@ BodyLabel/colors/font_color = Color(0.89411765, 0.8627451, 0.8, 1)
 BodyLabel/constants/shadow_offset_x = 0
 BodyLabel/constants/shadow_offset_y = 0
 BodyLabel/font_sizes/font_size = 24
+BossTitleLabel/base_type = &"Label"
+BossTitleLabel/colors/font_color = Color(1, 0.75686276, 0.2901961, 1)
+BossTitleLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+BossTitleLabel/constants/line_spacing = 0
+BossTitleLabel/constants/outline_size = 2
+BossTitleLabel/font_sizes/font_size = 12
 Button/colors/font_color = Color(0.89411765, 0.8627451, 0.8, 1)
 Button/colors/font_disabled_color = Color(0.36862746, 0.34117648, 0.30980393, 1)
 Button/colors/font_focus_color = Color(1, 0.75686276, 0.2901961, 1)
@@ -193,37 +199,47 @@ DimLabel/colors/font_color = Color(0.6392157, 0.6039216, 0.5568628, 1)
 DimLabel/constants/shadow_offset_x = 0
 DimLabel/constants/shadow_offset_y = 0
 DimLabel/font_sizes/font_size = 24
-EpitaphLabel/base_type = &"Label"
-EpitaphLabel/colors/font_color = Color(0.78431374, 0.73333335, 0.65882355, 1)
-EpitaphLabel/font_sizes/font_size = 24
 EmberBar/base_type = &"ProgressBar"
 EmberBar/styles/fill = SubResource("StyleBoxTexture_d3vf0")
+EpitaphLabel/base_type = &"Label"
+EpitaphLabel/colors/font_color = Color(0.78431374, 0.73333335, 0.65882355, 1)
+EpitaphLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+EpitaphLabel/constants/outline_size = 2
+EpitaphLabel/font_sizes/font_size = 24
 FootnoteLabel/base_type = &"Label"
 FootnoteLabel/colors/font_color = Color(0.5568628, 0.52156866, 0.47058824, 1)
+FootnoteLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+FootnoteLabel/constants/line_spacing = 0
+FootnoteLabel/constants/outline_size = 1
 FootnoteLabel/font_sizes/font_size = 12
 GridContainer/constants/h_separation = 24
 GridContainer/constants/v_separation = 8
 HBoxContainer/constants/separation = 10
 HeadLabel/base_type = &"Label"
 HeadLabel/colors/font_color = Color(1, 0.75686276, 0.2901961, 1)
+HeadLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+HeadLabel/constants/outline_size = 2
 HeadLabel/font_sizes/font_size = 36
 HudLabel/base_type = &"Label"
 HudLabel/colors/font_color = Color(0.6392157, 0.6039216, 0.5568628, 1)
 HudLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
-HudLabel/constants/outline_size = 2
-HudLabel/font_sizes/font_size = 24
+HudLabel/constants/line_spacing = 0
+HudLabel/constants/outline_size = 1
+HudLabel/font_sizes/font_size = 12
 HudPanel/base_type = &"PanelContainer"
 HudPanel/styles/panel = SubResource("StyleBoxTexture_jlemo")
 HudStrongLabel/base_type = &"Label"
 HudStrongLabel/colors/font_color = Color(0.9098039, 0.6901961, 0.5647059, 1)
 HudStrongLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
-HudStrongLabel/constants/outline_size = 2
-HudStrongLabel/font_sizes/font_size = 24
+HudStrongLabel/constants/line_spacing = 0
+HudStrongLabel/constants/outline_size = 1
+HudStrongLabel/font_sizes/font_size = 12
 HudToxinLabel/base_type = &"Label"
 HudToxinLabel/colors/font_color = Color(0.61960787, 0.8156863, 0.57254905, 1)
 HudToxinLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
-HudToxinLabel/constants/outline_size = 2
-HudToxinLabel/font_sizes/font_size = 24
+HudToxinLabel/constants/line_spacing = 0
+HudToxinLabel/constants/outline_size = 1
+HudToxinLabel/font_sizes/font_size = 12
 KeyCapLabel/base_type = &"Label"
 KeyCapLabel/colors/font_color = Color(1, 0.75686276, 0.2901961, 1)
 KeyCapLabel/constants/shadow_offset_x = 0
@@ -237,6 +253,8 @@ Label/constants/shadow_offset_x = 2
 Label/constants/shadow_offset_y = 2
 MenuItemLabel/base_type = &"Label"
 MenuItemLabel/colors/font_color = Color(0.89411765, 0.8627451, 0.8, 1)
+MenuItemLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+MenuItemLabel/constants/outline_size = 2
 MenuItemLabel/font_sizes/font_size = 24
 MenuItemLabelDisabled/base_type = &"Label"
 MenuItemLabelDisabled/colors/font_color = Color(0.36862746, 0.34117648, 0.30980393, 1)
@@ -245,6 +263,8 @@ MenuItemLabelDisabled/constants/shadow_offset_y = 0
 MenuItemLabelDisabled/font_sizes/font_size = 24
 MenuItemLabelSelected/base_type = &"Label"
 MenuItemLabelSelected/colors/font_color = Color(1, 0.75686276, 0.2901961, 1)
+MenuItemLabelSelected/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+MenuItemLabelSelected/constants/outline_size = 2
 MenuItemLabelSelected/font_sizes/font_size = 24
 MenuRowDisabled/base_type = &"Panel"
 MenuRowDisabled/styles/panel = SubResource("StyleBoxTexture_xgwhs")
@@ -267,5 +287,25 @@ PromptLabel/constants/outline_size = 2
 PromptLabel/font_sizes/font_size = 24
 SubHeadLabel/base_type = &"Label"
 SubHeadLabel/colors/font_color = Color(0.9098039, 0.6901961, 0.5647059, 1)
+SubHeadLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+SubHeadLabel/constants/outline_size = 2
 SubHeadLabel/font_sizes/font_size = 24
+TinyLabel/base_type = &"Label"
+TinyLabel/colors/font_color = Color(0.6392157, 0.6039216, 0.5568628, 1)
+TinyLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+TinyLabel/constants/line_spacing = 0
+TinyLabel/constants/outline_size = 1
+TinyLabel/font_sizes/font_size = 12
+TinyStrongLabel/base_type = &"Label"
+TinyStrongLabel/colors/font_color = Color(0.9098039, 0.6901961, 0.5647059, 1)
+TinyStrongLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+TinyStrongLabel/constants/line_spacing = 0
+TinyStrongLabel/constants/outline_size = 1
+TinyStrongLabel/font_sizes/font_size = 12
+TinyToxinLabel/base_type = &"Label"
+TinyToxinLabel/colors/font_color = Color(0.61960787, 0.8156863, 0.57254905, 1)
+TinyToxinLabel/colors/font_outline_color = Color(0.04, 0.03, 0.06, 0.92)
+TinyToxinLabel/constants/line_spacing = 0
+TinyToxinLabel/constants/outline_size = 1
+TinyToxinLabel/font_sizes/font_size = 12
 VBoxContainer/constants/separation = 10

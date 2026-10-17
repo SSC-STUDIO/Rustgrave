@@ -9,8 +9,11 @@ extends ChapterLayout
 ##   ③ 城门      1360      压板在屋顶 C 上，闸门在街面；离最后一级石阶 64px、离屋顶
 ##                         160px，跳不到门顶上
 ##   ④ 广场      1360–1936 第二余烬巢；两只碎铁犬 + 一只飞魔；守墓者石像；
-##                         塔楼屋顶（y=160）只能钩锁上去，悬着余烬核
-##   ⑤ 窄巷      1936–2240 下沉 32px 的巷子，两侧矮屋檐口压顶，幽魂在两屋之间凝出
+##                         塔楼屋顶（y=160）只能钩锁上去：碑文「灯」+ 悬着的余烬核，
+##                         是本章的支路。屋顶东侧的瓦面可以顺势跳回街面。
+##                         塔楼本身是最高的剪影，钩点悬在它上面，站在广场就能看见。
+##   ⑤ 窄巷      1936–2240 下沉 32px 的巷子，两侧矮屋檐口压顶，幽魂在巷东凝出；
+##                         巷口第三巢在碎铁犬/幽魂的仇恨圈外，死亡回程约 800px
 ##   ⑥ 圣殿前阶  2240–2880 三级 32px 石阶（320/288/256）上前台；喷吐者守阶口，
 ##                         齿盾卫守门；出口「圣殿门」→ level04
 
@@ -39,8 +42,11 @@ const STEPS: Array = [
 	["EaveE", Vector2(2112, 256), 96.0, "brick"],
 ]
 ## 实心石阶 [name, pos(左上), size]：屋顶 C 东侧下到街面的两级。
+## 每级至多 32 高；64 高的落差拆成上下两块，LevelSanity 的净空检查才把
+## 它读成「两级台阶」，而不是一堵压在街面上的墙。
 const BLOCKS: Array = [
-	["RoofStepHigh", Vector2(1200, 256), Vector2(48, 64)],
+	["RoofStepHighBase", Vector2(1200, 288), Vector2(48, 32)],
+	["RoofStepHigh", Vector2(1200, 256), Vector2(48, 32)],
 	["RoofStepLow", Vector2(1248, 288), Vector2(48, 32)],
 ]
 const CANAL_X0 := 560.0
@@ -50,6 +56,9 @@ const TOXIN_TINT := Color(1.0, 1.25, 0.55)
 
 const NEST_START_X := 176.0
 const NEST_PLAZA_X := 1424.0
+## 巷口的第三巢：广场两只碎铁犬的巡逻范围收窄到巢的 215px 仇恨圈之外，
+## 巷里的幽魂也退到东端。死亡回程从 1300px 缩到约 800px，且巢位在战斗圈外。
+const NEST_ALLEY_X := 2000.0
 const STELE_WINDOW_POS := Vector2(248, 320)
 const STELE_STAIR_POS := Vector2(2600, 256)
 const SIGN_TOWN_POS := Vector2(328, 320)
@@ -59,20 +68,25 @@ const SIGN_TEMPLE_POS := Vector2(2288, 320)
 const PLATE_FEET := Vector2(1152, 224)
 const GATE_POS := Vector2(1360, 256)
 ## 钩锁锚点悬在塔楼屋顶上方；余烬核悬在屋顶上方 32px。
+## 支路碑文站在屋顶东端，和核错开：读碑的人不会把核挤进字里。
 const HOOK_POS := Vector2(1856, 104)
 const EMBER_CORE_POS := Vector2(1896, 128)
+## 支路奖励：世界信息（锈城为什么熄灯），不是第二枚可收集核。
+const STELE_TOWER_POS := Vector2(1832, 160)
 const EXIT_POS := Vector2(2760, 256)
 
-## [name, kind, pos]：落地敌人给脚点，飞行/穿墙敌人给悬停中心。
+## [name, kind, pos, overrides]：落地敌人给脚点，飞行/穿墙敌人给悬停中心。
+## 广场两只碎铁犬的 beat 收在 16px：plaza 巢和巷口巢都在 215px 冲锋圈之外。
 const ENEMIES: Array = [
-	["Scrapper1", "scrapper", Vector2(432, 320)],
-	["Spitter1", "spitter", Vector2(1008, 224)],
-	["Scrapper2", "scrapper", Vector2(1616, 320)],
-	["Scrapper3", "scrapper", Vector2(1808, 320)],
-	["FlyingDemon1", "flying_demon", Vector2(1712, 184)],
-	["Ghost1", "ghost", Vector2(2096, 312)],
-	["Spitter2", "spitter", Vector2(2464, 256)],
-	["GearShield1", "gear_shield", Vector2(2656, 256)],
+	["Scrapper1", "scrapper", Vector2(432, 320), {}],
+	["Spitter1", "spitter", Vector2(1008, 224), {}],
+	["Scrapper2", "scrapper", Vector2(1664, 320), {"patrol_range": 16.0}],
+	["Scrapper3", "scrapper", Vector2(1760, 320), {"patrol_range": 16.0}],
+	["FlyingDemon1", "flying_demon", Vector2(1712, 184), {}],
+	# 幽魂退到窄巷东端，巷口巢（2000）距它 228px > 210px 唤醒距离。
+	["Ghost1", "ghost", Vector2(2228, 312), {}],
+	["Spitter2", "spitter", Vector2(2464, 256), {}],
+	["GearShield1", "gear_shield", Vector2(2656, 256), {}],
 ]
 
 ## 街屋已经在夜城视差里。不再把圣殿尖窗板竖在街心当第二排房子。
@@ -110,6 +124,29 @@ func ambient() -> Dictionary:
 	return {"time": 0.6, "weather": "fog", "hold": 300.0}
 
 
+## 死城的天只会起雾、落雨、放晴 —— 锈雨是墓园的招牌，不搬到这里来。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.FOG, WorldClock.Weather.HAZE, WorldClock.Weather.RAIN,
+				WorldClock.Weather.CLEAR],
+		"weights": {
+			"night": {"fog": 5, "haze": 2, "rain": 1},
+			"dusk": {"fog": 5, "haze": 2, "rain": 1},
+			"*": {"fog": 4, "haze": 2, "rain": 2, "clear": 1},
+		},
+		"hold": Vector2(150.0, 260.0),
+		"intensity": Vector2(0.55, 1.0),
+	}
+
+
+## ⑤ 窄巷（1936–2240）两侧矮屋檐口压顶：风被墙吃掉，雾沉在巷底。
+func weather_regions() -> Array:
+	return [
+		{"name": "AlleyCalm", "rect": Rect2(1936, 224, 304, 176),
+			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
+	]
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_props(host)
@@ -137,6 +174,7 @@ func _build_terrain(host: Node2D) -> void:
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStreet", NEST_START_X)
 	nest(host, "EmberNestPlaza", NEST_PLAZA_X)
+	nest(host, "EmberNestAlley", NEST_ALLEY_X, 352.0)
 	stele(host, "SteleWindow", STELE_WINDOW_POS, "锈城纪事 · 窗",
 			"炉火熄的那一夜，人们把门带上，自己往下走。窗里现在亮着的，是锈苔。")
 	stele(host, "SteleStair", STELE_STAIR_POS, "锈城纪事 · 阶",
@@ -146,11 +184,14 @@ func _build_props(host: Node2D) -> void:
 	plate_door(host, "Gate", PLATE_FEET, GATE_POS)
 	hook(host, "HookTower", HOOK_POS)
 	pickup(host, "EmberCoreTower", EMBER_CORE_POS, &"ember_core")
+	# 塔顶支路：只有钩锁能读到的城市纪事。奖励是解释「窗里的灯」的世界信息。
+	stele(host, "SteleTower", STELE_TOWER_POS, "锈城纪事 · 灯",
+			"窗里亮着的不是灯，是锈苔。守灯的人先走了，灯替他留到了现在。")
 
 
 func _build_enemies(host: Node2D) -> void:
 	for e in ENEMIES:
-		enemy(host, String(e[0]), String(e[1]), e[2])
+		enemy(host, String(e[0]), String(e[1]), e[2], e[3] if e.size() > 3 else {})
 
 
 func _build_decor(host: Node2D) -> void:

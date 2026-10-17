@@ -25,6 +25,26 @@ const HOOK_REACH := 250.0
 const HOOK_LAND_BELOW := 110.0
 const HOOK_LAND_X := 96.0
 
+## ----------------------------------------------------------- deep audit --
+## 原有检查只问「脚下有没有台面」。这一层问「身体合不合理」：
+##   · 可站台面被别的实心埋住（点站不上去）
+##   · 台面上方没有站立净空（头顶着天花板/吊台）
+##   · 吊台行程被实体挡住（坐个台子穿过地板）
+##   · 毒池被地板/岩台盖住（露不出来）
+##   · 地面线出现 >160px 的断口且没有坑或吊台可借
+##   · 道具/敌人身体嵌进实心，或互相穿插（半截碑、门里长敌人）
+##   · 落地敌人站在毒池里；出口贴右墙；节点漂出镜头界
+const HEADROOM_MIN := 20.0
+const BODY_EMBED_DEPTH := 4.0
+const BODY_EMBED_RATIO := 0.25
+const PROP_OVERLAP_RATIO := 0.30
+const DOCK_TOLERANCE := 2.0
+const EXIT_WALL_CLEAR := 80.0
+const BOUNDS_PAD := 24.0
+const WORLD_FLOOR_MAX := 480.0
+const POOL_COVER_DEPTH := 8.0
+const TOP_SAMPLE_STEP := 8.0
+
 ## 各类道具的脚点（相对节点原点）。精灵尺寸/偏移见各脚本 ensure_sprite。
 const FEET_BY_CLASS := {
 	"EmberNest": Vector2(6, 16),
@@ -61,11 +81,22 @@ static func check(host: Node, camera_limits: Rect2 = Rect2()) -> Array[String]:
 	if solids.is_empty():
 		problems.append("no solid platforms at all")
 		return problems
+	var entries := solid_entries(host)
 	_check_platforms(host, solids, camera_limits, problems)
 	_check_enemies(host, solids, tops, problems)
 	_check_props(host, solids, tops, problems)
 	_check_grounded_decor(host, tops, problems)
 	_check_toxin_pools(host, solids, tops, problems)
+	_check_buried_tops(host, entries, tops, problems)
+	_check_headroom(host, entries, tops, problems)
+	_check_lift_paths(host, entries, problems)
+	_check_pool_coverage(host, entries, problems)
+	_check_bodies_in_pools(host, problems)
+	_check_body_embeds(host, entries, problems)
+	_check_prop_overlaps(host, problems)
+	_check_floor_gaps(host, tops, problems)
+	_check_bounds(host, entries, camera_limits, problems)
+	_check_exit_clearance(host, camera_limits, problems)
 	return problems
 
 
@@ -268,6 +299,286 @@ static func _check_toxin_pools(host: Node, solids: Array[Rect2], tops: Array[Top
 			problems.append("toxin pool %s at %s has no pit floor under it" % [pool.name, rect])
 
 
+## ------------------------------------------------------- deep audit checks --
+
+## A walkable top buried inside another solid: part of the ledge you cannot
+## stand on because rock fills it. A mound step standing ON a floor (its top
+## above the floor line, earth dipping in) is the authored look — only a lid
+## whose top sits at/below the walking surface swallows the ledge.
+static func _check_buried_tops(_host: Node, entries: Array[Dictionary], tops: Array[TopSeg], problems: Array[String]) -> void:
+	for seg in tops:
+		var bad := ""
+		var x := seg.x0
+		while x <= seg.x1 and bad == "":
+			var blocker := _entry_at(entries, Vector2(x, seg.y - 4.0))
+			if blocker != "":
+				var r := _entry_rect(entries, blocker)
+				if r.position.y >= seg.y + 4.0:
+					bad = blocker
+			x += TOP_SAMPLE_STEP
+		if bad != "":
+			problems.append("ledge %s (y=%.0f, x %.0f..%.0f) is buried under %s — you cannot stand on part of it" % [seg.owner_name, seg.y, seg.x0, seg.x1, bad])
+
+
+## No standing clearance above a ledge: the knight (~26-32px) bonks or
+## squeezes. A block you can hop onto (top within one jump of the ledge) is
+## just a step, not a trap; only a lid too tall to climb and too low to walk
+## under is a problem.
+static func _check_headroom(_host: Node, entries: Array[Dictionary], tops: Array[TopSeg], problems: Array[String]) -> void:
+	for seg in tops:
+		var bad := ""
+		var x := seg.x0
+		while x <= seg.x1 and bad == "":
+			var blocker := _entry_at(entries, Vector2(x, seg.y - HEADROOM_MIN))
+			if blocker != "" and not _same_owner(seg, blocker):
+				var r := _entry_rect(entries, blocker)
+				var step_over := r.position.y >= seg.y - JUMP_RISE_MAX
+				if not step_over:
+					bad = blocker
+			x += TOP_SAMPLE_STEP
+		if bad != "":
+			problems.append("ledge %s (y=%.0f, x %.0f..%.0f) has no headroom — %s sits right on top of it" % [seg.owner_name, seg.y, seg.x0, seg.x1, bad])
+
+
+## A lift that rides through terrain on its way. Docks flush with a floor top
+## (deck resting on the surface) are allowed; anything else is a stuck lift.
+static func _check_lift_paths(_host: Node, entries: Array[Dictionary], problems: Array[String]) -> void:
+	for node in _descendants(_host):
+		if not node is MovingPlatform:
+			continue
+		var m := node as MovingPlatform
+		var a := _to_global(m, m.start_position())
+		var b := _to_global(m, m.end_position())
+		var deck := Vector2(m.width, MovingPlatform.WORLD)
+		var sweep := Rect2(minf(a.x, b.x), minf(a.y, b.y), absf(b.x - a.x) + deck.x, absf(b.y - a.y) + deck.y)
+		for e in entries:
+			if e["kind"] != "solid":
+				continue
+			var r := e["rect"] as Rect2
+			var ov := _overlap(sweep, r)
+			if ov.x <= 2.0 or ov.y <= 2.0:
+				continue
+			var flush_dock := absf(r.position.y - a.y) <= DOCK_TOLERANCE or absf(r.position.y - b.y) <= DOCK_TOLERANCE
+			if not flush_dock:
+				problems.append("lift %s travels through %s (overlap %.0fx%.0f) — the deck clips terrain" % [m.name, e["name"], ov.x, ov.y])
+
+
+## A pool surface you cannot see because a floor or slab lies over it. Small
+## lips standing IN the pool (pit climb stones at the surface) are authored.
+static func _check_pool_coverage(_host: Node, entries: Array[Dictionary], problems: Array[String]) -> void:
+	for node in _descendants(_host):
+		if not node is ToxinPool:
+			continue
+		var pool := node as ToxinPool
+		var rect := pool.surface_rect()
+		for e in entries:
+			if e["kind"] != "solid":
+				continue
+			var r := e["rect"] as Rect2
+			var ov := _overlap(rect, r)
+			if ov.x <= 8.0 or ov.y <= POOL_COVER_DEPTH:
+				continue
+			if r.position.y >= rect.position.y - 4.0:
+				continue  # an island at/below the surface, not a lid
+			problems.append("toxin pool %s is covered by %s (overlap %.0fx%.0f)" % [pool.name, e["name"], ov.x, ov.y])
+
+
+## Anything with feet standing in sludge: enemies drown, plates sink.
+static func _check_bodies_in_pools(_host: Node, problems: Array[String]) -> void:
+	var pools: Array[Dictionary] = []
+	for node in _descendants(_host):
+		if node is ToxinPool:
+			pools.append({"name": String(node.name), "rect": (node as ToxinPool).surface_rect().grow(2.0)})
+	if pools.is_empty():
+		return
+	for node in _descendants(_host):
+		if not (node is Interactable or node is CorePickup or node is EnemyBase):
+			continue
+		if node is ToxinPool or node is HookAnchor or node is AtmosphereZone:
+			continue
+		if node is EnemyBase:
+			var airborne := node is FlyingDemonEnemy or node is GhostEnemy \
+					or (node.has_method("is_airborne") and bool(node.call("is_airborne")))
+			if airborne:
+				continue
+		var feet := feet_of(node)
+		if feet == Vector2.INF:
+			continue
+		for pool in pools:
+			var rect := pool["rect"] as Rect2
+			if rect.has_point(feet):
+				problems.append("%s (%s) stands inside toxin pool %s at %s" % [node.name, _cls(node), pool["name"], feet])
+
+
+## A body half inside rock: stele sunk in a wall, nest in a step, enemy in a
+## gate. Wall dressing (torch plates, windows, gargoyles) is meant to overlap.
+## Frame-animated enemies get a nominal box — their canvases dwarf the foe.
+static func _check_body_embeds(_host: Node, entries: Array[Dictionary], problems: Array[String]) -> void:
+	for node in _descendants(_host):
+		if not (node is Interactable or node is CorePickup or node is EnemyBase or node is TorchLight):
+			continue
+		if node is ToxinPool or node is HookAnchor or node is AtmosphereZone:
+			continue
+		var airborne := false
+		if node is EnemyBase:
+			airborne = node is FlyingDemonEnemy or node is GhostEnemy \
+					or (node.has_method("is_airborne") and bool(node.call("is_airborne")))
+		if airborne or node is TorchLight or node.z_index < 0:
+			continue  # wall-mounted or flying by design
+		var box := node_aabb(node as Node2D) if not (node is EnemyBase) else _enemy_box(node as Node2D)
+		if box.has_area() == false:
+			continue
+		for e in entries:
+			var r := e["rect"] as Rect2
+			var ov := _overlap(box, r)
+			if ov.x <= BODY_EMBED_DEPTH or ov.y <= BODY_EMBED_DEPTH:
+				continue
+			var ratio := (ov.x * ov.y) / maxf(box.get_area(), 1.0)
+			if ratio >= BODY_EMBED_RATIO:
+				problems.append("%s (%s) at %s is embedded %.0f%% inside %s" % [node.name, _cls(node), (node as Node2D).global_position, ratio * 100.0, e["name"]])
+				break
+
+
+## Two solid props sharing the same space (or an enemy spawned inside one).
+static func _check_prop_overlaps(_host: Node, problems: Array[String]) -> void:
+	var props: Array[Node2D] = []
+	var enemies: Array[Node2D] = []
+	for node in _descendants(_host):
+		if node is ToxinPool or node is HookAnchor or node is AtmosphereZone:
+			continue
+		if node is CorePickup or (node is Interactable and not (node is PressurePlate)):
+			props.append(node as Node2D)
+		elif node is EnemyBase:
+			var airborne := node is FlyingDemonEnemy or node is GhostEnemy \
+					or (node.has_method("is_airborne") and bool(node.call("is_airborne")))
+			if not airborne:
+				enemies.append(node as Node2D)
+	for i in props.size():
+		for j in range(i + 1, props.size()):
+			var a := props[i]
+			var b := props[j]
+			var ov := _overlap(node_aabb(a), node_aabb(b))
+			var area := minf(node_aabb(a).get_area(), node_aabb(b).get_area())
+			if area > 0.0 and (ov.x * ov.y) / area >= PROP_OVERLAP_RATIO:
+				problems.append("%s (%s) and %s (%s) overlap (%.0f%%) at %s" % [a.name, _cls(a), b.name, _cls(b), (ov.x * ov.y) / area * 100.0, a.global_position])
+	for e in enemies:
+		for p in props:
+			if p is PressurePlate:
+				continue
+			var ov := _overlap(_enemy_box(e), node_aabb(p))
+			var area := minf(_enemy_box(e).get_area(), node_aabb(p).get_area())
+			if area > 0.0 and (ov.x * ov.y) / area >= PROP_OVERLAP_RATIO:
+				problems.append("%s (%s) spawns inside %s (%s) at %s" % [e.name, _cls(e), p.name, _cls(p), e.global_position])
+
+
+## A hole in the dominant floor line wider than any jump, with no pit or lift
+## to excuse it: the main route dead-ends there. Branch ledges at other
+## heights are a different matter — only the widest floor line is policed.
+static func _check_floor_gaps(_host: Node, tops: Array[TopSeg], problems: Array[String]) -> void:
+	var by_y: Dictionary = {}
+	for seg in tops:
+		if not by_y.has(seg.y):
+			by_y[seg.y] = []
+		(by_y[seg.y] as Array).append(seg)
+	var line_y := 0.0
+	var line_w := -1.0
+	for y in by_y:
+		var w := 0.0
+		for seg in (by_y[y] as Array):
+			w += seg.x1 - seg.x0
+		if w > line_w:
+			line_w = w
+			line_y = y
+	if line_w <= 0.0:
+		return
+	var line: Array = (by_y[line_y] as Array).duplicate()
+	line.sort_custom(func(a: TopSeg, b: TopSeg) -> bool: return a.x1 < b.x1)
+	var pools: Array[Rect2] = []
+	var decks: Array[Rect2] = []
+	var anchors: Array[Vector2] = []
+	for node in _descendants(_host):
+		if node is ToxinPool:
+			pools.append((node as ToxinPool).surface_rect())
+		elif node is MovingPlatform:
+			var m := node as MovingPlatform
+			var a := _to_global(m, m.start_position())
+			var b := _to_global(m, m.end_position())
+			decks.append(Rect2(minf(a.x, b.x), minf(a.y, b.y), absf(b.x - a.x) + m.width, absf(b.y - a.y) + MovingPlatform.WORLD))
+		elif node is HookAnchor:
+			anchors.append((node as Node2D).global_position)
+	for i in range(line.size() - 1):
+		var left: TopSeg = line[i]
+		var right: TopSeg = line[i + 1]
+		if right.x0 <= left.x1:
+			continue
+		var gap := right.x0 - left.x1
+		if gap <= DROP_GAP_MAX:
+			continue
+		var covered := false
+		for r in pools:
+			if r.position.x <= left.x1 + 8.0 and r.end.x >= right.x0 - 8.0:
+				covered = true
+		for r in decks:
+			if r.position.x < right.x0 - 8.0 and r.end.x > left.x1 + 8.0 and r.position.y >= line_y - 48.0 and r.position.y <= line_y + 140.0:
+				covered = true
+		# Any ledge within one jump / drop of the line that pokes into the gap
+		# bridges it (pit beds, gear perches, stepping stones).
+		for seg in tops:
+			if covered:
+				break
+			if seg == left or seg == right:
+				continue
+			if seg.x1 <= left.x1 + 4.0 or seg.x0 >= right.x0 - 4.0:
+				continue
+			if seg.y < line_y - JUMP_RISE_MAX - 8.0 or seg.y > line_y + DROP_GAP_MAX:
+				continue
+			covered = true
+		for an in anchors:
+			if an.y < line_y - 24.0 and an.y > line_y - HOOK_REACH and an.x > left.x1 - HOOK_LAND_X and an.x < right.x0 + HOOK_LAND_X:
+				covered = true
+		if not covered:
+			problems.append("main floor line at y=%.0f breaks between %s (ends %.0f) and %s (starts %.0f): %.0fpx gap with no pit, lift or hook to cross" % [line_y, left.owner_name, left.x1, right.owner_name, right.x0, gap])
+
+
+## Anything outside the camera limits or below the world floor.
+static func _check_bounds(_host: Node, entries: Array[Dictionary], limits: Rect2, problems: Array[String]) -> void:
+	var x0 := -INF
+	var x1 := INF
+	var y0 := -INF
+	if limits.has_area():
+		x0 = limits.position.x - BOUNDS_PAD
+		x1 = limits.end.x + BOUNDS_PAD
+		y0 = limits.position.y - 320.0
+	for e in entries:
+		var r := e["rect"] as Rect2
+		if r.position.x < x0 or r.end.x > x1 or r.position.y < y0 or r.end.y > WORLD_FLOOR_MAX:
+			problems.append("%s at %s drifts outside the level bounds" % [e["name"], r])
+	for node in _descendants(_host):
+		if not (node is Interactable or node is CorePickup or node is EnemyBase or node is TorchLight):
+			continue
+		if node is ToxinPool or node is HookAnchor or node is AtmosphereZone:
+			continue
+		var n2 := node as Node2D
+		if n2.global_position.x < x0 or n2.global_position.x > x1:
+			problems.append("%s (%s) at x=%.0f is outside the camera limits" % [node.name, _cls(node), n2.global_position.x])
+		elif n2.global_position.y < y0 or n2.global_position.y > WORLD_FLOOR_MAX:
+			problems.append("%s (%s) at y=%.0f is outside the level bounds" % [node.name, _cls(node), n2.global_position.y])
+
+
+## The exit door must not kiss the east wall (docs: leave >= 80px).
+static func _check_exit_clearance(_host: Node, limits: Rect2, problems: Array[String]) -> void:
+	if not limits.has_area():
+		return
+	for node in _descendants(_host):
+		if not node is LevelExit:
+			continue
+		var x := (node as Node2D).global_position.x
+		if x > limits.end.x - EXIT_WALL_CLEAR:
+			problems.append("exit %s at x=%.0f hugs the east wall (limit %.0f, need >= %.0fpx clear)" % [node.name, x, limits.end.x, EXIT_WALL_CLEAR])
+		if x < limits.position.x + EXIT_WALL_CLEAR:
+			problems.append("exit %s at x=%.0f hugs the west wall (limit %.0f, need >= %.0fpx clear)" % [node.name, x, limits.position.x, EXIT_WALL_CLEAR])
+
+
 ## ------------------------------------------------------------ reachability --
 
 ## Platforms reachable from `from_point` by walking, single jumps, drops and
@@ -356,6 +667,89 @@ static func _can_hook(a: TopSeg, b: TopSeg, anchors: Array[Vector2]) -> bool:
 
 
 ## ---------------------------------------------------------------- helpers --
+
+## Solid collision boxes with names, so a buried top can blame its blocker.
+## kind: "solid" / "lift" (deck at one travel end) / "gear".
+static func solid_entries(host: Node) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node in _descendants(host):
+		if node is SolidPlatform:
+			var p := node as SolidPlatform
+			out.append({"rect": Rect2(p.global_position, p.size), "name": String(p.name), "kind": "solid"})
+		elif node is MovingPlatform:
+			var m := node as MovingPlatform
+			var deck := Vector2(m.width, MovingPlatform.WORLD)
+			var a := _to_global(m, m.start_position())
+			var b := _to_global(m, m.end_position())
+			out.append({"rect": Rect2(a, deck), "name": String(m.name), "kind": "lift"})
+			out.append({"rect": Rect2(b, deck), "name": String(m.name), "kind": "lift"})
+		elif node is GearPlatform:
+			var g := node as GearPlatform
+			var sz := Vector2(g.radius * 2.0, g.radius * 2.0)
+			out.append({"rect": Rect2(g.global_position - Vector2(g.radius, g.radius), sz), "name": String(g.name), "kind": "gear"})
+	return out
+
+
+## Rough world-space AABB of a node from its Sprite2D descendants (audit only).
+static func node_aabb(node: Node2D) -> Rect2:
+	var box := Rect2()
+	var any := false
+	for c in _descendants(node):
+		if c is Sprite2D:
+			var s := c as Sprite2D
+			var r := s.get_rect()
+			var xf := s.get_global_transform()
+			for p in [xf * r.position, xf * Vector2(r.end.x, r.position.y), xf * r.end, xf * Vector2(r.position.x, r.end.y)]:
+				box = Rect2(p, Vector2.ZERO) if not any else box.expand(p)
+				any = true
+	if not any:
+		box = Rect2(node.global_position - Vector2(8, 8), Vector2(16, 16))
+	return box
+
+
+## Nominal body box for a grounded enemy (feet at the origin). Frame-animated
+## canvases are 100px+ wide; the visible foe is not, and overlaps must be
+## judged on the foe, not the sheet.
+static func _enemy_box(node: Node2D) -> Rect2:
+	return Rect2(node.global_position - Vector2(14.0, 48.0), Vector2(28.0, 48.0))
+
+
+static func _overlap(a: Rect2, b: Rect2) -> Vector2:
+	var x := minf(a.end.x, b.end.x) - maxf(a.position.x, b.position.x)
+	var y := minf(a.end.y, b.end.y) - maxf(a.position.y, b.position.y)
+	return Vector2(maxf(x, 0.0), maxf(y, 0.0))
+
+
+static func _point_in_entries(entries: Array[Dictionary], point: Vector2, skip_name: String = "") -> String:
+	for e in entries:
+		if e["name"] == skip_name:
+			continue
+		var r := e["rect"] as Rect2
+		if r.grow(-1.0).has_point(point):
+			return String(e["name"])
+	return ""
+
+
+## Name of the first solid containing the point ("" when free).
+static func _entry_at(entries: Array[Dictionary], point: Vector2) -> String:
+	for e in entries:
+		var r := e["rect"] as Rect2
+		if r.grow(-1.0).has_point(point):
+			return String(e["name"])
+	return ""
+
+
+static func _entry_rect(entries: Array[Dictionary], name: String) -> Rect2:
+	for e in entries:
+		if e["name"] == name:
+			return e["rect"] as Rect2
+	return Rect2()
+
+
+static func _same_owner(seg: TopSeg, entry_name: String) -> bool:
+	if seg.owner_name == entry_name:
+		return true
+	return seg.owner_name.contains("@") and seg.owner_name.get_slice("@", 0) == entry_name
 
 static func _descendants(root: Node) -> Array[Node]:
 	var out: Array[Node] = []

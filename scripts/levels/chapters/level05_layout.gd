@@ -8,6 +8,7 @@ extends ChapterLayout
 ##   A 入口车间     0–480     余烬巢一、碑文一、路牌；一只碎铁犬
 ##   B 淬火槽       480–1152  两块齿轮踏点跨过淬火坑；三级台阶上检修走道，喷吐者守压板 A，开闸门 A
 ##   C 长冷却池     1152–1568 吊台 C 横渡；池心一块齿轮石；飞行恶魔盘旋
+##                     可选：池面上方的检修龛（钩锁），碑文「吊」——本章支路
 ##   D 压板塔       1568–2112 余烬巢二；竖向吊台 D 送上压板台（碑文二），开闸门 B；幽魂守走廊
 ##   E 双吊台接力   2112–2512 吊台 E1/E2 相位错开半周，半程换乘
 ##   F 锈门与运渣道 2512–3040 余烬巢三；台阶上检修走道（喷吐者、钩锁锚点、系核）；齿盾卫守锈门；出口
@@ -77,6 +78,13 @@ const LIFT_E_TRAVEL := Vector2(112, 0)
 const LIFT_E_PERIOD := 6.0
 const LIFT_E2_PHASE := 0.5
 
+## 可选支路：长冷却池上方的检修龛（NookDeck）。从 FloorC 东端用钩索拉上去，
+## 没有钩锁时从任何踏点都跳不到（落差 144 > 34）。龛里是工坊最后一条遗训。
+## 锚点在龛的正上方，落台在锚点下方 48px，是标准钩锁落点。
+const NOOK_DECK := Rect2(1456, 152, 96, 16)
+const HOOK_NOOK_POS := Vector2(1488, 120)
+const STELE_NOOK_POS := Vector2(1520, 152)
+
 ## F 锈门与运渣道
 const FLOOR_E := Vector2(2512, 3040)
 const NEST_GATE_X := 2576.0
@@ -128,6 +136,16 @@ func motes() -> String:
 	return "sparks"
 
 
+## 工坊有顶：淬火槽冒的是热汽不是雨；炉口附近起余烬风，别处只是薄雾。
+func weather_recipe() -> Dictionary:
+	return {
+		"allowed": [WorldClock.Weather.HAZE, WorldClock.Weather.EMBER_WIND, WorldClock.Weather.CLEAR],
+		"weights": {"*": {"haze": 4, "ember_wind": 3, "clear": 1}},
+		"hold": Vector2(220.0, 380.0),
+		"intensity": Vector2(0.45, 0.85),
+	}
+
+
 func build(host: Node2D) -> void:
 	_build_terrain(host)
 	_build_mechanisms(host)
@@ -170,6 +188,8 @@ func _build_terrain(host: Node2D) -> void:
 		step(host, "StepB%d" % (i + 1), STEPS_B[i], STEP_W, "iron_float")
 	# 压板台：只有吊台 D 送得上去。
 	step(host, "DeckD", DECK_D.position, DECK_D.size.x, "iron_float")
+	# 可选检修龛：长冷却池上方，只有钩锁能上。走道/吊台都够不到它。
+	step(host, "NookDeck", NOOK_DECK.position, NOOK_DECK.size.x, "iron_float")
 	# 检修走道 E 与它的三级台阶（从余烬巢这头往东爬）。
 	for i in STEPS_E.size():
 		step(host, "StepE%d" % (i + 1), STEPS_E[i], STEP_W, "iron_float")
@@ -203,6 +223,10 @@ func _build_mechanisms(host: Node2D) -> void:
 	# 钩锁锚点悬在走道 E 上方：有钩锁的人从地面直接上走道；没有的人爬台阶去拿系核。
 	hook(host, "HookE", HOOK_POS)
 	pickup(host, "TetherCoreE", PICKUP_POS, &"tether_core")
+	# 支路锚点：从 FloorC 东端起跳在 250px 索距内，落台在锚点下方 48px。
+	hook(host, "HookNook", HOOK_NOOK_POS)
+	stele(host, "SteleNook", STELE_NOOK_POS, "工坊遗训 · 吊",
+			"吊索断过一次。接上以后，工坊还是照旧开工。人不是吊索，断了接不回来。")
 
 
 ## -------------------------------------------------------------------- props --

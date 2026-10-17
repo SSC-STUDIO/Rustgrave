@@ -113,3 +113,29 @@ func test_surfaces_rebuild_when_terrain_changes() -> void:
 	fx._rebuild_spans()
 	almost(fx._ground_y_at(120), 200, 0.01, "new ledge becomes the rain hit plane")
 	ok(not fx._surfaces_dirty, "cached geometry remains clean between changes")
+
+
+## 特效不遮挡（docs/art-spec.md「特效不遮挡原则」）：雨是全屏氛围层，画在
+## backdrop（-10）与玩法画布（0）之间；角色 / 前摇 / 台缘都在雨滴前面。
+## 地面水痕 / 涟漪属于地面，也在角色脚下，不遮轮廓。
+func test_weather_fx_stay_below_the_play_layer() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var fx := WeatherFx.new()
+	fx.name = "WeatherFx"
+	host.add_child(fx)
+	eq(fx.layer, WeatherFx.WEATHER_LAYER)
+	ok(fx.layer > -10, "weather draws in front of the backdrop")
+	ok(fx.layer < 0, "weather draws behind the play canvas — never over silhouettes")
+	ok(WeatherFx.RAIN_ALPHA_CAP <= 0.45, "the full-screen rain veil stays thin")
+	ok(WeatherFx.EMBER_ALPHA_CAP <= 0.25, "ember-wind specks never read as fire over an actor")
+	eq(fx.follow_viewport_enabled, false, "weather does its own camera math")
+	fx.simulate_hit(Vector2(120.0, 320.0))
+	var ground := fx.ground_fx()
+	ok(ground != null, "RainGroundFx is planted")
+	if ground != null:
+		eq(ground.z_index, 2, "RainGroundFx is a floor effect, not a screen wash")
+	var wets := ground.get_node_or_null("WetMarks") if ground != null else null
+	if wets != null and wets.get_child_count() > 0:
+		var mark := wets.get_child(0) as Node2D
+		ok(mark.z_index == 1, "wet marks hug the ground, never over characters (%d)" % mark.z_index)
