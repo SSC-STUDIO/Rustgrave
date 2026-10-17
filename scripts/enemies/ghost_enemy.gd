@@ -30,6 +30,11 @@ const VANISH_FPS := 12.0
 const ATTACK_WINDUP := 0.28
 const ATTACK_ACTIVE := 0.22
 const ATTACK_COOLDOWN := 1.1
+## 出手落空 / 命中后原地僵一拍（不再追踪也不再扑）：这是破绽，头顶金箭头标出来。
+const ATTACK_RECOVERY := 0.35
+## 哀嚎圆环：从身外收缩到身内，收满的那一刻判定出现。
+const WAIL_RING_FROM := 24.0
+const WAIL_RING_TO := 6.0
 const FACE_DEADZONE := 10.0
 const BOB_AMP := 5.0
 const BOB_RATE := 2.2
@@ -37,8 +42,11 @@ const GLOW_COLOR := Color(0.45, 0.95, 1.0)
 
 var _state: State = State.DORMANT
 var _timer: float = 0.0
+## 扑击会占用 _timer；回来后把剩余追猎时间还回去，避免出手完立刻散雾。
+var _haunt_left: float = 0.0
 var _bob_t: float = 0.0
 var _attack_cd: float = 0.0
+var _recover_left: float = 0.0
 var _facing: float = -1.0
 var _rephases: int = 0
 
@@ -49,6 +57,7 @@ var _glow: WorldLight
 
 
 func _enemy_ready() -> void:
+	hit_material = &"ghost"
 	_mobile = false
 	collision_mask = 0
 	health.max_hp = 2
@@ -98,6 +107,11 @@ func is_tangible() -> bool:
 	return _state == State.HAUNT or _state == State.ATTACK
 
 
+## 凝出实体时钩锁拽得动（散雾 / 凝出期间不行）。
+func is_yankable() -> bool:
+	return is_tangible()
+
+
 func rephase_count() -> int:
 	return _rephases
 
@@ -127,7 +141,11 @@ func _tick_state(delta: float) -> void:
 					_anim.play("idle")
 		State.HAUNT:
 			_timer -= delta
-			if player == null:
+			if _recover_left > 0.0:
+				# 出手后的僵直：停住，不追不扑，让骑士看见破绽。
+				_recover_left = maxf(0.0, _recover_left - delta)
+				velocity = velocity.move_toward(Vector2.ZERO, 240.0 * delta)
+			elif player == null:
 				velocity = velocity.move_toward(Vector2.ZERO, 60.0 * delta)
 			else:
 				var target := player.global_position + Vector2(0.0, -12.0 + sin(_bob_t) * BOB_AMP)
@@ -150,7 +168,12 @@ func _tick_state(delta: float) -> void:
 			if _timer <= 0.0:
 				hitbox.disarm()
 				_attack_cd = ATTACK_COOLDOWN
+				_recover_left = ATTACK_RECOVERY
 				_state = State.HAUNT
+				# 至少留出破绽时长，避免扑完 _timer 归零立刻散雾。
+				_timer = maxf(_haunt_left, ATTACK_RECOVERY + 0.15)
+				_haunt_left = 0.0
+				show_opening(ATTACK_RECOVERY)
 				if _anim != null:
 					_anim.play("idle")
 		State.VANISH:
@@ -167,7 +190,7 @@ func _tick_state(delta: float) -> void:
 
 
 func _player() -> Player:
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p := knight()
 	if p == null or p.health.current <= 0 or p.global_position.x < arena_left or p.global_position.x > arena_right:
 		return null
 	return p
@@ -186,10 +209,21 @@ func _appear() -> void:
 
 func _begin_attack(to: Vector2) -> void:
 	_state = State.ATTACK
+	_haunt_left = maxf(_timer, 0.0)
 	_timer = ATTACK_WINDUP + ATTACK_ACTIVE
 	velocity = to.normalized() * lunge_speed
 	if _anim != null:
 		_anim.play("attack", true)
+	# 读招：青色圆环收向身体 + 灵火涨亮，圆环收满的那一刻判定才出现。
+	begin_telegraph(&"ghost", ATTACK_WINDUP)
+	CombatMarker.spawn(self, CombatMarker.Kind.RING, Vector2(0.0, -4.0), ATTACK_WINDUP,
+			CombatRules.TELEGRAPH[&"ghost"]["color"],
+			{"radius_from": WAIL_RING_FROM, "radius_to": WAIL_RING_TO})
+	if _glow != null:
+		var flare := create_tween()
+		flare.tween_property(_glow, "energy", 1.1, ATTACK_WINDUP)
+		flare.tween_property(_glow, "energy", 0.55, 0.2)
+	Sfx.play_at(CombatRules.sfx_key(&"ghost_wail"), global_position, 0.1, -6.0)
 	Sfx.play(&"swing", 0.1, -6.0)
 
 

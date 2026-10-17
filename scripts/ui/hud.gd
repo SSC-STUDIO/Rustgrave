@@ -1,10 +1,15 @@
 extends CanvasLayer
-## 游戏内 HUD（1280x720）：左上状态板、顶部播报横幅、底部交互提示、
-## 低血量血雾，外挂一个暂停菜单层。
+## 游戏内 HUD（1280x720）：左上一条紧凑状态带（心 + 毒素槽）、顶部播报横幅、
+## 底部交互提示、低血量血雾，外挂暂停菜单与触控板。
 ##
-## 所有外观取自项目默认主题 assets/ui/theme_rust.tres 的变体，面板一律是
-## 9-slice 贴图；这里只负责布局、数值与动效。华丽但克制：状态板收在左上角
-## 一小块，播报在顶、交互提示贴底边，不切进玩家的视野中央。
+## 原则是"先看画面"：常驻的只有血量和毒素；剑核插座在拿到第一枚锈核后才出现，
+## 袋中数量只在袋里有核时出现；目标、天气时辰、剑核名称是次要信息——换区 / 换时辰
+## / 章节开头短暂显示几秒，或按住 Tab（触屏轻点状态带）随时查看。
+## 导演的电影黑边出现时整个 HUD 淡出上滑，心不会被黑边切掉。情境教学提示见
+## HintService（scripts/ui/hint_service.gd）。
+##
+## 所有外观取自项目默认主题 assets/ui/theme_rust.tres 与 UiKit.extras_theme()
+## 的变体；这里只负责布局、数值与动效。
 
 const PAUSE_MENU := preload("res://scenes/ui/PauseMenu.tscn")
 
@@ -13,13 +18,22 @@ const HEART_FULL_PATH := "res://assets/env/hud_heart_full.png"
 const HEART_EMPTY_PATH := "res://assets/env/hud_heart_empty.png"
 const HEART_SIZE := Vector2(22, 18)
 const HEART_SLOT_SIZE := Vector2(26, 22)
+const HEART_SEPARATION := 2
 const HEART_FLASH := 0.22
 
-const TOXIN_BAR_SIZE := Vector2(176, 24)
+## 状态带外侧的留白与毒素槽尺寸（设计单位）。心行 22 + 槽 12 + 间隙 2 + 上下衬 8 = 44。
+const STAT_MARGIN := Vector2(12.0, 8.0)
+const TOXIN_BAR_SIZE := Vector2(96, 12)
+## 毒素档位字（"冷 0%"）占的槽宽。12px 字的行高是 16，槽只有 12 高，字框上下各溢出 2。
+const TOXIN_LABEL_WIDTH := 34.0
+const SOCKET_ICON := 26.0
 ## 与 assets/ui/banner.png 的高度一致（21 设计像素 * 2）。
 const BANNER_HEIGHT := 42.0
+const BANNER_TOP := 14.0
 ## 交互提示贴在视口底边，避开玩家所在的中下视野；字幕占用底边时整条让路。
 const PROMPT_BOTTOM := 10.0
+## Boss 条在底边中央占的高度；交互提示在 Boss 战中抬到它上面，两者不重叠。
+const BOSS_BAR_LIFT := 56.0
 
 # 危险反馈：毒素报警脉动 + 低血量血雾呼吸。
 const TOXIN_ALARM_RATIO := 0.8
@@ -35,36 +49,67 @@ const VIGNETTE_BREATH_PERIOD := 3.0
 
 const ANNOUNCE_HOLD := 2.4
 const ANNOUNCE_FADE := 0.35
-const HINT_HOLD := 6.0
 
+## 次要信息：换区 / 换时辰后天气时辰显示 4 秒，章节开头目标显示 5 秒。
+const ATMOS_HOLD := 4.0
+const OBJECTIVE_HOLD := 5.0
+const OBJECTIVE_DELAY := 1.2
+const OBJECTIVE_REFRESH := 0.5
+const REVEAL_SPEED := 4.0
+## 触屏轻点状态带后保持"查看"的秒数（没有 Tab 键）。
+const PEEK_TAP_HOLD := 4.0
+## 电影黑边升到这个比例时 HUD 已完全淡出（黑边满格 32 单位，淡出走前 1/4）。
+const LETTERBOX_FADE_AT := 0.25
+const LETTERBOX_SLIDE := 28.0
+
+var _root: Control
+var _stat: VBoxContainer
+var _plate: PanelContainer
 var _hearts_row: HBoxContainer
 var _toxin_bar: ProgressBar
 var _toxin_label: Label
-var _socket_label: Label
+var _socket_strip: HBoxContainer
+var _sockets: Array[Control] = []
 var _pouch_label: Label
+var _socket_label: Label
+var _objective_label: Label
+var _atmos_label: Label
 var _prompt_panel: PanelContainer
 var _prompt_label: Label
 var _banner: PanelContainer
 var _announce_label: Label
-var _hint: Label
 var _vignette: TextureRect
 var _death_overlay: Control
 var _pause: PauseMenu
+var _hints: HintService
+var _tracker := ObjectiveTracker.new()
 
 var _heart_full: Texture2D
 var _heart_empty: Texture2D
 var _hp_shown := -1
 var _announce_time := 0.0
-var _hint_time := HINT_HOLD
 var _toxin_ratio := 0.0
 var _low_hp := false
 var _vignette_tween: Tween
 var _time := 0.0
 var _breath_time := 0.0
 var _announce_queue: Array[String] = []
+var _banner_tween: Tween
 var _resonating := false
-var _atmos_hint: Label
 var _prompt_text := ""
+var _cores_owned := false
+
+var _atmos_time := 0.0
+var _atmos_alpha := 0.0
+var _objective_time := 0.0
+var _objective_alpha := 0.0
+var _objective_refresh := 0.0
+var _objective_delay := OBJECTIVE_DELAY
+var _peek_timer := 0.0
+var _peek_was_on := false
+var _peek_alpha := 0.0
+var _boss_name := ""
+var _insets := Vector4.ZERO
 
 var _boss_bar_panel: PanelContainer
 var _boss_title_label: Label
@@ -84,82 +129,178 @@ func _ready() -> void:
 	GameEvents.interact_prompt.connect(_on_prompt)
 	GameEvents.announcement.connect(_on_announce)
 	GameEvents.player_died.connect(_on_player_died)
-	GameEvents.core_inserted.connect(func(_c, _i): _refresh_cores())
-	GameEvents.core_acquired.connect(func(_c): _refresh_cores())
+	GameEvents.core_inserted.connect(_on_core_inserted)
+	GameEvents.core_acquired.connect(_on_core_acquired)
 	GameEvents.sockets_changed.connect(_refresh_cores)
 	GameEvents.resonance_changed.connect(_on_resonance)
 	GameEvents.boss_appeared.connect(_on_boss_appeared)
 	GameEvents.boss_hp_changed.connect(_on_boss_hp_changed)
 	GameEvents.boss_defeated.connect(_on_boss_defeated)
-	WorldClock.phase_changed.connect(_on_atmosphere)
-	WorldClock.weather_changed.connect(_on_atmosphere)
-	WorldClock.zone_changed.connect(_on_atmosphere)
+	GameEvents.chapter_started.connect(_on_chapter_started)
+	WorldClock.phase_changed.connect(_on_phase_changed)
+	WorldClock.weather_changed.connect(_on_weather_changed)
+	WorldClock.zone_changed.connect(_on_zone_changed)
+	Settings.changed.connect(_on_setting_changed)
+	get_tree().root.size_changed.connect(_apply_safe_area)
 	_refresh_atmosphere()
+	_show_atmosphere()
 	var player := get_tree().get_first_node_in_group("player") as Player
 	if player:
 		_on_hp(player.health.current, player.health.max_hp)
 		_on_toxin(player.toxin.toxin, player.toxin.max_toxin)
 		_refresh_cores()
+	_apply_safe_area()
 
 
 func _build() -> void:
-	var root := Control.new()
-	root.name = "Root"
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(root)
+	_root = Control.new()
+	_root.name = "Root"
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.theme = UiKit.extras_theme()
+	add_child(_root)
 
-	_build_stat_panel(root)
-	_build_banner(root)
-	_build_boss_bar(root)
-	_build_prompt(root)
-	_build_hint(root)
-	_build_vignette(root)
-	_build_death_overlay(root)
+	# 血雾垫在最底层：低血量时它压着画面，不该盖住心和提示。
+	_build_vignette(_root)
+	_build_stat_panel(_root)
+	_build_banner(_root)
+	_build_boss_bar(_root)
+	_build_prompt(_root)
+	_build_atmosphere(_root)
+	_build_death_overlay(_root)
+
+	# 情境提示条（顶部居中，播报横幅之下）。
+	_hints = HintService.new()
+	_hints.name = "HintService"
+	add_child(_hints)
+	_hints.attach(_root)
 
 	_pause = PAUSE_MENU.instantiate()
 	add_child(_pause)
 	WorldClock.isolate_ui_layer(_pause)
 
+	# Touch pad is root-window UI (PresentationMetrics-bound), not the 640×360 world.
+	var touch := TouchControls.new()
+	touch.name = "TouchControls"
+	touch.bind_pause(_pause)
+	add_child(touch)
 
+
+## 左上角：状态带（心 + 毒素槽）与它右侧的剑核插座，下方是目标行与"查看"行。
 func _build_stat_panel(root: Control) -> void:
-	var plate := UiKit.panel(&"HudPanel")
-	plate.name = "StatPanel"
-	plate.offset_left = 16.0
-	plate.offset_top = 12.0
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(plate)
+	_stat = VBoxContainer.new()
+	_stat.name = "StatPanel"
+	_stat.offset_left = STAT_MARGIN.x
+	_stat.offset_top = STAT_MARGIN.y
+	_stat.add_theme_constant_override("separation", 3)
+	_stat.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_stat)
 
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
-	plate.add_child(column)
+	var row := HBoxContainer.new()
+	row.name = "PlateRow"
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stat.add_child(row)
+
+	_plate = UiKit.panel(&"HudPlate")
+	_plate.name = "Plate"
+	# 触屏没有 Tab：轻点状态带就是"查看"。桌面端不拦截鼠标，免得吃掉挥砍的点击。
+	_plate.mouse_filter = Control.MOUSE_FILTER_STOP if TouchInput.wants_overlay() \
+			else Control.MOUSE_FILTER_IGNORE
+	_plate.gui_input.connect(_on_plate_input)
+	row.add_child(_plate)
+
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 2)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plate.add_child(inner)
 
 	_hearts_row = HBoxContainer.new()
-	_hearts_row.add_theme_constant_override("separation", 4)
-	column.add_child(_hearts_row)
+	_hearts_row.name = "Hearts"
+	_hearts_row.add_theme_constant_override("separation", HEART_SEPARATION)
+	_hearts_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(_hearts_row)
 
-	var toxin_row := HBoxContainer.new()
-	toxin_row.add_theme_constant_override("separation", 8)
-	toxin_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_child(toxin_row)
+	var gauge_row := HBoxContainer.new()
+	gauge_row.name = "Gauge"
+	gauge_row.add_theme_constant_override("separation", 6)
+	gauge_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(gauge_row)
 	_toxin_bar = ProgressBar.new()
+	_toxin_bar.name = "ToxinBar"
 	_toxin_bar.custom_minimum_size = TOXIN_BAR_SIZE
+	_toxin_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_toxin_bar.show_percentage = false
 	_toxin_bar.min_value = 0.0
 	_toxin_bar.max_value = 100.0
 	_toxin_bar.value = 0.0
-	toxin_row.add_child(_toxin_bar)
-	_toxin_label = UiKit.label("毒素 冷 0%", &"HudToxinLabel")
-	_toxin_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	toxin_row.add_child(_toxin_label)
+	_toxin_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gauge_row.add_child(_toxin_bar)
+	var label_slot := Control.new()
+	label_slot.name = "ToxinLabelSlot"
+	label_slot.custom_minimum_size = Vector2(TOXIN_LABEL_WIDTH, TOXIN_BAR_SIZE.y)
+	label_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gauge_row.add_child(label_slot)
+	_toxin_label = UiKit.label("冷 0%", &"TinyToxinLabel")
+	_toxin_label.name = "ToxinLabel"
+	_toxin_label.position = Vector2(0.0, -2.0)
+	label_slot.add_child(_toxin_label)
 
-	_socket_label = UiKit.label("剑核  - · -", &"HudStrongLabel")
-	column.add_child(_socket_label)
-	_pouch_label = UiKit.label("袋中 0", &"HudLabel")
-	column.add_child(_pouch_label)
-	_atmos_hint = UiKit.label("", &"HudLabel")
-	_atmos_hint.name = "AtmosphereHint"
-	column.add_child(_atmos_hint)
+	# 剑核插座：拿到第一枚锈核之前整条隐藏。
+	_socket_strip = HBoxContainer.new()
+	_socket_strip.name = "Sockets"
+	_socket_strip.add_theme_constant_override("separation", 4)
+	_socket_strip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_socket_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_socket_strip.visible = false
+	row.add_child(_socket_strip)
+	for i in 2:
+		var cell := _make_socket(i)
+		_sockets.append(cell)
+		_socket_strip.add_child(cell)
+	_pouch_label = UiKit.label("袋中 0", &"TinyStrongLabel")
+	_pouch_label.name = "PouchLabel"
+	_pouch_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_pouch_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_pouch_label.visible = false
+	_socket_strip.add_child(_pouch_label)
+
+	_objective_label = UiKit.label("", &"TinyStrongLabel")
+	_objective_label.name = "ObjectiveLabel"
+	_objective_label.modulate.a = 0.0
+	_objective_label.visible = false
+	_stat.add_child(_objective_label)
+	_socket_label = UiKit.label("", &"TinyLabel")
+	_socket_label.name = "SocketLabel"
+	_socket_label.modulate.a = 0.0
+	_socket_label.visible = false
+	_stat.add_child(_socket_label)
+	_refresh_socket_keys()
+
+
+## 一个插座：26x26 的铁环 + 按核着色的宝石 + 下方一行键名。
+func _make_socket(index: int) -> Control:
+	var cell := VBoxContainer.new()
+	cell.name = "Socket%d" % index
+	cell.add_theme_constant_override("separation", 0)
+	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := Control.new()
+	icon.name = "Icon"
+	icon.custom_minimum_size = Vector2(SOCKET_ICON, SOCKET_ICON)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cell.add_child(icon)
+	var ring := UiKit.sprite_rect(UiKit.TEX_SOCKET_RING)
+	ring.name = "Ring"
+	ring.modulate = Color(0.78, 0.7, 0.62, 0.8)
+	icon.add_child(ring)
+	var gem := UiKit.sprite_rect(UiKit.TEX_SOCKET_GEM)
+	gem.name = "Gem"
+	gem.visible = false
+	icon.add_child(gem)
+	var key := UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	key.name = "Key"
+	cell.add_child(key)
+	return cell
 
 
 func _build_banner(root: Control) -> void:
@@ -167,7 +308,7 @@ func _build_banner(root: Control) -> void:
 	_banner.name = "Banner"
 	_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_banner.offset_top = 14.0
+	_banner.offset_top = BANNER_TOP
 	# 高度钉在贴图原高：横幅一被纵向拉伸，两端的尖角就会出现半像素毛边。
 	_banner.custom_minimum_size = Vector2(0.0, BANNER_HEIGHT)
 	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -227,16 +368,18 @@ func _build_prompt(root: Control) -> void:
 	_prompt_panel.add_child(_prompt_label)
 
 
-func _build_hint(root: Control) -> void:
-	_hint = UiKit.label("Esc 暂停 · 完整键位见暂停菜单里的操作说明", &"FootnoteLabel",
-			HORIZONTAL_ALIGNMENT_RIGHT)
-	_hint.anchor_left = 1.0
-	_hint.anchor_right = 1.0
-	_hint.offset_left = -440.0
-	_hint.offset_right = -18.0
-	_hint.offset_top = 16.0
-	_hint.offset_bottom = 34.0
-	root.add_child(_hint)
+## 右上角的小标签：天气 · 时辰（换区 / 换时辰时 4 秒，或按住 Tab）。
+func _build_atmosphere(root: Control) -> void:
+	_atmos_label = UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	_atmos_label.name = "AtmosphereHint"
+	_atmos_label.anchor_left = 1.0
+	_atmos_label.anchor_right = 1.0
+	_atmos_label.offset_left = -300.0
+	_atmos_label.offset_right = -18.0
+	_atmos_label.offset_top = 14.0
+	_atmos_label.offset_bottom = 32.0
+	_atmos_label.modulate.a = 0.0
+	root.add_child(_atmos_label)
 
 
 func _build_vignette(root: Control) -> void:
@@ -274,6 +417,8 @@ func _build_death_overlay(root: Control) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_apply_letterbox()
+	_tick_reveals(delta)
 	if _announce_time > 0.0:
 		_announce_time -= delta
 		if _announce_time <= 0.0:
@@ -281,13 +426,6 @@ func _process(delta: float) -> void:
 				_show_announce(_announce_queue.pop_front())
 			else:
 				_hide_banner()
-	if _hint_time > 0.0:
-		_hint_time -= delta
-		var banner_up := _banner != null and _banner.modulate.a > 0.2
-		_hint.visible = not banner_up
-		_hint.modulate.a = clampf(_hint_time / 1.6, 0.0, 0.7)
-		if _hint_time <= 0.0:
-			_hint.visible = false
 	_sync_prompt()
 	if _resonating:
 		var glow := 0.55 + 0.45 * sin(TAU * _time / 0.35)
@@ -303,6 +441,111 @@ func _process(delta: float) -> void:
 		_vignette.modulate.a = lerpf(VIGNETTE_BREATH_MIN, VIGNETTE_BREATH_MAX,
 				0.5 + 0.5 * sin(TAU * _breath_time / VIGNETTE_BREATH_PERIOD))
 
+
+# --- 电影黑边 -----------------------------------------------------------------
+
+## 导演的黑边（Director.letterbox_amount 0..1，满格每侧 32 单位）一出现，HUD 就先于
+## 黑边淡出并上滑；黑边退去后淡入。用 modulate 而不是 visible：暂停菜单管着 visible。
+func _apply_letterbox() -> void:
+	var factor := letterbox_factor()
+	if not is_equal_approx(_root.modulate.a, factor):
+		_root.modulate.a = factor
+	var top := _stat_top() - LETTERBOX_SLIDE * (1.0 - factor)
+	if not is_equal_approx(_stat.offset_top, top):
+		_stat.offset_top = top
+
+
+## 1 = 完全可见，0 = 完全让给黑边。
+func letterbox_factor() -> float:
+	return 1.0 - clampf(Director.letterbox_amount() / LETTERBOX_FADE_AT, 0.0, 1.0)
+
+
+func _stat_top() -> float:
+	return STAT_MARGIN.y + _insets.y
+
+
+# --- 次要信息：目标 / 天气 / 剑核名 -------------------------------------------
+
+func peek_active() -> bool:
+	return _peek_timer > 0.0 or Input.is_key_pressed(KEY_TAB)
+
+
+## 触屏轻点状态带，或测试直接调用。
+func peek_for(seconds: float = PEEK_TAP_HOLD) -> void:
+	_peek_timer = maxf(_peek_timer, seconds)
+
+
+func _on_plate_input(event: InputEvent) -> void:
+	var tapped := (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed) \
+			or (event is InputEventMouseButton and (event as InputEventMouseButton).pressed)
+	if tapped:
+		peek_for()
+		_plate.accept_event()
+
+
+func _tick_reveals(delta: float) -> void:
+	var peek := peek_active()
+	_peek_timer = maxf(0.0, _peek_timer - delta)
+	if peek and not _peek_was_on:
+		_objective_refresh = 0.0
+		_refresh_atmosphere()
+	_peek_was_on = peek
+	_atmos_time = maxf(0.0, _atmos_time - delta)
+	_objective_time = maxf(0.0, _objective_time - delta)
+	if _objective_delay > 0.0:
+		_objective_delay -= delta
+		if _objective_delay <= 0.0:
+			_show_objective()
+	var objective_wanted := peek or _objective_time > 0.0
+	if objective_wanted:
+		_objective_refresh -= delta
+		if _objective_refresh <= 0.0:
+			_objective_refresh = OBJECTIVE_REFRESH
+			_refresh_objective()
+	_atmos_alpha = move_toward(_atmos_alpha, 1.0 if (peek or _atmos_time > 0.0) else 0.0,
+			delta * REVEAL_SPEED)
+	_objective_alpha = move_toward(_objective_alpha,
+			1.0 if (objective_wanted and _objective_label.text != "") else 0.0, delta * REVEAL_SPEED)
+	_peek_alpha = move_toward(_peek_alpha, 1.0 if (peek and _cores_owned) else 0.0,
+			delta * REVEAL_SPEED)
+	_atmos_label.modulate.a = _atmos_alpha
+	_objective_label.modulate.a = _objective_alpha
+	_objective_label.visible = _objective_alpha > 0.01
+	_socket_label.modulate.a = _peek_alpha
+	_socket_label.visible = _peek_alpha > 0.01
+
+
+func _show_atmosphere() -> void:
+	_atmos_time = ATMOS_HOLD
+
+
+func _show_objective() -> void:
+	_objective_time = OBJECTIVE_HOLD
+	_objective_refresh = 0.0
+
+
+func _refresh_objective() -> void:
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if player == null:
+		return
+	if not _tracker.has_scanned():
+		_tracker.scan(GameContext.world_root(player))
+	_objective_label.text = _tracker.line(player, _boss_name)
+
+
+## 当前显示的目标行（测试用）。
+func objective_text() -> String:
+	return _objective_label.text
+
+
+func _on_chapter_started(_level_id: String) -> void:
+	_tracker = ObjectiveTracker.new()
+	_objective_delay = 0.0
+	_show_objective()
+	_show_atmosphere()
+
+
+# --- 血量 ---------------------------------------------------------------------
 
 ## 一颗心 = 深色插槽 + 2 倍放大的像素心。插槽让血量在明亮场景里也读得出来。
 func _make_heart() -> Control:
@@ -329,7 +572,9 @@ func _on_hp(current: int, maximum: int) -> void:
 	while _hearts_row.get_child_count() < maximum:
 		_hearts_row.add_child(_make_heart())
 	while _hearts_row.get_child_count() > maximum:
-		_hearts_row.get_child(_hearts_row.get_child_count() - 1).queue_free()
+		var extra := _hearts_row.get_child(_hearts_row.get_child_count() - 1)
+		_hearts_row.remove_child(extra)
+		extra.queue_free()
 	var lost := _hp_shown > current
 	for i in _hearts_row.get_child_count():
 		var icon := _hearts_row.get_child(i).get_node_or_null("Icon") as TextureRect
@@ -377,12 +622,14 @@ func _vignette_tween_active() -> bool:
 	return _vignette_tween != null and _vignette_tween.is_valid() and _vignette_tween.is_running()
 
 
+# --- 毒素 ---------------------------------------------------------------------
+
 func _on_toxin(current: float, maximum: float) -> void:
 	var t := 0.0 if maximum <= 0.0 else current / maximum
 	_toxin_ratio = t
 	_toxin_bar.value = t * 100.0
 	var band := ToxinMeter.band_for(current, maximum)
-	_toxin_label.text = "毒素 %s %d%%" % [ToxinMeter.band_label_for(band), int(t * 100.0)]
+	_toxin_label.text = "%s %d%%" % [ToxinMeter.band_label_for(band), int(t * 100.0)]
 	if band == &"hot":
 		_toxin_label.modulate = Color(1.35, 0.75, 0.35)
 	elif band == &"warm":
@@ -392,15 +639,19 @@ func _on_toxin(current: float, maximum: float) -> void:
 		_toxin_label.modulate = Color.WHITE
 
 
+# --- Boss ---------------------------------------------------------------------
+
 func _on_boss_appeared(boss_name: String, current_hp: int, max_hp: int) -> void:
 	if _boss_bar_panel == null:
 		return
+	_boss_name = boss_name
 	_boss_max_hp = maxi(1, max_hp)
 	_boss_title_label.text = boss_name
 	_boss_hp_bar.max_value = float(_boss_max_hp)
 	_boss_hp_bar.value = float(current_hp)
 	_boss_bar_panel.modulate.a = 0.0
 	_boss_bar_panel.visible = true
+	_sync_prompt_offsets()
 	var tw := create_tween()
 	tw.tween_property(_boss_bar_panel, "modulate:a", 1.0, 0.6)
 
@@ -416,18 +667,22 @@ func _on_boss_hp_changed(current_hp: int, max_hp: int) -> void:
 
 
 func _on_boss_defeated() -> void:
+	_boss_name = ""
 	if _boss_bar_panel == null or not _boss_bar_panel.visible:
 		return
 	var tw := create_tween()
 	tw.tween_property(_boss_bar_panel, "modulate:a", 0.0, 0.8)
-	tw.tween_callback(func() -> void: _boss_bar_panel.visible = false)
+	tw.tween_callback(func() -> void:
+		_boss_bar_panel.visible = false
+		_sync_prompt_offsets())
 
 
+# --- 交互提示 / 播报 ----------------------------------------------------------
 
 func _on_prompt(text: String) -> void:
 	_prompt_text = text
 	if _prompt_label != null:
-		_prompt_label.text = text
+		_prompt_label.text = KeyLabels.localize_prompt(text)
 	_sync_prompt()
 
 
@@ -438,6 +693,15 @@ func _sync_prompt() -> void:
 	var cap_busy := cap != null and cap.is_busy()
 	var dead := _death_overlay != null and _death_overlay.visible
 	_prompt_panel.visible = _prompt_text != "" and not cap_busy and not dead
+	_sync_prompt_offsets()
+
+
+## 交互提示贴底边；Boss 条在场时抬到它之上。底边再让开触屏安全区。
+func _sync_prompt_offsets() -> void:
+	var lift := BOSS_BAR_LIFT if _boss_bar_panel != null and _boss_bar_panel.visible else 0.0
+	var bottom := PROMPT_BOTTOM + _insets.w + lift
+	_prompt_panel.offset_top = -bottom
+	_prompt_panel.offset_bottom = -bottom
 
 
 func _on_announce(text: String) -> void:
@@ -450,11 +714,20 @@ func _on_announce(text: String) -> void:
 	_show_announce(text)
 
 
+## 横幅只有一条补间：每次显示 / 隐藏先杀掉上一条，否则上一次淡出末尾的"清文字"
+## 回调会在新播报已经亮起之后把它擦成空白条。
 func _show_announce(text: String) -> void:
 	_announce_label.text = text
 	_announce_time = ANNOUNCE_HOLD
-	var tween := create_tween()
-	tween.tween_property(_banner, "modulate:a", 1.0, ANNOUNCE_FADE)
+	_kill_banner_tween()
+	_banner_tween = create_tween()
+	_banner_tween.tween_property(_banner, "modulate:a", 1.0, ANNOUNCE_FADE)
+
+
+func _kill_banner_tween() -> void:
+	if _banner_tween != null and _banner_tween.is_valid():
+		_banner_tween.kill()
+	_banner_tween = null
 
 
 func _on_resonance(active: bool) -> void:
@@ -465,9 +738,24 @@ func _on_resonance(active: bool) -> void:
 
 
 func _hide_banner() -> void:
-	var tween := create_tween()
-	tween.tween_property(_banner, "modulate:a", 0.0, ANNOUNCE_FADE)
-	tween.tween_callback(func() -> void: _announce_label.text = "")
+	_kill_banner_tween()
+	_banner_tween = create_tween()
+	_banner_tween.tween_property(_banner, "modulate:a", 0.0, ANNOUNCE_FADE)
+	_banner_tween.tween_callback(_clear_banner_text)
+
+
+func _clear_banner_text() -> void:
+	if _announce_time <= 0.0:
+		_announce_label.text = ""
+
+
+## 当前横幅文字与透明度（测试用）。
+func banner_text() -> String:
+	return _announce_label.text
+
+
+func banner_alpha() -> float:
+	return _banner.modulate.a
 
 
 func _on_player_died() -> void:
@@ -479,23 +767,63 @@ func _on_player_died() -> void:
 	tween.tween_property(_death_overlay, "modulate:a", 1.0, 0.45)
 
 
+# --- 天气时辰 / 剑核 / 安全区 -------------------------------------------------
+
 func _exit_tree() -> void:
-	if WorldClock.phase_changed.is_connected(_on_atmosphere):
-		WorldClock.phase_changed.disconnect(_on_atmosphere)
-	if WorldClock.weather_changed.is_connected(_on_atmosphere):
-		WorldClock.weather_changed.disconnect(_on_atmosphere)
-	if WorldClock.zone_changed.is_connected(_on_atmosphere):
-		WorldClock.zone_changed.disconnect(_on_atmosphere)
+	_disconnect_if(WorldClock.phase_changed, _on_phase_changed)
+	_disconnect_if(WorldClock.weather_changed, _on_weather_changed)
+	_disconnect_if(WorldClock.zone_changed, _on_zone_changed)
+	_disconnect_if(Settings.changed, _on_setting_changed)
+	var window := get_tree().root if get_tree() != null else null
+	if window != null:
+		_disconnect_if(window.size_changed, _apply_safe_area)
 
 
-func _on_atmosphere(_value: int = 0) -> void:
+static func _disconnect_if(sig: Signal, target: Callable) -> void:
+	if sig.is_connected(target):
+		sig.disconnect(target)
+
+
+func _on_phase_changed(_value: int = 0) -> void:
+	_refresh_atmosphere()
+	_show_atmosphere()
+
+
+func _on_zone_changed(_value: int = 0) -> void:
+	_refresh_atmosphere()
+	_show_atmosphere()
+
+
+## 天气自己换（每 50-110 秒一次）只更新文字，不抢画面。
+func _on_weather_changed(_value: int = 0) -> void:
 	_refresh_atmosphere()
 
 
 func _refresh_atmosphere() -> void:
-	if _atmos_hint == null:
+	if _atmos_label == null:
 		return
-	_atmos_hint.text = WorldClock.hud_line()
+	_atmos_label.text = WorldClock.hud_line()
+
+
+func _on_setting_changed(key: StringName) -> void:
+	if key == &"keys":
+		_refresh_socket_keys()
+		_on_prompt(_prompt_text)
+
+
+func _on_core_inserted(_core: Resource, _index: int) -> void:
+	_refresh_cores()
+
+
+func _on_core_acquired(_core: Resource) -> void:
+	_refresh_cores()
+
+
+func _refresh_socket_keys() -> void:
+	for i in _sockets.size():
+		var key := _sockets[i].get_node_or_null("Key") as Label
+		if key != null:
+			key.text = KeyLabels.label(StringName("socket_%d" % (i + 1)))
 
 
 func _refresh_cores() -> void:
@@ -503,9 +831,69 @@ func _refresh_cores() -> void:
 	if player == null:
 		return
 	var inv := player.inventory
-	var s0 := inv.socket_core(0)
-	var s1 := inv.socket_core(1)
-	var n0 := "-" if s0 == null else AbilityIds.display_name(s0.ability_id)
-	var n1 := "-" if s1 == null else AbilityIds.display_name(s1.ability_id)
-	_socket_label.text = "剑核  %s · %s" % [n0, n1]
-	_pouch_label.text = "袋中 %d" % inv.pouch.size()
+	var names := PackedStringArray()
+	for i in _sockets.size():
+		var core := inv.socket_core(i)
+		var gem := _sockets[i].get_node("Icon/Gem") as TextureRect
+		var ring := _sockets[i].get_node("Icon/Ring") as TextureRect
+		gem.visible = core != null
+		if core != null:
+			gem.modulate = core.tint
+			ring.modulate = Color(1.0, 0.86, 0.62, 1.0)
+			_cores_owned = true
+			names.append(AbilityIds.display_name(core.ability_id))
+		else:
+			ring.modulate = Color(0.78, 0.7, 0.62, 0.8)
+			names.append("-")
+	var pouch := inv.pouch.size()
+	if pouch > 0:
+		_cores_owned = true
+	_pouch_label.text = "袋中 %d" % pouch
+	_pouch_label.visible = pouch > 0
+	_socket_strip.visible = _cores_owned
+	_socket_label.text = "剑核  %s" % " · ".join(names)
+
+
+## 触屏刘海 / 圆角的安全区（设计单位，已换算到 HUD 层坐标）。桌面与 headless 为零。
+## 只在窗口尺寸变化时重算，不逐帧问 DisplayServer。
+func _apply_safe_area() -> void:
+	if _stat == null:
+		return
+	var insets := PresentationMetrics.safe_layer_insets(get_tree().root)
+	_insets = insets
+	_stat.offset_left = STAT_MARGIN.x + insets.x
+	_stat.offset_top = _stat_top()
+	_banner.offset_top = BANNER_TOP + insets.y
+	_atmos_label.offset_right = -(18.0 + insets.z)
+	_atmos_label.offset_left = _atmos_label.offset_right - 282.0
+	_atmos_label.offset_top = 14.0 + insets.y
+	_atmos_label.offset_bottom = 32.0 + insets.y
+	if _hints != null:
+		_hints.set_top(HintService.TOP + insets.y)
+	var bottom := 22.0 + insets.w
+	_boss_bar_panel.offset_top = -(bottom + 46.0)
+	_boss_bar_panel.offset_bottom = -bottom
+	_sync_prompt_offsets()
+
+
+# --- 测试 / 工具用的读数 ------------------------------------------------------
+
+## 状态带本体（心 + 毒素槽）在 HUD 层坐标里的矩形，不含剑核插座与下方说明行。
+func plate_rect() -> Rect2:
+	return _plate.get_global_rect()
+
+
+## 左上角整簇（含插座）的矩形；可见的说明行也算在内。
+func cluster_rect() -> Rect2:
+	var rect := _plate.get_global_rect()
+	if _socket_strip.visible:
+		rect = rect.merge(_socket_strip.get_global_rect())
+	if _objective_label.visible:
+		rect = rect.merge(_objective_label.get_global_rect())
+	if _socket_label.visible:
+		rect = rect.merge(_socket_label.get_global_rect())
+	return rect
+
+
+func hint_service() -> HintService:
+	return _hints

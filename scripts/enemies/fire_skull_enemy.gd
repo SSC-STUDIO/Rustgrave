@@ -1,8 +1,9 @@
+class_name FireSkullEnemy
 extends EnemyBase
 ## 火骷髅：燃着的飞头。在出生点附近沿正弦路径巡飞；骑士靠近就扑向头顶咬一口，
 ## 咬完拉开一口气再扑。不受墙与重力约束，自己积分位置。两刀灭。
 
-enum State { PATROL, HUNT, LUNGE, RETREAT }
+enum State { PATROL, HUNT, LUNGE, RETREAT, FLARE }
 
 @export var bob_amp: float = 18.0
 @export var aggro_range: float = 200.0
@@ -29,6 +30,13 @@ const FACE_DEADZONE := 12.0
 const BOB_RATE := 2.4
 const SPARK_INTERVAL := 0.35
 const GLOW_COLOR := Color(1.0, 0.55, 0.2)
+## 扑咬前摇：悬停、火焰涨亮变大（读招）→ 才扑。数值取自 CombatRules.TELEGRAPH[fire_skull]。
+const FLARE_TIME := 0.30
+const FLARE_TINT := Color(1.8, 1.5, 0.8)
+const FLARE_SCALE := 1.18
+## 扑完先在原地喘一小会儿（破绽，火星熄暗），之后才拉开。
+const RETREAT_PAUSE := 0.30
+const SPENT_TINT := Color(0.8, 0.82, 1.0)
 
 var _state: State = State.PATROL
 var _timer: float = 0.0
@@ -37,6 +45,9 @@ var _spark_t: float = 0.0
 var _origin := Vector2.ZERO
 var _facing: float = -1.0
 var _glow: WorldLight
+var _retreat_vel := Vector2.ZERO
+var _retreat_started := true
+var _look_tween: Tween
 
 @onready var visual: Node2D = $Visual
 @onready var hitbox: Hitbox = $Hitbox
@@ -49,6 +60,7 @@ func _init() -> void:
 
 
 func _enemy_ready() -> void:
+	hit_material = &"bone"
 	_mobile = false
 	collision_mask = 0
 	health.max_hp = 2
@@ -98,6 +110,11 @@ func state() -> State:
 	return _state
 
 
+## 飞头很轻：钩锁一拽就到面前。
+func is_yankable() -> bool:
+	return true
+
+
 func _tick_state(delta: float) -> void:
 	_bob_t += delta * BOB_RATE
 	_tick_sparks(delta)
@@ -112,6 +129,8 @@ func _tick_state(delta: float) -> void:
 				_state = State.PATROL
 			else:
 				_tick_hunt(player, delta)
+		State.FLARE:
+			_tick_flare(player, delta)
 		State.LUNGE:
 			_timer -= delta
 			global_position += velocity * delta
@@ -119,6 +138,10 @@ func _tick_state(delta: float) -> void:
 				_begin_retreat(player)
 		State.RETREAT:
 			_timer -= delta
+			if not _retreat_started and _timer <= retreat_time - RETREAT_PAUSE:
+				_retreat_started = true
+				velocity = _retreat_vel
+				_look(Color.WHITE, 1.0, 0.1)
 			velocity = velocity.move_toward(Vector2.ZERO, 40.0 * delta)
 			global_position += velocity * delta
 			if _timer <= 0.0:
@@ -141,16 +164,38 @@ func _tick_patrol(delta: float) -> void:
 func _tick_hunt(player: Player, delta: float) -> void:
 	var to := player.global_position + HEAD_OFFSET - global_position
 	if to.length() <= contact_range:
-		_begin_lunge(to)
+		_begin_flare()
 		return
 	velocity = velocity.move_toward(to.normalized() * hunt_speed, hunt_speed * 4.0 * delta)
 	global_position += velocity * delta
 
 
-## 贴近后再往前顶一小段并开判定，保证咬得到；判定只开这一小段。
+## 贴近后先悬停涨亮（读招），骑士这时退开 / 冲刺穿过都来得及。
+func _begin_flare() -> void:
+	_state = State.FLARE
+	_timer = FLARE_TIME
+	velocity = Vector2.ZERO
+	begin_telegraph(&"fire_skull", FLARE_TIME)
+	_look(FLARE_TINT, FLARE_SCALE, FLARE_TIME)
+	Sfx.play_at(CombatRules.sfx_key(&"skull_flame"), global_position, 0.1, -8.0)
+
+
+func _tick_flare(player: Player, delta: float) -> void:
+	_timer -= delta
+	if player == null:
+		# 骑士没了 / 死了：收回火焰，回去巡飞。
+		_state = State.PATROL
+		_look(Color.WHITE, 1.0, 0.1)
+		return
+	if _timer <= 0.0:
+		_begin_lunge(player.global_position + HEAD_OFFSET - global_position)
+
+
+## 前摇结束后再往前顶一小段并开判定，保证咬得到；判定只开这一小段。
 func _begin_lunge(to: Vector2) -> void:
 	_state = State.LUNGE
 	_timer = LUNGE_TIME
+	_look(Color.WHITE, 1.0, 0.05)
 	var heading := to.normalized() if to.length() > 0.5 else Vector2(_facing, 0.0)
 	velocity = heading * hunt_speed * LUNGE_SPEED_K
 	var side := signf(heading.x) if absf(heading.x) > 0.05 else _facing
@@ -165,7 +210,30 @@ func _begin_retreat(player: Player) -> void:
 	var away := Vector2(-_facing, -0.6)
 	if player != null:
 		away = (global_position - player.global_position).normalized() + Vector2(0.0, -0.6)
-	velocity = away.normalized() * hunt_speed * 0.9
+	_retreat_vel = away.normalized() * hunt_speed * 0.9
+	# 先停一拍喘气（破绽），再拉开。
+	velocity = Vector2.ZERO
+	_retreat_started = false
+	_look(SPENT_TINT, 1.0, 0.08)
+	show_opening(RETREAT_PAUSE)
+
+
+## 前摇涨亮 / 喘息熄暗：颜色与大小补间绑在自己身上，死亡时一并作废。
+func _look(tint: Color, swell: float, seconds: float) -> void:
+	if _flash_target == null:
+		return
+	if _look_tween != null and _look_tween.is_valid():
+		_look_tween.kill()
+	_look_tween = create_tween()
+	_look_tween.tween_property(_flash_target, "modulate", tint, maxf(seconds, 0.01))
+	if _anim != null:
+		_look_tween.parallel().tween_property(_anim, "scale", SKULL_SCALE * swell, maxf(seconds, 0.01))
+
+
+func _flash_restore_color() -> Color:
+	if _state == State.FLARE:
+		return FLARE_TINT
+	return Color.WHITE
 
 
 func _update_facing() -> void:
@@ -203,7 +271,7 @@ func _dist(player: Player) -> float:
 
 
 func _player() -> Player:
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p := knight()
 	if p == null or p.health.current <= 0:
 		return null
 	return p

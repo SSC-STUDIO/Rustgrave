@@ -1,8 +1,9 @@
+class_name SkeletonEnemy
 extends EnemyBase
 ## 骸骨：埋在墓土里的锈骨架。骑士走近才从土里爬起来（起身期间不可攻击也不可受伤），
 ## 之后拖着步子追骑士，贴身即咬；碰到台缘或墙就折返几步再追。两刀散成一把锈钉。
 
-enum State { BURIED, RISE, WALK, TURN }
+enum State { BURIED, RISE, WALK, TURN, BITE }
 
 @export var wake_range: float = 150.0
 @export var walk_speed: float = 36.0
@@ -18,6 +19,16 @@ const CONTACT_RANGE := 22.0
 const CONTACT_REACH_Y := 30.0
 const CONTACT_COOLDOWN := 0.7
 const CONTACT_KNOCKBACK := Vector2(90.0, -60.0)
+## 咬击三段：骨白闪光 + 后仰（前摇，读招）→ 判定 → 张嘴喘息（破绽）。
+## 前摇与喘息取自 CombatRules.TELEGRAPH[skeleton]，判定期很短：先看见，再躲。
+const BITE_WINDUP := 0.32
+const BITE_ACTIVE := 0.10
+const BITE_RECOVERY := 0.45
+const BITE_LEAN := 0.18
+const BITE_TINT := Color(1.7, 1.62, 1.4)
+const BITE_SPENT_TINT := Color(0.82, 0.88, 1.0)
+## 咬完一口到下一次起咬之间的小间隔。
+const BITE_GAP := 0.15
 ## 撞墙/到台缘后反向走这么久再回头追。
 const BACKSTEP_TIME := 0.55
 ## 骑士就在头顶/脚下时不左右抖。
@@ -26,9 +37,14 @@ const LEDGE_PROBE_AHEAD := 10.0
 const LEDGE_PROBE_TOP := 6.0
 const LEDGE_PROBE_BOTTOM := 10.0
 
+enum BitePhase { WINDUP, ACTIVE, RECOVERY }
+
 var _state: State = State.BURIED
 var _timer: float = 0.0
 var _contact_cd: float = 0.0
+var _bite_phase: BitePhase = BitePhase.WINDUP
+var _bite_side: float = 1.0
+var _bite_tween: Tween
 
 @onready var visual: Node2D = $Visual
 @onready var hitbox: Hitbox = $Hitbox
@@ -36,6 +52,7 @@ var _contact_cd: float = 0.0
 
 
 func _enemy_ready() -> void:
+	hit_material = &"bone"
 	health.max_hp = 2
 	health.heal_full()
 	hitbox.team = &"enemy"
@@ -77,7 +94,16 @@ func state() -> State:
 
 
 func is_risen() -> bool:
-	return _state == State.WALK or _state == State.TURN
+	return _state == State.WALK or _state == State.TURN or _state == State.BITE
+
+
+func bite_phase() -> BitePhase:
+	return _bite_phase
+
+
+## 骨架轻，钩锁一拽就到面前（起身后才可拽）。
+func is_yankable() -> bool:
+	return is_risen()
 
 
 ## 埋着/起身时没有身体、不可受伤；站起来才是实体。
@@ -108,6 +134,8 @@ func _tick_state(delta: float) -> void:
 		State.TURN:
 			_tick_turn(delta)
 			_tick_contact(player, delta)
+		State.BITE:
+			_tick_bite(delta)
 
 
 func _tick_walk(player: Player) -> void:
@@ -137,7 +165,7 @@ func _tick_turn(delta: float) -> void:
 		_state = State.WALK
 
 
-## 贴身时开一次判定；Hurtbox 的 already_hit 只放一次伤害，所以隔一口气重新 arm。
+## 贴身时先起咬（前摇读招），不是一碰就伤：骑士在前摇里退开，这一口就落空。
 func _tick_contact(player: Player, delta: float) -> void:
 	_contact_cd = maxf(0.0, _contact_cd - delta)
 	if player == null:
@@ -146,11 +174,68 @@ func _tick_contact(player: Player, delta: float) -> void:
 	var to := player.global_position - global_position
 	if absf(to.x) <= CONTACT_RANGE and absf(to.y) <= CONTACT_REACH_Y:
 		if _contact_cd <= 0.0:
-			var side := signf(to.x) if to.x != 0.0 else _dir
-			hitbox.arm(Vector2(side * CONTACT_KNOCKBACK.x, CONTACT_KNOCKBACK.y))
-			_contact_cd = CONTACT_COOLDOWN
+			_begin_bite(to)
 	elif hitbox.monitoring:
 		hitbox.disarm()
+
+
+func _begin_bite(to: Vector2) -> void:
+	_state = State.BITE
+	_bite_phase = BitePhase.WINDUP
+	_timer = BITE_WINDUP
+	_bite_side = signf(to.x) if to.x != 0.0 else _dir
+	_dir = _bite_side
+	velocity.x = 0.0
+	hitbox.disarm()
+	begin_telegraph(&"skeleton", BITE_WINDUP)
+	_bite_look(BITE_TINT, BITE_LEAN, BITE_WINDUP)
+	Sfx.play_at(&"swing", global_position, 0.1, -12.0)
+
+
+func _tick_bite(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
+	_timer -= delta
+	if _timer > 0.0:
+		return
+	match _bite_phase:
+		BitePhase.WINDUP:
+			_bite_phase = BitePhase.ACTIVE
+			_timer = BITE_ACTIVE
+			_bite_look(Color.WHITE, 0.0, 0.04)
+			hitbox.arm(Vector2(_bite_side * CONTACT_KNOCKBACK.x, CONTACT_KNOCKBACK.y))
+		BitePhase.ACTIVE:
+			_bite_phase = BitePhase.RECOVERY
+			_timer = BITE_RECOVERY
+			hitbox.disarm()
+			_bite_look(BITE_SPENT_TINT, 0.0, 0.08)
+			show_opening(BITE_RECOVERY)
+		BitePhase.RECOVERY:
+			_state = State.WALK
+			_contact_cd = BITE_GAP
+			hide_opening()
+			_bite_look(Color.WHITE, 0.0, 0.08)
+
+
+## 咬击的颜色 / 后仰：补间绑在自己身上，状态被打断或死亡时一并作废。
+func _bite_look(tint: Color, lean: float, seconds: float) -> void:
+	if _flash_target == null:
+		return
+	if _bite_tween != null and _bite_tween.is_valid():
+		_bite_tween.kill()
+	_bite_tween = create_tween()
+	_bite_tween.tween_property(_flash_target, "modulate", tint, maxf(seconds, 0.01))
+	if _anim != null:
+		_bite_tween.parallel().tween_property(_anim, "rotation", lean, maxf(seconds, 0.01))
+
+
+func _flash_restore_color() -> Color:
+	if _state == State.BITE:
+		match _bite_phase:
+			BitePhase.WINDUP:
+				return BITE_TINT
+			BitePhase.RECOVERY:
+				return BITE_SPENT_TINT
+	return Color.WHITE
 
 
 ## 只认前进方向上的墙：刚背着墙转身那帧 is_on_wall 仍为 true，不能当成前面有墙。
@@ -181,7 +266,7 @@ func _rise() -> void:
 
 
 func _player() -> Player:
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p := knight()
 	if p == null or p.health.current <= 0:
 		return null
 	return p
