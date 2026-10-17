@@ -27,6 +27,8 @@ const TORCH := preload("res://scenes/world/TorchLight.tscn")
 const GEAR := preload("res://scenes/world/GearPlatform.tscn")
 
 ## 敌人键 → 场景。缺失的场景会被跳过（并 push_warning），关卡照常搭建。
+## 新 Boss 先在这里登记占位：章节 agent 可以提前写 `ChapterLayout.boss(..., "capstan_warden", ...)`，
+## 场景还没做出来时 Boss + Arena 一起跳过，不会让关卡搭建失败（契约 §4.2）。
 const ENEMY_SCENES := {
 	"spitter": "res://scenes/enemies/SpitterEnemy.tscn",
 	"scrapper": "res://scenes/enemies/ScrapperEnemy.tscn",
@@ -37,7 +39,16 @@ const ENEMY_SCENES := {
 	"skeleton": "res://scenes/enemies/SkeletonEnemy.tscn",
 	"fire_skull": "res://scenes/enemies/FireSkullEnemy.tscn",
 	"nightmare_boss": "res://scenes/enemies/NightmareBoss.tscn",
+	# --- 二期新增 Boss 的占位登记（场景由 bosses-a / bosses-b 交付） -----------------
+	"capstan_warden": "res://scenes/enemies/CapstanWarden.tscn",
+	"silent_choir": "res://scenes/enemies/SilentChoir.tscn",
+	"hollow_bell": "res://scenes/enemies/HollowBell.tscn",
+	"bell_founder": "res://scenes/enemies/BellFounder.tscn",
+	"emberwind_herald": "res://scenes/enemies/EmberwindHerald.tscn",
 }
+
+## Boss 竞技场容器（scripts/world/boss_arena.gd）。
+const BOSS_ARENA := preload("res://scripts/world/boss_arena.gd")
 
 ## Prop sprites and the per-theme allowlist live in PropCatalog (prop_catalog.gd).
 const DECOR := PropCatalog.DECOR
@@ -389,6 +400,33 @@ func enemy(host: Node2D, enemy_name: String, kind: String, pos: Vector2, overrid
 		e.set(key, overrides[key])
 	group(host, "Enemies").add_child(e)
 	return e
+
+
+## 统一生成 Boss + 竞技场（契约 §4.1）。返回 Boss 节点（场景缺失时 null，不报错）；
+## 竞技场挂在 host/Arenas/<boss_name>Arena，用 boss_arena() 或 boss_after 取。
+##   1. Boss 走 ENEMY_SCENES，带 arena_left/right 覆盖（Boss 自己也要知道边界）；
+##   2. BossArena 负责 clamp / 锁门 / 相机 limit / 机关注册 / 存档点校验 / 战后解锁；
+##   3. 存档点校验延后一帧（余烬巢可能在本函数之后才铺），只 warning 不阻塞。
+func boss(host: Node2D, boss_name: String, kind: String, pos: Vector2,
+		arena_left: float, arena_right: float) -> Node2D:
+	var b := enemy(host, boss_name, kind, pos, {"arena_left": arena_left, "arena_right": arena_right})
+	if b == null:
+		return null
+	var arena = BOSS_ARENA.attach(host, boss_name + "Arena", b, arena_left, arena_right, pos.y)
+	if arena != null:
+		b.set_meta("boss_arena_name", String(arena.name))
+		arena.call_deferred("validate_checkpoint")
+	return b
+
+
+## 取某场 Boss 的竞技场（host/Arenas/<boss_name>Arena）。
+func boss_arena(host: Node2D, boss_name: String) -> Node:
+	var folder := host.get_node_or_null("Arenas") as Node2D
+	if folder == null:
+		return null
+	return folder.get_node_or_null(boss_name + "Arena")
+
+
 
 
 ## ---------------------------------------------------------------- decor --

@@ -58,6 +58,9 @@ var _since_neigh := 0
 var _skulls_spawned := 0
 var _direction_locked := false
 var _lane: CombatMarker
+## Boss 框架（契约 §4.1）：攻击表 / 阶段 / 场地事件的数据与观测。
+var _boss_kit: BossKit
+var _boss_director: BossDirector
 
 ## 冲锋路径线：从马头前方向冲锋方向伸出这么长（锁向前跟随骑士，锁向后定死变白）。
 const LANE_LENGTH := 240.0
@@ -77,6 +80,7 @@ func _enemy_ready() -> void:
 	hitbox.damage = contact_damage
 	hitbox.disarm()
 	_build_visual()
+	_build_boss_framework()
 
 
 func _build_visual() -> void:
@@ -101,6 +105,9 @@ func announce() -> void:
 	# 先发「开场开始」（音乐 / 演出据此起势），紧接着才是 Boss 血条。
 	GameEvents.boss_intro_started.emit(BOSS_TITLE)
 	GameEvents.boss_appeared.emit(BOSS_TITLE, health.current, health.max_hp)
+	# 框架侧：开战场地事件（舞台灯 / 机关）由 kit 的 arena_events 统一登记。
+	if _boss_director != null:
+		_boss_director.notify_intro()
 
 
 func is_announced() -> bool:
@@ -123,6 +130,7 @@ func _on_hp_changed(current: int, maximum: int) -> void:
 	announce()
 	GameEvents.boss_hp_changed.emit(current, maximum)
 	if current <= 0 or maximum <= 0:
+		_sync_boss_framework(current, maximum)
 		return
 	if _state == State.IDLE and current < maximum:
 		# 远程先手也算开战。
@@ -132,6 +140,7 @@ func _on_hp_changed(current: int, maximum: int) -> void:
 		_enter_windup()
 	if not _enraged and current <= maximum / 2:
 		_enter_phase_two()
+	_sync_boss_framework(current, maximum)
 
 
 ## 二阶段：相变演出 + 节奏收紧（前摇 0.7→0.58、喘息 1.1→0.9、冲速 x1.12，锁向仍留最后 0.2 秒，
@@ -226,6 +235,7 @@ func _enter_windup() -> void:
 	# 读招：微红蓄势（机体）+ 地面路径线（跟随骑士，锁向后变白实线）。
 	begin_telegraph(&"nightmare", windup_time)
 	_spawn_lane()
+	_notify_framework_attack(&"charge")
 
 
 func _begin_charge() -> void:
@@ -296,6 +306,7 @@ func _begin_neigh() -> void:
 	Fx.burst(&"ring", global_position + Vector2(0.0, -36.0))
 	Sfx.play_at(CombatRules.sfx_key(&"boss_roar"), global_position, 0.15, -4.0)
 	_spawn_skulls()
+	_notify_framework_attack(&"neigh")
 
 
 ## 在自身上方两侧各生成一只火骷髅，挂到自己的父节点下；同时存在不超过 MAX_SKULLS。
@@ -430,6 +441,8 @@ func _player() -> Player:
 func _on_died() -> void:
 	_dismiss_skulls()
 	_dismiss_lane()
+	if _boss_director != null:
+		_boss_director.notify_death()
 	slain.emit()
 	# 死亡演出钩子：慢动作 + 大震屏 + 双圈 + 碎屑 + 音效（受 Settings 缩放）。
 	Juice.boss_death_beat(global_position + Vector2(0.0, -44.0))
@@ -437,3 +450,88 @@ func _on_died() -> void:
 	SaveData.mark_flag("nightmare_dead")
 	SaveData.persist_story()
 	_death_burst([] as Array[Texture2D], 12.0, _facing > 0.0, 0.0, "梦魇跪进炉灰里")
+
+
+# --- boss framework (M3) -----------------------------------------------------
+## 结构迁移（契约 §4.1）：冲锋 / 嘶鸣 / 阶段 / 场地事件收敛到一份 BossKit，由
+## BossDirector 以协助模式挂载 —— 只观测，不接管现有状态机。蓄势、锁向、冲速、
+## 喘息、召唤上限与全部现有测试语义保持不变；未来新招（bosses-b）改这张表即可。
+
+## 这场 Boss 的 Kit（延迟构建）。
+func boss_kit() -> BossKit:
+	if _boss_kit == null:
+		_boss_kit = BossKit.new(_boss_kit_config())
+	return _boss_kit
+
+
+## 挂在本 Boss 下的导演层（协助模式；无则返回 null）。
+func boss_director() -> BossDirector:
+	return _boss_director
+
+
+## 竞技场边界（世界 x）：level10 由章节 layout 通过 arena_left/right 注入。
+func boss_arena_bounds() -> Vector2:
+	return Vector2(arena_left, arena_right)
+
+
+func _build_boss_framework() -> void:
+	if _boss_kit == null:
+		_boss_kit = BossKit.new(_boss_kit_config())
+	if _boss_director == null:
+		_boss_director = BossDirector.attach(self, _boss_kit, false)
+	if _boss_director != null:
+		_boss_director.set_hp(health.current, health.max_hp)
+
+
+## HP -> 框架同步；0 HP 只通知一次死亡（notify_death 幂等）。
+func _sync_boss_framework(current: int, maximum: int) -> void:
+	if _boss_director == null:
+		return
+	if current <= 0:
+		_boss_director.notify_death()
+	else:
+		_boss_director.set_hp(current, maximum)
+
+
+func _notify_framework_attack(id: StringName) -> void:
+	if _boss_director != null:
+		_boss_director.notify_attack_started(id)
+
+
+## 攻击表数据源。数值引用本脚本既有的导出默认值 / 常量，和实现同源：
+##   charge —— 蓄势 0.7s（二阶段 0.58s，windup_by_phase 表达）+ 冲锋 + 喘息 1.1s（P2 0.9s）。
+##   neigh  —— 二阶段专属：每第三次出手改成嘶鸣（1.4s 演出，召唤火骷髅，不直接伤人）。
+## 「每第三手嘶鸣」的节奏是现有状态机的硬编码，不交给导演层重排（保持行为不变）。
+func _boss_kit_config() -> Dictionary:
+	return {
+		"id": &"nightmare",
+		"title": BOSS_TITLE,
+		"subtitle": "无 主 之 马",
+		"max_phases": 2,
+		"phase_thresholds": [1.0, 0.5],
+		"min_interval": 0.9,
+		"attacks": [
+			{
+				"id": &"charge", "phase": 1, "weight": 2.0,
+				"cooldown": 1.1, "cooldown_by_phase": [1.1, 0.9],
+				"min_range": 0.0, "max_range": aggro_range,
+				"windup": 0.7,
+				"windup_by_phase": [0.7, CombatRules.NIGHTMARE_P2_WINDUP],
+				"active": 0.4, "recovery": 1.1,
+				"telegraph": &"nightmare",
+				"hitbox": {"offset": Vector2(0.0, -14.0), "size": Vector2(48.0, 28.0)},
+			},
+			{
+				"id": &"neigh", "phase": 2, "weight": 1.0,
+				"cooldown": 2.4, "min_range": 0.0, "max_range": 0.0,
+				"windup": neigh_time, "active": 0.2, "recovery": 0.4,
+				"telegraph": &"nightmare", "damaging": false, "hitbox": {},
+			},
+		],
+		"arena_events": [
+			{"id": &"arena_surge", "at_phase": 1, "once": true},
+			{"id": &"arena_hot", "at_phase": 2, "once": true},
+			{"id": &"arena_dim", "at_phase": 0, "once": true},
+		],
+	}
+
