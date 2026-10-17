@@ -28,6 +28,8 @@ func interact(actor: Node) -> void:
 		(actor as Player).collect_core(AbilityCatalog.kiln_core())
 		modulate.a = 0.4
 		GameEvents.announcement.emit("废料堆里摸到窑核")
+		# Same save-at-pickup rule as CorePickup: looted flag and pouch land together.
+		SaveData.persist_progress(actor)
 
 
 func get_persistent_state() -> Dictionary:

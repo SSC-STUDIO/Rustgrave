@@ -24,6 +24,9 @@ func interact(actor: Node) -> void:
 	if actor is Player and core:
 		(actor as Player).collect_core(core)
 		SaveData.mark_consumed(String(get_path()))
+		# Save-at-pickup: the pouch and the consumed record hit the disk together, so a
+		# death before the next nest can neither lose the core nor duplicate it.
+		SaveData.persist_progress(actor)
 		queue_free()
 
 

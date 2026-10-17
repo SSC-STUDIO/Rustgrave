@@ -217,7 +217,9 @@ func _on_died() -> void:
 	# Set the position before _ready captures the bobbing baseline.
 	pickup.position = position + Vector2(0, -8)
 	var saved_path := SaveData.persist_path(self).get_base_dir() + "/" + String(pickup.name)
-	if SaveData.is_consumed(saved_path):
+	# The drop stays gone only while the save still owns a tether core (older saves
+	# could record the pickup without the core; release it instead of soft-locking).
+	if SaveData.is_consumed(saved_path) and not SaveData.release_unowned_core(saved_path, pickup.core.id):
 		pickup.free()
 	else:
 		get_parent().add_child(pickup)

@@ -193,10 +193,15 @@ func is_consumed(path: String) -> bool:
 func apply_consumed(node: Node) -> void:
 	if node == null or not is_instance_valid(node):
 		return
-	for p in consumed:
+	for p in consumed.duplicate():
 		var target := resolve_saved_node(node, String(p))
-		if target != null and is_instance_valid(target):
-			target.queue_free()
+		if target == null or not is_instance_valid(target):
+			continue
+		# A required core must never vanish with the save not owning it (soft-lock).
+		if target is CorePickup and (target as CorePickup).core != null \
+				and release_unowned_core(String(p), (target as CorePickup).core.id):
+			continue
+		target.queue_free()
 
 
 func register_lit_nest(path: String) -> void:
@@ -229,15 +234,76 @@ func has_flag(id: String) -> bool:
 ## Write flags + ending onto an existing save without needing a live player.
 ## Used after Boss kill so a nest-respawn load_game() cannot revive the Executioner.
 ## Also flushes consumed / lit_nests so a story write cannot drop later pickups.
-func persist_story() -> void:
+##
+## The flush is a *progression* write: it also carries the live knight's cores and the
+## persistent world nodes (looted scrap, opened doors). Writing `consumed` alone used to
+## record a picked-up core as gone while the pouch on disk still lacked it, so a death
+## before the next nest lost the core for good (and with it the grapple route).
+func persist_story(player: Node = null) -> void:
+	persist_progress(player)
+
+
+## Save-at-pickup: write cores, consumed one-shots, world nodes, nests and flags onto the
+## existing save without moving the respawn point, HP or the saved scene. No-op without a
+## save (before the first nest a death reloads a fresh level and every pickup returns).
+func persist_progress(player: Node = null) -> bool:
 	var cfg := _load_cfg()
 	if cfg == null:
-		return
+		return false
+	if player == null:
+		player = _live_player()
+	if player is Player and is_instance_valid(player):
+		var inv := _collect_inventory(player)
+		cfg.set_value("player", "pouch", inv["pouch"])
+		cfg.set_value("player", "sockets", inv["sockets"])
+		if data.has("player"):
+			(data["player"] as Dictionary)["pouch"] = inv["pouch"]
+			(data["player"] as Dictionary)["sockets"] = inv["sockets"]
+		var world := _collect_world()
+		for key in world:
+			cfg.set_value("world", key, world[key])
+			if data.has("world"):
+				(data["world"] as Dictionary)[key] = world[key]
 	cfg.set_value("story", "flags", Array(flags))
 	cfg.set_value("meta", "ending", ending)
 	cfg.set_value("consumed", "paths", Array(consumed))
 	cfg.set_value("lit_nests", "paths", Array(lit_nests))
-	_write_cfg(cfg)
+	return _write_cfg(cfg)
+
+
+func _live_player() -> Node:
+	if not is_inside_tree():
+		return null
+	return get_tree().get_first_node_in_group("player")
+
+
+## Ownership check against the *loaded save* (pouch or sockets). Cores are never
+## destroyed — sockets swap back into the pouch — so a consumed core pickup whose core
+## the save does not own is a lost core, and must come back into the world.
+func save_owns_core(core_id: StringName) -> bool:
+	var p: Dictionary = data.get("player", {})
+	for key in ["pouch", "sockets"]:
+		for id_str in p.get(key, []):
+			if StringName(String(id_str)) == core_id:
+				return true
+	return false
+
+
+## Save-compat repair for files written before persist_progress existed: un-consume
+## core pickups the save no longer owns. Returns how many paths were released.
+func release_unowned_core(path: String, core_id: StringName) -> bool:
+	if not data.has("player") or save_owns_core(core_id):
+		return false
+	var key := _normalize_saved_path(path)
+	var released := false
+	var i := consumed.size() - 1
+	while i >= 0:
+		var c := String(consumed[i])
+		if c == key or c == path or _normalize_saved_path(c) == key:
+			consumed.remove_at(i)
+			released = true
+		i -= 1
+	return released
 
 
 func peek_ending() -> String:
