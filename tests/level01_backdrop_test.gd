@@ -92,17 +92,17 @@ func test_silhouette_and_foreground_gain_variation() -> void:
 		return
 	var sil := level.get_node_or_null("ParallaxBackdrop/NearSilhouette") as Parallax2D
 	ok(sil != null, "the silhouette strip is still one Parallax2D")
-	var author_fore := level.get_node_or_null("ParallaxForeground/Foreground") as Parallax2D
-	for layer in [sil]:
-		if layer == null:
-			continue
-		for child in layer.get_children():
+	var front := level.get_node_or_null("ParallaxForeground") as CanvasLayer
+	ok(front != null, "the foreground layer still hosts fog/veil")
+	# 幕前草已整段删除：它贴在视口底边，正好压在土壤剖面上，被玩家读成
+	# "土里长出来的移动植物"（2026 用户复查），这里锁定它不会再回来。
+	ok(level.get_node_or_null("ParallaxForeground/Foreground") == null,
+			"the soil-sliding foreground grass strip is gone")
+	ok(level.get_node_or_null("ParallaxForeground/ForegroundFringe") == null,
+			"the duplicate grass fringe is gone too")
+	if sil != null:
+		for child in sil.get_children():
 			ok(not (child is CollisionObject2D), "backdrop variation adds no collision")
-	# 玩法层不变：作者前景板仍是原来的图，前景层之外没有多余的玩法节点。
-	if author_fore != null:
-		var aspr := author_fore.get_node_or_null("Sprite") as Sprite2D
-		ok(aspr != null and String(aspr.texture.resource_path).ends_with("parallax_foreground_px.png"),
-				"the authored foreground plate is untouched")
 
 
 ## 表现层契约：漂移/调色只改已有节点，不建节点、不写时钟/存档/物理。
@@ -150,6 +150,10 @@ func test_graveyard_theme_keeps_the_authored_plates_for_later_chapters() -> void
 	eq(String(far.texture.resource_path), SKY, "chapter 6's rainy night keeps the authored moon")
 	eq(String(mid.texture.resource_path), MOUNTAINS, "and the authored range")
 	ok(backdrop.layer < 0, "the backdrop stays behind the play canvas")
+	ok(host.get_node_or_null("ParallaxForeground") is CanvasLayer,
+			"the foreground layer (fog/veil only) rides along with the shared stack")
+	ok(host.get_node_or_null("ParallaxForeground/ForegroundFringe") == null,
+			"no grass fringe is built on top of the soil")
 
 
 func _load_level() -> Node:

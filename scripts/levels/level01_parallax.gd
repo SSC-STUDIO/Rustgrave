@@ -101,7 +101,6 @@ var _cloud_low: Parallax2D
 var _fog_far: Parallax2D
 var _fog_near: Parallax2D
 var _sil_layer: Parallax2D
-var _foreground: Parallax2D
 var _ground_fog: Parallax2D
 var _fog_veil: ColorRect
 var _mood_tint: CanvasModulate
@@ -143,10 +142,10 @@ func build(host: Node2D, _theme_id: String = "graveyard") -> void:
 	if front != null:
 		if front is CanvasLayer:
 			(front as CanvasLayer).follow_viewport_enabled = false
-		# motion>1 只给幕前草。碑/石/土唇不进这张条，否则人一走坟自己在滑。
-		_foreground = front.get_node_or_null("Foreground") as Parallax2D
-		if _foreground != null:
-			cover_layer(_foreground)
+		# ParallaxForeground 只留贴地雾与雾幕。原来的两层"幕前草"剪影（屏幕
+		# y≈347–352）正好压在横截面镜头的土壤剖面上，深色草影扫过亮土会被读成
+		# "土里长出来的移动植物"（用户复查）；整段删除，近景层次交给平台草皮顶
+		# 与 NearSilhouette 树丛。
 		if fog_tex != null:
 			_ground_fog = _add_ground_fog(front, fog_tex)
 		grade_plates(front, _palette())
@@ -198,8 +197,6 @@ func _process(delta: float) -> void:
 		_fog_far.scroll_offset.x += drift * 18.0 * delta
 	if _fog_near != null:
 		_fog_near.scroll_offset.x += drift * 32.0 * delta
-	if _foreground != null:
-		_foreground.scroll_offset.x += drift * 56.0 * delta
 	if _ground_fog != null:
 		_ground_fog.scroll_offset.x += drift * 24.0 * delta
 	_follow_atmosphere(delta)
