@@ -241,6 +241,9 @@ const SKIN_SURFACE := {
 	&"iron": &"metal", &"iron_float": &"metal",
 	&"basalt": &"stone", &"basalt_float": &"stone",
 	&"rampart": &"stone", &"rampart_float": &"stone",
+	# 圣殿铺面（第 4 章 CHAPTER family "nave"）：以前只靠"未知 => stone"兜底，
+	# 表里写明后才和 solid_platform.gd 的 skin 列表保持同步。
+	&"nave": &"stone", &"nave_float": &"stone",
 }
 
 ## Debug / test visibility of the last accepted voice.
