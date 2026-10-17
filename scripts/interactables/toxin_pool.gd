@@ -274,11 +274,11 @@ func _maybe_hint() -> void:
 
 
 func _bubble_rect() -> Rect2:
-	# 从水面（甚至略高于水面）开始冒：气泡要在水线以上看得见，不能整段生命
-	# 都埋在暗色水体里——那样只剩水面下的绿色噪点。
+	# 泡从水线附近冒出来，再往上升：不能整段生命都埋在暗色水体里，
+	# 否则只剩"水里几个绿色噪点"，看不到"池子在冒泡"。
 	return Rect2(
-		Vector2(4.0, -2.0),
-		Vector2(_pool_size.x - 8.0, _pool_size.y * 0.40)
+		Vector2(4.0, -6.0),
+		Vector2(_pool_size.x - 8.0, 8.0)
 	)
 
 
