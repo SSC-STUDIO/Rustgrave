@@ -19,6 +19,10 @@ func test_starts_with_boss_hp_and_not_enraged() -> void:
 	eq(b.health.max_hp, 13)
 	eq(b.health.current, 13)
 	ok(not b.is_enraged())
+	var body := b.get_node("CollisionShape2D") as CollisionShape2D
+	eq((body.shape as RectangleShape2D).size, GearShieldEnemy.BODY_SIZE,
+			"the executioner blocks with the same torso as the gear shield")
+	almost(b.body_clearance().y, GearShieldEnemy.BODY_SIZE.y, 0.01)
 
 
 func test_slash_windup_pulses_ember() -> void:

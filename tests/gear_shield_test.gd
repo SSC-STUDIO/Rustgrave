@@ -22,6 +22,24 @@ func _enter_guard(g: GearShieldEnemy, side: int) -> void:
 	g._update_visual()
 
 
+func test_torso_matches_the_drawn_armour() -> void:
+	var arena := Node2D.new()
+	add_child(arena)
+	build_floor(arena)
+	var g := await _spawn(arena, 320.0)
+	var body := g.get_node("CollisionShape2D") as CollisionShape2D
+	var rect := body.shape as RectangleShape2D
+	eq(rect.size, GearShieldEnemy.BODY_SIZE, "physics body is the torso, not the 16x26 placeholder")
+	almost(body.position.y + rect.size.y * 0.5, 0.0, 0.01, "torso feet stay on y=0")
+	var hurt := g.hurtbox.get_node("CollisionShape2D") as CollisionShape2D
+	var hurt_rect := hurt.shape as RectangleShape2D
+	eq(hurt_rect.size, GearShieldEnemy.HURT_SIZE, "hurtbox covers the hood-to-feet silhouette")
+	almost(g.hurtbox.position.y + hurt_rect.size.y * 0.5, 0.0, 0.01, "hurtbox feet stay on y=0")
+	var clear := g.body_clearance()
+	almost(clear.x, 21.0, 0.01, "the cloak pushes before the player stands inside it")
+	almost(clear.y, GearShieldEnemy.BODY_SIZE.y, 0.01, "a jump has to clear the torso")
+
+
 func test_patrol_idle_takes_full_damage() -> void:
 	var arena := Node2D.new()
 	add_child(arena)

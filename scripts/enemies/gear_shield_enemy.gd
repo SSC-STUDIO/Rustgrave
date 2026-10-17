@@ -18,6 +18,11 @@ const PROJECTILE_SCENE := preload("res://scenes/combat/Projectile.tscn")
 const EXEC_CHAR := "gear_shield_executioner"
 const EXEC_POS := Vector2(6.0, -34.0)
 const EXEC_DEATH_BASELINE := -33.0
+## 铠甲躯干，不是 100×100 画布，也不是旧的 16×26 占位。脚在 y=0。
+## 斧尖留在画布外侧，不进这只碰撞盒。
+const BODY_SIZE := Vector2(28, 48)
+## 受击盒盖住兜帽到脚，比躯干稍宽，斩击才打在画出来的甲上。
+const HURT_SIZE := Vector2(36, 60)
 
 @export var aggro_range: float = 300.0
 @export var shoot_interval: float = 2.4
@@ -45,12 +50,39 @@ func _init() -> void:
 	patrol_speed = 26.0  # 重甲哨兵拖着步子巡逻，慢于基类默认
 
 
+func body_clearance() -> Vector2:
+	# 横向：躯干半宽 14 + 骑士半宽 7。竖向：脚要抬过躯干顶才穿得过去。
+	return Vector2(21.0, BODY_SIZE.y)
+
+
 func _enemy_ready() -> void:
+	hit_material = &"armour"
 	health.max_hp = 4
 	health.heal_full()
 	_shoot_timer = shoot_interval * 0.6
 	hurtbox.block_check = _shield_block_check
+	_fit_silhouette()
 	_build_visual()
+
+
+## 场景里的 16×26 是占位。运行时换成躯干尺寸，并且每只敌人单独一份形状，
+## 避免改到共享的 RectangleShape2D。
+func _fit_silhouette() -> void:
+	var body := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if body != null:
+		var rect := RectangleShape2D.new()
+		rect.size = BODY_SIZE
+		body.shape = rect
+		body.position = Vector2(0.0, -BODY_SIZE.y * 0.5)
+	if hurtbox == null:
+		return
+	var hurt_shape := hurtbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if hurt_shape == null:
+		return
+	var hurt_rect := RectangleShape2D.new()
+	hurt_rect.size = HURT_SIZE
+	hurt_shape.shape = hurt_rect
+	hurtbox.position = Vector2(0.0, -HURT_SIZE.y * 0.5)
 
 
 ## 两级回退：Executioner 帧动画 → 场景内 ColorRect/Polygon2D 占位（headless/缺素材）。
@@ -116,7 +148,7 @@ func _after_move() -> void:
 func _tick_patrol(_delta: float) -> void:
 	_set_blocking(false)
 	_patrol_step()
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	if player != null and global_position.distance_to(player.global_position) < aggro_range:
 		_enter_block(player)
 
@@ -136,6 +168,8 @@ func _tick_block(delta: float) -> void:
 		_state = State.CHARGE
 		_timer = charge_time
 		_flicker_charge()
+		begin_telegraph(&"gear_shield", charge_time)
+		Sfx.play_at(CombatRules.sfx_key(&"spit_charge"), global_position, 0.06, -8.0)
 		return
 	_set_blocking(true)
 
@@ -165,7 +199,7 @@ func _fire() -> void:
 	if host == null:
 		host = get_tree().current_scene
 	host.add_child(proj)
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := knight()
 	# 帧动画机体更高大：弹体从抬手处出膛；占位机体沿用旧出膛点。
 	var origin := global_position + (Vector2(_shield_facing * 18.0, -30.0)
 			if _anim != null else Vector2(_shield_facing * 14.0, -14.0))
@@ -180,23 +214,33 @@ func _shield_block_check(attacker: Node, _amount: int) -> bool:
 		return false
 	if not _is_from_front(attacker):
 		return false
+	var spot := global_position + Vector2(_shield_facing * 9.0, -12.0)
 	if attacker is Projectile and (attacker as Projectile).team == &"player":
-		Sfx.play(&"parry")
 		attacker.queue_free()
 		_enter_stagger()
+		# 被弹回的弹丸砸开了盾：露出破绽，窗口内玩家第一击翻倍。
+		open_riposte()
 	else:
-		Fx.hit_sparks(global_position + Vector2(_shield_facing * 9.0, -12.0))
-		Sfx.play(&"parry")
+		Juice.block_feel(attacker, spot)
 	_flash_shield()
 	return true
 
 
+## 盾被击碎的硬直：盾放下、整体闪白、最重的盾行反馈（顿帧 / 震屏 / 金属火星 / 碎盾音），
+## 头顶金箭头标出整个破绽窗口。
 func _enter_stagger() -> void:
 	_state = State.STAGGER
 	_timer = stagger_time
 	_set_blocking(false)
 	GameEvents.announcement.emit("弹反击碎了齿轮盾！")
-	GameEvents.hit.emit(self, self, 0)
+	_flash_white()
+	Juice.block_feel(null, global_position + Vector2(_shield_facing * 9.0, -12.0), true)
+	show_opening(stagger_time)
+
+
+## 盾卫自己就有 stagger 状态：破绽期间不再叠加通用硬直（否则 stagger 计时被冻住）。
+func _on_riposte_opened() -> void:
+	pass
 
 
 func _is_from_front(attacker: Node) -> bool:
