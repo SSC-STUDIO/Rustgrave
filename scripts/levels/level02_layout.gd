@@ -312,7 +312,8 @@ func _sprite(parent: Node2D, path: String, pos: Vector2, tint: Color, grounded: 
 	spr.position = pos
 	spr.modulate = tint
 	if grounded:
-		spr.set_meta("feet", pos + Vector2(float(tex.get_width()) * 0.5, float(tex.get_height())))
+		spr.set_meta("feet", (pos + Vector2(float(tex.get_width()) * 0.5, float(tex.get_height()))).round())
+		spr.set_meta("foot_anchor", "bottom_center")
 		spr.add_to_group("grounded")
 	parent.add_child(spr)
 

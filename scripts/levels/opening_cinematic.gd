@@ -1,6 +1,6 @@
 class_name OpeningCinematic
 extends RefCounted
-## 新游戏开场（约 13 秒，随时可跳过）。只在第一章醒来之前播一次，和醒来是同一条剧本。
+## 新游戏开场（约 14.4 秒，随时可跳过）。只在第一章醒来之前播一次，和醒来是同一条剧本。
 ## 继续、读档、死亡重进、已经醒过都不重播。不写结局。
 ## opening_seen 与 wake 在整段结束或跳过时一起点上；abort 两点都不点。
 ##
@@ -8,16 +8,21 @@ extends RefCounted
 ##   0.0  处境  骑士趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
 ##   2.1  「剑先锈了。里面还有人。」
 ##   3.7  身份  镜头退后到巢与坟，巢口飘起一缕火星  「你不是被选中的。刮锈的偶，自己先锈透了。」
-##   5.8  异象  地下一声钟：每座坟依次冒灰回应，镜头沿走廊往东推
+##   6.8  异象  地下一声钟：每座坟依次冒灰回应，镜头沿走廊往东推
 ##        「钟响了一声。底下有人在数。」
-##   9.2  目标  走廊尽头残芯的光跳两下，刽子手立在门后  「炉还在下面。你得把他们带下去。」
-##  10.3  章节卡；镜头在卡下切回骑士
-##  13.0  交还操作；底部一行移动提示，第一次输入后消失
+##   8.8  远处走廊尽头先应一声低钟、亮一团暖光（ECHO_AT），镜头继续走
+##  10.2  目标  走廊尽头残芯的光跳两下，刽子手立在门后，铁门沉一下
+##        「炉还在下面。你得把他们带下去。」
+##  11.4  章节卡；镜头在卡下切回骑士
+##  13.6  交还操作；脚边火星与巢边余火先响，队列清空后底部一行移动提示，第一次输入后消失
+##  14.5  全段预算（按步骤估算 14.44）
 ##
 ## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「剑里有人」靠火星从剑背
 ## 应声而起（bell_ring fx），「坟在数人」靠每座坟依次冒灰（grave_answer），「炉在下面」
 ## 靠镜头推近时残芯跳两下（heart_pulse + glow），「目标」则让刽子手真的立在门后 ——
-## 玩家先看见他要打谁，字幕才落到「把他们带下去」。
+## 玩家先看见他要打谁，字幕才落到「把他们带下去」。钟声在走廊尽头先应一次
+## （_heart_echo），把坟群和残芯说成同一个地方；交接不是又一段字幕，是巢边余火、
+## 脚边火星和一次真正的输入解锁。
 ## 用到的 Director 步骤：lock unlock wait tableau caption cam_focus cam_release
 ## letterbox sfx fx。新 fx id：rust_flake plant bell_ring。
 
@@ -28,9 +33,9 @@ const CARD_SECONDS := 2.2
 ## 整段（不跳过）的预算。测试按步骤估算，不许超。
 const MAX_SECONDS := 14.5
 
-## 顺序 = 处境、身份、异象、目标。每句都短：画面讲长的，字幕只钉那一钉。
-## 第二句拆成两拍：先让镜头退到坟群（画面说「偶也是坟里的一座」），
-## 字幕才落「自己先锈透了」—— 文字永远比画面晚半步。
+## 顺序 = 处境、身份、异象、目标。身份拆两拍播：先「你不是被选中的」（镜头开始退），
+## 等坟群应声、画面把「偶也是坟里的一座」说完，才落「自己先锈透了」。
+## 每句都短：画面讲长的，字幕只钉那一钉。
 const LINES: Array[String] = [
 	"剑先锈了。里面还有人。",
 	"你不是被选中的。",
@@ -38,10 +43,8 @@ const LINES: Array[String] = [
 	"钟响了一声。底下有人在数。",
 	"炉还在下面。你得把他们带下去。",
 ]
-## 身份拍第二句的回声句：最短，最核心。
-const IDENTITY_ECHO := "刮锈的偶，自己先锈透了。"
 
-const KNIGHT_FALLBACK := Vector2(96, 290)
+const KNIGHT_FALLBACK := Vector2(96, 320)
 const NEST_FALLBACK := Vector2(150, 306)
 ## 残芯（Level01EastWing 放它的位置）。刽子手站在它前面 (1860, 320)。
 const HEART := Vector2(2064, 292)
@@ -61,14 +64,22 @@ const RISE_FPS := 8.0
 ## 异象拍的坟声顺序：近的坟先应，越远越迟，最后一笔留给牌坊下的新坟。
 ## 眼前目标拍：残芯跳第二下的间隔，和镜头推近的时长对齐。
 const HEART_SECOND_BEAT := 0.55
+## 走廊尽头的回应时刻（相对 pan 起点）。镜头走到一半多一点时，残芯的暖光
+## 先在远处亮一下、钟再低低地响一次：底下数人的东西就是镜头要去的地方。
+## 等到 `_arrive` 再正式跳两下，远处那一下只是先应声。
+const ECHO_AT := 0.58
 
 static var _active := false
 static var _knight: Variant
 static var _nest: Variant
 static var _dolly: Node2D
 static var _pan: Tween
+static var _echo: Tween
 static var _rise: FrameAnimSprite
 static var _hidden: FrameAnimSprite
+## 剧本自然结束或被跳过后，等队列真正清空再交还操作提示：
+## 若后面还压着一段过场，提示不能先闪出来又被它盖掉。
+static var _pending_handoff := false
 
 
 static func should_play() -> bool:
@@ -123,7 +134,9 @@ static func steps() -> Array:
 		{"kind": "fx", "id": "bell_ring", "target": knight, "seconds": 0.0},
 		{"kind": "caption", "text": LINES[3], "hold": 1.0},
 		{"kind": "wait", "seconds": 1.0},
-		{"kind": "caption", "text": LINES[4], "hold": 1.1},
+		# 目标：残芯的光已经跳了两下，字幕才落 —— 这一拍带 line_forge，
+		# 截图夹具按 tag 认它，不按第几句认（LINES 的下标会随分镜调整而变）。
+		{"kind": "caption", "text": LINES[4], "hold": 1.1, "tag": "line_forge"},
 		{"kind": "wait", "seconds": 0.15},
 		card,
 		{"kind": "tableau", "id": "world"},
@@ -167,6 +180,7 @@ static func try_start(knight: Variant = null, nest: Variant = null) -> bool:
 static func reset() -> void:
 	_cleanup()
 	_active = false
+	_pending_handoff = false
 	_knight = null
 	_nest = null
 
@@ -332,6 +346,8 @@ static func _begin_pan() -> void:
 		return
 	if _pan != null and _pan.is_valid():
 		_pan.kill()
+	if _echo != null and _echo.is_valid():
+		_echo.kill()
 	var from := _dolly.global_position
 	var to := Vector2(PAN_END_X, from.y)
 	# 钟响那一下镜头猛地拉开；位置靠 dolly 的缓动走，镜头只需紧跟（τ 小，滞后几十像素）。
@@ -340,6 +356,11 @@ static func _begin_pan() -> void:
 	_pan = _dolly.create_tween()
 	_pan.tween_property(_dolly, "global_position", to, PAN_SECONDS) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# 世界悬念：队伍走到一半，走廊尽头先应一声。不是目标灯在闪，是「数人」的
+	# 那口钟在底下应了 —— 同一条钟声把坟群和残芯连成一个地方。
+	_echo = _dolly.create_tween()
+	_echo.tween_interval(PAN_SECONDS * ECHO_AT)
+	_echo.tween_callback(_heart_echo)
 	# 并行的第二条时间线：坟的回应按 dolly 的位置排。
 	var answers := _dolly.create_tween()
 	var xs := grave_xs(world)
@@ -356,6 +377,18 @@ static func _begin_pan() -> void:
 		answers.tween_callback(_grave_answers.bind(x))
 	answers.tween_interval(maxf(PAN_SECONDS - clock, 0.0))
 	answers.tween_callback(_arrive)
+
+
+## 走廊尽头的低回应：一声更远的钟、一团还没被镜头认出的暖光。
+## 不给全屏闪白 —— 这里只是「下面有东西醒了」，真正的心跳留给 `_arrive`。
+static func _heart_echo() -> void:
+	if not is_instance_valid(_dolly):
+		return
+	var world := _dolly.get_parent()
+	Sfx.play(&"bell_toll", 0.04, -17.0)
+	if world != null:
+		CineFx.glow_pulse(world, HEART + Vector2(0.0, -26.0),
+				Color(1.0, 0.5, 0.24, 0.28), 2.2, 1.2)
 
 
 static func _grave_answers(x: float) -> void:
@@ -378,6 +411,8 @@ static func _arrive() -> void:
 	# 门后的剪影：玩家第一次看清「要去打谁」，比任何字幕都直接。
 	var gate := _gate_pos()
 	if gate != Vector2.INF:
+		# 铁门在骑士靠近前先沉一下：目标不是一团光，是一扇得先过去的门。
+		Sfx.play(&"gate", 0.04, -12.0)
 		CineFx.glow_pulse(world, gate + Vector2(0.0, -30.0),
 				Color(1.0, 0.45, 0.2, 0.34), 1.5, 1.1)
 		Director.play_fx("shock_ring", gate + Vector2(0.0, -30.0))
@@ -421,8 +456,17 @@ static func _cut_to_knight() -> void:
 		return
 	_snap_camera_to_knight(cam)
 	cam.focus(_knight_node() if _knight_node() != null else _knight_pos(), 1.0, 0.25)
-	# 交还前的最后一拍：骑士自己抖落斗篷上的锈，镜头跟着他，不抢操作。
-	Director.play_fx("dust_puff", _knight_pos() + Vector2(0.0, -40.0))
+	# 交还前的最后一拍：骑士自己抖落斗篷上的锈，脚边火星往上走，镜头跟着他。
+	# 巢边的余火声音和 `hint_show` 分开，交接是「可以歇一口气」，不是又一段演出。
+	var pos := _knight_pos()
+	Director.play_fx("dust_puff", pos + Vector2(0.0, -40.0))
+	Director.play_fx("ember_rise", pos + Vector2(0.0, -2.0))
+	if is_instance_valid(_dolly):
+		var world := _dolly.get_parent()
+		if world != null:
+			CineFx.glow_pulse(world, pos + Vector2(0.0, -24.0),
+					Color(1.0, 0.6, 0.3, 0.32), 1.2, 0.9)
+	Sfx.play(&"nest_rest", 0.04, -13.0)
 
 
 ## 镜头直接落回骑士身上，不从走廊尽头飞回来（跳过 / 中断 / 章节卡下的切回都用它）。
@@ -435,7 +479,9 @@ static func _snap_camera_to_knight(cam: GameCamera) -> void:
 
 # --- lifecycle ------------------------------------------------------------------
 
-## 整条剧本走完或被跳过（不含 abort）：点旗、还原世界、交还音乐、给出移动提示。
+## 整条剧本走完或被跳过（不含 abort）：点旗、还原世界、交还音乐。
+## 移动提示不在这里给 —— 等 `finished`，也就是队列真正清空之后再交还操作；
+## 如果后面还压着一段过场，提示不能先闪出来又被它盖掉。
 static func _on_script_finished() -> void:
 	if not _active:
 		return
@@ -447,35 +493,43 @@ static func _on_script_finished() -> void:
 		var cam := _camera()
 		if cam != null and not cam._focused:
 			_snap_camera_to_knight(cam)
-	_cleanup()
+	_cleanup(true)
 	Music.set_state(&"calm")
+	_pending_handoff = true
 	_knight = null
 	_nest = null
-	# 交接的那一下有个轻提示音：不看字幕也知道「现在轮到你了」。
-	Sfx.play(&"hint_show", 0.04, -6.0)
-	Director.show_hint(move_prompt())
 
 
-## abort（死亡、切场）只会走到这里：不点旗，同样把世界还原干净。
+## `finished` = 整条队列干完（自然结束 / 跳过），或 abort（死亡、切场）。
+## 只有前者才交还移动提示；abort 把世界还原干净就走，不留下一次没看完的交接。
 static func _on_finished() -> void:
-	if not _active:
-		_disconnect_hooks()
-		return
-	_active = false
-	if is_instance_valid(_dolly):
-		var cam := _camera()
-		if cam != null and not cam._focused:
-			_snap_camera_to_knight(cam)
+	if _pending_handoff and not Director.is_aborting():
+		_pending_handoff = false
+		# 交接的那一下有个轻提示音：不看字幕也知道「现在轮到你了」。
+		Sfx.play(&"hint_show", 0.04, -6.0)
+		Director.show_hint(move_prompt())
+	elif _active:
+		_active = false
+		if is_instance_valid(_dolly):
+			var cam := _camera()
+			if cam != null and not cam._focused:
+				_snap_camera_to_knight(cam)
+		Music.set_state(&"calm")
+	_pending_handoff = false
 	_cleanup()
-	Music.set_state(&"calm")
 	_knight = null
 	_nest = null
 
 
-static func _cleanup() -> void:
+## keep_finished: 剧本自然结束时留下 `finished` 钩子等队列清空；
+## reset() / abort 的清理则把所有钩子都断开。
+static func _cleanup(keep_finished: bool = false) -> void:
 	if _pan != null and _pan.is_valid():
 		_pan.kill()
 	_pan = null
+	if _echo != null and _echo.is_valid():
+		_echo.kill()
+	_echo = null
 	if is_instance_valid(_dolly):
 		_dolly.queue_free()
 	_dolly = null
@@ -484,15 +538,15 @@ static func _cleanup() -> void:
 	var player := _knight_node() as Player
 	if player != null and not Director.is_input_locked():
 		player.cutscene_locked = false
-	_disconnect_hooks()
+	_disconnect_hooks(keep_finished)
 
 
-static func _disconnect_hooks() -> void:
+static func _disconnect_hooks(keep_finished: bool = false) -> void:
 	if Director.step_started.is_connected(_on_step):
 		Director.step_started.disconnect(_on_step)
 	if Director.script_finished.is_connected(_on_script_finished):
 		Director.script_finished.disconnect(_on_script_finished)
-	if Director.finished.is_connected(_on_finished):
+	if not keep_finished and Director.finished.is_connected(_on_finished):
 		Director.finished.disconnect(_on_finished)
 
 

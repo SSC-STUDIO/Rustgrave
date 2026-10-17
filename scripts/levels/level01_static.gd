@@ -12,7 +12,7 @@ const PLATFORM := preload("res://scenes/world/Platform.tscn")
 @onready var plate: PressurePlate = get_node_or_null("Props/PressurePlate")
 @onready var door: ArenaDoor = get_node_or_null("Props/Door")
 
-const DEFAULT_SPAWN := Vector2(96, 290)
+const DEFAULT_SPAWN := Vector2(96, 320)
 ## GroundLeft / GroundRight / east floor 顶。单跳约 37px（v=-268, g=980）。
 const GROUND_TOP := 320.0
 ## 单跳顶点；踏步用 32px，留约 5px 余量，且不挡地面行人头顶（碰撞高 26px）。
@@ -213,11 +213,12 @@ const BALUSTRADE_TEX := "res://assets/env/balustrade.png"
 func _spawn_steles_and_bastion_decor() -> void:
 	var props := get_node_or_null("Props") as Node2D
 	if props != null:
-		# Plat_48_144 只铺到 x=48..104。碑宽 28、以脚点为中心，放在石台中线才不探出左沿。
-		_add_stele(props, Vector2(76, 144), "炉约纪事 · 熔熄", "炉灭那夜，城自己沉进岩层。刮锈的偶没干完，先锈在废料里。")
-		# 枯树右缘 264，「腐液」牌面从 283 起。碑站在毒坑东岸，
-		# 左缘 534 离坑沿 512 有余，右缘 562 碰不到 x=568 的锈块。
-		_add_stele(props, Vector2(548, 320), "工坊遗训 · 冷却液", "橙色的是冷却剂。它吃肺，也把记忆淬进剑里。")
+		# Plat_48_144 只铺到 x=48..104。碑宽 28、以脚点为中心，放在石台东侧：
+		# 中线 76 会探到 Kiln_LowTower 窑核（悬在台西沿上方 24px）身上。
+		_add_stele(props, Vector2(88, 144), "SteleForge", "炉约纪事 · 熔熄", "炉灭那夜，城自己沉进岩层。刮锈的偶没干完，先锈在废料里。")
+		# 枯树右缘 264，「腐液」牌面从 283 起。碑站到坑东岸的矮唇上（512..552）：
+		# 站在地面 320 时碑身左下会嵌进 PitStepLow 土丘，右缘还会贴上 x=568 的锈块。
+		_add_stele(props, Vector2(532, 304), "SteleCoolant", "工坊遗训 · 冷却液", "橙色的是冷却剂。它吃肺，也把记忆淬进剑里。")
 
 	var decor_layer := Node2D.new()
 	decor_layer.name = "BastionDecor"
@@ -229,10 +230,11 @@ func _spawn_steles_and_bastion_decor() -> void:
 	_add_balustrade(decor_layer, Vector2(1370, GROUND_TOP))
 
 
-func _add_stele(parent: Node2D, pos: Vector2, title: String, text: String) -> void:
+func _add_stele(parent: Node2D, pos: Vector2, stele_name: String, title: String, text: String) -> void:
 	if STELE_SCENE == null:
 		return
 	var stele: Node2D = STELE_SCENE.instantiate()
+	stele.name = stele_name
 	stele.position = pos
 	stele.set("lore_title", title)
 	stele.set("lore_text", text)
@@ -260,6 +262,7 @@ func _build_parallax_extras() -> void:
 	extras.name = "ParallaxExtras"
 	add_child(extras)
 	extras.build(self)
+	_add_visual_enhancements()
 
 
 func _extend_east() -> void:
@@ -301,3 +304,17 @@ static func east_floor_rect() -> Rect2:
 
 static func mark_executioner_slain() -> void:
 	Level01EastWing.mark_executioner_slain()
+
+
+## 视觉增强：光照 + 场景细节
+func _add_visual_enhancements() -> void:
+	# 添加环境光照系统
+	var lighting := AmbientLighting.create_for_level(self)
+	SceneDetails.add_level01_lighting(lighting)
+
+	# 添加场景细节
+	var details_layer := Node2D.new()
+	details_layer.name = "SceneDetails"
+	details_layer.z_index = -1  # 在玩法层后面
+	add_child(details_layer)
+	SceneDetails.populate_level01(details_layer)
