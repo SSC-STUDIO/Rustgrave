@@ -202,6 +202,13 @@ func _on_finished() -> void:
 	_hint_age = 0.0
 
 
+## 跳过提示的文案：只有新游戏开场说「跳过开场」；Boss 登场、拾核、剧情拍都只说「跳过」。
+static func skip_label(touch: bool, opening: bool) -> String:
+	if opening:
+		return "点此跳过开场" if touch else "Enter · 跳过开场"
+	return "点此跳过" if touch else "Enter · 跳过"
+
+
 func _process(delta: float) -> void:
 	var frozen := Director.is_suspended() or get_tree().paused
 	skip_button.visible = Director.playing and not frozen and _hint_age > 0.65
@@ -212,7 +219,7 @@ func _process(delta: float) -> void:
 		_hint_age += delta
 		var touch := DisplayServer.is_touchscreen_available()
 		if Director.skips_whole_script():
-			skip_button.text = "点此跳过开场" if touch else "Enter · 跳过开场"
+			skip_button.text = skip_label(touch, OpeningCinematic.is_active())
 		else:
 			skip_button.text = "点此继续" if touch else "Enter · 继续"
 	else:

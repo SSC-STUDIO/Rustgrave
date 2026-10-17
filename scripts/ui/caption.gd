@@ -116,8 +116,11 @@ func _start_next() -> void:
 	var item: Dictionary = _queue.pop_front()
 	_full = String(item.get("text", ""))
 	_hold_left = float(item.get("hold", DEFAULT_HOLD))
-	_shown = 0.0
-	_label.text = ""
-	_typing = true
-	_holding = false
+	# 第一格字和面板同一帧出现：以前面板先空着亮 2–3 帧，截图和录像里是一条空框。
+	_shown = 1.0
+	_label.text = _full.substr(0, 1)
+	_typing = _full.length() > 1
+	_holding = not _typing
+	if _holding:
+		line_advanced.emit()
 	_panel.visible = true
