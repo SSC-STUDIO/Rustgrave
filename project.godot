@@ -28,8 +28,10 @@ buses/default_bus_layout="res://assets/audio/default_bus_layout.tres"
 [autoload]
 
 GameEvents="*res://scripts/autoload/game_events.gd"
+Settings="*res://scripts/autoload/settings.gd"
 Juice="*res://scripts/autoload/juice.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
+Music="*res://scripts/autoload/music.gd"
 Fx="*res://scripts/autoload/fx.gd"
 SaveData="*res://scripts/autoload/save_data.gd"
 Director="*res://scripts/autoload/director.gd"
