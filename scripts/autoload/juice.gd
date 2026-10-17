@@ -168,6 +168,9 @@ func _build_flash_layer() -> void:
 	_flash_rect.modulate.a = 0.0
 	_flash_layer.add_child(_flash_rect)
 	WorldClock.isolate_ui_layer(_flash_layer)
+	# Hit / phase flashes belong to the game picture: at 960x540 the old full-window
+	# rect also lit the black margins around the 1x world image.
+	PresentationMetrics.bind_layer(_flash_layer)
 	# isolate 只该洗 RGB；再钉一次 alpha，避免以后隔离逻辑改回 Color.WHITE。
 	_flash_rect.modulate.a = 0.0
 
