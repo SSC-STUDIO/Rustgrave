@@ -19,6 +19,29 @@ const EAST_FLOOR_X := 1600.0
 ## Roofed forge remnant past the Executioner — indoor lighting, rain stops.
 const FORGE_SHELTER_POS := Vector2(2112, 240)
 const FORGE_SHELTER_SIZE := Vector2(256, 160)
+## 刽子手的竞技场：中殿石板（1600..1984）正中的决斗位。两侧各一座落地锻炉
+## 火膛给他打光、把他夹在构图里；中央一片加法暖池把舞台从暗背景里抬出来。
+## 这三盏灯也是演出用灯：进场涌一下、二阶段转炽红、Boss 倒地后暗下去。
+const ARENA_CENTER_X := 1860.0
+const ARENA_HEARTH_Y := 320.0
+const ARENA_HEARTH_LEFT_X := 1790.0
+const ARENA_HEARTH_RIGHT_X := 1930.0
+const ARENA_HEARTH_ENERGY := 0.72
+const ARENA_HEARTH_HOT_ENERGY := 1.05
+const ARENA_HEARTH_RADIUS := 96.0
+const ARENA_HEARTH_COLOR := Color(1.0, 0.62, 0.33)
+const ARENA_HEARTH_HOT_COLOR := Color(1.0, 0.36, 0.14)
+## 死亡后舞台灯熄掉：交接镜头只剩残芯自己的 HeartLight 在亮。
+const ARENA_DEAD_SCALE := 0.0
+## 中央暖池：半径有上限，不把整块东翼石板刷白。
+const ARENA_POOL_POS := Vector2(ARENA_CENTER_X, 300.0)
+const ARENA_POOL_RADIUS := 148.0
+const ARENA_POOL_ENERGY := 0.5
+const ARENA_POOL_HOT_ENERGY := 0.72
+const ARENA_POOL_COLOR := Color(1.0, 0.56, 0.28)
+const ARENA_POOL_HOT_COLOR := Color(1.0, 0.40, 0.18)
+## 火膛贴图的脚点：gh_furnace 32×96，节点原点在贴图中心（旧壁炬约定）。
+const HEARTH_ART_H := 96.0
 ## 余烬高台 + 钩锁锚点。锚点必须在台子左端外侧上方：以前放在台子正中上方 (1568,48)，
 ## 从左下拉过去的直线穿过台子左端底面，一撞就按「撞墙」脱钩掉下去；从正下方拉则顶在
 ## 台底卡住。锚点在 x=1512（台左沿 1528 之外）时牵引线净空，脱钩后向右弹到台面上。
@@ -54,6 +77,14 @@ signal boss_slain
 
 var boss: ExecutionerBoss
 var heart: ForgeHeart
+var _arena_hearths: Array[TorchLight] = []
+var _arena_pool: WorldLight
+## 演出状态：0 = 一阶段暖炉，1 = 二阶段炽红；dim 1 = Boss 已倒、灯暗下去。
+var _arena_heat := 0.0
+var _arena_dim := 0.0
+var _arena_surge := 0.0
+var _arena_hot := false
+var _arena_dead := false
 
 
 static func should_spawn_executioner() -> bool:
@@ -157,6 +188,7 @@ func build(host: Node2D) -> ExecutionerBoss:
 	zone.body_entered.connect(_on_boss_gate)
 	place_forge_shelter(host)
 	_decorate_cathedral(host)
+	_build_boss_arena(host)
 	return boss
 
 
@@ -180,9 +212,9 @@ func _decorate_cathedral(host: Node2D) -> void:
 	_plant_env_sprite(decor, "res://assets/env/door_arch.png", Vector2(1672, 256), Vector2(1, 1), Color(0.85, 0.82, 0.95, 0.95))
 
 	# Low bastion rails along the nave — shared with the west cemetery, not
-	# 192px indoor slabs over open sky.
+	# 192px indoor slabs over open sky. 东侧栏杆退到炉棚前，让出右火膛的位置。
 	_plant_balustrade(decor, Vector2(1730, 320))
-	_plant_balustrade(decor, Vector2(1950, 320))
+	_plant_balustrade(decor, Vector2(1988, 320))
 
 	# Forge remnant under the shelter roof (altar + one wall torch).
 	_plant_ruin_plate(decor, "res://assets/env/bg_altar_cut.png", Vector2(2004, 128), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
@@ -383,6 +415,152 @@ static func _box_occluder(node_name: String, rect: Rect2) -> LightOccluder2D:
 	return occ
 
 
+## Boss 竞技场的舞台灯（演出用，见文件头 const 注释）。三盏灯都走现有 WorldLight：
+## 两座落地锻炉火膛（TorchLight 的 furnace 样式，复用 gh_furnace 贴图与壁炬逻辑）
+## 左右夹住刽子手，中央一片加法暖池照亮中殿石板。灯本身在玩法层（z<0），不遮剪影。
+func _build_boss_arena(host: Node2D) -> void:
+	if host.get_node_or_null("ArenaPresentation") != null:
+		return
+	var layer := Node2D.new()
+	layer.name = "ArenaPresentation"
+	host.add_child(layer)
+	for x in [ARENA_HEARTH_LEFT_X, ARENA_HEARTH_RIGHT_X]:
+		_plant_arena_hearth(layer, x)
+	_arena_pool = WorldLight.new()
+	_arena_pool.name = "ArenaPool"
+	_arena_pool.follow = &"authored"
+	_arena_pool.authored_radius = ARENA_POOL_RADIUS
+	_arena_pool.radius_cap = ARENA_POOL_RADIUS
+	_arena_pool.color = ARENA_POOL_COLOR
+	_arena_pool.lit = true
+	_arena_pool.set_base_energy(ARENA_POOL_ENERGY)
+	_arena_pool.position = ARENA_POOL_POS
+	layer.add_child(_arena_pool)
+	# WorldLight._ready() 会打开阴影。氛围暖池只照亮石板 / 墙体，不参与遮挡计算，
+	# 也不让台面把光挡在自己外面。
+	_arena_pool.shadow_enabled = false
+	_arena_pool.apply(true)
+	# 演出接线：进场涌光、二阶段转炽红。死亡由 boss.slain 自己接（build 里已连）。
+	if not GameEvents.boss_intro_started.is_connected(_on_boss_intro_started):
+		GameEvents.boss_intro_started.connect(_on_boss_intro_started)
+	if not GameEvents.boss_phase_changed.is_connected(_on_boss_phase_changed):
+		GameEvents.boss_phase_changed.connect(_on_boss_phase_changed)
+
+
+func _plant_arena_hearth(parent: Node2D, x: float) -> void:
+	var hearth: TorchLight = TORCH_SCENE.instantiate()
+	hearth.name = "ArenaHearth%d" % int(x)
+	# 炉火口比教堂壁炬矮、贴地：gh_furnace 32×96 的砖炉膛，火在炉口。
+	hearth.style = "furnace"
+	hearth.light_color = ARENA_HEARTH_COLOR
+	hearth.base_energy = ARENA_HEARTH_ENERGY
+	hearth.light_radius = ARENA_HEARTH_RADIUS
+	hearth.position = Vector2(x, ARENA_HEARTH_Y - HEARTH_ART_H)
+	# 接地审计：脚点写在节点上（世界坐标经父节点换算），和壁炬同一套约定。
+	hearth.set_meta("feet", Vector2(x, ARENA_HEARTH_Y))
+	hearth.add_to_group("grounded")
+	parent.add_child(hearth)
+	_arena_hearths.append(hearth)
+
+
+func _process(_delta: float) -> void:
+	if _arena_hearths.is_empty():
+		return
+	var lit := lerpf(1.0, ARENA_DEAD_SCALE, _arena_dim)
+	for hearth in _arena_hearths:
+		if not is_instance_valid(hearth):
+			continue
+		var light := hearth.get_node_or_null("FlameGlow") as WorldLight
+		if light == null:
+			continue
+		light.color = ARENA_HEARTH_COLOR.lerp(ARENA_HEARTH_HOT_COLOR, _arena_heat)
+		light.set_base_energy(
+				lerpf(ARENA_HEARTH_ENERGY, ARENA_HEARTH_HOT_ENERGY, _arena_heat)
+				* lit * (1.0 + _arena_surge))
+	if _arena_pool != null and is_instance_valid(_arena_pool):
+		_arena_pool.color = ARENA_POOL_COLOR.lerp(ARENA_POOL_HOT_COLOR, _arena_heat)
+		_arena_pool.set_base_energy(
+				lerpf(ARENA_POOL_ENERGY, ARENA_POOL_HOT_ENERGY, _arena_heat)
+				* lit * (1.0 + _arena_surge * 0.7))
+
+
+## 进场那一拍：门砸下 + 炉火涌起（灯先亮到上限再落回一阶段亮度）。
+func surge_arena_lights() -> void:
+	if _arena_dead or not is_inside_tree() or get_tree() == null:
+		return
+	var tween := create_tween()
+	tween.tween_method(_set_arena_surge, _arena_surge, 1.0, 0.14)
+	tween.tween_method(_set_arena_surge, 1.0, 0.0, 0.9).set_trans(Tween.TRANS_SINE)
+
+
+func _set_arena_surge(value: float) -> void:
+	_arena_surge = maxf(value, 0.0)
+
+
+## 二阶段：中殿的炉火转炽红。只动灯色/亮度，不碰输入、时间或敌人状态。
+func _set_arena_hot(hot: bool) -> void:
+	if _arena_hot == hot:
+		return
+	_arena_hot = hot
+	if not is_inside_tree() or get_tree() == null:
+		_arena_heat = 1.0 if hot else 0.0
+		return
+	var tween := create_tween()
+	tween.tween_method(_set_arena_heat, _arena_heat, 1.0 if hot else 0.0, 0.45)
+
+
+func _set_arena_heat(value: float) -> void:
+	_arena_heat = clampf(value, 0.0, 1.0)
+
+
+## 倒地：竞技场暗下去，交接镜头只剩残芯的 HeartLight 在亮。
+func _dim_arena_lights() -> void:
+	if _arena_dead:
+		return
+	_arena_dead = true
+	if not is_inside_tree() or get_tree() == null:
+		_arena_dim = 1.0
+		return
+	var tween := create_tween()
+	tween.tween_interval(0.35)
+	tween.tween_method(_set_arena_dim, _arena_dim, 1.0, 1.5)
+
+
+func _set_arena_dim(value: float) -> void:
+	_arena_dim = clampf(value, 0.0, 1.0)
+
+
+func _on_boss_intro_started(_boss_name: String) -> void:
+	surge_arena_lights()
+	if boss != null and is_instance_valid(boss) and not boss.is_queued_for_deletion():
+		boss.presentation_surge()
+
+
+func _on_boss_phase_changed(_boss_name: String, phase: int) -> void:
+	if phase >= 2:
+		_set_arena_hot(true)
+
+
+# --- test / diagnostic views -------------------------------------------------
+func arena_hearth_count() -> int:
+	return _arena_hearths.size()
+
+
+func arena_lights_hot() -> bool:
+	return _arena_hot
+
+
+func arena_lights_dimmed() -> bool:
+	return _arena_dead
+
+
+func arena_light_energy() -> float:
+	if _arena_hearths.is_empty():
+		return 0.0
+	var light := _arena_hearths[0].get_node_or_null("FlameGlow") as WorldLight
+	return light._base_energy if light != null else 0.0
+
+
 func _on_boss_gate(body: Node) -> void:
 	if body is Player and boss != null and is_instance_valid(boss):
 		boss.announce()
@@ -390,4 +568,6 @@ func _on_boss_gate(body: Node) -> void:
 
 
 func _on_boss_slain() -> void:
+	# Boss 一倒，舞台灯先暗下去；残芯的 HeartLight 和新解锁的可交互性才是下一拍的焦点。
+	_dim_arena_lights()
 	boss_slain.emit()

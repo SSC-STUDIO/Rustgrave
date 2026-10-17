@@ -19,10 +19,13 @@ func test_starts_with_boss_hp_and_not_enraged() -> void:
 	eq(b.health.max_hp, 13)
 	eq(b.health.current, 13)
 	ok(not b.is_enraged())
+	# 1D：Boss 按整数 2 倍绘制，碰撞 / 受击盒同步放大到画幅，脚点仍在 y=0。
 	var body := b.get_node("CollisionShape2D") as CollisionShape2D
-	eq((body.shape as RectangleShape2D).size, GearShieldEnemy.BODY_SIZE,
-			"the executioner blocks with the same torso as the gear shield")
-	almost(b.body_clearance().y, GearShieldEnemy.BODY_SIZE.y, 0.01)
+	eq((body.shape as RectangleShape2D).size, ExecutionerBoss.BOSS_BODY_SIZE,
+			"the executioner's torso matches its 2x silhouette, not the gear guard's 1x body")
+	almost(body.position.y + (body.shape as RectangleShape2D).size.y * 0.5, 0.0, 0.01, "body feet stay on y=0")
+	almost(b.body_clearance().y, ExecutionerBoss.BOSS_BODY_SIZE.y, 0.01)
+	eq(ExecutionerBoss.BOSS_SCALE, 2, "integer pixel scale only (art-spec)")
 
 
 func test_slash_windup_pulses_ember() -> void:

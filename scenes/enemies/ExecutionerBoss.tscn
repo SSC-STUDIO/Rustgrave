@@ -4,11 +4,13 @@
 [ext_resource type="Script" path="res://scripts/player/health.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="3"]
 
+; 2× 画幅（BOSS_SCALE）的占位盒：脚本 _fit_silhouette() 运行时还会给每只 Boss
+; 一份新的 Shape（PackedScene 的子资源会被实例共享，不能就地改）。
 [sub_resource type="RectangleShape2D" id="body"]
-size = Vector2(28, 48)
+size = Vector2(56, 96)
 
 [sub_resource type="RectangleShape2D" id="hurt"]
-size = Vector2(36, 60)
+size = Vector2(72, 120)
 
 [node name="ExecutionerBoss" type="CharacterBody2D"]
 collision_layer = 4
@@ -17,7 +19,7 @@ floor_snap_length = 4.0
 script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, -24)
+position = Vector2(0, -48)
 shape = SubResource("body")
 
 [node name="Visual" type="Node2D" parent="."]
@@ -52,7 +54,7 @@ color = Color(0.42, 0.5, 0.5, 1)
 polygon = PackedVector2Array(2, -10, 10, -8, 12, 6, 8, 12, 2, 12, -2, 6, -2, -6)
 
 [node name="Hurtbox" type="Area2D" parent="."]
-position = Vector2(0, -30)
+position = Vector2(0, -60)
 collision_layer = 32
 collision_mask = 24
 script = ExtResource("3")

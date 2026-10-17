@@ -62,9 +62,10 @@ func try_wake() -> void:
 		GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
 
 
-## 刽子手：镜头锁他，吼一声，一句誓言。名号卡由 boss_appeared 另画，不抢操作。
-## 约 4.2 秒，按一次确认键整段跳过。
+## 刽子手：铁门沉下、炉火涌起，镜头先把整座竞技场（门 + 他）交出来，再推近。
+## 名号卡由 boss_appeared 另画，不抢操作。约 4.8 秒，按一次确认键整段跳过。
 ## 画面先讲清楚三件事（门是关的、他有多大、斧上还有火），字幕才落誓词。
+## 进场那一下的炉火涌光由 Level01EastWing 在 boss_intro_started 上点火。
 func on_boss_gate(body: Node) -> void:
 	if SaveData.has_flag("boss_dead") or not body is Player:
 		return
@@ -76,13 +77,17 @@ func on_boss_gate(body: Node) -> void:
 	Director.play([
 		{"kind": "lock"},
 		{"kind": "sfx", "id": "gate"},
-		{"kind": "cam_focus", "target": gate, "zoom": 1.15, "duration": 0.55},
+		# 铁门砸下的余响里，炉火在炉口涌起来：先给竞技场，再给对手。
+		{"kind": "wait", "seconds": 0.18},
+		{"kind": "cam_focus", "target": Vector2(Level01EastWing.ARENA_CENTER_X - 80.0,
+				Level01EastWing.ARENA_HEARTH_Y - 24.0), "zoom": 1.0, "duration": 0.45},
 		{"kind": "sfx", "id": "boss_roar"},
 		{"kind": "fx", "id": "boss_roar", "target": gate, "seconds": 0.3},
-		# 一拍静默：让他先站着，别急着解释。
-		{"kind": "wait", "seconds": 0.45},
+		{"kind": "cam_focus", "target": gate, "zoom": 1.2, "duration": 0.4},
 		{"kind": "fx", "id": "phase_flash", "target": gate, "seconds": 0.35},
-		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.4},
+		# 一拍静默：让他先站着，别急着解释。
+		{"kind": "wait", "seconds": 0.35},
+		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.3},
 		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
 	], true)
