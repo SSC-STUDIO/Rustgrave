@@ -100,6 +100,11 @@ func _build_overlay() -> void:
 	WorldClock.isolate_ui_layer(_fade_layer)
 	WorldClock.isolate_ui_layer(_caption_layer)
 	WorldClock.isolate_ui_layer(_letter_layer)
+	# Captions and cinematic bars belong to the game picture, not the window: in a
+	# window that is not an integer multiple of 640x360 (e.g. 960x540) they used to sit
+	# in the black margin under the world image. The fade stays full-window.
+	PresentationMetrics.bind_layer(_caption_layer)
+	PresentationMetrics.bind_layer(_letter_layer)
 
 
 func _make_bar(top: bool) -> ColorRect:
