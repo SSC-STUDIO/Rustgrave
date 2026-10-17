@@ -100,8 +100,17 @@ func _run() -> void:
 	if not await _fight_spitter(): return
 	if not await _walk_to(812.0, false): return
 	if not _basic_abilities:
-		await _tap(&"interact")
-		if not await _wait_world(): return
+		# Combat knockback can leave the knight past the drop; walk back to where it
+		# actually lies and press E again (still normal input, at most three tries).
+		for attempt in 3:
+			await _tap(&"interact")
+			if not await _wait_world(): return
+			if _owns_core(&"tether_core"):
+				break
+			var drop := _tether_drop()
+			if drop == null:
+				break
+			if not await _walk_to(drop.global_position.x, false): return
 		await _tap(&"socket_1")
 		if not await _wait_world(): return
 		if not _require(_player().inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "spitter tether drop equipped"): return
@@ -376,6 +385,23 @@ func _fight_spitter() -> bool:
 		await _frames(1)
 	_fail("spitter could not be defeated with normal melee")
 	return false
+
+
+func _owns_core(core_id: StringName) -> bool:
+	var player := _player()
+	if player == null:
+		return false
+	for core in player.inventory.pouch + player.inventory.sockets:
+		if core != null and (core as RustCore).id == core_id:
+			return true
+	return false
+
+
+func _tether_drop() -> Node2D:
+	for node in get_tree().get_nodes_in_group("persistent"):
+		if node is CorePickup and String(node.name).begins_with("TetherDrop_") and not node.is_queued_for_deletion():
+			return node as Node2D
+	return null
 
 
 func _collect_kiln() -> bool:
