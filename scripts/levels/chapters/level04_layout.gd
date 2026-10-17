@@ -65,6 +65,9 @@ const BRIDGE_CHAIN: Array = ["FloorC", "BridgeB1", "BridgeB2", "BridgeB3", "Brid
 
 const NEST_NAVE_X := 176.0
 const NEST_ALTAR_X := 2384.0
+## 阶段 2 路线审计：中庭两巢相距 2208px（三屏半，含压板门与齿盾卫）。唱诗门后补一个巢，
+## 死在桥上或齿盾卫前不必从洗礼池重走。门在 1328，齿盾卫 1 巡逻 1624–1704。
+const NEST_CHOIR_X := 1392.0
 const STELE_A_POS := Vector2(248, 320)
 const STELE_B_POS := Vector2(2496, 320)
 ## 压板在唱诗台面上（脚点 y=224）；闸门立在中殿地面，门顶 256、门底 320。
@@ -169,6 +172,7 @@ func _build_terrain(host: Node2D) -> void:
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestNave", NEST_NAVE_X)
 	nest(host, "EmberNestAltar", NEST_ALTAR_X)
+	nest(host, "EmberNestChoir", NEST_CHOIR_X)
 	stele(host, "SteleCompact", STELE_A_POS, "圣殿铭 · 炉约誓",
 			"以剑饲炉，以火养城。一百年的灯，是用签过名的剑换的。")
 	stele(host, "StelePrice", STELE_B_POS, "炉约 · 代价",
