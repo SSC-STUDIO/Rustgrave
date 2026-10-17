@@ -130,7 +130,7 @@ func _run() -> void:
 	if not await _walk_to(734.0, true): return
 	if not await _walk_to(790.0, true): return
 	if not await _fight_spitter(): return
-	if not await _walk_to(812.0, false): return
+	if not await _walk_to(812.0, true): return
 	if not _basic_abilities:
 		# Combat knockback can leave the knight past the drop; walk back to where it
 		# actually lies and press E again (still normal input, at most three tries).
