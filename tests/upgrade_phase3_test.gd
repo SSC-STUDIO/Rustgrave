@@ -125,3 +125,93 @@ func test_horizon_glow_sits_between_sky_and_mountains_and_fog_is_graded() -> voi
 	var fog := backdrop.get_node_or_null("FogNear")
 	ok(fog != null and (fog.get_child(0) as CanvasItem).material is ShaderMaterial, "fog bands are graded warm, not lavender")
 	host.queue_free()
+
+
+## ----------------------------------------------------------- step B: chapters 2-10 --
+
+func test_every_chapter_theme_has_its_own_look() -> void:
+	var glows: Array[Color] = []
+	for theme_id in ThemeBackdrop.THEMES:
+		var look: Dictionary = (ThemeBackdrop.THEMES[theme_id] as Dictionary).get("look", {})
+		ok(not look.is_empty(), "%s follows the phase-3 rules" % theme_id)
+		if look.is_empty():
+			continue
+		ok(float(look["far"]) <= float(look["near"]) and float(look["near"]) <= 1.0, "%s: far plates sit darker than near ones" % theme_id)
+		ok((look["top_light"] as Color).a > 0.2, "%s: platform lips are lit" % theme_id)
+		var g := look["glow"] as Color
+		for other in glows:
+			ok(absf(other.r - g.r) + absf(other.g - g.g) + absf(other.b - g.b) > 0.08,
+					"%s glow is its own colour, not a swap of another chapter's" % theme_id)
+		glows.append(g)
+
+
+func test_push_back_darkens_far_more_than_near_once() -> void:
+	var backdrop := CanvasLayer.new()
+	add_child(backdrop)
+	var sprites: Array[Sprite2D] = []
+	for i in 3:
+		var layer := Parallax2D.new()
+		var spr := Sprite2D.new()
+		layer.add_child(spr)
+		backdrop.add_child(layer)
+		sprites.append(spr)
+	eq(ChapterLook.push_back_plates(backdrop, 0.7, 0.9), 3)
+	eq(ChapterLook.push_back_plates(backdrop, 0.7, 0.9), 0, "idempotent")
+	almost(sprites[0].modulate.r, 0.7, 0.001, "farthest plate")
+	almost(sprites[2].modulate.r, 0.9, 0.001, "nearest plate")
+	backdrop.queue_free()
+
+
+func test_chapter_backdrop_gets_glow_lips_and_pools() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var plats := Node2D.new()
+	plats.name = "Platforms"
+	host.add_child(plats)
+	var ledge := SolidPlatform.new()
+	ledge.size = Vector2(64, 16)
+	plats.add_child(ledge)
+	await flush(1)
+	var bd := ThemeBackdrop.new()
+	host.add_child(bd)
+	bd.build(host, "forge")
+	await flush(1)
+	ok(host.get_node("ParallaxBackdrop").get_node_or_null("HorizonGlow") != null, "slag glow planted")
+	ok(ledge.get_node_or_null("TopLight") != null, "ledge lip lit")
+	host.queue_free()
+
+
+func test_cathedral_toxin_is_the_specs_orange() -> void:
+	var L4 := load("res://scripts/levels/chapters/level04_layout.gd")
+	var ramp: Array = L4.TOXIN_RAMP
+	eq(ramp.size(), 5)
+	for c in ramp:
+		var col := c as Color
+		ok(col.r > col.g and col.g > col.b, "orange coolant, not acid green: %s" % col)
+	var pool := ToxinPool.new()
+	add_child(pool)
+	await flush(1)
+	pool.set_sludge_ramp(ramp)
+	var graded := 0
+	for child in pool.get_children():
+		if child is Sprite2D and (child as Sprite2D).material is ShaderMaterial:
+			graded += 1
+	ok(graded > 0, "sludge sprites are ramp-mapped")
+	pool.queue_free()
+
+
+func test_level06_has_a_checkpoint_past_the_mausoleum() -> void:
+	var L6 := load("res://scripts/levels/chapters/level06_layout.gd")
+	ok(L6.NEST_CRYPT_X > L6.DOOR_POS.x and L6.NEST_CRYPT_X < L6.NEST_GROVE_X, "between the door and the grove")
+	ok(L6.NEST_CRYPT_X - L6.NEST_START_X < 1400.0 and L6.NEST_GROVE_X - L6.NEST_CRYPT_X < 1400.0, "no 1944 px run any more")
+
+
+func test_touch_sessions_name_pad_buttons_not_keys() -> void:
+	var before := TouchInput.force_show
+	TouchInput.force_show = 1
+	eq(KeyLabels.format("{attack}"), "「斩」")
+	ok(not HintService.template_for(&"peek").contains("Tab"), "no keyboard key in the touch peek hint")
+	ok(KeyLabels.localize_prompt("E 点燃余烬巢").begins_with("「互」"), "interact prompt names the pad button")
+	TouchInput.force_show = -1
+	ok(HintService.template_for(&"peek").contains("Tab"), "keyboard wording unchanged")
+	TouchInput.force_show = before

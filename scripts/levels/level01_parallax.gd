@@ -84,7 +84,7 @@ const GLOW_STOPS := [[0.0, 0.0], [0.16, 0.12], [0.44, 0.62], [0.62, 1.0], [0.8, 
 const TOP_LIGHT := Color(1.0, 0.72, 0.5, 0.5)
 const TOP_LIGHT_DEPTH := 6
 ## Light pools: additive glow around lit fires (nests, torches, the forge heart), a = strength.
-const LIGHT_POOL := Color(1.0, 0.6, 0.28, 0.3)
+const LIGHT_POOL := Color(1.0, 0.6, 0.28, 0.22)
 const POOL_FOLLOWS := [&"nest", &"torch", &"heart"]
 
 ## Chapter palette (defaults: GRADE, RUST_RAMP, CHAPTER_WARM, PLAY_RAMP). Chapters that reuse this sky stack (Level06 night
@@ -345,6 +345,16 @@ static func grade_play_layer(host: Node, pal: Dictionary = {}, folders: Array = 
 	return graded
 
 
+## Lit platform lips only (chapters that keep their authored terrain colours).
+static func light_tops(host: Node, top: Color, folders: Array = PLAY_GRADE_FOLDERS) -> void:
+	if host == null or top.a <= 0.001:
+		return
+	for folder_name in folders:
+		var folder := host.get_node_or_null(String(folder_name))
+		if folder != null:
+			_light_tops(folder, top)
+
+
 ## Warm lit lip along each platform top (additive, under the actors' feet line). Walls (one tile
 ## wide, tall) and platforms without a surface are skipped; idempotent.
 static func _light_tops(node: Node, top: Color) -> void:
@@ -434,12 +444,20 @@ static func add_light_pools(host: Node, pal: Dictionary = {}) -> int:
 
 func _add_horizon_glow(backdrop: Node) -> void:
 	var glow: Color = palette.get("glow", HORIZON_GLOW)
-	if glow.a <= 0.001 or backdrop.get_node_or_null("HorizonGlow") != null:
-		return
+	var spr := add_glow(backdrop, glow, GLOW_STOPS, "Mid")
+	if spr != null:
+		_glow = spr
+
+
+## Screen-space additive haze gradient on a backdrop CanvasLayer, drawn just under the layer
+## named `under` (or on top when it is missing). stops = [[y fraction, strength], ...].
+static func add_glow(backdrop: Node, glow: Color, stops: Array, under: String = "") -> Sprite2D:
+	if backdrop == null or glow.a <= 0.001 or backdrop.get_node_or_null("HorizonGlow") != null:
+		return null
 	var g := Gradient.new()
 	var offsets := PackedFloat32Array()
 	var colors := PackedColorArray()
-	for stop in GLOW_STOPS:
+	for stop in stops:
 		offsets.append(float(stop[0]))
 		colors.append(Color(1, 1, 1, float(stop[1])))
 	g.offsets = offsets
@@ -459,11 +477,11 @@ func _add_horizon_glow(backdrop: Node) -> void:
 	spr.modulate = Color(glow.r, glow.g, glow.b, glow.a)
 	spr.material = additive_material()
 	backdrop.add_child(spr)
-	_glow = spr
-	# Over the sky and clouds, under the mountains.
-	var mid := backdrop.get_node_or_null("Mid")
-	if mid != null:
-		backdrop.move_child(spr, mid.get_index())
+	# Chapter 1: over the sky and clouds, under the mountains.
+	var anchor := backdrop.get_node_or_null(under) if under != "" else null
+	if anchor != null:
+		backdrop.move_child(spr, anchor.get_index())
+	return spr
 
 
 static func chapter_tint(c: Color, warm: Color = CHAPTER_WARM) -> Color:

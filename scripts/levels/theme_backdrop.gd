@@ -30,6 +30,7 @@ const BACKDROP_DIR := "res://assets/env/backdrop/"
 const THEMES := {
 	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。
 	"undercroft": {
+		"look": {"far": 0.6, "near": 0.72, "glow": Color(0.45, 0.85, 0.75, 0.06), "glow_stops": "centre", "top_light": Color(0.78, 1.0, 0.82, 0.3)},
 		"indoors": true,
 		"void": Color(0.035, 0.07, 0.085),
 		"mood": Color(0.66, 0.82, 0.84),
@@ -41,6 +42,7 @@ const THEMES := {
 	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
 	# 和工坊（industrial）同包，但工坊是灰绿的冷车间，这里是渣海。
 	"forge": {
+		"look": {"far": 0.74, "near": 0.86, "glow": Color(1.0, 0.42, 0.12, 0.3), "glow_stops": "bottom", "top_light": Color(1.0, 0.62, 0.3, 0.42)},
 		"indoors": true,
 		"void": Color(0.07, 0.02, 0.015),
 		"mood": Color(1.0, 0.8, 0.66),
@@ -53,6 +55,7 @@ const THEMES := {
 	},
 	# 炉心深处：地窟的拱窗内景烧成暗红——终关是一座被火从里面舔过的殿。
 	"forge_core": {
+		"look": {"far": 0.62, "near": 0.74, "glow": Color(1.0, 0.24, 0.2, 0.07), "glow_stops": "centre", "top_light": Color(1.0, 0.52, 0.4, 0.4)},
 		"indoors": true,
 		"void": Color(0.05, 0.012, 0.016),
 		"mood": Color(1.0, 0.84, 0.8),
@@ -64,6 +67,7 @@ const THEMES := {
 	# 圣殿：哥特城堡大厅面板（楼梯、尖窗、石像鬼、烛龛）拼成一条重复的殿墙。
 	# 冷石殿：板岩青灰石，暖光只来自烛台（不是第一章的锈红、第八章的炉橙，也不再是薰衣草紫）。
 	"cathedral": {
+		"look": {"far": 0.8, "near": 0.86, "glow": Color(0.6, 0.7, 0.95, 0.05), "glow_stops": "top", "top_light": Color(1.0, 0.84, 0.58, 0.32)},
 		"indoors": true,
 		"void": Color(0.035, 0.04, 0.05),
 		"mood": Color(0.84, 0.88, 0.96),
@@ -82,9 +86,11 @@ const THEMES := {
 	# 钟楼：竖井。橄榄色城砖墙双向平铺爬满整座塔（没有地面线，抬多高都不穿帮），
 	# 箭窗透冷光；地面一层再压一条殿墙。
 	"belltower": {
+		"look": {"far": 0.85, "near": 0.9, "glow": Color(0.55, 0.62, 0.95, 0.06), "glow_stops": "top", "top_light": Color(1.0, 0.86, 0.5, 0.42)},
 		"indoors": true,
 		"void": Color(0.03, 0.03, 0.04),
-		"mood": Color(0.78, 0.78, 0.9),
+		# Lifted from 0.78 / 0.9: the shaft read as near-black (phase-2 peeks).
+		"mood": Color(0.86, 0.86, 0.97),
 		"layers": [
 			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.15, 0.2, 0.9), "repeat": 448.0},
@@ -92,6 +98,7 @@ const THEMES := {
 	},
 	# 锈城城墙：站在墙顶往下看城。青灰云、远山，城和钟塔缩在脚下的雾里。
 	"ramparts": {
+		"look": {"far": 0.74, "near": 0.84, "glow": Color(0.95, 0.88, 0.7, 0.16), "glow_stops": "horizon", "top_light": Color(0.95, 0.95, 0.86, 0.32)},
 		"indoors": false,
 		"void": Color(0.06, 0.1, 0.11),
 		"mood": Color(0.8, 0.86, 0.86),
@@ -104,6 +111,7 @@ const THEMES := {
 	},
 	# 锈城：夜色小镇——天、云、山、林、远屋、近屋。室外，有天气与风。
 	"town": {
+		"look": {"far": 0.72, "near": 0.8, "glow": Color(0.4, 0.7, 0.75, 0.2), "glow_stops": "horizon", "top_light": Color(1.0, 0.82, 0.55, 0.38)},
 		"indoors": false,
 		"void": Color(0.04, 0.08, 0.09),
 		"mood": Color(0.74, 0.82, 0.84),
@@ -118,6 +126,7 @@ const THEMES := {
 	},
 	# 锈厂：工业剪影——脚手架、厂房、烟囱。有顶棚，算室内（无雨），暖灰色调。
 	"industrial": {
+		"look": {"far": 0.72, "near": 0.8, "glow": Color(0.65, 0.85, 0.6, 0.16), "glow_stops": "top", "top_light": Color(1.0, 0.66, 0.38, 0.38)},
 		"indoors": true,
 		"void": Color(0.06, 0.06, 0.06),
 		"mood": Color(0.82, 0.74, 0.68),
@@ -197,6 +206,7 @@ func build(host: Node2D, theme_id: String, _camera_top: float = -48.0) -> void:
 	if not grade.is_empty():
 		Level01Parallax.grade_plates(backdrop, grade)
 		Level01Parallax.grade_play_layer(host, grade, PLAY_FOLDERS)
+	ChapterLook.apply(host, backdrop, theme.get("look", {}))
 	# Do not copy these strips up a tall shaft. Each plate is a scene with its
 	# ground line on the bottom edge (hall at y=320, columns at y=336). A copy
 	# shifted by the texture height plants that same wall in the air.
@@ -251,6 +261,7 @@ func _build_graveyard(host: Node2D) -> void:
 	host.add_child(extras)
 	extras.build(host)
 	Level01Parallax.grade_play_layer(host, NIGHT_GRAVEYARD, PLAY_FOLDERS)
+	Level01Parallax.add_light_pools.call_deferred(host, NIGHT_GRAVEYARD)
 
 
 func _add_plate(parent: Node, plate_name: String, path: String, scroll: Vector2, pos: Vector2, scale_k: float,

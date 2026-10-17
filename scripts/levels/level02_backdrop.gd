@@ -45,6 +45,8 @@ func build(host: Node2D) -> void:
 		backdrop.add_child(void_rect)
 	_wall = _add_layer(backdrop, "Wall", WALL_PATH, WALL_SCROLL, Vector2(0, WALL_Y), 1.0, WALL_TINT)
 	_columns = _add_columns(backdrop)
+	# Phase-3 rules (ChapterLook), undercroft colours: teal hall, window-green haze, moss lips.
+	ChapterLook.apply(host, backdrop, ThemeBackdrop.THEMES["undercroft"]["look"], String(_columns.name) if _columns != null else "")
 	var tint := host.get_node_or_null("MoodTint") as CanvasModulate
 	if tint == null:
 		tint = CanvasModulate.new()
