@@ -68,6 +68,9 @@ const HOOK_POS := Vector2(2046, 144)
 const PICKUP_POS := Vector2(2046, 192)
 const NEST_START_X := 176.0
 const NEST_GROVE_X := 2120.0
+## Phase 3: past the mausoleum door, before the high grave terrace (route audit: the start ->
+## grove gap was 1944 px). Ghost2 hovers ~64 px east; the nest flame is lit only by the player.
+const NEST_CRYPT_X := 1504.0
 const STELE_A_POS := Vector2(256, 320)
 const STELE_B_POS := Vector2(2176, 320)
 const EXIT_X := 2760.0
@@ -151,6 +154,7 @@ func _build_terrain(host: Node2D) -> void:
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStart", NEST_START_X)
+	nest(host, "EmberNestCrypt", NEST_CRYPT_X)
 	nest(host, "EmberNestGrove", NEST_GROVE_X)
 	stele(host, "SteleHallen", STELE_A_POS, "墓志 · 哈伦",
 			"锻工哈伦，葬于此土，无剑。剑被拆去做了钟楼的门闩。")
