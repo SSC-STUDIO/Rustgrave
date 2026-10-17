@@ -35,6 +35,11 @@ const VAPOR_TINT := Color(0.55, 0.95, 0.62)
 ## 峰值透明度：加法混合下 0.42 在夜里几乎读不出，0.62 是一缕能看见的雾。
 const VAPOR_PEAK_ALPHA := 0.62
 var _vapor: Node2D
+## Optional recolour of the authored (green) sludge through the chapter grade shader:
+## a 5-stop dark -> light ramp (e.g. the spec's orange coolant). Empty = authored colour.
+var sludge_ramp: Array = []
+## Multiplied onto the vapour wisps so they match a recoloured pool.
+var vapor_modulate := Color.WHITE
 var _vapor_accum := 0.0
 var _headless := false
 
@@ -74,6 +79,27 @@ func _on_body_exited(body: Node2D) -> void:
 	_bodies.erase(body)
 	if body is Player:
 		_hinted = false
+
+
+func set_sludge_ramp(ramp: Array, vapor: Color = Color.WHITE) -> void:
+	sludge_ramp = ramp
+	vapor_modulate = vapor
+	_apply_sludge_ramp()
+
+
+func _apply_sludge_ramp() -> void:
+	if _vapor != null and is_instance_valid(_vapor):
+		_vapor.modulate = vapor_modulate
+	if sludge_ramp.size() < 5 or not ResourceLoader.exists(Level01Parallax.GRADE_SHADER):
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = load(Level01Parallax.GRADE_SHADER) as Shader
+	mat.set_shader_parameter("amount", 0.92)
+	for i in 5:
+		mat.set_shader_parameter("c%d" % i, sludge_ramp[i])
+	for child in get_children():
+		if child is Sprite2D:
+			(child as Sprite2D).material = mat
 
 
 func _rebuild_visual() -> void:
@@ -139,6 +165,7 @@ func _rebuild_visual() -> void:
 		fill.color = Color(0.18, 0.42, 0.34, 0.88)
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(fill)
+	_apply_sludge_ramp()
 	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
 	if col == null:
 		col = CollisionShape2D.new()
@@ -180,6 +207,7 @@ func _tick_vapor(delta: float) -> void:
 		_vapor = Node2D.new()
 		_vapor.name = "Vapor"
 		_vapor.z_index = 2
+		_vapor.modulate = vapor_modulate
 		add_child(_vapor)
 	_vapor_accum += delta
 	var interval := VAPOR_INTERVAL * lerpf(1.0, 2.0, WorldClock.rain_opacity())
