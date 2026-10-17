@@ -2,6 +2,7 @@ param(
     [string]$Window = '1280x720',
     [ValidateSet('rekindle', 'snuff')][string]$Ending = 'rekindle',
     [switch]$BasicAbilities,
+    [switch]$GodotVerbose,
     [string]$OutDir = 'screenshots/upgrade-phase1',
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe'
 )
@@ -18,6 +19,7 @@ $size = $Window.Split('x')
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--resolution', $Window,
     'res://scenes/tools/InputWalkthrough.tscn', '--', ('--ending=' + $Ending), '--shots', '--onscreen', ('--window=' + $Window))
 if ($BasicAbilities) { $arguments += '--basic-abilities' }
+if ($GodotVerbose) { $arguments = @('--verbose') + $arguments }
 $stdoutPath = Join-Path $runDir 'stdout.log'
 $stderrPath = Join-Path $runDir 'stderr.log'
 $previous = $env:APPDATA
