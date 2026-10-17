@@ -89,6 +89,10 @@ func _ready() -> void:
 	_spawn_actors(restored)
 	_wire_props()
 	_bind_story()
+	# Chapter palette on the play layer once every folder is built (east wing included);
+	# deferred again so late-built pieces (rebuilt toxin pit, sway pivots) are covered.
+	Level01Parallax.grade_play_layer(self)
+	Level01Parallax.grade_play_layer.call_deferred(self)
 	call_deferred("_try_wake")
 
 

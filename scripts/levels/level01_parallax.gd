@@ -16,13 +16,13 @@ const FOG_PATH := "res://assets/env/fog_band.png"
 const CLOUD_HIGH_PATH := "res://assets/env/parallax_clouds_px.png"
 const CLOUD_LOW_PATH := "res://assets/env/parallax_clouds_low_px.png"
 ## 云板本身是深紫，叠在品红天上要提亮成淡紫才读得出。
-const CLOUD_TINT := Color(1.22, 1.02, 1.28)
+const CLOUD_TINT := Color(1.24, 1.08, 1.0)
 ## 地面雾：盖在玩法层前面、贴着地面线（320）滚过的一条软带，浓雾天才真正压上来。
 ## 带高 64×1.1≈70px，从 276 罩到 346：齐骑士腰，不遮 HUD。
 const GROUND_FOG_Y := 276.0
 const GROUND_FOG_SCALE := Vector2(2.0, 1.1)
 ## 雾幕：屏幕空间的淡紫罩层，alpha 跟 WorldClock.fog_veil_alpha()，让浓雾一眼可辨。
-const FOG_VEIL_COLOR := Color(0.80, 0.77, 0.92)
+const FOG_VEIL_COLOR := Color(0.86, 0.79, 0.72)
 const COVER_PAD := 128.0
 const MIN_REPEAT_TIMES := 4
 ## 近景剪影带（scroll 0.65）：一段 512px 宽的图样平铺，只种暗紫软物，
@@ -36,7 +36,7 @@ const SIL_PATTERN := [
 	[Level01Env.DECOR_TREE_3, 430.0, 320.0, 0.38],
 	[Level01Env.DECOR_BUSH_L, 360.0, 322.0, 0.42],
 ]
-const SIL_TINT := Color(0.17, 0.14, 0.24, 0.95)
+const SIL_TINT := Color(0.16, 0.11, 0.10, 0.95)
 const SIL_FEET_MIN := 300.0
 const SIL_FEET_MAX := 340.0
 const SIL_SPAN := 512.0
@@ -45,7 +45,26 @@ const TINT_FOLLOW := 2.8
 ## 品红月变成余烬月、紫山变成锈褐暮色。玩法层（平台、角色、道具）不进这道调色，
 ## 远景退后、前景跳出来。数值 = 混合量，0 就是原画。
 const GRADE_SHADER := "res://assets/shaders/rust_grade.gdshader"
-const GRADE := {"Far": 0.6, "Mid": 0.55, "Hills": 0.35, "SkyCloudsHigh": 0.5, "SkyCloudsLow": 0.5}
+const GRADE := {"Far": 0.88, "Mid": 0.9, "Hills": 0.8, "SkyCloudsHigh": 0.85, "SkyCloudsLow": 0.85, "Foreground": 0.75}
+## 玩法层（地砖、墓园 / 东翼装饰）走同一张 shader 的「煤灰 + 锈」色阶：明度次序不变，
+## 平台亮沿、台阶边仍然读得出；人物、敌人、可交互物、毒池、钩点、火光不进这道调色，
+## 角色和前摇因此从灰褐地面上跳出来。
+const PLAY_GRADE_AMOUNT := 0.74
+const PLAY_GRADE_FOLDERS := ["Platforms", "GraveDecor", "BastionDecor", "CathedralDecor"]
+const PLAY_RAMP := [Color("#0f0b0a"), Color("#2e201a"), Color("#5a3a29"), Color("#a06a43"), Color("#f2c48c")]
+## 远景压暗：越远越沉进暮色，最亮的值留给玩法层（平台亮沿、角色）。
+const PLATE_VALUE := {"Far": 1.0, "Mid": 0.82, "Hills": 0.7, "SkyCloudsHigh": 0.95, "SkyCloudsLow": 0.9, "Foreground": 0.8}
+## 第一章暖偏：全局 MoodTint（昼夜 / 天气）乘上余烬偏色——夜仍是夜，但是煤灰夜而不是紫夜。
+const CHAPTER_WARM := Color(1.14, 1.0, 0.8)
+const TINT_FLOOR := 0.3
+## Default (chapter-1) palette. Keys: ramp = backdrop ramp (5 colours, dark→light),
+## plates = layer name → blend, values = layer name → value_scale, warm = MoodTint bias,
+## play_ramp / play_amount = play-layer ramp and blend.
+const RUST_RAMP := [Color("#120a0e"), Color("#3b1d24"), Color("#6a3030"), Color("#a8553a"), Color("#f0a868")]
+
+## Chapter palette (defaults: GRADE, RUST_RAMP, CHAPTER_WARM, PLAY_RAMP). Chapters that reuse this sky stack (Level06 night
+## graveyard) hand in their own ramp so they do not read as a copy of chapter 1.
+var palette: Dictionary = {}
 
 var _far_layer: Parallax2D
 var _cloud_high: Parallax2D
@@ -85,7 +104,7 @@ func build(host: Node2D) -> void:
 		fog_tex = load(FOG_PATH) as Texture2D
 	if fog_tex != null:
 		_fog_far = _add_fog_layer(backdrop, "FogFar", Vector2(0.5, 0.1), 234.0, 0.13, fog_tex)
-	grade_plates(backdrop)
+	grade_plates(backdrop, _palette())
 	_sil_layer = _add_silhouette_layer(backdrop)
 	if fog_tex != null:
 		_fog_near = _add_fog_layer(backdrop, "FogNear", Vector2(0.75, 0.14), 276.0, 0.2, fog_tex)
@@ -97,6 +116,7 @@ func build(host: Node2D) -> void:
 		_foreground = front.get_node_or_null("Foreground") as Parallax2D
 		if _foreground != null:
 			cover_layer(_foreground)
+			grade_plates(front, _palette())
 		if fog_tex != null:
 			_ground_fog = _add_ground_fog(front, fog_tex)
 		_fog_veil = _add_fog_veil(front)
@@ -109,7 +129,7 @@ func build(host: Node2D) -> void:
 		tint.name = "MoodTint"
 		host.add_child(tint)
 	_mood_tint = tint
-	_mood_tint.color = WorldClock.mood_tint()
+	_mood_tint.color = chapter_tint(WorldClock.mood_tint(), _warm())
 	var moon := host.get_node_or_null("MoonFill") as DirectionalLight2D
 	if moon == null:
 		moon = DirectionalLight2D.new()
@@ -161,7 +181,7 @@ func _snap_atmosphere() -> void:
 func _follow_atmosphere(delta: float) -> void:
 	var k := 1.0 if delta > 10.0 else (1.0 - exp(-TINT_FOLLOW * delta))
 	if _mood_tint != null:
-		_mood_tint.color = _mood_tint.color.lerp(WorldClock.mood_tint(), k)
+		_mood_tint.color = _mood_tint.color.lerp(chapter_tint(WorldClock.mood_tint(), _warm()), k)
 	if _fog_far != null:
 		var fa := WorldClock.fog_far_alpha()
 		_fog_far.modulate = _fog_far.modulate.lerp(Color(1, 1, 1, fa), k)
@@ -174,15 +194,15 @@ func _follow_atmosphere(delta: float) -> void:
 		_far_layer.modulate = _far_layer.modulate.lerp(WorldClock.sky_modulate(), k)
 	var cloud := WorldClock.cloud_alpha()
 	if _cloud_high != null:
-		var target := Color(CLOUD_TINT.r, CLOUD_TINT.g, CLOUD_TINT.b, cloud)
+		var target := Color(_cloud_tint().r, _cloud_tint().g, _cloud_tint().b, cloud)
 		_cloud_high.modulate = _cloud_high.modulate.lerp(target, k)
 	if _cloud_low != null:
-		var target := Color(CLOUD_TINT.r, CLOUD_TINT.g, CLOUD_TINT.b, cloud * 0.8)
+		var target := Color(_cloud_tint().r, _cloud_tint().g, _cloud_tint().b, cloud * 0.8)
 		_cloud_low.modulate = _cloud_low.modulate.lerp(target, k)
 	if _ground_fog != null:
 		_ground_fog.modulate = _ground_fog.modulate.lerp(Color(1, 1, 1, WorldClock.ground_fog_alpha()), k)
 	if _fog_veil != null:
-		var veil := FOG_VEIL_COLOR
+		var veil: Color = palette.get("veil", FOG_VEIL_COLOR)
 		veil.a = WorldClock.fog_veil_alpha()
 		_fog_veil.color = _fog_veil.color.lerp(veil, k)
 	if _moon_fill != null:
@@ -234,13 +254,16 @@ static func cover_layer(layer: Parallax2D, view_w: float = 0.0) -> void:
 	layer.repeat_times = copies_for_view(step, view_w)
 
 
-## 给远景板的精灵挂上锈色调色（见 GRADE）。重复调用只会更新混合量。
-static func grade_plates(backdrop: Node) -> int:
+## 给远景板的精灵挂上章节调色（默认 GRADE / RUST_RAMP）。重复调用只会更新参数。
+static func grade_plates(backdrop: Node, pal: Dictionary = {}) -> int:
 	if backdrop == null or not ResourceLoader.exists(GRADE_SHADER):
 		return 0
 	var shader := load(GRADE_SHADER) as Shader
+	var plates: Dictionary = pal.get("plates", GRADE)
+	var values: Dictionary = pal.get("values", PLATE_VALUE)
+	var ramp: Array = pal.get("ramp", RUST_RAMP)
 	var graded := 0
-	for layer_name in GRADE:
+	for layer_name in plates:
 		var layer := backdrop.get_node_or_null(String(layer_name))
 		if layer == null:
 			continue
@@ -253,9 +276,70 @@ static func grade_plates(backdrop: Node) -> int:
 				mat = ShaderMaterial.new()
 				mat.shader = shader
 				spr.material = mat
-			mat.set_shader_parameter("amount", float(GRADE[layer_name]))
+			mat.set_shader_parameter("amount", float(plates[layer_name]))
+			mat.set_shader_parameter("value_scale", float(values.get(layer_name, 1.0)))
+			for i in ramp.size():
+				mat.set_shader_parameter("c%d" % i, ramp[i])
 			graded += 1
 	return graded
+
+
+func _palette() -> Dictionary:
+	return palette
+
+
+func _cloud_tint() -> Color:
+	return palette.get("cloud_tint", CLOUD_TINT)
+
+
+func _warm() -> Color:
+	return palette.get("warm", CHAPTER_WARM)
+
+
+## 玩法层调色：给 PLAY_GRADE_FOLDERS 里的地形 / 装饰精灵挂共享的煤灰锈材质。
+## 跳过人物、敌人、可交互物、毒池、钩点、火把以及已有材质的节点（发光、加色）。
+static func grade_play_layer(host: Node, pal: Dictionary = {}, folders: Array = PLAY_GRADE_FOLDERS) -> int:
+	if host == null or not ResourceLoader.exists(GRADE_SHADER):
+		return 0
+	var mat := play_grade_material(pal)
+	var graded := 0
+	for folder_name in folders:
+		var folder := host.get_node_or_null(String(folder_name))
+		if folder != null:
+			graded += _grade_tree(folder, mat)
+	return graded
+
+
+static func chapter_tint(c: Color, warm: Color = CHAPTER_WARM) -> Color:
+	return Color(clampf(c.r * warm.r, TINT_FLOOR, 1.0), clampf(c.g * warm.g, TINT_FLOOR, 1.0),
+			clampf(c.b * warm.b, TINT_FLOOR, 1.0), 1.0)
+
+
+static func play_grade_material(pal: Dictionary = {}) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = load(GRADE_SHADER) as Shader
+	mat.set_shader_parameter("amount", float(pal.get("play_amount", PLAY_GRADE_AMOUNT)))
+	var ramp: Array = pal.get("play_ramp", PLAY_RAMP)
+	for i in ramp.size():
+		mat.set_shader_parameter("c%d" % i, ramp[i])
+	return mat
+
+
+static func is_grade_exempt(node: Node) -> bool:
+	return node is Interactable or node is HookAnchor or node is EnemyBase or node is Player \
+			or node is ToxinPool or node is TorchLight or node.is_in_group("no_grade")
+
+
+static func _grade_tree(node: Node, mat: ShaderMaterial) -> int:
+	if is_grade_exempt(node):
+		return 0
+	var n := 0
+	if (node is Sprite2D or node is AnimatedSprite2D) and (node as CanvasItem).material == null:
+		(node as CanvasItem).material = mat
+		n += 1
+	for child in node.get_children():
+		n += _grade_tree(child, mat)
+	return n
 
 
 func _add_fog_layer(backdrop: Node, layer_name: String, motion: Vector2, y: float, alpha: float, tex: Texture2D) -> Parallax2D:
@@ -294,7 +378,7 @@ func _add_cloud_layer(backdrop: Node, layer_name: String, motion: Vector2, y: fl
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.add_child(spr)
 	cover_layer(layer)
-	layer.modulate = Color(CLOUD_TINT.r, CLOUD_TINT.g, CLOUD_TINT.b, WorldClock.cloud_alpha())
+	layer.modulate = Color(_cloud_tint().r, _cloud_tint().g, _cloud_tint().b, WorldClock.cloud_alpha())
 	backdrop.add_child(layer)
 	return layer
 
@@ -328,7 +412,7 @@ func _add_fog_veil(front: Node) -> ColorRect:
 	veil.position = Vector2.ZERO
 	veil.size = Vector2(PresentationMetrics.WORLD_SIZE)
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var c := FOG_VEIL_COLOR
+	var c: Color = palette.get("veil", FOG_VEIL_COLOR)
 	c.a = WorldClock.fog_veil_alpha()
 	veil.color = c
 	front.add_child(veil)
@@ -350,7 +434,7 @@ func _add_silhouette_layer(backdrop: Node) -> Parallax2D:
 				path,
 				Vector2(float(item[1]), float(item[2])),
 				float(item[3]),
-				SIL_TINT)
+				palette.get("sil_tint", SIL_TINT))
 		if spr != null:
 			any = true
 	if any:

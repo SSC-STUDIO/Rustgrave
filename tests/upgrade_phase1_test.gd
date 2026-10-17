@@ -135,7 +135,7 @@ func test_backdrop_grade_touches_only_listed_plates() -> void:
 	eq(graded, 3, "sky, mountains and graveyard plates are graded")
 	var far := backdrop.get_node("Far").get_child(0) as Sprite2D
 	ok(far.material is ShaderMaterial, "far plate carries the grade")
-	almost(float((far.material as ShaderMaterial).get_shader_parameter("amount")), 0.6)
+	almost(float((far.material as ShaderMaterial).get_shader_parameter("amount")), float(Level01Parallax.GRADE["Far"]))
 	ok((backdrop.get_node("FogNear").get_child(0) as Sprite2D).material == null, "fog is not graded")
 	eq(Level01Parallax.grade_plates(backdrop), 3, "regrading reuses the materials")
 	ok(far.material is ShaderMaterial)
