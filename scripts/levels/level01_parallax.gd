@@ -41,6 +41,11 @@ const SIL_FEET_MIN := 300.0
 const SIL_FEET_MAX := 340.0
 const SIL_SPAN := 512.0
 const TINT_FOLLOW := 2.8
+## 第一章色调：远景板（天、远山、墓园坡、两层云）按明度映射到锈 / 余烬色阶再与原画混合，
+## 品红月变成余烬月、紫山变成锈褐暮色。玩法层（平台、角色、道具）不进这道调色，
+## 远景退后、前景跳出来。数值 = 混合量，0 就是原画。
+const GRADE_SHADER := "res://assets/shaders/rust_grade.gdshader"
+const GRADE := {"Far": 0.6, "Mid": 0.55, "Hills": 0.35, "SkyCloudsHigh": 0.5, "SkyCloudsLow": 0.5}
 
 var _far_layer: Parallax2D
 var _cloud_high: Parallax2D
@@ -80,6 +85,7 @@ func build(host: Node2D) -> void:
 		fog_tex = load(FOG_PATH) as Texture2D
 	if fog_tex != null:
 		_fog_far = _add_fog_layer(backdrop, "FogFar", Vector2(0.5, 0.1), 234.0, 0.13, fog_tex)
+	grade_plates(backdrop)
 	_sil_layer = _add_silhouette_layer(backdrop)
 	if fog_tex != null:
 		_fog_near = _add_fog_layer(backdrop, "FogNear", Vector2(0.75, 0.14), 276.0, 0.2, fog_tex)
@@ -226,6 +232,30 @@ static func cover_layer(layer: Parallax2D, view_w: float = 0.0) -> void:
 		step = tile
 	layer.repeat_size = Vector2(step, 0.0)
 	layer.repeat_times = copies_for_view(step, view_w)
+
+
+## 给远景板的精灵挂上锈色调色（见 GRADE）。重复调用只会更新混合量。
+static func grade_plates(backdrop: Node) -> int:
+	if backdrop == null or not ResourceLoader.exists(GRADE_SHADER):
+		return 0
+	var shader := load(GRADE_SHADER) as Shader
+	var graded := 0
+	for layer_name in GRADE:
+		var layer := backdrop.get_node_or_null(String(layer_name))
+		if layer == null:
+			continue
+		for child in layer.get_children():
+			if not child is Sprite2D:
+				continue
+			var spr := child as Sprite2D
+			var mat := spr.material as ShaderMaterial
+			if mat == null or mat.shader != shader:
+				mat = ShaderMaterial.new()
+				mat.shader = shader
+				spr.material = mat
+			mat.set_shader_parameter("amount", float(GRADE[layer_name]))
+			graded += 1
+	return graded
 
 
 func _add_fog_layer(backdrop: Node, layer_name: String, motion: Vector2, y: float, alpha: float, tex: Texture2D) -> Parallax2D:
