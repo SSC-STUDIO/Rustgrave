@@ -5,6 +5,8 @@ param(
     [switch]$Lit,
     [switch]$Night,
     [switch]$Active,
+    # Also save live_<spot>_noback.png (backdrop CanvasLayers hidden, time frozen) for layer metrics.
+    [switch]$Layers,
     [string]$Weather = '',
     [string]$Level = '',
     # Output folder relative to the workspace (default screenshots/peek). Give each
@@ -28,6 +30,7 @@ if ($Spots) { $arguments += @('--spots=' + $Spots) }
 if ($Lit) { $arguments += @('--lit') }
 if ($Night) { $arguments += @('--night') }
 if ($Active) { $arguments += @('--active') }
+if ($Layers) { $arguments += @('--layers') }
 if ($Weather) { $arguments += @('--weather=' + $Weather) }
 if ($Level) { $arguments += @('--level=' + $Level) }
 if ($CamY -ne 220.0) { $arguments += @('--cam_y=' + $CamY) }
