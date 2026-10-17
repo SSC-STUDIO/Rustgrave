@@ -17,7 +17,6 @@
 [ext_resource type="Texture2D" path="res://assets/env/parallax_graveyard.png" id="17_near"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/HookAnchor.tscn" id="19_anchor"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/CorePickup.tscn" id="20_pickup"]
-[ext_resource type="Resource" path="res://assets/data/kiln_core.tres" id="21_kiln"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/EmberNest.tscn" id="22_nest"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/ScrapperEnemy.tscn" id="23_scrapper"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/GearShieldEnemy.tscn" id="24_gearshield"]
@@ -245,14 +244,3 @@ position = Vector2(1150, 110)
 
 [node name="Pickups" type="Node2D" parent="." unique_id=1967794424]
 
-[node name="Kiln_LowTower" parent="Pickups" unique_id=910046345 instance=ExtResource("20_pickup")]
-position = Vector2(60, 120)
-core = ExtResource("21_kiln")
-
-[node name="Kiln_Pit" parent="Pickups" unique_id=348792358 instance=ExtResource("20_pickup")]
-position = Vector2(495, 210)
-core = ExtResource("21_kiln")
-
-[node name="Kiln_TowerTop" parent="Pickups" unique_id=1054349286 instance=ExtResource("20_pickup")]
-position = Vector2(120, 50)
-core = ExtResource("21_kiln")
