@@ -11,6 +11,9 @@ extends Node
 ##   ... -- --weather=fog               (haze / rain / fog / ember_wind / rust_rain / clear)
 ##   ... -- --active                    (leave enemy AI / physics running)
 ##   ... -- --level=level02             (peek Level02; spots: shaft,pitb,ledge,hall,lift,nest2,bell)
+##   ... -- --layers                    (also save live_<spot>_noback.png: the same frame with the
+##                                       backdrop CanvasLayers hidden and time frozen, so a script can
+##                                       mask play-layer pixels and measure play vs backdrop contrast)
 
 const PRESENTATION := preload("res://scenes/ui/GamePresentation.tscn")
 const OUT := "res://screenshots/peek"
@@ -57,6 +60,7 @@ func _ready() -> void:
 	var lit := false
 	var night := false
 	var active := false
+	var layers := false
 	var weather_id := ""
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--spots="):
@@ -71,6 +75,8 @@ func _ready() -> void:
 			night = true
 		elif arg == "--active":
 			active = true
+		elif arg == "--layers":
+			layers = true
 	if GameContext.LEVELS.has(level_id):
 		GameContext.pending_world_path = GameContext.LEVELS[level_id]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
@@ -125,9 +131,34 @@ func _ready() -> void:
 		# Park the knight at the camera height (vertical levels): floor y when cam_y is default.
 		player.global_position = Vector2(x - 120.0, 320.0 if is_equal_approx(cam_y, 220.0) else cam_y + 100.0)
 		await get_tree().create_timer(hold).timeout
+		if layers:
+			# Freeze motion so the two captures differ only where the backdrop shows through.
+			Engine.time_scale = 0.0
+			for i in 3:
+				await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var image := win.get_texture().get_image()
 		var tag := "" if is_equal_approx(cam_y, 220.0) else "_y%d" % int(cam_y)
 		var err := image.save_png("%s/live_%s%s%s.png" % [out_dir, spot, tag, suffix])
 		print("PEEK ", spot, suffix, " saved=", err == OK)
+		if layers:
+			var hidden := _hide_backdrops()
+			for i in 3:
+				await RenderingServer.frame_post_draw
+			var bare := win.get_texture().get_image()
+			bare.save_png("%s/live_%s%s%s_noback.png" % [out_dir, spot, tag, suffix])
+			for layer in hidden:
+				layer.visible = true
+			Engine.time_scale = 1.0
 	get_tree().quit(0)
+
+
+## Backdrop = every CanvasLayer drawn under the world (layer < 0) that is visible.
+func _hide_backdrops() -> Array:
+	var hidden: Array = []
+	for node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		var layer := node as CanvasLayer
+		if layer.layer < 0 and layer.visible:
+			layer.visible = false
+			hidden.append(layer)
+	return hidden
