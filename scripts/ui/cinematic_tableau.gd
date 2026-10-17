@@ -56,11 +56,12 @@ func _card() -> void:
 	draw_rect(Rect2(0, 0, 640, 360), Color(0.035, 0.02, 0.04, 0.08 if boss else 0.52))
 	if not boss:
 		_skyline()
-	# The boss flourish occupies the sky beside the health HUD. Combat remains
-	# live: feet, ground hazards and attack telegraphs must stay visible.
+	# Boss 名号卡和章节卡一样**居中**：以前 Boss 版把中心放在 410/640 想给左上
+	# 血槽让位，结果整块卡偏右、读起来像没对齐（用户反馈）。战斗是实时进行的，
+	# 卡面在 y≈49–128 的顶部带，居中并不压住脚部、地面危险或攻击预警。
 	var y := 78.0 if boss else 142.0
-	var center_x := 410.0 if boss else 320.0
-	draw_rect(Rect2(200 if boss else 0, y - 29, 420 if boss else 640, 79), Color(0.04, 0.025, 0.05, 0.88))
+	var center_x := 320.0
+	draw_rect(Rect2(110.0, y - 29.0, 420.0, 79.0), Color(0.04, 0.025, 0.05, 0.88))
 	var extent := (155.0 if boss else 190.0) * smoothstep(0.0, 0.65, age)
 	draw_line(Vector2(center_x - extent, y - 29), Vector2(center_x + extent, y - 29), RUST)
 	draw_line(Vector2(center_x - extent, y + 50), Vector2(center_x + extent, y + 50), RUST)
