@@ -20,16 +20,31 @@ var _last_frame_usec := 0
 var _campaign := false
 var _basic_abilities := false
 var _skip_captions := true
+## --shots: save a PNG at every milestone plus opening / combat / boss beats into
+## user://shots/. --window=WxH sizes the real window; --onscreen puts it on the desktop
+## (decorated, at 40,40) instead of the off-screen borderless default.
+var _shots := false
+var _window := Vector2i(1920, 1080)
+var _onscreen := false
+var _shot_done: Dictionary = {}
+var _beat_started := 0
+var _beat_count := 0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rendered = DisplayServer.get_name() != "headless"
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--shots": _shots = true
+		elif arg == "--onscreen": _onscreen = true
+		elif arg.begins_with("--window="):
+			var wh := arg.trim_prefix("--window=").split("x")
+			if wh.size() == 2: _window = Vector2i(int(wh[0]), int(wh[1]))
 	if _rendered:
 		get_tree().root.mode = Window.MODE_WINDOWED
-		get_tree().root.borderless = true
-		get_tree().root.size = Vector2i(1920, 1080)
-		get_tree().root.position = Vector2i(-12000, -12000)
+		get_tree().root.borderless = not _onscreen
+		get_tree().root.size = _window
+		get_tree().root.position = Vector2i(40, 40) if _onscreen else Vector2i(-12000, -12000)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		Engine.max_fps = 60
 	_errors = ERROR_COLLECTOR.new()
@@ -71,15 +86,32 @@ func _process(_delta: float) -> void:
 		_fail("walkthrough exceeded its time budget")
 	if not _errors.errors().is_empty():
 		_fail("engine error: " + _errors.errors()[0])
-	if _skip_captions and Director.playing and not get_tree().paused and Time.get_ticks_msec() - _last_skip > 180:
-		_last_skip = Time.get_ticks_msec()
+	var now_ms := Time.get_ticks_msec()
+	if not Director.playing:
+		_beat_started = 0
+	elif _beat_started == 0:
+		_beat_started = now_ms
+		_beat_count += 1
+	# --shots: let every story beat play for a moment and photograph it before skipping.
+	var beat_age := now_ms - _beat_started if _beat_started > 0 else 0
+	if _shots and _skip_captions and Director.playing and beat_age > 1300:
+		_shot("beat_%02d" % _beat_count)
+	var may_skip := not _shots or beat_age > 2600
+	if _skip_captions and may_skip and Director.playing and not get_tree().paused and now_ms - _last_skip > 180:
+		_last_skip = now_ms
 		_ui(&"ui_accept")
 
 
 func _run() -> void:
 	get_tree().change_scene_to_file(TITLE)
 	await _frames(12)
+	if _shots:
+		await _frames(90)
+		_shot("00_title")
+		_skip_captions = false
 	_ui(&"ui_accept") # title: new game
+	if _shots:
+		await _watch_opening()
 	if not await _wait_world():
 		return
 	_record("new_game")
@@ -173,6 +205,34 @@ func _run() -> void:
 	_fail("ending did not return to title")
 
 
+## Watch the opening without skipping it; grab frames at fixed beats. Ends when the
+## Director hands control back, then later captions are skipped as before.
+func _watch_opening() -> void:
+	var beats := [0.6, 2.4, 4.6, 7.0, 9.4, 11.6, 13.2]
+	var t0 := Time.get_ticks_msec()
+	var next := 0
+	for i in 1500:
+		await _frames(1)
+		var t := float(Time.get_ticks_msec() - t0) / 1000.0
+		if next < beats.size() and t >= beats[next]:
+			_shot("01_opening_%02d" % next)
+			next += 1
+		if t > 2.0 and not Director.playing and _player() != null and GameContext.gameplay_input_enabled():
+			break
+	await _frames(20)
+	_shot("02_first_control")
+	_skip_captions = true
+
+
+func _shot(name_: String) -> void:
+	if not _shots or not _rendered or _shot_done.has(name_):
+		return
+	_shot_done[name_] = true
+	DirAccess.make_dir_recursive_absolute("user://shots")
+	get_tree().root.get_texture().get_image().save_png("user://shots/%dx%d_%s.png" % [_window.x, _window.y, name_])
+	_last_frame_usec = Time.get_ticks_usec()
+
+
 func _player() -> Player:
 	return get_tree().get_first_node_in_group("player") as Player
 
@@ -208,18 +268,11 @@ func _descend_into_undercroft() -> bool:
 	if not _require(absf(_player().position.y - 320.0) < 2.0, "knight stands on FloorB after the toxin pit"): return false
 	_record("undercroft_pit_crossed")
 	# Save/continue round trip: pause → title → continue must come back here.
-	_ui(&"ui_cancel")
-	await _frames(3)
-	_ui(&"ui_up")
-	await _frames(3)
-	_ui(&"ui_accept")
+	if not await _pause_to_title(): return false
 	for i in 600:
 		await _frames(1)
 		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
-			await _frames(6)
-			_ui(&"ui_down")
-			await _frames(3)
-			_ui(&"ui_accept")
+			await _title_continue()
 			if not await _wait_world(): return false
 			var player := _player()
 			if not _require(GameContext.world_scene_path(player) == GameContext.LEVEL02_PATH, "continue reopens Level02"): return false
@@ -321,6 +374,12 @@ func _fight_boss() -> bool:
 				and player.controller.facing == -1 and attack_cd == 0
 		_set_action(&"attack", attack)
 		if attack: attack_cd = 24
+		if boss.is_announced() and not _shot_done.has("04_boss_intro"):
+			_shot("04_boss_intro")
+		if boss.health.current < boss.health.max_hp and boss.health.current > boss.health.max_hp / 2:
+			_shot("05_boss_fight")
+		if boss.is_enraged():
+			_shot("06_boss_phase2")
 		if i % 180 == 0:
 			print("[FIGHT] player=%s hp=%d boss=%s hp=%d" % [player.global_position, player.health.current, boss.global_position, boss.health.current])
 		await _frames(1)
@@ -363,6 +422,8 @@ func _fight_spitter() -> bool:
 						_dash_cd = 30
 		_set_action(&"dash", evade)
 		_set_action(&"attack", absf(dx) < 42.0 and absf(player.global_position.y - spitter.global_position.y) < 58.0 and i % 24 == 0)
+		if i == 50 or i == 90:
+			_shot("03_combat_spitter_%d" % i)
 		if i % 120 == 0:
 			print("[SPITTER] player=%s hp=%d spitter=%s hp=%d" % [player.position, player.health.current, spitter.position, spitter.health.current])
 		await _frames(1)
@@ -410,18 +471,11 @@ func _verify_progress_reload() -> bool:
 		if i == 2399:
 			_fail("enemy damage did not complete a checkpoint reload")
 			return false
-	_ui(&"ui_cancel")
-	await _frames(3)
-	_ui(&"ui_up") # Pause: wrap from Resume to Return to Title.
-	await _frames(3)
-	_ui(&"ui_accept")
+	if not await _pause_to_title(): return false
 	for i in 600:
 		await _frames(1)
 		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
-			await _frames(6)
-			_ui(&"ui_down") # Title: Continue.
-			await _frames(3)
-			_ui(&"ui_accept")
+			await _title_continue()
 			if not await _wait_world(): return false
 			# Continue restores the saved interaction position; death uses the
 			# nest's respawn point. Momentum may put those a few pixels apart.
@@ -430,6 +484,41 @@ func _verify_progress_reload() -> bool:
 			return true
 	_fail("pause menu did not return to title")
 	return false
+
+
+## Pause → 返回标题 with menu keys only. The pause menu refuses to open while a scene
+## fade is still running (respawn fade-in), so wait that out like a player would.
+func _pause_to_title() -> bool:
+	for i in 120:
+		if not Director.is_fading() and GameContext.gameplay_input_enabled():
+			break
+		await _frames(1)
+	for attempt in 3:
+		_ui(&"ui_cancel")
+		await _frames(3)
+		if get_tree().paused:
+			break
+		await _frames(20)
+	if not _require(get_tree().paused, "pause menu opened"): return false
+	_ui(&"ui_up") # Pause: wrap from Resume to Return to Title.
+	await _frames(3)
+	_ui(&"ui_accept")
+	return true
+
+
+## Title menu: with a save the cursor already rests on 继续; older builds started on
+## 新游戏. Press down only until 继续 is highlighted, then confirm.
+func _title_continue() -> void:
+	await _frames(6)
+	var scene := get_tree().current_scene
+	var menus := scene.find_children("*", "MenuList", true, false) if scene != null else []
+	var menu := menus[0] as MenuList if not menus.is_empty() else null
+	for i in 4:
+		if menu == null or menu.selected_id() == &"continue":
+			break
+		_ui(&"ui_down")
+		await _frames(3)
+	_ui(&"ui_accept")
 
 
 func _check_restored_progress(expected_x: float = 1536.0) -> bool:
@@ -465,6 +554,8 @@ func _grapple_ember() -> bool:
 			_release()
 			await _tap(&"interact")
 			await _frames(15)
+			# The first-core pickup stages a short beat; socket once control is back.
+			if not await _wait_world(): return false
 			await _tap(&"socket_2")
 			await _frames(8)
 			return _require(player.inventory.has_ability(AbilityIds.EMBER_STEP), "ember core equipped from real ledge")
@@ -522,6 +613,7 @@ func _record(name_: String) -> void:
 		"position": str(player.global_position) if player else "title", "deaths": _deaths}
 	_records.append(record)
 	print("[MILESTONE] ", JSON.stringify(record))
+	_shot("m_%02d_%s" % [_records.size(), name_])
 	if _rendered and name_ in ["new_game", "grapple_ember", "boss_slain", "ending_rekindle", "ending_snuff"]:
 		get_tree().root.get_texture().get_image().save_png("user://%s_%s.png" % [_ending, name_])
 		_last_frame_usec = Time.get_ticks_usec() # PNG encoding is excluded from gameplay frame timings.
