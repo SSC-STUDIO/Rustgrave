@@ -108,9 +108,7 @@ func _continue_round_trip(id: String) -> bool:
 	_ui(&"ui_accept")
 	if not await _await_scene(TITLE): return false
 	await _frames(6)
-	_ui(&"ui_down")
-	await _frames(3)
-	_ui(&"ui_accept")
+	await _title_continue()
 	if not await _await_scene(GameContext.LEVELS[id]): return false
 	if not _require(_player().position.distance_to(checkpoint) < 20, "continue restores saved checkpoint"): return false
 	await _settle_fade()
@@ -123,6 +121,15 @@ func _settle_fade() -> void:
 			await _frames(2)
 			return
 		await _frames(1)
+
+
+## 标题菜单有存档时光标默认停在「继续」（scripts/ui/title_screen.gd:216-218）。
+## 以前这里固定按一次 ↓，标题改成默认停在继续之后会落到「设置」。
+func _title_continue() -> void:
+	if not SaveData.has_save():
+		_ui(&"ui_down")
+		await _frames(3)
+	_ui(&"ui_accept")
 
 func _segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []

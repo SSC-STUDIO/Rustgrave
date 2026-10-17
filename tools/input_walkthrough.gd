@@ -217,9 +217,7 @@ func _descend_into_undercroft() -> bool:
 		await _frames(1)
 		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
 			await _frames(6)
-			_ui(&"ui_down")
-			await _frames(3)
-			_ui(&"ui_accept")
+			await _title_continue()
 			if not await _wait_world(): return false
 			var player := _player()
 			if not _require(GameContext.world_scene_path(player) == GameContext.LEVEL02_PATH, "continue reopens Level02"): return false
@@ -238,6 +236,16 @@ func _wait_world() -> bool:
 			return true
 	_fail("world did not become playable")
 	return false
+
+
+## 标题菜单：有存档时光标默认停在「继续」（scripts/ui/title_screen.gd:216-218），
+## 所以不能再按一次 ↓ —— 那会把光标落到「设置」上，世界永远不加载。
+## 只有没有存档（不可能走 Continue）时才需要 ↓。返回时确认键已按下。
+func _title_continue() -> void:
+	if not SaveData.has_save():
+		_ui(&"ui_down")
+		await _frames(3)
+	_ui(&"ui_accept")
 
 
 func _walk_to(target_x: float, jump: bool) -> bool:
@@ -419,9 +427,7 @@ func _verify_progress_reload() -> bool:
 		await _frames(1)
 		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == TITLE:
 			await _frames(6)
-			_ui(&"ui_down") # Title: Continue.
-			await _frames(3)
-			_ui(&"ui_accept")
+			await _title_continue()
 			if not await _wait_world(): return false
 			# Continue restores the saved interaction position; death uses the
 			# nest's respawn point. Momentum may put those a few pixels apart.
