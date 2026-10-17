@@ -5,7 +5,7 @@ shader_type canvas_item;
 // only the hue family moves from Gothicvania violet/magenta to plum, rust and ember.
 // COLOR already carries texture x modulate (night darkening, cloud alpha).
 uniform float amount : hint_range(0.0, 1.0) = 0.5;
-// Value multiplier before the ramp: < 1 pushes a plate back into the dusk so the play
+// Value multiplier (ramp lookup and authored colour): < 1 pushes a plate back into the dusk so the play
 // layer keeps the brightest values (platform lips, characters) to itself.
 uniform float value_scale : hint_range(0.2, 1.5) = 1.0;
 uniform vec3 c0 : source_color = vec3(0.071, 0.039, 0.055);
@@ -24,5 +24,8 @@ vec3 ramp(float v) {
 void fragment() {
 	vec4 c = COLOR;
 	float v = clamp(max(c.r, max(c.g, c.b)) * value_scale, 0.0, 1.0);
-	COLOR = vec4(mix(c.rgb, ramp(v), amount), c.a);
+	// value_scale also applies to the authored colour, so a partial grade (amount < 1) can
+	// push a plate back (or lift the play layer) while keeping its original hue.
+	vec3 authored = clamp(c.rgb * value_scale, 0.0, 1.0);
+	COLOR = vec4(mix(authored, ramp(v), amount), c.a);
 }

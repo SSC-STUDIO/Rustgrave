@@ -145,7 +145,8 @@ func test_play_layer_grade_spares_actors_hazards_and_interactables() -> void:
 
 func test_chapter_tint_warms_without_blacking_out() -> void:
 	var night := Level01Parallax.chapter_tint(Color(0.36, 0.34, 0.48))
-	ok(night.r > night.b, "chapter-1 night leans ember, not violet")
+	# Phase 3b: the night keeps some violet (user steer) but is never pushed further toward it.
+	ok(night.r / night.b >= 0.36 / 0.48, "chapter-1 night leans no more violet than the raw clock")
 	ok(night.b >= Level01Parallax.TINT_FLOOR and night.g >= Level01Parallax.TINT_FLOOR, "never a black frame")
 	var day := Level01Parallax.chapter_tint(Color(0.95, 0.95, 0.95))
 	ok(day.r <= 1.0 and day.b < day.r, "day stays in range and warm")

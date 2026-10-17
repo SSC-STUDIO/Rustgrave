@@ -49,23 +49,25 @@ const GRADE_SHADER := "res://assets/shaders/rust_grade.gdshader"
 ## value structure does the separation: sky and glow behind, dark mountain silhouettes, mid-value
 ## graveyard slope, brightest values on the play layer. Fog bands are graded too so they read as
 ## warm haze instead of lavender.
-const GRADE := {"Far": 0.94, "Mid": 0.95, "Hills": 0.9, "SkyCloudsHigh": 0.9, "SkyCloudsLow": 0.9,
-		"FogFar": 0.85, "FogNear": 0.85, "Foreground": 0.85, "GroundFog": 0.8}
+## Phase 3b (user steer): keep MORE of the authored crimson / violet character - a partial
+## rust shift (~40%), not a full recolour - and let value structure do the separation.
+const GRADE := {"Far": 0.42, "Mid": 0.4, "Hills": 0.4, "SkyCloudsHigh": 0.4, "SkyCloudsLow": 0.4,
+		"FogFar": 0.35, "FogNear": 0.35, "Foreground": 0.4, "GroundFog": 0.3}
 ## 玩法层（地砖、墓园 / 东翼装饰）走同一张 shader 的「煤灰 + 锈」色阶：明度次序不变，
 ## 平台亮沿、台阶边仍然读得出；人物、敌人、可交互物、毒池、钩点、火光不进这道调色，
 ## 角色和前摇因此从灰褐地面上跳出来。
-const PLAY_GRADE_AMOUNT := 0.68
+const PLAY_GRADE_AMOUNT := 0.3
 ## Play-layer value lift: terrain and decor sit above the backdrop in value (phase-2 feedback: muddy).
-const PLAY_VALUE := 1.25
+const PLAY_VALUE := 1.08
 const PLAY_GRADE_FOLDERS := ["Platforms", "GraveDecor", "BastionDecor", "CathedralDecor"]
 const PLAY_RAMP := [Color("#0e0907"), Color("#45301f"), Color("#875b38"), Color("#cf914f"), Color("#ffe2ad")]
 ## 远景压暗：越远越沉进暮色，最亮的值留给玩法层（平台亮沿、角色）。
 ## Mountains (Mid) are the darkest plate so they silhouette against the horizon glow; the graveyard
 ## slope (Hills) is mid-value; the near grass strip (Foreground) is a dark frame.
-const PLATE_VALUE := {"Far": 1.0, "Mid": 0.66, "Hills": 0.9, "SkyCloudsHigh": 1.0, "SkyCloudsLow": 0.95,
-		"FogFar": 1.0, "FogNear": 1.0, "Foreground": 0.55, "GroundFog": 1.0}
+const PLATE_VALUE := {"Far": 0.85, "Mid": 0.6, "Hills": 0.74, "SkyCloudsHigh": 0.9, "SkyCloudsLow": 0.85,
+		"FogFar": 0.9, "FogNear": 0.9, "Foreground": 0.5, "GroundFog": 1.0}
 ## 第一章暖偏：全局 MoodTint（昼夜 / 天气）乘上余烬偏色——夜仍是夜，但是煤灰夜而不是紫夜。
-const CHAPTER_WARM := Color(1.24, 1.14, 0.92)
+const CHAPTER_WARM := Color(1.04, 0.97, 0.92)
 const TINT_FLOOR := 0.3
 ## Default (chapter-1) palette. Keys: ramp = backdrop ramp (5 colours, dark→light),
 ## plates = layer name → blend, values = layer name → value_scale, warm = MoodTint bias,
@@ -75,11 +77,11 @@ const RUST_RAMP := [Color("#0f0909"), Color("#3a1f18"), Color("#7a3d26"), Color(
 ## Horizon glow: a screen-space additive gradient between the sky (plus clouds) and the
 ## mountains, so the sky reads as a warm haze over the horizon instead of flat murk and the
 ## dark mountain plate silhouettes against it. rgb = colour, a = peak strength.
-const HORIZON_GLOW := Color(1.0, 0.5, 0.2, 0.6)
+const HORIZON_GLOW := Color(1.0, 0.36, 0.26, 0.34)
 ## [y fraction of the view, strength fraction] stops of the glow gradient, top → bottom.
 const GLOW_STOPS := [[0.0, 0.0], [0.16, 0.12], [0.44, 0.62], [0.62, 1.0], [0.8, 0.72], [1.0, 0.35]]
 ## Top light: a warm lit lip along every platform top on the play layer (a = strength).
-const TOP_LIGHT := Color(1.0, 0.74, 0.44, 0.55)
+const TOP_LIGHT := Color(1.0, 0.72, 0.5, 0.5)
 const TOP_LIGHT_DEPTH := 6
 ## Light pools: additive glow around lit fires (nests, torches, the forge heart), a = strength.
 const LIGHT_POOL := Color(1.0, 0.6, 0.28, 0.3)

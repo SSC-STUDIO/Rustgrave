@@ -27,11 +27,15 @@ func test_value_structure_backdrop_dark_midground_mid_play_brightest() -> void:
 	ok(_lum(Level01Parallax.PLAY_RAMP[0]) < 0.05, "deep shadows stay dark (contrast, not a lifted haze)")
 
 
-func test_day_tint_is_not_darker_than_the_raw_clock_tint() -> void:
+func test_partial_grade_keeps_the_authored_colour() -> void:
+	# User steer: keep more of the original crimson / violet, a bit darker; no full recolour.
+	for layer_name in ["Far", "Mid", "Hills"]:
+		ok(float(Level01Parallax.GRADE[layer_name]) <= 0.5, "%s keeps at least half its authored hue" % layer_name)
+		ok(float(Level01Parallax.PLATE_VALUE[layer_name]) < 1.0, "%s sits a little darker than authored" % layer_name)
+	ok(Level01Parallax.PLAY_GRADE_AMOUNT <= 0.4, "play layer keeps its authored colours")
 	var day := WorldClock.DAY_TINT
 	var warm := Level01Parallax.chapter_tint(day)
-	ok(_lum(warm) >= _lum(day), "chapter warmth brightens the day instead of dimming it")
-	ok(warm.r > warm.b, "and stays warm")
+	ok(absf(_lum(warm) - _lum(day)) < 0.06, "the day tint is nudged, not washed")
 
 
 func test_play_material_lifts_value() -> void:
