@@ -13,6 +13,7 @@ var _anims: Dictionary = {}
 var _current: String = ""
 var _t: float = 0.0
 var _done: bool = false
+var _pinned: bool = false
 
 
 func _init() -> void:
@@ -40,6 +41,7 @@ func play(anim: String, restart: bool = false) -> void:
 		return
 	if anim == _current and not restart:
 		return
+	_pinned = false
 	_current = anim
 	_t = 0.0
 	_done = false
@@ -54,8 +56,26 @@ func set_fps(anim: String, fps: float) -> void:
 		_anims[anim]["fps"] = maxf(fps, 0.001)
 
 
+## 停在某一帧上，不再按 fps 往前走。挥砍用它把前摇 / 判定 / 后摇钉在对应姿势。
+func pin_frame(anim: String, index: int) -> void:
+	if not _anims.has(anim):
+		return
+	var cfg: Dictionary = _anims[anim]
+	var frames: Array[Texture2D] = cfg["frames"]
+	var idx := clampi(index, 0, frames.size() - 1)
+	if _current != anim:
+		_current = anim
+		_t = 0.0
+	_pinned = true
+	_done = false
+	position = cfg["pos"]
+	var frame := frames[idx]
+	if texture != frame:
+		texture = frame
+
+
 func _process(delta: float) -> void:
-	if _current == "" or _done:
+	if _current == "" or _done or _pinned:
 		return
 	var cfg: Dictionary = _anims[_current]
 	var frames: Array[Texture2D] = cfg["frames"]
