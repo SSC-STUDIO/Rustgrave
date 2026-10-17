@@ -149,6 +149,9 @@ func _make_button(action: StringName, caption: String, size: float,
 	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
 	wrap.theme_type_variation = &"MenuRowNormal"
 	wrap.focus_mode = Control.FOCUS_NONE
+	# Tools / tests find a button by what it does, not by its caption.
+	wrap.set_meta("action", action)
+	wrap.set_meta("pause", is_pause)
 
 	var label := UiKit.label(caption, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)

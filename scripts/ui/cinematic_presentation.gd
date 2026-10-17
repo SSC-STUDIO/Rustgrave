@@ -217,7 +217,8 @@ func _process(delta: float) -> void:
 	_tick_hint(delta)
 	if Director.playing:
 		_hint_age += delta
-		var touch := DisplayServer.is_touchscreen_available()
+		# Same rule as the on-screen pad: a forced / mobile / touchscreen session says 点此.
+		var touch := TouchInput.wants_overlay()
 		if Director.skips_whole_script():
 			skip_button.text = skip_label(touch, OpeningCinematic.is_active())
 		else:
