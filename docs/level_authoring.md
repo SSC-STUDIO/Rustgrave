@@ -201,3 +201,32 @@ func weather_regions() -> Array:
 - 高层使用 16px 薄台面，避免填充实体堵住下层。钟楼镜头上界为 −832、顶板为 −800、出口台面为 −640；室内区域和背景必须覆盖全高。用 `run_peek_live.ps1 -Level level07 -CamY -650` 检查塔顶。
 - 出口门 48 宽、64 高，`x` 是门底中点；别贴着右墙（留 ≥ 80px）。
 - PowerShell 5.1 对中文很不友好：不要用 `Set-Content`/`Out-File` 改含中文的文件，用编辑工具。
+
+## 7. 贴图贴合与室内远景（2A 之后的硬规则）
+
+章节 03–10 的装饰不再直接引用素材族原图，全部经 `PropCatalog` 解析；`prop_fit_test`
+（`tests/prop_fit_test.gd`）会拒绝以下情况：
+
+1. **贴纸方块**：不透明像素 >92% 且四角都不透明的贴图不能当接地装饰。合法的整块板
+   （门洞 `door_arch*`、木门 `door`/`moss_door`、墙块 `wall_block`、压板 `plate`、
+   垂挂条 `vine`、告示牌 `warning_plate`、排水拱 `arch`）登记在测试的 `FULL_BLEED`
+   里，新增例外必须写清理由。
+2. **主题越界**：`prop()/foliage()/hanging()` 只接受 `PropCatalog.THEME_PROPS[theme]`
+   里的键；十字墓碑/教堂紫柱不得种进工坊、熔渣、街巷。新键要先进 `DECOR` + 主题白名单。
+3. **贴图派生**：70px 的 Kenney 原件、带 tileset 底板的 `gh_*` 件，都必须由
+   `tools/gen_theme_tiles.py` 派生成本族 1x 变体
+   （`assets/env/props/<family>/<key>.png`）后再用；`path_for()` 会自动优先取变体。
+   新增派生逻辑必须保持该脚本幂等，并在 `assets/external/CREDITS.md` 记来源。
+4. **整数缩放**：`prop()` 的 scale 只能是 1.0；植被用 `assets/env/normalized/props/`
+   的 1x 裁切键（`tree_1_px` / `tree_2_px` / `bush_l_px`），不能靠小数缩放把原图压小。
+5. **脚点/挂点**：接地装饰写 `feet`（底边中点，整数像素）；悬挂装饰只写 `hang_top`，
+   不加入 `grounded` 组。`prop()` 已经按「最后一行不透明像素」落脚，不要按画布底边算。
+6. **室内远景**（`ThemeBackdrop.THEMES`）：室内主题必须至少一层 `"covers_top": true`，
+   真的盖住 640×360 视口的顶部 96px（`wall_*` 平铺墙板或 `truss_*` 顶架）。
+   竖井类（钟楼）用 `"tile": true` 的墙板，它的 region 覆盖全部镜头高度，不靠
+   `repeat_times`；其它层仍必须 `repeat_times >= 4`。室内主题不加天气（`indoors: true`）。
+   新增室内主题要同时登记 `THEMES`、`SIGNATURE_LAYERS`、`IDENTITY_COLOR` 与
+   `SIGNATURE_KIND`，否则 `parallax_backdrop_test` 会拒绝。
+7. **门/闸门/压板的材质**：`Door`/`RustyGate`/`PressurePlate` 是共享场景，教堂紫贴图
+   由 `ChapterLayout.plate_door()/rusty_gate()` 换成当前主题的族变体（只换贴图，
+   碰撞与尺寸不变）。不要再去改共享场景的默认贴图。
