@@ -317,6 +317,7 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 
 ### 5. 未验证 / 已知限制
 
+- 真实输入冒烟（`tools/input_walkthrough`，正常输入驱动）：`--ending=rekindle` → **WALKTHROUGH PASS**（level01 东翼存档点 → 刽子手战 → 故意死亡/读档验证 → Continue → 下到 level02 → 地窖存档点/毒坑 → 暂停/继续；1 deaths，0 engine errors）。这只覆盖第 1–2 章，不等于 14 章通关。
 - 真实输入 14 章通关：**未完成**。`scenes/tools/CampaignWalkthrough.tscn` 在本机 headless 跑 >20 分钟无输出（疑似等待游戏输入/标题流程），已中止；真实手柄/键盘人工通关也未做。因此"14 章可从头玩到尾"本轮**没有**正常输入证据，只有逐章 fixture/布局/路由/存储测试与各章渲染证据；这是本轮最大的未验证项。
 - 真机触控/刘海、960×540 与 1920×1080 的试炼菜单实拍（只验证布局数学与控件边界）；真机 Boss 战 HUD 未录。
 - Boss 视觉：新 Boss 主体为程序化像素 + 复用角色帧（CapstanWarden=gear_shield 冷青、SilentChoir=ghost 3 暖壳+2× 指挥、其余程序化），属可读性达标的占位美术；正式美术替换不改判定/测试。
