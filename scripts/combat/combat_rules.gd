@@ -188,6 +188,8 @@ const SFX_FALLBACK := {
 const BUDGET := {
 	&"afterimages": 6, &"sparks": 6, &"oneshots": 8, &"markers": 8,
 	&"projectiles": 8, &"fire_trails": 3, &"blasts": 1, &"motes": 48, &"rings": 4,
+	## 环境打击留下的痕迹（焦痕/裂口/水渍）。与 DecalField.MAX_DECALS 对齐。
+	&"decals": 24,
 }
 ## 玩家自己生成的临时伤害体（火带 + 冲击波）合计不超过这个数。
 const PLAYER_HITBOX_CAP := 4

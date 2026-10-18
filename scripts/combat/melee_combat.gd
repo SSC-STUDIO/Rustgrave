@@ -406,6 +406,8 @@ func _begin_active() -> void:
 		# 等到下一次物理 step；也保证剑先于火带 / 冲击波拿第一击（破绽翻倍归剑）。
 		hitbox.sweep_now()
 		if host is Player:
+			# 环境反馈只给玩家剑：敌人的命中反馈走 hurtbox/材质矩阵，避免双重特效。
+			hitbox.begin_world_probe()
 			(host as Player).on_melee_active(_combo_index)
 
 

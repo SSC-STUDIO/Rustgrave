@@ -25,6 +25,11 @@ const HEAT_LICK_NAME := "HeatLick"
 
 const EMBER_FIELD_NAME := "FxEmberField"
 
+## 环境打击（火球撞地 / 剑刃扫墙）走 ImpactCatalog 的表现表；痕迹放进每个世界
+## 自己的 DecalField（环形复用，上限 24）。
+const ImpactCatalog := preload("res://scripts/data/impact_catalog.gd")
+const DecalField := preload("res://scripts/world/decal_field.gd")
+
 var _headless := false
 var _weaponhit_sheet: Texture2D = null
 var _brightfire_sheet: Texture2D = null
@@ -35,6 +40,11 @@ var _mote_cursor := 0
 var _ring_cursor := 0
 var _live_sparks := 0
 var _live_oneshots := 0
+## 环境打击计数（headless 也记）：测试用它验证火球撞地只触发一次、
+## 剑刃每刀对同一面只触发一次。
+var _impact_count := 0
+var _last_impact: Dictionary = {}
+var _decal_field: Node = null
 static var _additive: CanvasItemMaterial = null
 
 
@@ -177,6 +187,99 @@ func hit_effect(spark: StringName, debris: StringName, ring: bool, pos: Vector2,
 		burst(&"ring", pos)
 
 
+## 环境打击的累计次数与最后一次（材质/位置/分量），headless 下也可用。
+func impact_count() -> int:
+	return _impact_count
+
+
+func last_impact() -> Dictionary:
+	return _last_impact
+
+
+func decal_field() -> Node:
+	return _decal_field
+
+
+func reset_impact_counters() -> void:
+	_impact_count = 0
+	_last_impact = {}
+
+
+## 环境打击（火球撞地/墙、剑刃扫到地面/墙体）。只做表现，不造成伤害：
+## 火花 + 碎屑 + 材质贴花 + 短辉光 + 音效 + 轻微震动，全部走现有预算池。
+## headless 只记 impact_count/last_impact，不建任何节点。
+func impact(material: StringName, pos: Vector2, normal: Vector2 = Vector2.UP,
+		weight: StringName = &"light") -> void:
+	var prof := ImpactCatalog.profile(material)
+	var scale := ImpactCatalog.weight_scale(weight)
+	_impact_count += 1
+	_last_impact = {"material": material, "pos": pos, "weight": weight, "scale": scale}
+	if _headless:
+		return
+	var dir := normal.angle()
+	var spark := StringName(prof["spark"])
+	var debris := StringName(prof["debris"])
+	_impact_burst(spark, pos, dir, scale)
+	if debris != &"none" and debris != spark:
+		# 碎屑用 debris_* 变体：受重力、落到地面就停住再淡出，而不是在空中消失。
+		_impact_burst(debris_burst_kind(debris), pos + normal * 2.0, dir, scale)
+	_spawn_decals(StringName(prof["decal"]), material, pos, normal, scale)
+	# 余烬类材质再补两粒飘起来的火点：砸地之后不是一瞬就干净。
+	if material == &"dirt" or material == &"stone" or material == &"metal":
+		burst(&"ember", pos + normal * -3.0, dir)
+	_spawn_impact_flash(pos, prof["light"] as Color, float(prof["energy"]) * scale)
+	var sfx := StringName(prof["sfx"])
+	if sfx != &"":
+		Sfx.play_at(sfx, pos, 0.1, float(prof["volume_db"]))
+	Juice.shake(float(prof["shake"]) * scale, 90)
+
+
+## 火花/碎屑的口径：碎屑用 debris_* 变体（会落地），火花保持短促。
+static func debris_burst_kind(kind: StringName) -> StringName:
+	match kind:
+		&"dirt":
+			return &"debris_dirt"
+		&"stone":
+			return &"debris_stone"
+		&"metal", &"rust":
+			return &"debris_metal"
+		&"wood":
+			return &"debris_wood"
+		&"wet", &"wetsplash":
+			return &"debris_wet"
+	return kind
+
+
+func _impact_burst(kind: StringName, pos: Vector2, dir: float, scale: float) -> void:
+	var times := 1 if scale < 1.4 else 2
+	for _i in times:
+		burst(kind, pos + Vector2(randf_range(-2.0, 2.0), randf_range(-2.0, 2.0)), dir)
+
+
+func _spawn_decals(kind: StringName, material: StringName, pos: Vector2, normal: Vector2,
+		scale: float) -> void:
+	if kind == &"none":
+		return
+	var host := _effects_host()
+	if host == null or not is_instance_valid(host):
+		return
+	if _decal_field == null or not is_instance_valid(_decal_field) \
+			or _decal_field.get_parent() != host:
+		if is_instance_valid(_decal_field):
+			_decal_field.queue_free()
+		_decal_field = DecalField.new()
+		host.add_child(_decal_field)
+	_decal_field.call(&"add", kind, material, pos, normal, scale)
+
+
+func _spawn_impact_flash(pos: Vector2, tint: Color, energy: float) -> void:
+	if energy <= 0.02:
+		return
+	var flash := ImpactFlash.new(tint, clampf(energy, 0.15, 1.4))
+	flash.position = Vector2(roundf(pos.x), roundf(pos.y))
+	_effects_host().add_child(flash)
+
+
 ## Budgeted pixel burst. Headless creates nothing. Exhausted slots recycle.
 func burst(kind: StringName, pos: Vector2, dir: float = 0.0) -> void:
 	if _headless:
@@ -191,6 +294,15 @@ func burst(kind: StringName, pos: Vector2, dir: float = 0.0) -> void:
 	elif kind == &"spark" or kind == &"ghost":
 		count = 4
 	elif kind == &"trail":
+		count = 4
+	elif kind == &"dirt" or kind == &"stone" or kind == &"wetsplash":
+		count = 8
+	elif kind == &"wood":
+		count = 6
+	elif kind == &"ember":
+		count = 3
+	elif kind == &"debris_dirt" or kind == &"debris_stone" or kind == &"debris_metal" \
+			or kind == &"debris_wood" or kind == &"debris_wet":
 		count = 4
 	for i in count:
 		var at := pos
@@ -429,9 +541,56 @@ class EmberBit extends Node2D:
 		modulate.a = minf(k * 8.0, 1.0) * (1.0 - k)
 
 
+## 一次性短辉光：加法混合的像素菱形环，0.11 秒烧完。不参与光照系统，
+## 所以不会和关卡灯光/WorldLight 打架；只是让命中点在暗处"亮一下"。
+class ImpactFlash extends Node2D:
+	const LIFE := 0.09
+	var _age := 0.0
+	var _tint := Color.WHITE
+	var _energy := 0.6
+
+
+	func _init(tint: Color, energy: float) -> void:
+		_tint = tint
+		_energy = energy
+		z_index = FX_Z - 1
+
+
+	func _ready() -> void:
+		material = Fx.additive_mat()
+
+
+	func _process(delta: float) -> void:
+		_age += delta
+		if _age >= LIFE:
+			queue_free()
+			return
+		modulate.a = 1.0 - _age / LIFE
+
+
+	func _draw() -> void:
+		# 实心像素圆：横条按半径逐行铺。颜色跟材质走（土黄/石灰/金属暖），
+		# 不再有近白核心——之前那层白在草叶上会被读成"白方块"。
+		var strength := clampf(_energy, 0.15, 1.4)
+		var outer := Color(_tint.r, _tint.g, _tint.b, 0.16 * strength)
+		var inner := Color(minf(_tint.r * 1.15, 1.0), minf(_tint.g * 1.1, 1.0),
+				minf(_tint.b * 1.05, 1.0), 0.22 * strength)
+		for r in [2, 4, 6]:
+			var rr := int(r)
+			for dy in range(-rr, rr + 1, 2):
+				var w := int(sqrt(float(rr * rr - dy * dy)))
+				if w <= 0:
+					continue
+				draw_rect(Rect2(float(-w), float(dy), float(w * 2), 2.0),
+						inner if rr <= 2 else outer)
+
+
+
+
 ## Recycled pixel square. Hidden until launch; never queue_free.
 class PooledMote extends Node2D:
 	var alive := false
+	var _settle := false
 	var _vel := Vector2.ZERO
 	var _drift := Vector2.ZERO
 	var _age := 0.0
@@ -456,6 +615,7 @@ class PooledMote extends Node2D:
 		visible = true
 		set_process(true)
 		_age = 0.0
+		_settle = false
 		_drift = pos
 		position = Vector2(roundf(pos.x), roundf(pos.y))
 		modulate.a = 1.0
@@ -499,6 +659,77 @@ class PooledMote extends Node2D:
 				_vel = Vector2(cos(dir), sin(dir)) * randf_range(8.0, 24.0)
 				_vel.y -= randf_range(6.0, 20.0)
 				_poly.color = Color(0.55, 0.95, 1.0)
+			&"dirt":
+				# 泥土碎块：受重力、落得快，锈土色。
+				_life = randf_range(0.5, 0.8)
+				_grav = 170.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(30.0, 70.0)
+				_vel.y -= randf_range(20.0, 48.0)
+				_poly.color = Palette.RUST_SHADOW.lerp(Palette.CONCRETE, randf() * 0.6)
+			&"stone":
+				# 石屑：灰白碎渣，重力最大。
+				_life = randf_range(0.4, 0.7)
+				_grav = 200.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(36.0, 84.0)
+				_vel.y -= randf_range(18.0, 44.0)
+				_poly.color = Palette.IRON.lerp(Palette.CONCRETE, randf() * 0.7)
+			&"wood":
+				# 木屑：暖褐，轻一点。
+				_life = randf_range(0.4, 0.65)
+				_grav = 150.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(26.0, 62.0)
+				_vel.y -= randf_range(20.0, 46.0)
+				_poly.color = Palette.RUST_DARK.lerp(Palette.EMBER_ASH, randf() * 0.45)
+			&"wetsplash":
+				# 水点：青白，短促地溅开。
+				_life = randf_range(0.25, 0.45)
+				_grav = 220.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(40.0, 92.0)
+				_vel.y -= randf_range(20.0, 50.0)
+				_poly.color = Palette.TEAL.lerp(Palette.FOG, randf() * 0.6)
+			&"ember":
+				# 落地溅起的余烬：向上飘、慢慢冷。
+				_life = randf_range(0.35, 0.6)
+				_grav = -20.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(10.0, 28.0)
+				_vel.y -= randf_range(8.0, 24.0)
+				_poly.color = Palette.EMBER.lerp(Palette.TOXIC, randf() * 0.5)
+			&"debris_dirt":
+				# 泥土碎屑：会落地。颜色压暗，避免在暗场景里读成白方块。
+				_settle = true
+				_life = randf_range(1.1, 1.6)
+				_grav = 520.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(20.0, 52.0)
+				_vel.y -= randf_range(8.0, 22.0)
+				_poly.color = Palette.RUST_SHADOW.lerp(Palette.RUST_DARK, randf() * 0.6)
+			&"debris_stone":
+				_settle = true
+				_life = randf_range(1.0, 1.5)
+				_grav = 560.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(24.0, 58.0)
+				_vel.y -= randf_range(6.0, 20.0)
+				_poly.color = Palette.IRON.lerp(Palette.SHADOW, 0.35 + randf() * 0.3)
+			&"debris_metal":
+				_settle = true
+				_life = randf_range(0.9, 1.3)
+				_grav = 520.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(26.0, 62.0)
+				_vel.y -= randf_range(6.0, 20.0)
+				_poly.color = Palette.RUST_LIGHT.lerp(Palette.RUST_DARK, 0.55 + randf() * 0.25)
+			&"debris_wood":
+				_settle = true
+				_life = randf_range(1.0, 1.5)
+				_grav = 500.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(20.0, 54.0)
+				_vel.y -= randf_range(8.0, 20.0)
+				_poly.color = Palette.RUST_DARK.lerp(Palette.EMBER_ASH, 0.3)
+			&"debris_wet":
+				_settle = true
+				_life = randf_range(0.9, 1.3)
+				_grav = 560.0
+				_vel = Vector2(cos(dir), sin(dir)) * randf_range(22.0, 56.0)
+				_vel.y -= randf_range(10.0, 24.0)
+				_poly.color = Palette.TEAL.lerp(Palette.SHADOW, 0.45)
 			_:
 				_life = randf_range(0.32, 0.55)
 				_grav = 90.0
@@ -519,8 +750,30 @@ class PooledMote extends Node2D:
 		_vel.y += _grav * delta
 		_drift += _vel * delta
 		position = Vector2(roundf(_drift.x), roundf(_drift.y))
+		if _settle:
+			_try_settle(delta)
 		var k := _age / _life
 		modulate.a = minf(k * 8.0, 1.0) * (1.0 - k)
+
+
+	## 碎屑落到地面：贴住地表、停住，再用剩余寿命淡出（不再穿过地板消失）。
+	func _try_settle(delta: float) -> void:
+		var space := get_world_2d().direct_space_state
+		if space == null:
+			return
+		var drop := maxf(6.0, absf(_vel.y) * delta + 6.0)
+		var query := PhysicsRayQueryParameters2D.create(position, position + Vector2(0.0, drop), 1)
+		query.collide_with_bodies = true
+		query.collide_with_areas = false
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			return
+		_settle = false
+		_vel = Vector2.ZERO
+		_grav = 0.0
+		position = Vector2(roundf(position.x), roundf((hit.get("position") as Vector2).y) - 1.0)
+		_drift = position
+		_life = minf(_life, _age + 0.45)
 
 
 ## A few ember licks parented to the sword visual while heat forge is socketed.

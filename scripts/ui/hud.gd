@@ -142,6 +142,10 @@ var _boss_hp_bar: ProgressBar
 var _boss_phase_pips: PhasePips
 var _boss_max_hp: int = 1
 
+## 右下角技能冷却条（Q/E）。
+var _skill_row: HBoxContainer
+var _skill_labels: Array[Label] = []
+
 
 func _ready() -> void:
 	layer = 10
@@ -194,6 +198,7 @@ func _build() -> void:
 	_build_boss_bar(_root)
 	_build_prompt(_root)
 	_build_atmosphere(_root)
+	_build_skill_bar(_root)
 
 	# 情境提示条（顶部居中，播报横幅之下）。必须在死亡幕之前建：提示是教学，
 	# 死亡幕是最高优先级，先建的先画，提示永远盖不到"余烬熄灭"上面。
@@ -512,6 +517,7 @@ func _process(delta: float) -> void:
 		_breath_time += delta
 		_vignette.modulate.a = lerpf(VIGNETTE_BREATH_MIN, VIGNETTE_BREATH_MAX,
 				0.5 + 0.5 * sin(TAU * _breath_time / VIGNETTE_BREATH_PERIOD))
+	_update_skill_bar()
 
 
 # --- 电影黑边 -----------------------------------------------------------------
@@ -1142,3 +1148,59 @@ class PhasePips extends Control:
 			])
 			draw_colored_polygon(pts, UiKit.EMBER)
 			draw_polyline(pts + PackedVector2Array([pts[0]]), Color("#2A1E32"), 1.0)
+
+# --- 技能条 -----------------------------------------------------------------
+
+## 右下角两个技能格：键位 + 名称 + 剩余冷却。没有玩家时整条隐藏。
+func _build_skill_bar(root: Control) -> void:
+	_skill_row = HBoxContainer.new()
+	_skill_row.name = "SkillBar"
+	_skill_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_skill_row.offset_left = -280.0
+	_skill_row.offset_top = -44.0
+	_skill_row.offset_right = -16.0
+	_skill_row.offset_bottom = -14.0
+	_skill_row.alignment = BoxContainer.ALIGNMENT_END
+	_skill_row.add_theme_constant_override("separation", 10)
+	_skill_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_skill_row)
+	for slot in 2:
+		var label := UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+		label.name = "Skill%d" % slot
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_skill_row.add_child(label)
+		_skill_labels.append(label)
+	_update_skill_bar()
+
+
+func _update_skill_bar() -> void:
+	if _skill_row == null or not is_instance_valid(_skill_row):
+		return
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null or not player.has_method(&"skill_state"):
+		_skill_row.visible = false
+		return
+	_skill_row.visible = true
+	var states: Array = player.call(&"skill_state")
+	for slot in _skill_labels.size():
+		var label := _skill_labels[slot]
+		if slot >= states.size():
+			label.text = ""
+			continue
+		var state: Dictionary = states[slot]
+		var key := String(state.get("action", ""))
+		var key_text := KeyLabels.label(StringName(key))
+		var name := String(state.get("name", ""))
+		var cd := float(state.get("cooldown", 0.0))
+		if name == "":
+			label.text = "[%s] —" % key_text
+			label.modulate = Color(1.0, 1.0, 1.0, 0.35)
+			continue
+		if cd > 0.05:
+			label.text = "[%s] %s %.1f" % [key_text, name, cd]
+			label.modulate = Color(1.0, 1.0, 1.0, 0.45)
+		else:
+			label.text = "[%s] %s" % [key_text, name]
+			label.modulate = Color(1.0, 1.0, 1.0, 0.95)
+

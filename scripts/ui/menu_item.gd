@@ -33,6 +33,8 @@ const TICK_LEN := 24.0
 const TICK_DIM := Color("#4A2A18")
 const TICK_LIT := Color("#FFC14A")
 
+## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
+var id: StringName = &""
 var kind: Kind = Kind.DEFAULT
 ## 挂钉只属于"铁架"版式（标题屏 / 暂停菜单）；对话框里的板不要向左伸的挂钉。
 var show_tick := true:

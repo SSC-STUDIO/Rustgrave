@@ -182,21 +182,24 @@ func test_clouds_and_ground_fog_follow_the_weather() -> void:
 	WorldClock.set_weather(WorldClock.Weather.CLEAR, true)
 	extras._snap_atmosphere()
 	almost(fog.modulate.a, 0.0, 0.001, "no ground fog under a clear sky")
-	var veil := front.get_node_or_null("FogVeil") as ColorRect
+	var veil := front.get_node_or_null("FogVeil") as Control
 	ok(veil != null, "a screen-space veil sits on the foreground layer")
 	if veil != null:
-		almost(veil.color.a, 0.0, 0.001, "no veil under a clear sky")
+		var veil_a := veil.modulate.a if veil is TextureRect else (veil as ColorRect).color.a
+		almost(veil_a, 0.0, 0.001, "no veil under a clear sky")
 		eq(veil.size, Vector2(640, 360), "veil covers the whole world view")
 	WorldClock.set_weather(WorldClock.Weather.FOG, true)
 	extras._snap_atmosphere()
 	ok(fog.modulate.a >= 0.3, "thick fog rolls over the graveyard floor")
 	if veil != null:
-		ok(veil.color.a >= 0.15 and veil.color.a <= 0.35, "thick fog washes the view without hiding it")
+		var veil_a_fog := veil.modulate.a if veil is TextureRect else (veil as ColorRect).color.a
+		ok(veil_a_fog >= 0.15 and veil_a_fog <= 0.35, "thick fog washes the view without hiding it")
 	WorldClock.set_zone(WorldClock.Zone.INDOORS)
 	extras._snap_atmosphere()
 	almost(fog.modulate.a, 0.0, 0.001, "fog stops at the door")
 	if veil != null:
-		almost(veil.color.a, 0.0, 0.001, "veil stops at the door too")
+		var veil_a_in := veil.modulate.a if veil is TextureRect else (veil as ColorRect).color.a
+		almost(veil_a_in, 0.0, 0.001, "veil stops at the door too")
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 	WorldClock.wind_heading = 1.0
 	WorldClock._heading_target = 1.0

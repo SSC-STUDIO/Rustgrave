@@ -1,6 +1,7 @@
 extends TestCase
-## Save v2: 10 章旧档（v1）必须能直接继续，profile 块（character_id/extras）缺失时
-## 用默认值补齐；v2 写入/读回 profile，persist_profile 只动 profile 不碰战役进度。
+## Save v3: v1（10 章旧档）与 v2（profile 块）都必须能直接继续；v3 新增的
+## 余烬阶位/经验/属性点/技能槽/皮肤槽缺省时用默认值补齐，写入后能原样读回；
+## persist_profile 只动 profile，不碰战役进度。
 
 const PATH := "user://test_save_migration.cfg"
 
@@ -46,8 +47,8 @@ func _write_v1_save() -> void:
 	eq(cfg.save(PATH), OK, "v1 save fixture written")
 
 
-func test_save_version_is_two() -> void:
-	eq(SaveData.SAVE_VERSION, 2, "save schema bumped for the profile block")
+func test_save_version_is_three() -> void:
+	eq(SaveData.SAVE_VERSION, 3, "save schema bumped for the v3 character profile")
 
 
 func test_v1_save_loads_with_default_profile_and_keeps_every_old_field() -> void:
@@ -57,6 +58,12 @@ func test_v1_save_loads_with_default_profile_and_keeps_every_old_field() -> void
 	eq(SaveData.saved_scene(), GameContext.LEVELS["level03"], "old scene survives")
 	eq(SaveData.character_id, "", "missing profile block -> empty character id (default character)")
 	eq(SaveData.extras.size(), 0, "missing extras -> empty")
+	eq(SaveData.ember_rank, 1, "missing rank -> rank 1")
+	eq(SaveData.ember_xp, 0, "missing xp -> 0")
+	eq(SaveData.attribute_points, 0, "missing attribute points -> 0")
+	eq(SaveData.skill_1, "", "missing skill slots -> empty")
+	eq(SaveData.skin_id, "", "missing skin -> default look")
+	eq(SaveData.skin_rune, "", "missing skin rune -> none")
 	ok(SaveData.has_flag("wake") and SaveData.has_flag("level02_done"), "story flags survive")
 	eq(SaveData.flags.size(), 2)
 	var player: Dictionary = SaveData.data["player"]
@@ -90,6 +97,50 @@ func test_profile_round_trips_and_unknown_extras_survive() -> void:
 	ok(future is Dictionary and bool((future as Dictionary).get("nested", false)),
 			"unknown extras keys are preserved verbatim")
 	ok(SaveData.has_flag("wake"), "persist_profile does not touch story flags")
+
+
+func test_v2_save_gets_v3_defaults_without_losing_profile() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 2)
+	cfg.set_value("player", "hp", 4)
+	cfg.set_value("player", "max_hp", 5)
+	cfg.set_value("profile", "character_id", "gothic_hero")
+	cfg.set_value("profile", "extras", {"future_key": 7})
+	eq(cfg.save(PATH), OK)
+	ok(SaveData.load_game())
+	eq(int((SaveData.data["meta"] as Dictionary)["version"]), 2, "v2 version is reported")
+	eq(SaveData.character_id, "gothic_hero", "v2 profile block survives")
+	eq(SaveData.get_extra("future_key", null), 7)
+	eq(SaveData.ember_rank, 1, "v2 save gets v3 rank default")
+	eq(SaveData.skill_1, "", "v2 save gets v3 skill default")
+
+
+func test_v3_progression_and_appearance_round_trip() -> void:
+	_write_v1_save()
+	ok(SaveData.load_game())
+	SaveData.set_ember_state(4, 812, 3)
+	SaveData.set_skill_slot(0, "ember_burst")
+	SaveData.set_skill_slot(1, "hollow_guard")
+	SaveData.set_skin("skin_ash_runner", "rune_ember_grip")
+	ok(SaveData.persist_profile())
+	SaveData.ember_rank = 1
+	SaveData.ember_xp = 0
+	SaveData.attribute_points = 0
+	SaveData.skill_1 = ""
+	SaveData.skill_2 = ""
+	SaveData.skin_id = ""
+	SaveData.skin_rune = ""
+	ok(SaveData.load_game())
+	eq(SaveData.ember_rank, 4)
+	eq(SaveData.ember_xp, 812)
+	eq(SaveData.attribute_points, 3)
+	eq(SaveData.skill_1, "ember_burst")
+	eq(SaveData.skill_2, "hollow_guard")
+	eq(SaveData.skin_id, "skin_ash_runner")
+	eq(SaveData.skin_rune, "rune_ember_grip")
+	eq(int((SaveData.data["profile"] as Dictionary).get("ember_rank", 0)), 4,
+			"内存里的 profile 快照同步")
+	ok(SaveData.has_flag("wake"), "profile writes do not touch story flags")
 
 
 func test_persist_profile_is_noop_without_a_save() -> void:

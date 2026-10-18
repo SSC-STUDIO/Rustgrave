@@ -20,6 +20,12 @@ _downloads/
 
 # Exports
 export/
+build/
 *.pck
 *.exe
 *.zip
+
+# Local tooling & IDE metadata
+.agents/
+.zcode/
+.zcodeignore

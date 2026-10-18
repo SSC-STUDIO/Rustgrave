@@ -21,6 +21,7 @@ var _index := -1
 func add_item(id: StringName, text: String, item_disabled: bool = false,
 		kind: MenuItem.Kind = MenuItem.Kind.DEFAULT) -> MenuItem:
 	var item := MenuItem.new(text, kind)
+	item.id = id
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))
@@ -42,6 +43,23 @@ func compact(item: MenuItem) -> MenuItem:
 
 func selected_id() -> StringName:
 	return _ids[_index] if _index >= 0 else &""
+
+
+## 当前挂着的菜单项 id 顺序副本：上层重建菜单后按 id 找回原来的选中位置
+## （更新提示到来时重建菜单架、不能把玩家的光标弹回第一格）。
+## 兼容旧调用：返回所有 MenuItem 子节点（标题/章节测试按这个口径读）。
+func items() -> Array:
+	var out: Array = []
+	for child in get_children():
+		if child is MenuItem:
+			out.append(child)
+	return out
+
+
+func item_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	out.assign(_ids)
+	return out
 
 
 func select(index: int, play_sound: bool = true) -> void:

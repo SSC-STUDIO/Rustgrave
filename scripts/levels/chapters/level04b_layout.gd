@@ -128,7 +128,7 @@ const PROPS: Array = [
 	["skull_column", Vector2(1240, 320)],
 	# 骨室中段的祭坛：末页原本供在这里，现在只剩空台；台脚压一块石板当基座。
 	["altar", Vector2(1800, 320)],
-	["plate", Vector2(1800, 320)],
+	["slab", Vector2(1800, 320)],
 	["column", Vector2(2000, 320)],
 	["rubble_dry_b", Vector2(2140, 320)],
 	# 骨室东端的骷髅柱与碎石：唱诗楼座就悬在这根柱子上方。
@@ -142,7 +142,7 @@ const PROPS: Array = [
 	# 尖窗与祭坛是 Boss 房的两个可读光源地标；祭坛台脚也有石板基座。
 	["window", Vector2(3080, 320)],
 	["altar", Vector2(3380, 320)],
-	["plate", Vector2(3380, 320)],
+	["slab", Vector2(3380, 320)],
 	["balustrade", Vector2(3490, 320)],
 ]
 ## 顶板下挂着的烛泪：唱诗班点过的蜡烛烧了两百年，蜡沿着顶石垂下来（藤条压成蜡色）。

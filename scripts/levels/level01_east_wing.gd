@@ -52,8 +52,10 @@ const EMBER_HOOK_POS := Vector2(1512, 56)
 const PIT_X0 := 400.0
 const PIT_X1 := 512.0
 const PIT_BANK_Y := 320.0
-## 水面（ToxinPool 顶，雨的 surface_rect）。坑底再往下，但必须 ≤ 单跳到岸。
-const PIT_WATER_Y := 336.0
+## 水面（ToxinPool 顶，雨的 surface_rect）。比岸低 8px，且比坑内石阶高 8px：
+## 人踩在石阶上时脚在水面下、腿和腰浸在腐液里，会真的中毒，而不是站在水面。
+const PIT_WATER_Y := 328.0
+const PIT_WATER_SIZE := Vector2(112, 40)
 ## 旧底 368 深 48px，单跳够不着岸。抬到 352 后深 32px。
 const PIT_FLOOR_Y := 352.0
 const PIT_FLOOR_SIZE := Vector2(112, 48)

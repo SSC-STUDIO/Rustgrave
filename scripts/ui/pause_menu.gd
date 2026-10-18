@@ -14,10 +14,9 @@ extends CanvasLayer
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
-## 回火试炼：试炼会话里左列换成"重开本场 / 退出试炼"，退出回标题且不写战役档。
-const TrialRunScript := preload("res://scripts/autoload/trial_run.gd")
 
 const ID_RESUME := &"resume"
+const ID_EQUIPMENT := &"equipment"
 const ID_SETTINGS := &"settings"
 const ID_TUTORIAL := &"tutorial"
 const ID_CONTROLS := &"controls"
@@ -25,6 +24,7 @@ const ID_MAP := &"map"
 const ID_TITLE := &"title"
 const ID_TRIAL_RESTART := &"trial_restart"
 const ID_TRIAL_EXIT := &"trial_exit"
+const TrialRunScript := preload("res://scripts/autoload/trial_run.gd")
 
 ## 左列铁架：竖脊贴左缘，板面从 RAIL_X 挂出去；行距由空白节点控，主/次/第三层分开。
 const RAIL_X := 24.0
@@ -48,13 +48,15 @@ var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _tutorial: TutorialRecall
 var _map: MapScreen
+var _equipment: CanvasLayer
 ## Esc during a scene fade (respawn fade-in, chapter arrival, Continue) used to be
 ## dropped without a sound; the request is now kept and honoured once the fade ends.
 var _open_requested := false
+## 退场动画进行中：防连按 Esc 起两条 tween、重复解除暂停。
+var _closing := false
 
 var _dossier_chapter: Label
 var _dossier_objective: Label
-var _dossier_recap: Label
 var _dossier_cores: Label
 var _dossier_nests: Label
 var _dossier_viewport: Label
@@ -109,6 +111,20 @@ func _build() -> void:
 	_map.layer = 21
 	_map.closed.connect(_resume_menu)
 	add_child(_map)
+
+	const EQUIPMENT_PANEL_SCENE := "res://scenes/ui/CharacterEquipmentPanel.tscn"
+	const EQUIPMENT_PANEL_SCRIPT := "res://scripts/ui/character_equipment_panel.gd"
+	if ResourceLoader.exists(EQUIPMENT_PANEL_SCENE):
+		_equipment = (load(EQUIPMENT_PANEL_SCENE) as PackedScene).instantiate()
+	elif ResourceLoader.exists(EQUIPMENT_PANEL_SCRIPT):
+		_equipment = (load(EQUIPMENT_PANEL_SCRIPT) as GDScript).new()
+	else:
+		_equipment = CanvasLayer.new()
+	_equipment.layer = 21
+	if _equipment.has_signal("closed"):
+		_equipment.connect("closed", _resume_menu)
+	add_child(_equipment)
+
 	_refresh_dossier()
 
 
@@ -132,8 +148,14 @@ func _build_rail(parent: Control) -> void:
 	_gap(GAP_GROUP)
 	_menu.add_child(_rail_divider())
 	_gap(GAP_DIVIDER)
-	var systems := [[ID_SETTINGS, "设 置"], [ID_MAP, "地 图"],
-			[ID_TUTORIAL, "教 程 回 看"], [ID_CONTROLS, "操 作 说 明"]]
+	var systems := [
+		[ID_SETTINGS, "设 置"],
+		[ID_MAP, "地 图"],
+		[ID_TUTORIAL, "教 程 回 看"],
+		[ID_CONTROLS, "操 作 说 明"],
+	]
+	if LoadoutBridge.available():
+		systems.insert(0, [ID_EQUIPMENT, "角 色 与 装 备"])
 	for i in systems.size():
 		_menu.add_item(StringName(systems[i][0]), String(systems[i][1]), false,
 				MenuItem.Kind.SECONDARY)
@@ -143,10 +165,9 @@ func _build_rail(parent: Control) -> void:
 	_menu.reset_size()
 	_menu.chosen.connect(_on_chosen)
 
-	# 试炼专用左列：默认隐藏，open() 时按 TrialRun.active() 二选一显示。
+	# 试炼左列：重开本场 / 退出试炼（只有两格）。
 	_trial_menu = MenuList.new()
 	_trial_menu.name = "TrialMenu"
-	_trial_menu.add_theme_constant_override("separation", 0)
 	_trial_menu.position = Vector2(RAIL_X, MENU_TOP)
 	_trial_menu.visible = false
 	rail.add_child(_trial_menu)
@@ -200,8 +221,6 @@ func _build_dossier(parent: Control) -> void:
 
 	_dossier_chapter = _dossier_row(inner, "章 节")
 	_dossier_objective = _dossier_row(inner, "目 标")
-	# 前情提要：按已通关章节拼 1–2 句（文本口径在 StoryFlow / ChapterText）。
-	_dossier_recap = _dossier_row(inner, "前 情")
 	_dossier_cores = _dossier_row(inner, "锈 核")
 	_dossier_nests = _dossier_row(inner, "余 烬 巢")
 	_dossier_viewport = _dossier_row(inner, "视 口")
@@ -236,6 +255,19 @@ func _dossier_row(parent: VBoxContainer, key: String) -> Label:
 	return value
 
 
+## 档案值的语义色：章节名是余烬（"我在哪"的主答案）、目标是暖白、
+## 锈核/巢穴用地图图例里"已点燃余烬巢"的同一个琥珀 —— 暂停档案、地图、
+## 图例三屏说的是同一枚巢，颜色不能各说各话；视口最暗（纯技术信息）。
+## 五排同色时右列是一堵灰字；分色后眼睛能直接跳到章节和当前目标。
+const DOSSIER_COLORS := {
+	&"chapter": UiKit.EMBER,
+	&"objective": Color("#E4DCCC"),
+	&"cores": Color("#FFC14A"),
+	&"nests": Color("#FFC14A"),
+	&"viewport": UiKit.ASH,
+}
+
+
 func _rail_divider() -> Control:
 	var rule := Ornaments.rivet_rule(DIVIDER_W)
 	rule.name = "RailDivider"
@@ -251,26 +283,28 @@ func _gap(height: float) -> void:
 
 ## 每次打开都重算一遍：章节、当前目标、剑核、余烬巢、视口都可能变过。
 func _refresh_dossier() -> void:
-	# 试炼里档案卡改报"赛道 · 计时 · 死亡"（试炼没有章节进度可读，也不该读）。
 	if TrialRunScript.active():
-		_dossier_chapter.text = "回 火 试 炼"
-		_dossier_objective.text = TrialRunScript.status_line()
-		_dossier_recap.text = "—"
-		_dossier_cores.text = _cores_summary()
-		_dossier_nests.text = "—"
-		_dossier_viewport.text = DisplayFit.get_resolution_string()
+		_set_dossier(&"chapter", "回 火 试 炼")
+		_set_dossier(&"objective", TrialRunScript.status_line())
+		_set_dossier(&"cores", _cores_summary())
+		_set_dossier(&"nests", "—")
+		_set_dossier(&"viewport", DisplayFit.get_resolution_string())
 		return
-	_dossier_chapter.text = _chapter_title()
-	_dossier_objective.text = _objective_line()
-	_dossier_recap.text = recap_line()
-	_dossier_cores.text = _cores_summary()
-	_dossier_nests.text = "已刻录 %d 处" % SaveData.lit_nests.size()
-	_dossier_viewport.text = DisplayFit.get_resolution_string()
+	_set_dossier(&"chapter", _chapter_title())
+	_set_dossier(&"objective", _objective_line())
+	_set_dossier(&"cores", _cores_summary())
+	_set_dossier(&"nests", "已刻录 %d 处" % SaveData.lit_nests.size())
+	_set_dossier(&"viewport", DisplayFit.get_resolution_string())
 
 
-## 「前情提要」：StoryFlow 按存档里已通关章节挑最近 1–2 条 recap；没通关过给兜底句。
-func recap_line() -> String:
-	return StoryFlow.recap_text()
+func _set_dossier(key: StringName, text: String) -> void:
+	var label := dossier_label(String(key))
+	if label == null:
+		return
+	label.text = text
+	var tint: Color = DOSSIER_COLORS.get(key, Color.WHITE)
+	# 空值（"—"）压暗：没有数据时不染色，避免一列彩色占位符。
+	label.modulate = tint if text != "—" else Color(tint.r, tint.g, tint.b, 0.45)
 
 
 ## 当前章节名：与地图共用 MapScreen.chapter_title() 这一份口径，避免档案卡和
@@ -310,7 +344,8 @@ func is_open() -> bool:
 
 ## 是否有子界面（设置 / 回看 / 说明 / 地图）盖在菜单上。
 func sub_screen_open() -> bool:
-	return _controls.visible or _settings.visible or _tutorial.visible or _map.visible
+	return _controls.visible or _settings.visible or _tutorial.visible or _map.visible \
+			or (_equipment != null and _equipment.visible)
 
 
 func _resume_menu() -> void:
@@ -329,6 +364,7 @@ func open() -> void:
 		_open_requested = true
 		return
 	_open_requested = false
+	_closing = false
 	visible = true
 	# 试炼里左列换成「重开本场 / 退出试炼」；普通暂停菜单不变。竖脊跟着可见列表收放。
 	var trial_mode := TrialRunScript.active()
@@ -349,6 +385,8 @@ func open() -> void:
 
 ## 淡变期间按下、还没兑现的暂停请求。
 func open_pending() -> bool:
+	if Director.choice_hold:
+		_open_requested = false
 	return _open_requested
 
 
@@ -364,20 +402,42 @@ func _process(_delta: float) -> void:
 
 func close() -> void:
 	_open_requested = false
-	if not visible:
+	if not visible or _closing:
 		return
+	_closing = true
+	# 子界面直接收起，不走退场动画：暂停菜单自己正要整层退场，
+	# 再让每张卡片各播一遍只会把收尾拖成三秒。想让子界面单独播退场，
+	# 走它们自己的 close()。
 	_controls.visible = false
 	_tutorial.visible = false
 	_map.visible = false
 	if _settings.visible:
 		_settings.close()
-	visible = false
-	_set_play_hud_visible(true)
+	if _equipment != null and _equipment.visible:
+		if _equipment.has_method("close"):
+			_equipment.close()
+		elif _equipment.has_method("close_panel"):
+			_equipment.close_panel()
+		else:
+			_equipment.visible = false
 	Sfx.play(&"ui_back")
-	if Director.choice_hold:
-		return
-	get_tree().paused = false
-	Director.resume()
+	# 暂停菜单自己走退场动画：卡片沉回去、纱幕收掉，然后才解除暂停、
+	# HUD 才回来。退场期间再按 Esc 由 _closing 挡掉（不会起第二条 tween）。
+	var on_finish := func() -> void:
+		if not is_instance_valid(self):
+			return
+		_closing = false
+		visible = false
+		_set_play_hud_visible(true)
+		if Director.choice_hold:
+			return
+		get_tree().paused = false
+		Director.resume()
+
+	if _shell.has("play_outro") and _shell.get("play_outro") is Callable:
+		(_shell.get("play_outro") as Callable).call(on_finish)
+	else:
+		on_finish.call()
 
 
 func _set_play_hud_visible(show: bool) -> void:
@@ -409,6 +469,15 @@ func _on_chosen(id: StringName) -> void:
 	match id:
 		ID_RESUME:
 			close()
+		ID_EQUIPMENT:
+			_menu.active = false
+			if _equipment != null:
+				if _equipment.has_method("open_panel"):
+					_equipment.open_panel(true)
+				elif _equipment.has_method("open"):
+					_equipment.open()
+				else:
+					_equipment.visible = true
 		ID_SETTINGS:
 			_menu.active = false
 			_settings.open()
@@ -457,14 +526,16 @@ func controls_panel() -> ControlsPanel:
 	return _controls
 
 
+func equipment_panel() -> CanvasLayer:
+	return _equipment
+
+
 func dossier_label(key: String) -> Label:
 	match key:
 		"chapter":
 			return _dossier_chapter
 		"objective":
 			return _dossier_objective
-		"recap":
-			return _dossier_recap
 		"cores":
 			return _dossier_cores
 		"nests":

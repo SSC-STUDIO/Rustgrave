@@ -155,7 +155,7 @@ const THEME_PROPS := {
 		"column", "altar", "skull_column", "vine", "rock_pile", "bones", "skull_arch",
 		"chain", "warning_plate",
 		# 炉心入口回廊的送渣机械（Kenney 派生的 1x 玄武岩族副本）。
-		"pipe_valve", "broken_machine", "girder_l", "girder_r", "fence",
+		"pipe_valve", "broken_machine", "girder_l", "girder_r", "fence", "fire_vent",
 	],
 }
 

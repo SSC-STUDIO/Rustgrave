@@ -14,6 +14,8 @@ const ACTION_NAMES := {
 	&"socket_1": "镶入 1 号插座",
 	&"socket_2": "镶入 2 号插座",
 	&"hookshot": "钩锁",
+	&"skill_1": "主动技能 1",
+	&"skill_2": "主动技能 2",
 }
 
 ## OS.get_keycode_string 给的是英文名，这里把常见的几个换成界面里已经在用的写法。

@@ -8,10 +8,18 @@ extends Node
 ## save stores that data keyed by a scene-relative path (with a resolver for
 ## older absolute `/root/...` keys) so a renamed root still remaps.
 
+const CharacterOriginScript := preload("res://scripts/data/character_origin.gd")
+const OriginCatalogScript := preload("res://scripts/data/origin_catalog.gd")
+const TrialRunScript := preload("res://scripts/autoload/trial_run.gd")
+const ArenaRunScript := preload("res://scripts/autoload/arena_run.gd")
+
 ## v1 = 10-chapter campaign (no profile block). v2 adds the profile block
-## (character_id + extras) for the character/weapon lines. Loading a v1 save keeps
+## (character_id + extras). v3 adds the progression/appearance block used by the
+## v3 character system (ember rank/xp, attribute points, two skill slots, skin +
+## skin rune) — every one of them degrades to a default, so v1/v2 saves keep
+## loading. Loading an older save keeps
 ## every old field and fills the new ones with defaults — no migration step needed.
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
 const DEFAULT_EQUIPMENT := {
 	"weapon": "broken_sword",
@@ -28,8 +36,8 @@ var save_path := "user://rustgrave_save.cfg"
 ##   player    = { hp, max_hp, toxin, max_toxin, pos (Vector2), facing }
 ##   inventory = { pouch: [core ids], sockets: [core ids or ""] }
 ##   equipment = { weapon: id, armor: id, trinket: id, bag: [id, ...] }
-##   equipment = { weapon: id, armor: id, trinket: id, bag: [id, ...] }
-##   profile   = { character_id: String, extras: Dictionary }   # save v2
+##   profile   = { character_id, extras, ember_rank, ember_xp, attribute_points,
+##                 skill_1, skill_2, skin_id, skin_rune }   # save v3
 ##   world     = { "Props/Door": {...}, ... }  # scene-relative; old /root keys still resolve
 ##   atmosphere = { time_of_day (0–1), weather }
 var data: Dictionary = {}
@@ -62,6 +70,18 @@ var ending: String = ""
 var character_id: String = ""
 var extras: Dictionary = {}
 
+## Save v3 progression/appearance block (character system v3).
+## 余烬阶位 1..10；经验只增；属性点由升阶奖励、消费在以后的面板里。
+var ember_rank: int = 1
+var ember_xp: int = 0
+var attribute_points: int = 0
+## 两个主动技能槽（技能 id，"" = 空）。
+var skill_1: String = ""
+var skill_2: String = ""
+## 外观：皮肤 id + 皮肤刻印 id（"" = 无）。
+var skin_id: String = ""
+var skin_rune: String = ""
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -70,14 +90,255 @@ func _ready() -> void:
 ## 试炼模式（TrialRun，契约 §2/§5）中战役档案只读：读档拒绝、写入函数 no-op、
 ## 旗标/消耗/余烬巢等内存状态也不改。TrialRun 只写自己的 user://rustgrave_trials.cfg。
 func _trial_active() -> bool:
-	var loop := Engine.get_main_loop() as SceneTree
-	if loop == null:
+	return TrialRunScript.blocks_campaign_save() or ArenaRunScript.blocks_campaign_save()
+
+
+func set_character(id: String) -> void:
+	character_id = id
+	if data.has("profile"):
+		data["profile"]["character_id"] = id
+
+
+func get_extra(key: String, default_value: Variant = null) -> Variant:
+	return extras.get(key, default_value)
+
+
+func set_extra(key: String, value: Variant) -> void:
+	extras[key] = value
+	if data.has("profile"):
+		var p: Dictionary = data["profile"]
+		var ex: Dictionary = p.get("extras", {})
+		ex[key] = value
+		p["extras"] = ex
+		data["profile"] = p
+
+
+## 当前 profile 的完整快照（测试 / 存档都只认这一份结构）。
+func profile_snapshot() -> Dictionary:
+	return {
+		"character_id": character_id,
+		"extras": extras.duplicate(true),
+		"ember_rank": ember_rank,
+		"ember_xp": ember_xp,
+		"attribute_points": attribute_points,
+		"skill_1": skill_1,
+		"skill_2": skill_2,
+		"skin_id": skin_id,
+		"skin_rune": skin_rune,
+	}
+
+
+func _write_profile_to_cfg(cfg: ConfigFile) -> void:
+	cfg.set_value("profile", "character_id", character_id)
+	cfg.set_value("profile", "extras", extras.duplicate(true))
+	cfg.set_value("profile", "ember_rank", ember_rank)
+	cfg.set_value("profile", "ember_xp", ember_xp)
+	cfg.set_value("profile", "attribute_points", attribute_points)
+	cfg.set_value("profile", "skill_1", skill_1)
+	cfg.set_value("profile", "skill_2", skill_2)
+	cfg.set_value("profile", "skin_id", skin_id)
+	cfg.set_value("profile", "skin_rune", skin_rune)
+
+
+func _read_profile_from_cfg(cfg: ConfigFile) -> void:
+	character_id = String(cfg.get_value("profile", "character_id", ""))
+	var raw_extras: Variant = cfg.get_value("profile", "extras", {})
+	extras = raw_extras.duplicate(true) if raw_extras is Dictionary else {}
+	ember_rank = clampi(int(cfg.get_value("profile", "ember_rank", 1)), 1, 10)
+	ember_xp = maxi(0, int(cfg.get_value("profile", "ember_xp", 0)))
+	attribute_points = maxi(0, int(cfg.get_value("profile", "attribute_points", 0)))
+	skill_1 = String(cfg.get_value("profile", "skill_1", ""))
+	skill_2 = String(cfg.get_value("profile", "skill_2", ""))
+	skin_id = String(cfg.get_value("profile", "skin_id", ""))
+	skin_rune = String(cfg.get_value("profile", "skin_rune", ""))
+	data["profile"] = profile_snapshot()
+
+
+func set_ember_state(rank: int, xp: int, points: int) -> void:
+	ember_rank = clampi(rank, 1, 10)
+	ember_xp = maxi(0, xp)
+	attribute_points = maxi(0, points)
+	if data.has("profile"):
+		data["profile"] = profile_snapshot()
+
+
+func set_skill_slot(index: int, skill_id: String) -> void:
+	if index == 0:
+		skill_1 = skill_id
+	elif index == 1:
+		skill_2 = skill_id
+	if data.has("profile"):
+		data["profile"] = profile_snapshot()
+
+
+func set_skin(id: String, rune: String = "") -> void:
+	skin_id = id
+	skin_rune = rune
+	if data.has("profile"):
+		data["profile"] = profile_snapshot()
+
+
+## Flush only the profile block onto the existing save (character select, weapon
+## unlock). No-op before the first checkpoint so a fresh run keeps no half-save.
+func persist_profile() -> bool:
+	if _trial_active():
 		return false
-	return TrialRun.active()
+	var cfg := _load_cfg()
+	if cfg == null:
+		return false
+	_write_profile_to_cfg(cfg)
+	data["profile"] = profile_snapshot()
+	return _write_cfg(cfg)
 
 
 func has_save() -> bool:
 	return FileAccess.file_exists(save_path) or FileAccess.file_exists(_backup_path())
+
+func get_current_origin() -> StringName:
+	if data != null and data.has("player") and data["player"] is Dictionary:
+		var orig = data["player"].get("origin", "")
+		if orig != null and String(orig).strip_edges() != "":
+			return StringName(String(orig).strip_edges())
+	var tree := get_tree()
+	if tree != null:
+		var players := tree.get_nodes_in_group("player")
+		if not players.is_empty():
+			var p = players[0]
+			if p is Player and (p as Player).stats != null:
+				var oid := (p as Player).stats.get_origin_id()
+				if oid != &"":
+					return oid
+			elif "origin" in p and String(p.origin).strip_edges() != "":
+				return StringName(String(p.origin).strip_edges())
+	if FileAccess.file_exists(save_path):
+		var cfg := _load_cfg()
+		if cfg != null and cfg.has_section_key("player", "origin"):
+			var disk_origin: String = String(cfg.get_value("player", "origin", "")).strip_edges()
+			if disk_origin != "":
+				return StringName(disk_origin)
+	return &""
+
+
+## Initialize a brand new game session with selected character origin and starting loadout.
+## Clears old save, sets up in-memory data, and writes directly to disk so has_save() is true.
+func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary = {}) -> void:
+	delete_save()
+
+	var o_sym := StringName(str(origin_id)) if origin_id != null else &"ember_vanguard"
+	var o_str := String(o_sym).strip_edges()
+	if o_str == "":
+		o_sym = &"ember_vanguard"
+		o_str = "ember_vanguard"
+
+	var w_val = loadout.get("weapon", "broken_sword")
+	var a_val = loadout.get("armor", "broken_armor")
+	var t_val = loadout.get("trinket", "broken_pendant")
+	var bag_val = loadout.get("bag", [])
+
+	var w_str := _item_to_id(w_val)
+	if w_str == "":
+		w_str = "broken_sword"
+	var a_str := _item_to_id(a_val)
+	if a_str == "":
+		a_str = "broken_armor"
+	var t_str := _item_to_id(t_val)
+	if t_str == "":
+		t_str = "broken_pendant"
+
+	var clean_bag: Array = []
+	if bag_val is Array:
+		for b in bag_val:
+			var bid := _item_to_id(b)
+			if bid != "":
+				clean_bag.append(bid)
+
+	var preview: Dictionary = OriginCatalogScript.calculate_preview_stats(o_sym, w_str, a_str, t_str)
+	var max_hp: int = int(preview.get("max_hp", 5))
+
+	data = {
+		"meta": {
+			"version": SAVE_VERSION,
+			"scene": GameContext.WORLD_PATH,
+			"saved_at": Time.get_datetime_string_from_system(),
+			"ending": "",
+		},
+		"player": {
+			"origin": o_str,
+			"hp": max_hp,
+			"max_hp": max_hp,
+			"toxin": 0.0,
+			"max_toxin": 100.0,
+			"pos": Vector2.ZERO,
+			"facing": 1,
+			"pouch": [],
+			"sockets": [],
+		},
+		"equipment": {
+			"weapon": w_str,
+			"armor": a_str,
+			"trinket": t_str,
+			"bag": clean_bag,
+		},
+		"profile": profile_snapshot(),
+		"world": {},
+	}
+
+	consumed.clear()
+	lit_nests.clear()
+	flags.clear()
+	ending = ""
+	character_id = ""
+	extras.clear()
+	ember_rank = 1
+	ember_xp = 0
+	attribute_points = 0
+	skill_1 = ""
+	skill_2 = ""
+	skin_id = ""
+	skin_rune = ""
+	pending_spawn = Vector2.INF
+	entering_from_checkpoint = false
+	WorldClock.reset()
+	var atmosphere := WorldClock.snapshot()
+	data["atmosphere"] = atmosphere
+	data["profile"] = profile_snapshot()
+
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", SAVE_VERSION)
+	cfg.set_value("meta", "scene", GameContext.WORLD_PATH)
+	cfg.set_value("meta", "saved_at", data["meta"]["saved_at"])
+	cfg.set_value("meta", "ending", ending)
+	_write_profile_to_cfg(cfg)
+
+	cfg.set_value("player", "origin", o_str)
+	cfg.set_value("player", "hp", max_hp)
+	cfg.set_value("player", "max_hp", max_hp)
+	cfg.set_value("player", "toxin", 0.0)
+	cfg.set_value("player", "max_toxin", 100.0)
+	cfg.set_value("player", "pos_x", 0.0)
+	cfg.set_value("player", "pos_y", 0.0)
+	cfg.set_value("player", "facing", 1)
+	cfg.set_value("player", "pouch", [])
+	cfg.set_value("player", "sockets", [])
+
+	cfg.set_value("equipment", "weapon", w_str)
+	cfg.set_value("equipment", "armor", a_str)
+	cfg.set_value("equipment", "trinket", t_str)
+	cfg.set_value("equipment", "bag", clean_bag)
+
+	cfg.set_value("consumed", "paths", [])
+	cfg.set_value("lit_nests", "paths", [])
+	cfg.set_value("story", "flags", [])
+
+	cfg.set_value("atmosphere", "time_of_day", float(atmosphere.get("time_of_day", WorldClock.DEFAULT_TIME)))
+	cfg.set_value("atmosphere", "weather", String(atmosphere.get("weather", "haze")))
+	cfg.set_value("atmosphere", "zone", String(atmosphere.get("zone", "outdoors")))
+	cfg.set_value("atmosphere", "wind_heading", float(atmosphere.get("wind_heading", -1.0)))
+
+	if not _write_cfg(cfg):
+		push_warning("SaveData: failed to save in init_new_game to %s" % save_path)
+	GameEvents.game_saved.emit()
+
 
 ## `spawn_override`: where the knight should stand when this save is loaded —
 ## used by level exits, whose save names the *next* scene while the knight is
@@ -102,12 +363,17 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 		},
 		"player": player_state,
 		"equipment": equip_state,
+		"profile": profile_snapshot(),
 		"world": world,
 	}
 	cfg.set_value("meta", "version", SAVE_VERSION)
 	cfg.set_value("meta", "scene", scene_path)
 	cfg.set_value("meta", "saved_at", data["meta"]["saved_at"])
+	_write_profile_to_cfg(cfg)
 	var ps: Dictionary = player_state
+	var origin_str: String = String(ps.get("origin", "")).strip_edges()
+	if origin_str != "":
+		cfg.set_value("player", "origin", origin_str)
 	cfg.set_value("player", "hp", ps.get("hp", 0))
 	cfg.set_value("player", "max_hp", ps.get("max_hp", 1))
 	cfg.set_value("player", "toxin", ps.get("toxin", 0.0))
@@ -135,9 +401,6 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 		if id_str != "":
 			bag_ids.append(id_str)
 	cfg.set_value("equipment", "bag", bag_ids)
-	cfg.set_value("profile", "character_id", character_id)
-	cfg.set_value("profile", "extras", extras.duplicate(true))
-	data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
 	for key in world:
 		cfg.set_value("world", key, world[key])
 	cfg.set_value("consumed", "paths", Array(consumed))
@@ -158,7 +421,6 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 
 func load_game() -> bool:
 	if _trial_active():
-		# 试炼有固定装载：不把战役进度/旗标灌进试炼场（也只读不写）。
 		return false
 	var cfg := _load_cfg()
 	if cfg == null:
@@ -170,7 +432,9 @@ func load_game() -> bool:
 		"scene": cfg.get_value("meta", "scene", ""),
 		"saved_at": cfg.get_value("meta", "saved_at", ""),
 	}
-	data["player"] = {
+	# Save v2/v3 profile block (character + progression + appearance).
+	_read_profile_from_cfg(cfg)
+	var player_dict: Dictionary = {
 		"hp": cfg.get_value("player", "hp", 0),
 		"max_hp": cfg.get_value("player", "max_hp", 5),
 		"toxin": cfg.get_value("player", "toxin", 0.0),
@@ -180,6 +444,9 @@ func load_game() -> bool:
 		"pouch": cfg.get_value("player", "pouch", []),
 		"sockets": cfg.get_value("player", "sockets", []),
 	}
+	if cfg.has_section_key("player", "origin"):
+		player_dict["origin"] = String(cfg.get_value("player", "origin", ""))
+	data["player"] = player_dict
 	if cfg.has_section("equipment"):
 		var raw_bag: Variant = cfg.get_value("equipment", "bag", [])
 		var clean_bag: Array = []
@@ -197,14 +464,6 @@ func load_game() -> bool:
 		}
 	else:
 		data["equipment"] = DEFAULT_EQUIPMENT.duplicate(true)
-	# v2 profile block: missing on v1 saves -> defaults (no migration pass needed).
-	character_id = String(cfg.get_value("profile", "character_id", ""))
-	extras = {}
-	var raw_extras: Variant = cfg.get_value("profile", "extras", {})
-	if raw_extras is Dictionary:
-		for extra_key in raw_extras:
-			extras[String(extra_key)] = (raw_extras as Dictionary)[extra_key]
-	data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
 	data["world"] = {}
 	if cfg.has_section("world"):
 		for key in cfg.get_section_keys("world"):
@@ -322,45 +581,6 @@ func has_flag(id: String) -> bool:
 	return flags.has(id)
 
 
-## ---------------------------------------------------------------- profile v2 --
-## Save v2 profile API used by the character/weapon lines (through LoadoutBridge)
-## and by the title/pause loadout UI. Read paths are pure; writes stay in memory
-## until save_game() / persist_profile(), so a trial run can never leak into the
-## campaign save.
-
-func set_character(id: String) -> void:
-	character_id = id.strip_edges()
-
-
-func character() -> String:
-	return character_id
-
-
-func set_extra(key: String, value: Variant) -> void:
-	if key.strip_edges() == "":
-		return
-	extras[key] = value
-
-
-func get_extra(key: String, default_value: Variant = null) -> Variant:
-	return extras.get(key, default_value)
-
-
-## Flush only the profile block onto the existing save (character select, weapon
-## unlock). No-op before the first checkpoint so a fresh run keeps no half-save.
-func persist_profile() -> bool:
-	if _trial_active():
-		return false
-	var cfg := _load_cfg()
-	if cfg == null:
-		return false
-	cfg.set_value("profile", "character_id", character_id)
-	cfg.set_value("profile", "extras", extras.duplicate(true))
-	if data.has("profile"):
-		data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
-	return _write_cfg(cfg)
-
-
 ## Write flags + ending onto an existing save without needing a live player.
 ## Used after Boss kill so a nest-respawn load_game() cannot revive the Executioner.
 ## Also flushes consumed / lit_nests so a story write cannot drop later pickups.
@@ -370,6 +590,8 @@ func persist_profile() -> bool:
 ## record a picked-up core as gone while the pouch on disk still lacked it, so a death
 ## before the next nest lost the core for good (and with it the grapple route).
 func persist_story(player: Node = null) -> void:
+	if _trial_active():
+		return
 	persist_progress(player)
 
 
@@ -391,6 +613,21 @@ func persist_progress(player: Node = null) -> bool:
 		if data.has("player"):
 			(data["player"] as Dictionary)["pouch"] = inv["pouch"]
 			(data["player"] as Dictionary)["sockets"] = inv["sockets"]
+		var equip_state := _collect_equipment(player)
+		var w_val: Variant = equip_state.get("weapon", "broken_sword")
+		cfg.set_value("equipment", "weapon", "" if w_val == null else String(w_val))
+		var a_val: Variant = equip_state.get("armor", "broken_armor")
+		cfg.set_value("equipment", "armor", "" if a_val == null else String(a_val))
+		var t_val: Variant = equip_state.get("trinket", "broken_pendant")
+		cfg.set_value("equipment", "trinket", "" if t_val == null else String(t_val))
+		var bag_ids: Array = []
+		for id_val in equip_state.get("bag", []):
+			var id_str := String(id_val).strip_edges()
+			if id_str != "":
+				bag_ids.append(id_str)
+		cfg.set_value("equipment", "bag", bag_ids)
+		if data.has("equipment"):
+			data["equipment"] = equip_state
 		var world := _collect_world()
 		for key in world:
 			cfg.set_value("world", key, world[key])
@@ -453,6 +690,15 @@ func _collect_player(player: Node) -> Dictionary:
 	var hp := player.get_node_or_null("Health") as Health
 	var tox := player.get_node_or_null("ToxinMeter") as ToxinMeter
 	var state: Dictionary = {}
+	var cur_origin: String = ""
+	if player is Player and (player as Player).stats != null:
+		cur_origin = String((player as Player).stats.get_origin_id()).strip_edges()
+	elif "origin" in player and player.origin != null:
+		cur_origin = String(player.origin).strip_edges()
+	if cur_origin == "" and data != null and data.has("player") and data["player"] is Dictionary:
+		cur_origin = String(data["player"].get("origin", "")).strip_edges()
+	if cur_origin != "":
+		state["origin"] = cur_origin
 	state["hp"] = hp.current if hp else 0
 	state["max_hp"] = hp.max_hp if hp else 5
 	state["toxin"] = tox.toxin if tox else 0.0
@@ -552,6 +798,8 @@ func save_equipment(player: Node = null) -> bool:
 		if id_str != "":
 			bag_ids.append(id_str)
 	cfg.set_value("equipment", "bag", bag_ids)
+	cfg.set_value("consumed", "paths", Array(consumed))
+	cfg.set_value("lit_nests", "paths", Array(lit_nests))
 	return _write_cfg(cfg)
 
 
@@ -603,7 +851,26 @@ func apply_player(player: Node) -> void:
 	if not data.has("player") and not data.has("equipment"):
 		return
 
-	# 1. Restore equipment first so character stats & max HP bonuses update before health clamping
+	# 1. Apply origin first so base stats are established before equipment calculations
+	var o := get_current_origin()
+	if player is Player:
+		(player as Player).origin = o
+		if (player as Player).stats != null:
+			if o != &"":
+				(player as Player).stats.apply_origin(o)
+			else:
+				(player as Player).stats.apply_origin(&"")
+	elif "origin" in player:
+		player.origin = o
+		if "stats" in player and player.stats != null and player.stats.has_method("apply_origin"):
+			player.stats.apply_origin(o)
+
+	# 外观：读档/重生时把皮肤与刻印重新挂上（player._ready 也读，这里覆盖"同场景读档"）。
+	if player is Player:
+		(player as Player).apply_skin(StringName(skin_id))
+		(player as Player).equip_rune(StringName(skin_rune))
+
+	# 2. Restore equipment so character stats & max HP bonuses update before health clamping
 	var eq: EquipmentInventory = null
 	if player is Player:
 		eq = (player as Player).equipment_inventory
@@ -645,12 +912,19 @@ func apply_player(player: Node) -> void:
 				hp.max_hp = (player as Player).stats.get_effective_max_hp()
 			else:
 				hp.max_hp = int(p.get("max_hp", hp.max_hp))
-			hp.current = clampi(int(p.get("hp", hp.max_hp)), 0, hp.max_hp)
+			if entering_from_checkpoint:
+				hp.current = hp.max_hp
+			else:
+				hp.current = clampi(int(p.get("hp", hp.max_hp)), 0, hp.max_hp)
 			hp.changed.emit(hp.current, hp.max_hp)
 		var tox := player.get_node_or_null("ToxinMeter") as ToxinMeter
 		if tox:
-			tox.toxin = clampf(float(p.get("toxin", 0.0)), 0.0, tox.max_toxin)
+			if entering_from_checkpoint:
+				tox.toxin = 0.0
+			else:
+				tox.toxin = clampf(float(p.get("toxin", 0.0)), 0.0, tox.max_toxin)
 			GameEvents.toxin_changed.emit(tox.toxin, tox.max_toxin)
+		entering_from_checkpoint = false
 		if player is Player:
 			var face := int(p.get("facing", 1))
 			if face == 0:

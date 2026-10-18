@@ -101,7 +101,9 @@ func test_volume_reaches_the_audio_server() -> void:
 
 func test_rebind_replaces_only_the_first_key() -> void:
 	var before := InputMap.action_get_events(&"move_left").size()
-	eq(Settings.rebind_action(&"move_left", KEY_Q, false), &"")
+	# Q 现在是 active skill 1 的默认键：改 move_left 到 Q 会触发交换。
+	eq(Settings.rebind_action(&"move_left", KEY_Q, false), &"skill_1",
+			"Q 已被 skill_1 占用，改键走交换而不是留两个动作抢同一个键")
 	eq(Settings.key_for(&"move_left"), int(KEY_Q))
 	eq(InputMap.action_get_events(&"move_left").size(), before, "arrow-key alias kept")
 	var probe := InputEventKey.new()

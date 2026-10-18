@@ -79,14 +79,17 @@ func _card() -> void:
 ## 章节卡的地平线：一排低矮的山脊剪影，底部坐在卡面下缘之外，
 ## 只留一线起伏；一粒余芯从山脊后慢慢升上来。纯装饰，不接任何游戏状态。
 func _skyline() -> void:
+	var factor := smoothstep(0.0, 1.2, age)
+	if factor <= 0.01:
+		return
 	var base_y := 360.0
 	var ridge := PackedVector2Array([Vector2(0, base_y)])
 	var steps := 16
 	for i in range(steps + 1):
 		var x := 640.0 * float(i) / float(steps)
 		# 两段正弦叠出一座缓山 + 一座尖一点的；取整保持像素感。
-		var h := 26.0 + sin(float(i) * 0.9) * 9.0 + sin(float(i) * 0.31 + 1.4) * 13.0
-		h = maxf(6.0, h) * smoothstep(0.0, 1.2, age)
+		var h := (26.0 + sin(float(i) * 0.9) * 9.0 + sin(float(i) * 0.31 + 1.4) * 13.0) * factor
+		h = maxf(4.0, h)
 		ridge.append(Vector2(roundf(x), roundf(base_y - h)))
 	ridge.append(Vector2(640, base_y))
 	draw_colored_polygon(ridge, Color(0.02, 0.012, 0.03, 0.9))

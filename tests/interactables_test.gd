@@ -206,3 +206,100 @@ func test_toxin_pool_does_not_zero_velocity_or_cap_the_pit() -> void:
 	ok(absf(player.velocity.x) > 1.0 or player.velocity.y != 0.0,
 			"locomotion still writes velocity while overlapping the film")
 	Director.abort()
+
+
+## Regression: 人物与水体必须有碰撞。ToxinPool 是 Area2D，靠的是双向位匹配
+## （池子 collision_mask 有玩家的 collision_layer 位）+ 池子真的长出一个
+## CollisionShape2D。这里用 1A 东翼毒坑的真实几何让物理引擎自己判定重叠，
+## 绝不注入 _bodies：任何一环坏了，玩家就穿着水体走过去而毫无反应。
+func test_pool_detects_the_player_through_real_physics() -> void:
+	var arena := Node2D.new()
+	add_child(arena)
+	# 坑底在 PIT_FLOOR_Y(352)，水面在 PIT_WATER_Y(328)：玩家脚点踩在 352，
+	# 身体与池面矩形 328..368 有实打实的重叠（不再踩在水面石阶上却不中毒）。
+	var pit_floor := StaticBody2D.new()
+	pit_floor.name = "PitFloor"
+	pit_floor.collision_layer = 1
+	pit_floor.collision_mask = 0
+	pit_floor.position = Vector2(Level01EastWing.PIT_X0,
+			Level01EastWing.PIT_FLOOR_Y + Level01EastWing.PIT_FLOOR_SIZE.y * 0.5)
+	var pit_shape := CollisionShape2D.new()
+	var pit_rect := RectangleShape2D.new()
+	pit_rect.size = Level01EastWing.PIT_FLOOR_SIZE
+	pit_shape.shape = pit_rect
+	pit_floor.add_child(pit_shape)
+	arena.add_child(pit_floor)
+	var pool := ToxinPool.new()
+	pool.position = Vector2(Level01EastWing.PIT_X0, Level01EastWing.PIT_WATER_Y)
+	arena.add_child(pool)
+	const WATER_SIZE := Level01EastWing.PIT_WATER_SIZE
+	pool.configure(WATER_SIZE)
+	var col := pool.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	ok(col != null,
+			"the pool grows its own CollisionShape2D (unnamed -> configure() re-mints one each call)")
+	if col != null:
+		eq((col.shape as RectangleShape2D).size, WATER_SIZE)
+	var player := await spawn_player(arena,
+			Vector2(Level01EastWing.PIT_X0 + 56.0, Level01EastWing.PIT_FLOOR_Y))
+	await flush(10)
+	ok(pool._bodies.has(player),
+			"the area reports the knight standing in the sludge, not a silent pass-through")
+	if not pool._bodies.has(player):
+		return
+	# 初入池的那句提示在 flush 期间就已经放掉了；这里先摘掉再复踏一次。
+	player.toxin.toxin = 0.0
+	pool._physics_process(0.5)
+	ok(player.toxin.toxin > 0.0,
+			"the exposed knight actually accumulates toxin from the water")
+	pool._on_body_exited(player)
+	var heard := [""]
+	var on_ann := func(t: String) -> void: heard[0] = t
+	GameEvents.announcement.connect(on_ann)
+	pool._on_body_entered(player)
+	pool._physics_process(0.1)
+	ok(heard[0] == "腐液咬着靴底", "dipping into the water announces itself")
+	heard[0] = ""
+	pool._physics_process(0.1)
+	ok(heard[0] == "", "and it does not spam while still standing there")
+	GameEvents.announcement.disconnect(on_ann)
+	Director.abort()
+
+## 用户回归：坑内石阶如果和水面同高，人"站在水面上"、不中毒。现在水面比石阶高 8px，
+## 站上石阶也必须被判定为泡在腐液里（几何常量 + 真实物理两层断言）。
+func test_submerged_climb_stone_wades_in_the_sludge() -> void:
+	ok(Level01EastWing.PIT_WATER_Y < Level01EastWing.PIT_CLIMB_LEFT_POS.y,
+			"水面（%s）必须高于坑内石阶（%s）" % [Level01EastWing.PIT_WATER_Y,
+					Level01EastWing.PIT_CLIMB_LEFT_POS.y])
+	ok(Level01EastWing.PIT_WATER_Y + Level01EastWing.PIT_WATER_SIZE.y
+			> Level01EastWing.PIT_FLOOR_Y, "水体要盖住坑底")
+	var arena := Node2D.new()
+	add_child(arena)
+	var stone := StaticBody2D.new()
+	stone.name = "PitClimbLeft"
+	stone.collision_layer = 1
+	stone.collision_mask = 0
+	stone.position = Level01EastWing.PIT_CLIMB_LEFT_POS + Level01EastWing.PIT_CLIMB_LEFT_SIZE * 0.5
+	var stone_shape := CollisionShape2D.new()
+	var stone_rect := RectangleShape2D.new()
+	stone_rect.size = Level01EastWing.PIT_CLIMB_LEFT_SIZE
+	stone_shape.shape = stone_rect
+	stone.add_child(stone_shape)
+	arena.add_child(stone)
+	var pool := ToxinPool.new()
+	pool.position = Vector2(Level01EastWing.PIT_X0, Level01EastWing.PIT_WATER_Y)
+	arena.add_child(pool)
+	pool.configure(Level01EastWing.PIT_WATER_SIZE)
+	var player := await spawn_player(arena,
+			Vector2(Level01EastWing.PIT_CLIMB_LEFT_POS.x + 16.0,
+					Level01EastWing.PIT_CLIMB_LEFT_POS.y - 48.0))
+	await flush(20)
+	ok(pool._bodies.has(player),
+			"站上没入水面的石阶，Area2D 仍要把骑士判定为在水里")
+	if not pool._bodies.has(player):
+		Director.abort()
+		return
+	player.toxin.toxin = 0.0
+	pool._physics_process(0.5)
+	ok(player.toxin.toxin > 0.0, "泡在水里会累积毒素，而不是干着站在水面上")
+	Director.abort()
+

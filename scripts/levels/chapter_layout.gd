@@ -25,6 +25,8 @@ const ANCHOR := preload("res://scenes/interactables/HookAnchor.tscn")
 const PICKUP := preload("res://scenes/interactables/CorePickup.tscn")
 const TORCH := preload("res://scenes/world/TorchLight.tscn")
 const GEAR := preload("res://scenes/world/GearPlatform.tscn")
+const DESTRUCTIBLE_PROP := preload("res://scenes/interactables/DestructibleProp.tscn")
+const BREAKABLE_SLAB := preload("res://scenes/world/BreakableSlab.tscn")
 
 ## 敌人键 → 场景。缺失的场景会被跳过（并 push_warning），关卡照常搭建。
 ## 新 Boss 先在这里登记占位：章节 agent 可以提前写 `ChapterLayout.boss(..., "capstan_warden", ...)`，
@@ -448,6 +450,37 @@ func reward(host: Node2D, node_name: String, feet: Vector2, kind: String, reward
 
 ## 壁炬（墙板 64×192 居中于 pos；y = 台面 - 96 时板底贴台面）。
 ## Outdoor themes refuse these plates — bg_wall_torch is a flat indoor slab.
+## 可破坏道具：脚点放置，掉碎屑 + 小回血，destroyed 写世界状态。
+## 只许放在支路/角落；主线必经路径不允许只靠打碎它通过。
+func destructible(host: Node2D, node_name: String, prop_id: StringName,
+		feet: Vector2) -> Node2D:
+	var prop := DESTRUCTIBLE_PROP.instantiate() as Node2D
+	if prop == null:
+		return null
+	prop.name = node_name
+	prop.position = feet
+	prop.set("prop_id", prop_id)
+	group(host, "Props").add_child(prop)
+	return prop
+
+
+## 可破坏地形：pos 是左上角（和 platform/step 一致），size 允许 32px 分块破坏。
+## persist=false 时重载恢复；只有秘道墙才传 true。
+func breakable(host: Node2D, node_name: String, pos: Vector2,
+		slab_size: Vector2 = Vector2(64, 32), skin: String = "stone",
+		persist_break: bool = false) -> Node2D:
+	var slab := BREAKABLE_SLAB.instantiate() as Node2D
+	if slab == null:
+		return null
+	slab.name = node_name
+	slab.position = pos
+	slab.set("size", slab_size)
+	slab.set("skin", skin)
+	slab.set("persist_break", persist_break)
+	group(host, "Props").add_child(slab)
+	return slab
+
+
 func torch(host: Node2D, x: float, feet_y: float = FLOOR_Y, tint: Color = Color.WHITE) -> Node2D:
 	if not indoors():
 		push_warning("ChapterLayout: torch wall plate blocked outdoors (theme=%s)" % theme())

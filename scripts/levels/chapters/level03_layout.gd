@@ -212,6 +212,12 @@ func _build_props(host: Node2D) -> void:
 	_stele(host, "SteleTower", STELE_TOWER_POS)
 	# ⑦ 死屋檐脊上的奖励位：支路尽头的一件锈城遗物（EquipmentPickup 接应）。
 	_reward(host)
+	# ⑧ 可破坏道具（M2）：街边两只可砍碎的锈堆，放在支路/角落，不挡主线。
+	destructible(host, "ScrapHeapStreet", &"scrap_heap", Vector2(880, 320))
+	destructible(host, "RustUrnStreet", &"rust_urn", Vector2(1140, 320))
+	# ⑨ 可破坏地形（M2）：死屋檐道上的裂石板。重击两下打碎，才能走上屋脊拿奖励；
+	#    会话内破坏（persist=false），重载恢复，主路线不经过它。
+	breakable(host, "RubbleRoofB", Vector2(3024, 192), Vector2(64, 64), "brick")
 
 
 ## 奖励位：EquipmentPickup 的 reward_kind/reward_ref 走 LoadoutBridge（roster 缺失

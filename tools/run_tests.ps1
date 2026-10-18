@@ -20,10 +20,14 @@ if ($CaseFilter) { $arguments += @('--', ('"--case-filter=' + $CaseFilter.Replac
 $originalAppData = $env:APPDATA
 try {
     $env:APPDATA = Join-Path $runDir 'userdata'
+    # The suite runs with the update check disabled: no case may hang on the
+    # network. update_service_test re-arms it itself against a local server.
+    $env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
     $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WorkingDirectory $projectDir `
         -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
 } finally {
     $env:APPDATA = $originalAppData
+    Remove-Item Env:\RUSTGRAVE_NO_UPDATE_CHECK -ErrorAction SilentlyContinue
 }
 
 $started = [DateTime]::UtcNow

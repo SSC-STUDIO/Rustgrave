@@ -15,8 +15,13 @@ extends Control
 const KEYART_PATH := "res://assets/kenney_clean/backgrounds/title_keyart.png"
 const LEVEL_PATH := "res://scenes/levels/Level01_Static.tscn"
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
+const Transitions := preload("res://scripts/ui/ui_transition.gd")
 ## 回火试炼（新游戏模式）：入口由战役解锁旗标控制（契约 §5）。
 const TrialCatalogScript := preload("res://scripts/data/trial_catalog.gd")
+const TrialRecordsScript := preload("res://scripts/data/trial_records.gd")
+const EmberRankScript := preload("res://scripts/data/ember_rank.gd")
+const ArenaRunScript := preload("res://scripts/autoload/arena_run.gd")
+const SkinCatalogScript := preload("res://scripts/data/skin_catalog.gd")
 const TRIAL_MENU := "res://scenes/ui/TrialMenu.tscn"
 
 const EMBERS_RISING := 30
@@ -33,7 +38,7 @@ const EPITAPH := "失败的净化偶，自己先锈透了。"
 
 ## 左下菜单架：竖脊在 x=92，板面从 x=112 挂出去。
 const RAIL_X := 112.0
-const RAIL_TOP := 250.0
+const RAIL_TOP := 220.0
 const SPINE_X := 92.0
 const DIVIDER_W := 440.0
 ## 行间空白（像素）：主行动成一簇、次行动成一簇、"离开"单独挂在最下。
@@ -44,6 +49,10 @@ const GAP_SECONDARY := 6.0
 const GAP_QUIT := 12.0
 const INTRO_STAGGER := 0.045
 const INTRO_DURATION := 0.22
+## 开屏总谱（黑幕 → 场景 → 字标 → 菜单）：见 _play_intro。
+const BOOT_FADE := 0.55
+const RAIL_STAGGER := 0.045
+const RAIL_DURATION := 0.22
 
 ## 离开锈墓的退场动画：一格格熄灭 → 铁门落下的闷响 → 压黑 → 留一句墓志才退出。
 ## 任何按键/点击都能立刻跳到退出（开游戏不该被退场动画拖住）。
@@ -60,11 +69,13 @@ const QUIT_CAPTION := "余 烬 熄 灭。"
 const ID_NEW := &"new"
 const ID_CONTINUE := &"continue"
 const ID_TRIAL := &"trial"
+const ID_ARENA := &"arena"
 const ID_SETTINGS := &"settings"
 const ID_CONTROLS := &"controls"
 const ID_QUIT := &"quit"
 const ID_KEEP := &"keep"
 const ID_OVERWRITE := &"overwrite"
+const ID_UPDATE := &"update"
 
 var _started := false
 var _time := 0.0
@@ -76,11 +87,16 @@ var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
 var _confirm_menu: MenuList
+var _char_select: CharacterSelectScreen
+var _update_prompt: UpdatePrompt
 var _fade: ColorRect
 var _quit_caption: Label
 var _quitting := false
 var _quit_done := false
 var _quit_tween: Tween
+## 开屏黑幕：整段开场里盖在最上层的纯黑矩形，播完即撤。
+var _curtain: ColorRect
+var _intro_playing := false
 ## 测试开关：置 false 时把退出动画完整走一遍，但不真的结束进程（headless 套件用）。
 var quit_on_finish := true
 
@@ -103,10 +119,15 @@ func _ready() -> void:
 	_build_masthead()
 	_build_rail()
 	_build_inscription()
+	_build_dossier()
 	_build_chrome()
 	# 覆盖层最后加：Control 的绘制与鼠标拾取都按子节点顺序，越后越上。
 	_build_overlays()
-	_play_rail_intro()
+	# 新版本检查：静默拉一次 manifest，结果只让菜单多一格"有新版本"，
+	# 不弹窗、不打断。检查失败/没有新版时菜单保持原样。
+	UpdateService.checked.connect(_on_update_checked)
+	UpdateService.check_async()
+	_play_intro()
 
 
 ## 内容矩形之外的留边：GamePresentation 用黑底垫世界图，标题屏也必须一致，
@@ -198,13 +219,15 @@ func _build_rail() -> void:
 	_gap(GAP_PRIMARY)
 	var cont := "回 看 余 烬" if SaveData.peek_ending() != "" else "继 续 旅 程"
 	_menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY)
-	_gap(GAP_PRIMARY)
-	# 第三条主行动：回火试炼。未解锁（没通关第七章 / 没走完结局）时置灰。
-	var trial_ready := TrialCatalogScript.unlocked()
-	_menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.PRIMARY)
-	_gap(GAP_GROUP)
+	# 主行动下面分隔一道：下面两格是"模式"（试炼 / 竞技场），用次档板。
+	_gap(12.0)
 	_menu.add_child(_rail_divider())
-	_gap(GAP_DIVIDER)
+	_gap(10.0)
+	var trial_ready := TrialCatalogScript.unlocked()
+	_menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.SECONDARY)
+	_gap(GAP_SECONDARY)
+	_menu.add_item(ID_ARENA, "余 烬 竞 技 场", false, MenuItem.Kind.SECONDARY)
+	_gap(16.0)
 	_menu.add_item(ID_SETTINGS, "设 置", false, MenuItem.Kind.SECONDARY)
 	_gap(GAP_SECONDARY)
 	_menu.add_item(ID_CONTROLS, "操 作 说 明", false, MenuItem.Kind.SECONDARY)
@@ -220,14 +243,6 @@ func _build_rail() -> void:
 	add_child(_spine)
 	# 叠在菜单之下：先加进来的先画，回头把脊挪到菜单下面。
 	move_child(_spine, _menu.get_index())
-
-	# 未解锁时用一行 12px 小字说明解锁条件（试炼入口保持置灰）。
-	if not trial_ready:
-		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」",
-				&"FootnoteLabel")
-		trial_hint.name = "TrialLockHint"
-		trial_hint.position = Vector2(RAIL_X, RAIL_TOP + _menu.size.y + 10.0)
-		add_child(trial_hint)
 
 	# 有存档时光标默认停在"继续"：回车不会再一键抹掉进度。
 	if has_save:
@@ -292,6 +307,130 @@ func _build_inscription() -> void:
 
 
 ## 底部装饰带：署名靠左、导航提示靠右，都排进同一条锈色铆钉带里。
+## 右侧「行程档案」：把本次旅程/成长/试炼记录从系统里拉出来放进标题屏，
+## 让开始界面不再只有六格菜单。无存档时显示占位文案，不隐藏面板。
+var _dossier_values: Dictionary = {}
+var _update_notice: Button
+
+
+func _build_dossier() -> void:
+	var panel := UiKit.panel(&"StonePanel")
+	panel.name = "Dossier"
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.offset_left = -392.0
+	panel.offset_top = 176.0
+	panel.offset_right = -28.0
+	panel.offset_bottom = 556.0
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(panel)
+	var box := VBoxContainer.new()
+	box.name = "Content"
+	box.add_theme_constant_override("separation", 6)
+	panel.add_child(box)
+	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	head.modulate = UiKit.EMBER
+	head.name = "DossierHead"
+	box.add_child(head)
+	box.add_child(Ornaments.rivet_rule(300.0))
+	_add_dossier_row(box, "Rank", "余 烬 阶 位")
+	_add_dossier_row(box, "Skin", "当 前 外 观")
+	_add_dossier_row(box, "Trials", "回 火 试 炼")
+	_add_dossier_row(box, "Arena", "余 烬 竞 技 场")
+	_add_dossier_row(box, "Chapter", "上 次 行 程")
+	if not TrialCatalogScript.unlocked():
+		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」",
+				&"FootnoteLabel")
+		trial_hint.name = "TrialLockHint"
+		trial_hint.modulate = UiKit.ASH
+		trial_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		trial_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		trial_hint.custom_minimum_size = Vector2(0.0, 28.0)
+		box.add_child(trial_hint)
+	var hint := UiKit.label("Tab 查看目标 · Esc 暂停 · 章节存档记录在烬巢",
+			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	hint.name = "DossierHint"
+	hint.modulate = UiKit.ASH
+	box.add_child(hint)
+	_update_notice = Button.new()
+	_update_notice.name = "UpdateNotice"
+	_update_notice.text = "有 新 版 本 · 查 看"
+	_update_notice.theme_type_variation = &"SettingsButton"
+	_update_notice.custom_minimum_size = Vector2(0.0, 24.0)
+	_update_notice.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_update_notice.add_theme_font_size_override("font_size", 12)
+	_update_notice.focus_mode = Control.FOCUS_ALL
+	_update_notice.visible = false
+	_update_notice.pressed.connect(_open_update_prompt)
+	box.add_child(_update_notice)
+	_refresh_dossier()
+
+
+func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void:
+	var row := HBoxContainer.new()
+	row.name = "DossierRow" + key
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var tag := UiKit.label(title, &"TinyLabel")
+	tag.modulate = UiKit.ASH
+	row.add_child(tag)
+	var value := UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	value.name = "Dossier" + key
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value.clip_text = true
+	value.max_lines_visible = 1
+	value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(value)
+	_dossier_values[key] = value
+
+
+func _refresh_dossier() -> void:
+	if _dossier_values.is_empty():
+		return
+	var has_save := SaveData.has_save()
+	var rank_text := "尚无余烬 · 点燃后开始记录"
+	if has_save:
+		rank_text = EmberRankScript.summary(SaveData.ember_xp) + " · 点数 %d" % SaveData.attribute_points
+	_dossier_values["Rank"].text = rank_text
+
+	var skin := StringName(SaveData.skin_id) if SaveData.skin_id != "" else SkinCatalogScript.DEFAULT_SKIN
+	_dossier_values["Skin"].text = SkinCatalogScript.name_of(skin)
+
+	var trial_text := "未踏足"
+	if ResourceLoader.exists("res://scripts/data/trial_records.gd"):
+		var all: Dictionary = TrialRecordsScript.all()
+		var count := 0
+		for track in all.values():
+			if track is Dictionary:
+				count += (track as Dictionary).size()
+		if count > 0:
+			trial_text = "%d 条记录" % count
+	_dossier_values["Trials"].text = trial_text
+
+	var arena_text := "未踏足"
+	var arena_records: Dictionary = ArenaRunScript.read_records()
+	if int(arena_records.get("runs", 0)) > 0:
+		arena_text = "最佳 %d 分 · %d 场" % [
+			int(arena_records.get("best_score", 0)), int(arena_records.get("runs", 0))]
+	_dossier_values["Arena"].text = arena_text
+
+	var chapter_text := "尚无旅程"
+	if has_save and SaveData.data.has("meta"):
+		var scene := String((SaveData.data["meta"] as Dictionary).get("scene", ""))
+		var level_id := ""
+		for id in GameContext.LEVELS:
+			if String(GameContext.LEVELS[id]) == scene:
+				level_id = String(id)
+				break
+		if level_id != "":
+			chapter_text = ChapterText.title_of(level_id)
+			var recap := ChapterText.recap_of(level_id)
+			if recap != "":
+				chapter_text = recap
+			if chapter_text.length() > 18:
+				chapter_text = chapter_text.substr(0, 18) + "…"
+	_dossier_values["Chapter"].text = chapter_text
+
+
 func _build_chrome() -> void:
 	var band := UiKit.panel(&"BandPanel")
 	band.name = "CreditBand"
@@ -314,31 +453,114 @@ func _build_chrome() -> void:
 			&"FootnoteLabel")
 	credits.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.9)
 	row.add_child(credits)
 
 	var hint := UiKit.label("字体 Fusion Pixel (OFL) · ↑↓ 选择 · Enter 确认",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# 操作提示染成余烬色：署名带里只有这一行是"给玩家的指令"，
+	# 同行的署名是纯信息，两行不能同权。
+	hint.modulate = UiKit.EMBER_ASH
 	row.add_child(hint)
 
 
-## 开屏：菜单架从上往下逐行渗出来，脊柱和横线同时淡入。整段 < 0.5 秒，不挡操作。
-func _play_rail_intro() -> void:
-	var delay := 0.0
-	var tween := create_tween()
-	tween.set_parallel(true)
+## 开屏：黑幕与 keyart 交叉淡入淡出 → 字标跟着亮 → 菜单架逐行爬上来 →
+## 脊柱、墓志、署名带收尾。整段约 1.1 秒，期间不挡操作（菜单一直可点）。
+## 任何一步都可以被 _skip_intro() 一把跳过：玩家进设置再回来、或者换关回来时
+## 不该被同一段开场拖第二次。
+func _play_intro() -> void:
+	_intro_playing = true
+	# 菜单架在开屏期间保持 active：悬停/上下键照常工作，确认键由 _on_chosen
+	# 跳过开屏后照常执行——进场动画不是输入门禁，只是"还没演完"。
+	# 黑幕：盖住整个窗口（内容矩形外也有边），与 keyart 交叉淡出。
+	_curtain = ColorRect.new()
+	_curtain.name = "BootCurtain"
+	_curtain.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_curtain.color = Color.BLACK
+	_curtain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_curtain)
+
+	# 场景四件套的初始态：全透明，等帷幕退去后依次渗出来。
+	_keyart.modulate.a = 0.0
+	_masthead.modulate.a = 0.0
+	_spine.modulate.a = 0.0
+	var inscription := get_node_or_null("Inscription")
+	if inscription != null:
+		(inscription as CanvasItem).modulate.a = 0.0
+	var band := get_node_or_null("CreditBand")
+	if band != null:
+		(band as CanvasItem).modulate.a = 0.0
+	for child in _menu.get_children():
+		var control := child as Control
+		if control != null:
+			control.modulate.a = 0.0
+
+	# 并行时间轴：每段自带 set_delay，总时长 = 最大 (delay + duration)。
+	var tw := create_tween()
+	tw.set_parallel(true)
+	# 0.00s 黑幕退去，keyart 同时渗出来（火光先着）。
+	tw.tween_property(_curtain, "modulate:a", 0.0, BOOT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_keyart, "modulate:a", 1.0, BOOT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 0.35s 字标醒过来：比 keyart 晚半拍，logo 辉光跟着更快一点的节奏。
+	tw.tween_property(_masthead, "modulate:a", 1.0, INTRO_DURATION) \
+			.set_delay(BOOT_FADE * 0.64) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 0.50s 起菜单逐行爬上来（0.045s/行），脊柱同步淡入。
+	var delay := BOOT_FADE * 0.9
 	for child in _menu.get_children():
 		var control := child as Control
 		if control == null:
 			continue
-		control.modulate.a = 0.0
-		tween.tween_property(control, "modulate:a", 1.0, INTRO_DURATION) \
+		tw.tween_property(control, "modulate:a", 1.0, RAIL_DURATION) \
 				.set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		delay += INTRO_STAGGER
-	_spine.modulate.a = 0.0
-	var spine_tween := create_tween()
-	spine_tween.tween_property(_spine, "modulate:a", 1.0, INTRO_DURATION + 0.1) \
+		delay += RAIL_STAGGER
+	tw.tween_property(_spine, "modulate:a", 1.0, RAIL_DURATION) \
+			.set_delay(BOOT_FADE * 0.9) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 墓志和署名带最后收尾（菜单爬完的那一刻）。
+	tw.tween_property(inscription, "modulate:a", 1.0, RAIL_DURATION + 0.1) \
+			.set_delay(delay) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(band, "modulate:a", 1.0, RAIL_DURATION + 0.1) \
+			.set_delay(delay) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 收尾：全部就位后撤掉黑幕、置回非播放态。
+	var total := delay + RAIL_DURATION + 0.1
+	tw.tween_callback(func() -> void:
+		_intro_playing = false
+		if _curtain != null and is_instance_valid(_curtain):
+			_curtain.queue_free()
+			_curtain = null
+	).set_delay(total)
+
+
+## 跳过开屏：直接落到终态（不删帷幕之外的东西，_quit_sequence 还要用）。
+func _skip_intro() -> void:
+	if not _intro_playing:
+		return
+	_intro_playing = false
+	# 把还挂着的入场 tween 一次抹平：子节点各自 create_tween 的那批
+	# 随节点释放而失效，这里直接把透明状态和位置落到位。
+	Transitions.snap_visible([
+			_keyart, _masthead, _spine,
+			get_node_or_null("Inscription"),
+			get_node_or_null("CreditBand"),
+	])
+	for child in _menu.get_children():
+		var control := child as Control
+		if control != null:
+			control.modulate.a = 1.0
+	if _curtain != null and is_instance_valid(_curtain):
+		_curtain.queue_free()
+		_curtain = null
+
+
+## 开屏是否还在播（测试与 _on_chosen 用：动画期间选择键不响应）。
+func intro_playing() -> bool:
+	return _intro_playing
 
 
 func _build_overlays() -> void:
@@ -351,6 +573,11 @@ func _build_overlays() -> void:
 	_settings.closed.connect(func() -> void: _menu.active = true)
 	add_child(_settings)
 	_build_confirm()
+	_build_character_select()
+	_update_prompt = UpdatePrompt.new()
+	_update_prompt.layer = 7
+	_update_prompt.closed.connect(func() -> void: _menu.active = true)
+	add_child(_update_prompt)
 
 	_fade = ColorRect.new()
 	_fade.name = "Fade"
@@ -370,8 +597,9 @@ func _build_overlays() -> void:
 
 
 func _process(delta: float) -> void:
-	if _quitting:
-		# 退场动画期间 keyart / 字标的呼吸会让位给淡出 tween。
+	if _quitting or _intro_playing:
+		# 退场/开屏动画期间 keyart / 字标的呼吸会让位给 tween，
+		# 否则 _process 会和 tween 抢同一个 modulate 属性。
 		return
 	_time += delta
 	# 火光呼吸：keyart 整体在暖色间轻微起伏，标题牌辉光跟着更快一点的节奏。
@@ -384,13 +612,18 @@ func _process(delta: float) -> void:
 func _on_chosen(id: StringName) -> void:
 	if _started or _quitting:
 		return
+	# 开屏没播完时确认键 = 直接跳到终态并照常执行这一格：
+	# 进场动画不是门禁，玩家/测试按了确认就该有反应。
+	if _intro_playing:
+		_skip_intro()
 	match id:
 		ID_NEW:
-			# 有存档时"点燃余烬"会清档重来：先问一句，默认项是取消。
+			# 有存档时"点燃余烬"先弹确认覆盖；确认后打开选人。无存档时直接打开选人。
 			if SaveData.has_save():
 				open_confirm()
 			else:
-				_start(false)
+				_menu.active = false
+				_char_select.open()
 		ID_CONTINUE:
 			_start(true)
 		ID_TRIAL:
@@ -403,8 +636,31 @@ func _on_chosen(id: StringName) -> void:
 		ID_CONTROLS:
 			_menu.active = false
 			_controls.open()
+		ID_UPDATE:
+			_menu.active = false
+			if _update_prompt != null:
+				_update_prompt.open(UpdateService.entry())
 		ID_QUIT:
 			_quit_sequence()
+
+
+func _on_update_checked(status: StringName, _entry: Dictionary) -> void:
+	if status != &"available":
+		return
+	if _update_notice == null or not is_instance_valid(_update_notice):
+		return
+	_update_notice.visible = true
+
+
+## 版本提示从"菜单架多一行"挪到档案里的小按钮：模式组固定五格，不会被动态行撑出屏幕。
+func _open_update_prompt() -> void:
+	if _quitting or _started:
+		return
+	if _intro_playing:
+		_skip_intro()
+	_menu.active = false
+	if _update_prompt != null:
+		_update_prompt.open(UpdateService.entry())
 
 
 ## 离开锈墓的退场：菜单架逐格熄灭、背景与余烬一起暗下去，黑幕压上来后留一句
@@ -412,6 +668,9 @@ func _on_chosen(id: StringName) -> void:
 func _quit_sequence() -> void:
 	if _quitting or _started:
 		return
+	# 开屏中途离开：先把入场动画抹平，否则逐格熄灭会和淡入的 tween 抢属性。
+	if _intro_playing:
+		_skip_intro()
 	_quitting = true
 	_menu.active = false
 	Sfx.play(&"ui_back")
@@ -521,6 +780,9 @@ func open_confirm() -> void:
 	_confirm.visible = true
 	_confirm_menu.active = true
 	_confirm_menu.select(0, false)
+	# 确认框是压暗+缩放进场（UiKit 的既有小件节奏），这里直接可见：
+	# 它是模态层级里最小的一层，再套一层 0.17s 滑入会把"覆盖存档？"
+	# 这个不可逆动作的反馈拖慢。纱幕类大屏才有滑入。
 
 
 func close_confirm() -> void:
@@ -537,9 +799,65 @@ func _on_confirm_chosen(id: StringName) -> void:
 	if id == ID_OVERWRITE:
 		_confirm.visible = false
 		_confirm_menu.active = false
-		_start(false)
+		_char_select.open()
 	else:
 		close_confirm()
+
+
+func _build_character_select() -> void:
+	var packed: PackedScene = load("res://scenes/ui/CharacterSelectScreen.tscn")
+	if packed != null:
+		_char_select = packed.instantiate() as CharacterSelectScreen
+	if _char_select == null:
+		_char_select = CharacterSelectScreen.new()
+	_char_select.layer = 8
+	_char_select.cancelled.connect(_on_char_select_cancelled)
+	_char_select.embark_requested.connect(_on_char_select_embark)
+	add_child(_char_select)
+
+
+func _on_char_select_cancelled() -> void:
+	_char_select.close()
+	_menu.active = true
+
+
+func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
+	_char_select.close()
+	_started = true
+	_menu.active = false
+	SaveData.pending_spawn = Vector2.INF
+	SaveData.entering_from_checkpoint = false
+	if SaveData.has_method("init_new_game"):
+		SaveData.call("init_new_game", origin_id, loadout)
+		# 外观是 loadout 的一部分：启程后写进 profile（init_new_game 会重置为默认）。
+		var skin := String(loadout.get("skin", ""))
+		var rune := String(loadout.get("rune", ""))
+		if skin != "":
+			SaveData.set_skin(skin, rune)
+			SaveData.persist_profile()
+	else:
+		SaveData.delete_save()
+		var w = loadout.get("weapon", "broken_sword")
+		var a = loadout.get("armor", "broken_armor")
+		var t = loadout.get("trinket", "broken_pendant")
+		var w_id = w.id if (w != null and "id" in w) else String(w)
+		var a_id = a.id if (a != null and "id" in a) else String(a)
+		var t_id = t.id if (t != null and "id" in t) else String(t)
+		SaveData.data = {
+			"player": { "origin": String(origin_id) },
+			"equipment": {
+				"weapon": String(w_id),
+				"armor": String(a_id),
+				"trinket": String(t_id),
+				"bag": []
+			}
+		}
+	Sfx.play(&"gate")
+	Director.fade_to(LEVEL_PATH, FADE_OUT)
+
+
+func character_select_screen() -> CharacterSelectScreen:
+	return _char_select
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -572,4 +890,6 @@ func _start(continue_game: bool) -> void:
 
 
 func _exit_tree() -> void:
+	if UpdateService.checked.is_connected(_on_update_checked):
+		UpdateService.checked.disconnect(_on_update_checked)
 	WorldClock.release_menu()

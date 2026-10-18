@@ -131,7 +131,7 @@ var _fog_far: Parallax2D
 var _fog_near: Parallax2D
 var _sil_layer: Parallax2D
 var _ground_fog: Parallax2D
-var _fog_veil: ColorRect
+var _fog_veil: TextureRect
 var _mood_tint: CanvasModulate
 var _moon_fill: DirectionalLight2D
 var _glow: Sprite2D
@@ -261,7 +261,7 @@ func _follow_atmosphere(delta: float) -> void:
 	if _fog_veil != null:
 		var veil: Color = _palette().get("veil", FOG_VEIL_COLOR)
 		veil.a = WorldClock.fog_veil_alpha()
-		_fog_veil.color = _fog_veil.color.lerp(veil, k)
+		_fog_veil.modulate = _fog_veil.modulate.lerp(veil, k)
 	if _glow != null:
 		# Night / storm dim the horizon glow but never remove it (the forge city still smoulders).
 		var glow: Color = _palette().get("glow", HORIZON_GLOW)
@@ -610,17 +610,34 @@ func _add_ground_fog(front: Node, tex: Texture2D) -> Parallax2D:
 	return layer
 
 
-## The foreground CanvasLayer does not follow the viewport, so a plain full-view
-## ColorRect on it is screen-fixed: a veil over the world, still under the HUD.
-func _add_fog_veil(front: Node) -> ColorRect:
-	var veil := ColorRect.new()
+## The foreground CanvasLayer does not follow the viewport, so a full-view
+## layer on it is screen-fixed: a veil over the world, still under the HUD.
+## 用户报过"夜雾连天上都是"：改成从屏幕 38% 处才开始变浓的竖向渐变，
+## 天空保持清晰，雾只压在中下部分（地面线/远景山腰）。
+const FOG_VEIL_TOP := 0.38
+func _add_fog_veil(front: Node) -> TextureRect:
+	var veil := TextureRect.new()
 	veil.name = "FogVeil"
 	veil.position = Vector2.ZERO
 	veil.size = Vector2(PresentationMetrics.WORLD_SIZE)
+	veil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	veil.stretch_mode = TextureRect.STRETCH_SCALE
+	veil.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, FOG_VEIL_TOP, 0.72, 1.0])
+	grad.colors = PackedColorArray([
+		Color(1, 1, 1, 0), Color(1, 1, 1, 0), Color(1, 1, 1, 0.55), Color(1, 1, 1, 1)])
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.width = 4
+	tex.height = 64
+	tex.fill_from = Vector2(0.0, 0.0)
+	tex.fill_to = Vector2(0.0, 1.0)
+	veil.texture = tex
 	var c: Color = _palette().get("veil", FOG_VEIL_COLOR)
 	c.a = WorldClock.fog_veil_alpha()
-	veil.color = c
+	veil.modulate = c
 	front.add_child(veil)
 	return veil
 

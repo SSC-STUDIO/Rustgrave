@@ -47,11 +47,16 @@ var _headless := false
 
 
 func _ready() -> void:
-	# Sensor only — never a solid lid. Player mask is layer 1; this stays on 128.
+	# Sensor only — never a solid lid. The knight's CharacterBody2D is on
+	# collision_layer 2, so the pool must mask that bit for the Area2D pairwise
+	# test to fire `body_entered` at all.
 	collision_layer = 128
 	collision_mask = 2
 	monitoring = true
 	monitorable = true
+	# 水体画在角色/坑内石阶之上：踩进水里时腿被绿色压住，读得出"泡在腐液里"。
+	# 只在池矩形内生效（岸边行走的玩家身体不与它重叠），不会盖住岸上的骑士。
+	z_index = 3
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
 	_headless = DisplayServer.get_name() == "headless"
@@ -168,12 +173,18 @@ func _rebuild_visual() -> void:
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(fill)
 	_apply_sludge_ramp()
+	# Name the shape: without a name `get_node_or_null("CollisionShape2D")`
+	# can never find it again, so every configure() call minted a second shape
+	# and the pool ended up overlapping the knight with stale geometry.
 	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
 	if col == null:
 		col = CollisionShape2D.new()
+		col.name = "CollisionShape2D"
 		var shape := RectangleShape2D.new()
 		col.shape = shape
 		add_child(col)
+	if col.shape == null or not (col.shape is RectangleShape2D):
+		col.shape = RectangleShape2D.new()
 	(col.shape as RectangleShape2D).size = _pool_size
 	col.position = _pool_size * 0.5
 

@@ -1,4 +1,4 @@
-class_name Player
+﻿class_name Player
 extends CharacterBody2D
 ## Ember-Knight root. Movement, combat, toxin, and cores live on child nodes.
 
@@ -16,11 +16,37 @@ extends CharacterBody2D
 @onready var equipment: EquipmentInventory = get_node_or_null("EquipmentInventory")
 @onready var equipment_inventory: EquipmentInventory = get_node_or_null("EquipmentInventory")
 
+var origin: StringName = &"":
+	get:
+		if stats != null:
+			return stats.get_origin_id()
+		return origin
+	set(v):
+		# 注意：setter 里读 `origin` 会走上面的 getter（= stats 的旧值），
+		# 所以必须用新的 id 显式喂给 stats，不能再用 origin 变量。
+		var id := StringName(str(v))
+		origin = id
+		if stats != null:
+			stats.apply_origin(id)
+
+
+func get_origin() -> StringName:
+	return origin
+
+
+func set_origin(p_origin: Variant) -> void:
+	origin = StringName(str(p_origin))
+
+
 @export var auto_equip_starter: bool = true
 
 ## Director sets this during a cutscene. Input is ignored; gravity still applies.
 var cutscene_locked: bool = false
 
+const PassiveCatalog := preload("res://scripts/data/passive_catalog.gd")
+const SkillCatalog := preload("res://scripts/data/skill_catalog.gd")
+const SkinCatalog := preload("res://scripts/data/skin_catalog.gd")
+const RuneCatalog := preload("res://scripts/data/rune_catalog.gd")
 const P_STAND_PATH := "res://assets/kenney_clean/player/p1_stand.png"
 const P_JUMP_PATH := "res://assets/kenney_clean/player/p1_jump.png"
 const P_HURT_PATH := "res://assets/kenney_clean/player/p1_hurt.png"
@@ -70,6 +96,17 @@ var _fire_trails: Array = []
 var _blasts: Array = []
 var _band_seen: StringName = &"cold"
 var _hp_seen: int = 0
+## 流派被动运行时状态（见 PassiveCatalog）。
+var _passive_heal_cd: float = 0.0
+var _toxin_overflow_count: int = 0
+## 两个主动技能槽（Q/E）：id + 剩余冷却。_skill_boxes 是技能临时伤害体的预算表。
+var _skills: Array[StringName] = []
+var _skill_cd: Array[float] = []
+var _skill_boxes: Array = []
+## 外观（皮肤/刻印）运行态。
+var _skin_id: StringName = &""
+var _skin_tint: Color = Color.WHITE
+var _rune_id: StringName = &""
 var _floor_skin: String = ""
 var _pulse_t: float = 0.0
 
@@ -91,6 +128,8 @@ func _ready() -> void:
 	inventory.sockets_changed.connect(_refresh_heat_lick)
 	_refresh_heat_lick()
 	if stats != null:
+		if origin != &"":
+			stats.apply_origin(origin)
 		stats.stats_changed.connect(_on_stats_changed)
 		_on_stats_changed()
 	if equipment == null:
@@ -99,11 +138,22 @@ func _ready() -> void:
 		equipment_inventory = equipment
 	if equipment != null:
 		equipment.equipment_changed.connect(_on_equipment_changed)
+		if equipment.bag_changed.is_connected(_on_passive_bag_changed):
+			pass
+		else:
+			equipment.bag_changed.connect(_on_passive_bag_changed)
 		if _should_auto_equip_starter() and equipment.is_completely_unequipped():
 			initialize_starter_equipment()
 		else:
 			_on_equipment_changed()
+	# 流派被动：三个信号在 _ready 一次接好，命中时再按当前起源判断（换起源不用重接）。
+	GameEvents.parried.connect(_on_passive_parried)
+	GameEvents.core_acquired.connect(_on_passive_core_acquired)
+	_load_skills()
 	GameEvents.swing_started.connect(_on_swing_started)
+	_skin_id = _resolved_skin_id()
+	_rune_id = _resolved_rune_id()
+	_apply_rune_modifier()
 	if not _setup_knight_anim():
 		_setup_kenney_sprite()
 	# 主题标识：余烬骑士周身漂浮的橙色余烬（Fx 内部自带 headless 守卫）。
@@ -111,6 +161,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _passive_heal_cd > 0.0:
+		_passive_heal_cd = maxf(0.0, _passive_heal_cd - delta)
 	if health.is_invincible() and health.current <= 0:
 		return
 	controller.extra_jumps_unlocked = inventory.has_ability(AbilityIds.EMBER_STEP)
@@ -118,8 +170,10 @@ func _physics_process(delta: float) -> void:
 		_tick_cutscene_idle(delta)
 		return
 	health.invincible = controller.is_invincible()
+	_tick_skills(delta)
 	var move_scale := CombatRules.SWING_MOVE_SCALE if melee.is_busy() else 1.0
 	controller.physics_tick(self, delta, move_scale)
+	_process_skill_input()
 	if not is_on_floor() and melee.is_busy() and melee.phase_name() == "active" and velocity.y > 40.0:
 		velocity.y = move_toward(velocity.y, 40.0, 320.0 * delta)
 	if hookshot.is_active():
@@ -167,11 +221,13 @@ func _refresh_heat_lick() -> void:
 ## Fantasy Knight 逐帧动画（主路径）。素材缺失（如未导入）返回 false，
 ## 交给 Kenney 单帧回退；两者都缺时保留场景内 ColorRect 占位。
 func _setup_knight_anim() -> bool:
-	if not CharFrames.available(KNIGHT_CHAR):
+	var skin := _skin_id if _skin_id != &"" else _resolved_skin_id()
+	var folder := SkinCatalog.folder_of(skin)
+	if not CharFrames.available(folder):
 		return false
 	_anim = FrameAnimSprite.new()
 	_anim.name = "KnightSprite"
-	# 动作表：帧目录 / fps / 是否循环（画布统一 → 基线相同）。
+	# 动作表：帧目录 / fps / 是否循环；帧与偏移由 SkinCatalog 统一（缺动作回退默认骑士）。
 	var table := [
 		["idle", 10.0, true], ["run", 12.0, true],
 		["jump", 10.0, false], ["fall", 10.0, true],
@@ -181,17 +237,104 @@ func _setup_knight_anim() -> bool:
 		["attack_combo", 14.0, false],
 	]
 	for row in table:
-		_anim.register(row[0], CharFrames.anim(KNIGHT_CHAR, row[0]), row[1], row[2], KNIGHT_POS)
+		var action := StringName(row[0])
+		var frames := SkinCatalog.frames_for(skin, action)
+		if frames.is_empty():
+			continue
+		_anim.register(row[0], frames, row[1], row[2],
+				SkinCatalog.offset_for(skin, action))
 	_anim.play("idle")
+	_skin_tint = SkinCatalog.tint_of(skin)
+	_anim.modulate = _skin_tint
 	visual.add_child(_anim)
 	_sprite_root = _anim  # 残像/白闪等表现直接复用同一 Sprite。
-	# 骑士帧自带剑与盔甲：隐藏所有占位色块和程序化多边形剑。
+	_skin_id = skin
+	# 帧自带剑与盔甲：隐藏所有占位色块和程序化多边形剑。
 	for c in visual.get_children():
 		if c == _anim:
 			continue
 		if c is ColorRect or c is Polygon2D:
 			c.visible = false
 	return true
+
+
+# ------------------------------------------------------------- appearance --
+
+func _resolved_skin_id() -> StringName:
+	if SaveData.skin_id != "" and SkinCatalog.has(StringName(SaveData.skin_id)):
+		return StringName(SaveData.skin_id)
+	if _skin_id != &"" and SkinCatalog.has(_skin_id):
+		return _skin_id
+	return SkinCatalog.default_for_origin(get_origin())
+
+
+func _resolved_rune_id() -> StringName:
+	if SaveData.skin_rune != "" and RuneCatalog.has(StringName(SaveData.skin_rune)):
+		return StringName(SaveData.skin_rune)
+	return &""
+
+
+func skin_id() -> StringName:
+	return _skin_id if _skin_id != &"" else _resolved_skin_id()
+
+
+func rune_id() -> StringName:
+	return _rune_id
+
+
+## UI/测试读的外观快照。
+func skin_state() -> Dictionary:
+	var skin := skin_id()
+	return {
+		"id": skin,
+		"name": SkinCatalog.name_of(skin),
+		"folder": SkinCatalog.folder_of(skin),
+		"tint": _skin_tint,
+		"rune": _rune_id,
+		"rune_name": RuneCatalog.name_of(_rune_id),
+	}
+
+
+## 换皮肤：重建帧动画，保持当前动作；persist=true 时写 profile。
+func apply_skin(id: StringName, persist: bool = false) -> bool:
+	var skin := id if SkinCatalog.has(id) else SkinCatalog.DEFAULT_SKIN
+	_skin_id = skin
+	if persist:
+		SaveData.set_skin(String(skin), SaveData.skin_rune)
+		SaveData.persist_profile()
+	_rebuild_anim()
+	return true
+
+
+## 换刻印：先摘旧常驻 modifier 再挂新的；空 id = 无刻印。
+func equip_rune(id: StringName, persist: bool = false) -> bool:
+	if id != &"" and not RuneCatalog.has(id):
+		return false
+	_rune_id = id
+	_apply_rune_modifier()
+	if persist:
+		SaveData.set_skin(String(skin_id()), String(id))
+		SaveData.persist_profile()
+	return true
+
+
+func _apply_rune_modifier() -> void:
+	if stats == null:
+		return
+	stats.remove_modifier(RuneCatalog.SLOT_ID)
+	var modifier := RuneCatalog.modifier_of(_rune_id)
+	if not modifier.is_empty():
+		stats.add_modifier(RuneCatalog.SLOT_ID, modifier, 0.0)
+
+
+func _rebuild_anim() -> void:
+	if _anim != null and is_instance_valid(_anim):
+		_anim.queue_free()
+		_anim = null
+	_sprite_root = null
+	if not _setup_knight_anim():
+		_setup_kenney_sprite()
+
 
 
 ## 挥砍姿势：前摇停在起手，长刀临门才抬剑；有效帧是斩下；后摇按进度收到末帧。
@@ -382,6 +525,9 @@ func _poll_slash_arc(face: float) -> void:
 				arc.modulate = tier["arc_color"]
 				arc.position = Vector2(20.0 * face, -18.0)
 			arc.flicker = bool(tier["flicker"])
+			var l_color: Color = Color(1.0, 0.88, 0.52).lerp(Color(tier["tint"]), 0.35)
+			var l_energy: float = 1.45 * (1.15 if bool(tier["weight_up"]) else 1.0)
+			arc.set_light_properties(l_color, l_energy, 112.0)
 			add_child(arc)
 	_melee_active_prev = active_now
 
@@ -449,7 +595,7 @@ func _on_game_hit(_attacker: Node, target: Node, _amount: int) -> void:
 		_hit_flash_tween.kill()
 	_sprite_root.modulate = HIT_FLASH_COLOR
 	_hit_flash_tween = create_tween()
-	_hit_flash_tween.tween_property(_sprite_root, "modulate", Color.WHITE, HIT_FLASH_SECONDS)
+	_hit_flash_tween.tween_property(_sprite_root, "modulate", _skin_tint, HIT_FLASH_SECONDS)
 
 
 func is_invincible() -> bool:
@@ -637,9 +783,207 @@ func _on_toxin_overflow() -> void:
 	# 过场锁死时不能走开：满溢伤害会把人钉死在毒池/台词里。
 	if cutscene_locked:
 		return
+	# 锈械学者「滤毒转能」：满溢伤害隔一次结算一次，并顺手排掉一点毒素。
+	if passive_id() == &"passive_filter_convert":
+		_toxin_overflow_count += 1
+		if _toxin_overflow_count % 2 == 1:
+			toxin.purify(PassiveCatalog.FILTER_PURIFY)
+			Fx.burst(&"ring", global_position + Vector2(0.0, -14.0))
+			Sfx.play(CombatRules.sfx_key(&"toxin_warn"))
+			return
 	# 每一次满溢掉血前都先出声：不看血条也知道是毒在烧。
 	Sfx.play(CombatRules.sfx_key(&"toxin_warn"))
 	health.take_damage(1, self)
+
+
+# --------------------------------------------------------------- skills --
+
+## 两个槽从 SaveData 读；新档槽 1 给默认技能，槽 2 空。
+func _load_skills() -> void:
+	_skills.clear()
+	_skill_cd.clear()
+	_skills.append(StringName(SaveData.skill_1) if SaveData.skill_1 != "" \
+			else SkillCatalog.DEFAULT_SLOT_1)
+	_skills.append(StringName(SaveData.skill_2) if SaveData.skill_2 != "" \
+			else SkillCatalog.DEFAULT_SLOT_2)
+	for _i in SkillCatalog.SLOT_COUNT:
+		_skill_cd.append(0.0)
+
+
+## 换槽技能（角色面板/竞技选择器调用）；persist=true 时顺手写 profile。
+func equip_skill(slot: int, skill_id: StringName, persist: bool = false) -> bool:
+	if slot < 0 or slot >= SkillCatalog.SLOT_COUNT:
+		return false
+	if skill_id != &"" and not SkillCatalog.has(skill_id):
+		return false
+	_ensure_skill_arrays()
+	_skills[slot] = skill_id
+	_skill_cd[slot] = 0.0
+	if persist:
+		SaveData.set_skill_slot(slot, String(skill_id))
+		SaveData.persist_profile()
+	return true
+
+
+func skill_slot_id(slot: int) -> StringName:
+	_ensure_skill_arrays()
+	if slot < 0 or slot >= _skills.size():
+		return &""
+	return _skills[slot]
+
+
+func skill_cooldown(slot: int) -> float:
+	_ensure_skill_arrays()
+	if slot < 0 or slot >= _skill_cd.size():
+		return 0.0
+	return _skill_cd[slot]
+
+
+func skill_ready(slot: int) -> bool:
+	return skill_slot_id(slot) != &"" and skill_cooldown(slot) <= 0.0
+
+
+## UI/测试读的技能条快照。
+func skill_state() -> Array[Dictionary]:
+	_ensure_skill_arrays()
+	var out: Array[Dictionary] = []
+	for slot in SkillCatalog.SLOT_COUNT:
+		var id := _skills[slot]
+		out.append({
+			"slot": slot,
+			"action": SkillCatalog.input_action(slot),
+			"id": id,
+			"name": SkillCatalog.name_of(id),
+			"cooldown": _skill_cd[slot],
+			"cooldown_max": SkillCatalog.cooldown_of(id),
+			"ready": skill_ready(slot),
+		})
+	return out
+
+
+func _ensure_skill_arrays() -> void:
+	while _skills.size() < SkillCatalog.SLOT_COUNT:
+		_skills.append(&"")
+	while _skill_cd.size() < SkillCatalog.SLOT_COUNT:
+		_skill_cd.append(0.0)
+
+
+func _tick_skills(delta: float) -> void:
+	_ensure_skill_arrays()
+	for i in _skill_cd.size():
+		if _skill_cd[i] > 0.0:
+			_skill_cd[i] = maxf(0.0, _skill_cd[i] - delta)
+
+
+func _process_skill_input() -> void:
+	if cutscene_locked or health.current <= 0:
+		return
+	if Director.is_input_locked():
+		return
+	for slot in SkillCatalog.SLOT_COUNT:
+		var action := SkillCatalog.input_action(slot)
+		if InputMap.has_action(action) and Input.is_action_just_pressed(action):
+			cast_skill(slot)
+
+
+## 释放一个槽：冷却中/空槽/过场/死亡都返回 false。成功后进入冷却。
+func cast_skill(slot: int) -> bool:
+	_ensure_skill_arrays()
+	if slot < 0 or slot >= SkillCatalog.SLOT_COUNT:
+		return false
+	if cutscene_locked or Director.is_input_locked() or health.current <= 0:
+		return false
+	var id := _skills[slot]
+	if id == &"" or _skill_cd[slot] > 0.0:
+		return false
+	_skill_cd[slot] = SkillCatalog.cooldown_of(id)
+	_apply_skill_effect(SkillCatalog.effect_of(id))
+	GameEvents.announcement.emit("%s" % SkillCatalog.name_of(id))
+	return true
+
+
+func _apply_skill_effect(effect: StringName) -> void:
+	var face := float(controller.facing)
+	match effect:
+		&"burst":
+			_spawn_temp_hitbox(Vector2(56.0, 26.0),
+					global_position + Vector2(face * 38.0, -18.0), &"heavy", 0.12,
+					Vector2(face * 170.0, -60.0), _skill_boxes, 2, 2)
+			Fx.burst(&"ember", global_position + Vector2(face * 26.0, -20.0), 0.0)
+			Sfx.play(CombatRules.sfx_key(&"swing_heavy"), 0.05, -4.0)
+		&"guard":
+			if stats != null:
+				stats.add_modifier(&"skill_hollow_guard",
+						{"defense": 2, "toxin_resist": 0.40}, 2.0)
+			Fx.burst(&"ring", global_position + Vector2(0.0, -18.0))
+			Sfx.play(CombatRules.sfx_key(&"parry"))
+		&"lance":
+			velocity = Vector2(face * 430.0, -70.0)
+			_spawn_temp_hitbox(Vector2(40.0, 30.0),
+					global_position + Vector2(face * 22.0, -16.0), &"heavy", 0.16,
+					Vector2(face * 150.0, -40.0), _skill_boxes, 2, 1)
+			Fx.burst(&"rust", global_position + Vector2(0.0, -8.0), -face * PI * 0.5)
+			Sfx.play(CombatRules.sfx_key(&"dash"))
+		&"purge":
+			toxin.purify(0.5)
+			health.heal(1)
+			Fx.burst(&"ring", global_position + Vector2(0.0, -16.0))
+			Sfx.play(&"pickup", 0.05, -6.0)
+
+
+# ------------------------------------------------------------ passives --
+
+## 当前起源的被动 id（未知/无起源返回 &""）。
+func passive_id() -> StringName:
+	return PassiveCatalog.for_origin(get_origin())
+
+
+## 测试/UI 读的被动运行态。
+func passive_state() -> Dictionary:
+	var id := passive_id()
+	return {
+		"id": id,
+		"name": PassiveCatalog.name_of(id),
+		"heal_cd": _passive_heal_cd,
+		"toxin_skips": _toxin_overflow_count,
+	}
+
+
+## 余烬重骑「余烬壁垒」：完美弹反后防御 +1，持续 2 秒。
+func _on_passive_parried(_projectile: Node, by_actor: Node) -> void:
+	if by_actor != self:
+		return
+	if passive_id() != &"passive_ember_bulwark":
+		return
+	if stats == null:
+		return
+	stats.add_modifier(&"passive_ember_bulwark", {"defense": 1},
+			PassiveCatalog.BULWARK_SECONDS)
+	Fx.burst(&"ring", global_position + Vector2(0.0, -16.0))
+
+
+## 废料剑客「拾荒本能」：拿到锈核时回 1 点血。
+func _on_passive_core_acquired(_core: Resource) -> void:
+	_try_passive_heal()
+
+
+## 废料剑客「拾荒本能」：背包进新装备时回 1 点血。
+func _on_passive_bag_changed() -> void:
+	_try_passive_heal()
+
+
+func _try_passive_heal() -> void:
+	if passive_id() != &"passive_scavenger_instinct":
+		return
+	if _passive_heal_cd > 0.0:
+		return
+	if health == null or health.current >= health.max_hp:
+		return
+	var healed := health.heal(1)
+	if healed > 0:
+		_passive_heal_cd = PassiveCatalog.HEAL_COOLDOWN
+		Fx.burst(&"ring", global_position + Vector2(0.0, -14.0))
+		Sfx.play(&"pickup", 0.05, -8.0)
 
 
 func _on_died() -> void:
@@ -650,10 +994,6 @@ func _on_died() -> void:
 		_anim.play("death")  # 物理停摆后由 _process 继续播完倒地
 	set_physics_process(false)
 	GameEvents.player_died.emit()
-	# 试炼：死亡由 TrialRun 计时/快速重试（0.9s 重载本场），不走战役的
-	# "回最近余烬巢重燃"，也不读写战役档（契约 §5）。
-	if TrialRun.active():
-		return
 	GameEvents.announcement.emit("余烬熄灭…")
 	var wait := Timer.new()
 	wait.one_shot = true

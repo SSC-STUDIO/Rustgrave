@@ -8,10 +8,15 @@ var source: Node2D
 var damage: int = 1
 var deflected: bool = false
 var lifetime: float = 4.5
+## 撞到环境时用它读材质（木箱/裂石板可覆盖）；留空则从碰撞体的 skin/hit_material 推。
+var hit_material: StringName = &""
 
 const BOLT_PATH := "res://assets/env/fireball_1.png"
 ## Hell Beast 火球 3 帧（19x16，火头朝右 → rotation=velocity.angle() 直接可用）。
 const BOLT_CHAR := "spitter_hell_beast"
+## 火球与"地面/墙/可破坏物"的碰撞层：世界静态体 + 可破坏/可交互物。
+const TERRAIN_MASK := 1 | 64
+const ImpactCatalog := preload("res://scripts/data/impact_catalog.gd")
 
 @onready var _fill: ColorRect = $Fill
 var _sprite: Sprite2D
@@ -125,7 +130,14 @@ func deflect(_by: Node2D) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	global_position += velocity * delta
+	if is_queued_for_deletion():
+		return
+	# 先做一次"本帧位移"的射线：拿到精确的命中点/法线，才能把焦痕、火花和
+	# 辉光落在表面上，而不是落在弹丸消失时的空中坐标。
+	var step := velocity * delta
+	if step.length_squared() > 0.0001 and _sweep_terrain(step):
+		return
+	global_position += step
 	if velocity.length_squared() > 4.0:
 		rotation = velocity.angle()
 	if deflected and randf() < 0.28:
@@ -135,10 +147,47 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
+## 本帧撞到地形就结算环境打击并返回 true（调用方不再移动弹丸）。
+func _sweep_terrain(step: Vector2) -> bool:
+	var space := get_world_2d().direct_space_state
+	if space == null:
+		return false
+	var query := PhysicsRayQueryParameters2D.create(global_position,
+			global_position + step, TERRAIN_MASK)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.hit_from_inside = true
+	query.exclude = [get_rid()]
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return false
+	var collider: Object = hit.get("collider") as Object
+	# 可破坏道具是"有血量的地形"：射线放行，让它的 Hurtbox 结算伤害；
+	# 否则火球会在表面炸掉、永远打不碎箱子。
+	if collider is Node and (collider as Node).is_in_group(&"destructible_body"):
+		return false
+	_impact_terrain(hit.get("position", global_position), hit.get("normal", Vector2.UP), collider)
+	return true
+
+
+func _impact_terrain(point: Vector2, normal: Vector2, collider: Object) -> void:
+	if is_queued_for_deletion():
+		return
+	var material: StringName = hit_material
+	if material == &"" or not ImpactCatalog.has_material(material):
+		material = ImpactCatalog.material_for_collider(collider)
+	# 被弹回的冷色弹丸打在地上也要有反馈，但分量轻一档（它不是敌方威胁）。
+	var weight: StringName = &"light"
+	Fx.impact(material, point, normal, weight)
+	queue_free()
+
+
 func _on_body_entered(body: Node2D) -> void:
 	if body is Player:
 		return
-	queue_free()
+	# 物理信号没有命中点：用弹丸当前位置 + 反方向法线近似一次，保证即使射线
+	# 先没扫到（极端帧、形状重叠）也一定有落地反馈。
+	_impact_terrain(global_position, -velocity.normalized(), body)
 
 
 func _update_visual() -> void:

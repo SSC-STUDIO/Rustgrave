@@ -16,6 +16,9 @@ const VALID_SLOTS: Array[StringName] = [SLOT_WEAPON, SLOT_ARMOR, SLOT_TRINKET]
 @export var slot_type: StringName = &""
 @export var set_id: StringName = &""
 @export var icon: Texture2D = null
+## v3：稀有度（common/rare/epic）与词缀列表（见 affix_catalog.gd）。
+@export var rarity: StringName = &"common"
+@export var affixes: Array[Dictionary] = []
 
 @export_group("Combat Attributes")
 @export var attack: int = 0
@@ -73,6 +76,8 @@ func duplicate_item() -> Resource:
 	copy.set("toxin_decay", toxin_decay)
 	copy.set("speed_mult", speed_mult)
 	copy.set("icon", icon)
+	copy.set("rarity", rarity)
+	copy.set("affixes", affixes.duplicate(true))
 	return copy
 
 
@@ -89,6 +94,8 @@ func to_dict() -> Dictionary:
 		"toxin_resist": toxin_resist,
 		"toxin_decay": toxin_decay,
 		"speed_mult": speed_mult,
+		"rarity": rarity,
+		"affixes": affixes.duplicate(true),
 	}
 
 
@@ -107,4 +114,8 @@ func get_stat_lines() -> Array[String]:
 		lines.append("毒素消散 %+.1f/s" % toxin_decay)
 	if not is_zero_approx(speed_mult):
 		lines.append("移动速度 %+.0f%%" % (speed_mult * 100.0))
+	if not affixes.is_empty():
+		var Affix := preload("res://scripts/data/affix_catalog.gd")
+		for line in Affix.lines_for(affixes):
+			lines.append("· " + line)
 	return lines

@@ -79,7 +79,7 @@ func test_pit_escape_is_a_single_jump() -> void:
 			"pit floor to bank is within a held single jump")
 	ok(Level01EastWing.water_to_bank() <= Level01Static.JUMP_REACH,
 			"water film to bank is within a single jump")
-	almost(Level01EastWing.PIT_WATER_Y - Level01EastWing.PIT_CLIMB_LEFT_POS.y, 0.0, 0.01,
+	almost(Level01EastWing.PIT_WATER_Y - Level01EastWing.PIT_CLIMB_LEFT_POS.y, -8.0, 0.01,
 			"climb lip is at the water film")
 	ok(Level01EastWing.PIT_FLOOR_Y - Level01EastWing.PIT_CLIMB_LEFT_POS.y <= Level01Static.JUMP_REACH,
 			"pit floor to water lip is a single jump")

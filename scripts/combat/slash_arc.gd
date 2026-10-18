@@ -26,6 +26,10 @@ var _lifetime := PLAY_SECONDS
 var flicker := false
 var _base_modulate := Color.WHITE
 var _parried := false
+var _light: WorldLight
+var _base_light_energy := 1.45
+var _light_color := Color(1.0, 0.88, 0.52)
+var _light_radius := 112.0
 
 
 static func sheet_available() -> bool:
@@ -53,6 +57,7 @@ static func _get_frames() -> Array[AtlasTexture]:
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	material = Fx.additive_mat()
 	z_index = 10
 	_frames = _get_frames()
 	if _frames.is_empty():
@@ -60,7 +65,34 @@ func _ready() -> void:
 		return
 	texture = _frames[0]
 	_base_modulate = modulate
+	_setup_light()
 	GameEvents.parried.connect(_on_parried)
+
+
+func _setup_light() -> void:
+	_light = WorldLight.new()
+	_light.name = "SlashGlow"
+	_light.follow = &"authored"
+	_light.authored_radius = _light_radius
+	_light.radius_cap = _light_radius
+	_light.color = _light_color
+	_light.lit = true
+	_light.shadow_enabled = false
+	_light.set_base_energy(_base_light_energy)
+	_light.set_as_top_level(true)
+	_light.global_position = global_position
+	add_child(_light)
+
+
+func set_light_properties(tint: Color, energy: float, radius: float = 112.0) -> void:
+	_light_color = tint
+	_base_light_energy = energy
+	_light_radius = radius
+	if _light != null and is_instance_valid(_light):
+		_light.color = tint
+		_light.authored_radius = radius
+		_light.radius_cap = radius
+		_light.set_base_energy(energy)
 
 
 func _process(delta: float) -> void:
@@ -71,6 +103,11 @@ func _process(delta: float) -> void:
 	var count := mini(PLAY_FRAMES, _frames.size())
 	var idx: int = clampi(int(_elapsed / _lifetime * count), 0, count - 1)
 	texture = _frames[idx]
+	if _light != null and is_instance_valid(_light):
+		_light.global_position = global_position
+		var fade := clampf(1.0 - (_elapsed / _lifetime), 0.0, 1.0)
+		var cur_energy := (2.4 if _parried else _base_light_energy) * fade
+		_light.set_base_energy(cur_energy)
 	if flicker and not _parried:
 		# 每帧交替本色 / 过曝白：肉眼一闪一闪，比单纯调色更像「烫手」。
 		modulate = _base_modulate if int(_elapsed * 60.0) % 2 == 0 else Color(2.0, 2.0, 2.0, _base_modulate.a)
@@ -82,3 +119,6 @@ func _on_parried(_projectile: Node, _by_actor: Node) -> void:
 	modulate = PARRY_MODULATE
 	scale = PARRY_SCALE
 	_lifetime = PARRY_SECONDS
+	if _light != null and is_instance_valid(_light):
+		_light.color = Color(1.2, 1.15, 0.95)
+		_light.set_base_energy(2.4)

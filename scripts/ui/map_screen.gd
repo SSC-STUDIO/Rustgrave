@@ -27,10 +27,13 @@ const COL_PLAYER := Color("#FFFFFF")
 
 var _root: Control
 var _shell: Dictionary = {}
+var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _view: MapView
 var _title: Label
 var _empty: Label
 var _snapshot: Dictionary = {}
+## 章节名淡入补间（换关重开地图时先掐掉上一段）。
+var _title_tween: Tween
 
 
 func _ready() -> void:
@@ -62,7 +65,10 @@ func _build() -> void:
 	column.add_theme_constant_override("separation", 8)
 	body.add_child(column)
 	_title = UiKit.label("", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_title.name = "Title"
+	_title.name = "ChapterTitle"
+	# 章节名是这页的主答案：染成余烬、居中压在铆钉横线上方，
+	# 和图例的小字（灰白）拉开一级，不用逐行读就知道"这是哪一章"。
+	_title.modulate = UiKit.EMBER
 	column.add_child(_title)
 	var rule := UiKit.divider()
 	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -95,10 +101,14 @@ func _build() -> void:
 	_legend(legend, MapView.GLYPH_PLAYER, "你")
 
 
+## 图例一项：符号与文字用同一个色相 —— 文字不再统一压成灰，
+## 扫一眼图例就能把"哪个颜色是哪种东西"带到地图里去。
 func _legend(row: HBoxContainer, kind: int, text: String) -> void:
 	var glyph := MapView.Glyph.new(kind)
 	row.add_child(glyph)
-	row.add_child(UiKit.label(text, &"HudLabel"))
+	var label := UiKit.label(text, &"HudLabel")
+	label.modulate = MapView.GLYPH_COLORS.get(kind, Color.WHITE)
+	row.add_child(label)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(14.0, 0.0)
 	row.add_child(gap)
@@ -177,6 +187,7 @@ func snapshot() -> Dictionary:
 
 
 func open() -> void:
+	_closing = false
 	var player := get_tree().get_first_node_in_group("player") as Node2D
 	var world := GameContext.world_root(player) if player != null else null
 	_snapshot = collect(world, player)
@@ -185,19 +196,41 @@ func open() -> void:
 	_view.visible = not _snapshot.is_empty()
 	_empty.visible = _snapshot.is_empty()
 	_title.text = String(_snapshot.get("title", ""))
+	_fade_title()
 	visible = true
+	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_select")
 
 
-func close() -> void:
-	if not visible:
+## 章节名随开屏淡入：卡片是"啪"一下到位（见 ui_modal 的约定），但文字
+## 慢 0.12s 亮起，读起来像标题先落、内容后显，而不是整块一起闪出来。
+func _fade_title() -> void:
+	if _title == null:
 		return
-	visible = false
+	if _title_tween != null and _title_tween.is_valid():
+		_title_tween.kill()
+	_title.modulate = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.0)
+	_title_tween = create_tween()
+	_title_tween.tween_property(_title, "modulate:a", 1.0, 0.24) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func close() -> void:
+	if not visible or _closing:
+		return
+	_closing = true
 	_view.running = false
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
-	closed.emit()
+	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。
+	(_shell.get("play_outro") as Callable).call(func() -> void:
+		if not is_instance_valid(self):
+			return
+		_closing = false
+		visible = false
+		closed.emit()
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -214,6 +247,18 @@ class MapView extends Control:
 	const GLYPH_NEST_DIM := 1
 	const GLYPH_EXIT := 2
 	const GLYPH_PLAYER := 3
+
+	## 图例与地图共用的符号色：图例文字、地图里的图标、暂停菜单档案的
+	## 锈核/巢穴行都从这里取，玩家在三个屏之间不用重新学"哪个颜色是什么"。
+	const GLYPH_COLORS := {
+		GLYPH_NEST_LIT: COL_NEST_LIT,
+		GLYPH_NEST_DIM: COL_NEST_DIM,
+		GLYPH_EXIT: COL_EXIT,
+		GLYPH_PLAYER: COL_PLAYER,
+	}
+	## 玩家箭头的描边色：压在已点燃的琥珀巢或暖白出口门上时，纯白箭头会
+	## 溶进底色；一圈深墨描边让"你"在任何符号上都读得出来。
+	const GLYPH_EDGE := Color("#2A1E32")
 
 	## 地图打开时才逐帧重绘（脉动的玩家箭头）；关着的时候不白耗。
 	var running := false

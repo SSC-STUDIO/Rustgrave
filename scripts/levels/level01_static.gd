@@ -109,7 +109,9 @@ func _wire_props() -> void:
 		plate.activated.connect(door.open_door)
 	var toxin := get_node_or_null("Props/ToxinPool") as ToxinPool
 	if toxin != null:
-		toxin.configure(Vector2(112, 32))
+		# 水面几何只有一个来源：Level01EastWing 的 PIT_WATER_*（雨滴/毒性/石阶都按它）。
+		toxin.position = Vector2(Level01EastWing.PIT_X0, Level01EastWing.PIT_WATER_Y)
+		toxin.configure(Level01EastWing.PIT_WATER_SIZE)
 
 
 func _spawn_actors(restored: bool) -> void:

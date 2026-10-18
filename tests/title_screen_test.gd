@@ -8,8 +8,8 @@ const Plate := preload("res://scripts/ui/menu_plate.gd")
 ## keyart 的骑士站在 x=640 的光柱下：菜单架任何一行都不能越过这条中线。
 const KEYART_CENTER := 640.0
 const EXPECTED_KINDS := [MenuItem.Kind.PRIMARY, MenuItem.Kind.PRIMARY,
-		MenuItem.Kind.PRIMARY, MenuItem.Kind.SECONDARY, MenuItem.Kind.SECONDARY,
-		MenuItem.Kind.GHOST]
+		MenuItem.Kind.SECONDARY, MenuItem.Kind.SECONDARY, MenuItem.Kind.SECONDARY,
+		MenuItem.Kind.SECONDARY, MenuItem.Kind.GHOST]
 
 
 func _open_title() -> TitleScreen:
@@ -40,7 +40,7 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 	almost(menu.position.y, TitleScreen.RAIL_TOP, 0.01, "菜单架顶边停在墓志上方")
 
 	var items := _items(title)
-	eq(items.size(), 6, "六格菜单（点燃 / 继续 / 回火试炼 / 设置 / 说明 / 离开）")
+	ok(items.size() >= 7, "至少七格菜单（点燃 / 继续 / 试炼 / 竞技场 / 设置 / 说明 / 离开）")
 	for i in mini(items.size(), EXPECTED_KINDS.size()):
 		eq(items[i].kind, EXPECTED_KINDS[i], "第 %d 格的档位" % i)
 	for item in items:
@@ -88,7 +88,7 @@ func test_select_walks_the_menu_and_skips_disabled_rows() -> void:
 	var menu := title.get_node("Menu") as MenuList
 	menu.select(0, false)
 	eq(menu.selected_id(), &"new", "第一格是点燃余烬")
-	menu.select(5, false)
+	menu.select(6, false)
 	eq(menu.selected_id(), &"quit", "最后一格是离开")
 	# 上下键从顶部往下走，必须落在可用行上（无存档时"继续旅程"是禁用的）。
 	menu.select(0, false)
@@ -129,9 +129,11 @@ func test_hover_and_keyboard_share_one_selection() -> void:
 	await get_tree().process_frame
 
 
-## 菜单下标 → 菜单 id（六格顺序与 _build_rail 一致）。
+## 菜单下标 → 菜单 id（七格顺序与 _build_rail 一致）。
 func _id_for(index: int) -> StringName:
-	return [&"new", &"continue", &"trial", &"settings", &"controls", &"quit"][index]
+	var ids: Array[StringName] = [&"new", &"continue", &"trial", &"arena",
+			&"settings", &"controls", &"quit", &"update"]
+	return ids[index] if index < ids.size() else &""
 
 ## 回火试炼入口：未解锁置灰 + 灰态说明；trial_unlocked（或第七章通关 / 结局）后点亮。
 func test_trial_entry_is_gated_by_unlock_flag() -> void:
@@ -147,8 +149,8 @@ func test_trial_entry_is_gated_by_unlock_flag() -> void:
 
 	var title: TitleScreen = await _open_title()
 	var items := _items(title)
-	eq(items.size(), 6, "六格菜单")
-	eq(items[2].kind, MenuItem.Kind.PRIMARY, "回火试炼是第三格主行动")
+	ok(items.size() >= 7, "至少七格菜单")
+	eq(items[2].kind, MenuItem.Kind.SECONDARY, "回火试炼是模式组第一格（次档）")
 	ok(items[2].disabled, "未解锁时回火试炼置灰")
 	ok((title.get_node("Menu") as MenuList).get_child_count() > 0)
 	(title.get_node("Menu") as MenuList).select(2, false)
@@ -187,3 +189,41 @@ func test_quit_plays_an_exit_sequence_and_can_be_skipped() -> void:
 	ok(title.quit_finished(), "退场动画可以被跳过并正常收尾")
 	title.queue_free()
 	await get_tree().process_frame
+
+## 右侧行程档案：把阶位/外观/试炼记录/上次章节放进标题屏（不再只有六格菜单）。
+func test_dossier_shows_profile_summary_with_a_save() -> void:
+	var path := "user://title_dossier_test.cfg"
+	SaveData.save_path = path
+	SaveData.delete_save()
+	SaveData.init_new_game(OriginCatalog.ORIGIN_EMBER_VANGUARD)
+	SaveData.set_ember_state(4, 812, 3)
+	SaveData.set_skin("skin_gothic_hero", "rune_unbroken")
+	SaveData.persist_profile()
+	var title: TitleScreen = await _open_title()
+	ok(title.find_child("Dossier", true, false) is PanelContainer, "档案面板存在")
+	var rank := title.find_child("DossierRank", true, false) as Label
+	ok(rank != null and rank.text.contains("4 阶"), "阶位摘要：%s" % (rank.text if rank != null else ""))
+	ok(rank != null and rank.text.contains("3"), "属性点也被显示")
+	var skin := title.find_child("DossierSkin", true, false) as Label
+	ok(skin != null and skin.text.contains("哥特猎手"), "当前皮肤")
+	ok(title.find_child("DossierTrials", true, false) is Label, "试炼记录行存在")
+	ok(title.find_child("DossierChapter", true, false) is Label, "上次行程行存在")
+	title.queue_free()
+	await get_tree().process_frame
+	SaveData.delete_save()
+	SaveData.save_path = "user://rustgrave_save.cfg"
+
+
+func test_dossier_has_placeholders_without_a_save() -> void:
+	SaveData.save_path = "user://title_dossier_empty.cfg"
+	SaveData.delete_save()
+	var title: TitleScreen = await _open_title()
+	var rank := title.find_child("DossierRank", true, false) as Label
+	ok(rank != null and rank.text.contains("尚无"), "无存档时有占位文案")
+	var trials := title.find_child("DossierTrials", true, false) as Label
+	ok(trials != null and trials.text.contains("未踏足"))
+	title.queue_free()
+	await get_tree().process_frame
+	SaveData.delete_save()
+	SaveData.save_path = "user://rustgrave_save.cfg"
+

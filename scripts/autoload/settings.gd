@@ -18,7 +18,7 @@ const DEFAULT_VOLUME := {&"Master": 100.0, &"Music": 80.0, &"Sfx": 100.0, &"Ambi
 ## of each action is replaced; arrow keys, mouse buttons and touch stay as shipped.
 const REBINDABLE: Array[StringName] = [
 	&"move_left", &"move_right", &"jump", &"dash", &"attack", &"interact",
-	&"socket_1", &"socket_2", &"hookshot",
+	&"socket_1", &"socket_2", &"hookshot", &"skill_1", &"skill_2",
 ]
 ## Keys that may never be bound (menu / system).
 const RESERVED_KEYS: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]
