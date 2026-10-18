@@ -741,3 +741,38 @@ func _make_host() -> Node2D:
 	wall.position = Vector2(1600, 0)
 	host.get_node("Platforms").add_child(wall)
 	return host
+
+
+## 第一章材质色阶（UPGRADE_PLAN 第一阶段第 6 项）：墓园不再靠「鲜草绿 + 薰衣草紫 +
+## 青苔绿」三套色板打架，草地收暖、浮石收成暖灰、齿轮与石台同阶；毒池保留
+## 独立的危险青绿，让危险边界不靠亮度区分。这里锁住这四个色阶本身。
+func test_graveyard_materials_share_one_temperature_and_the_pool_stays_dangerous() -> void:
+	var packed := load("res://scenes/levels/Level01_Static.tscn") as PackedScene
+	var level := packed.instantiate()
+	add_child(level)
+	await flush(3)
+	var platforms := level.get_node_or_null("Platforms") as Node2D
+	ok(platforms != null, "the level has a platform layer")
+	if platforms == null:
+		level.queue_free()
+		return
+	var graded := 0
+	for plat in platforms.get_children():
+		if plat is SolidPlatform:
+			graded += 1
+			# 色阶乘在 tone 上：暖方向（r>=g>=b 或整体偏橙），且不带鲜草绿。
+			var tone: Color = (plat as SolidPlatform).tone
+			ok(tone.g <= tone.r + 0.35 or tone.b >= tone.r,
+					"%s is not left in vivid grass green (%s)" % [plat.name, tone])
+	ok(graded > 0, "the graveyard grades its solid platforms")
+	var gear := platforms.get_node_or_null("Gear") as CanvasItem
+	ok(gear != null and gear.modulate.r >= gear.modulate.g
+			and gear.modulate.g >= gear.modulate.b,
+			"the gear keeps the warm-stone class with the ledges")
+	var toxin := level.get_node_or_null("Props/ToxinPool") as ToxinPool
+	ok(toxin != null, "the graveyard has its toxin pool")
+	if toxin != null:
+		ok(toxin.tint.g > toxin.tint.r and toxin.tint.g > toxin.tint.b,
+				"the pool keeps its own dangerous green, distinct from the ember warmth")
+	level.queue_free()
+	await flush(1)

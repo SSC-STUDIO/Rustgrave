@@ -147,10 +147,12 @@ func _tune_play_layout() -> void:
 ## 第一章材质色阶（不换贴图、不动碰撞）：让墓园的地面、悬空石台和毒液
 ## 收进同一个"锈/余烬"温度里，而不是鲜草绿 + 薰衣草紫 + 青苔绿三套色板打架。
 ## 颜色经 SolidPlatform.apply_tone 乘在每一块贴片上；东翼的石头铺面同样收暖。
-const GROUND_TONE := Color(1.05, 0.72, 0.65)   # 草地 → 枯橄榄/墓土（去鲜绿）
-const FLOAT_TONE := Color(1.08, 1.32, 0.70)    # 悬浮石板 → 暖灰石（去薰衣草紫）
-const STONE_TONE := Color(0.96, 1.32, 0.66)    # 决斗台铺路 → 暖石
-const TOXIN_TINT := Color(0.96, 1.10, 0.90)    # 腐液保留独立的危险绿，避免与余烬暖光混同
+## 色阶是乘在贴图上的：贴图本身偏绿（草地）或偏蓝紫（浮石、石板），
+## 所以暖色方向意味着压蓝提红——曾经把蓝通道乘大的写法会让薰衣草更紫。
+const GROUND_TONE := Color(1.12, 0.78, 0.60)   # 草地 → 枯橄榄/墓土（去鲜绿）
+const FLOAT_TONE := Color(1.20, 1.00, 0.62)    # 悬浮石板 → 暖灰石（压掉薰衣草紫）
+const STONE_TONE := Color(1.10, 1.05, 0.45)    # 决斗台铺路 → 暖石（石板原色偏蓝）
+const TOXIN_TINT := Color(0.96, 1.10, 0.90)    # 腐液保留独立的危险青绿，避免与余烬暖光混同
 
 
 func _grade_materials(platforms: Node2D) -> void:
