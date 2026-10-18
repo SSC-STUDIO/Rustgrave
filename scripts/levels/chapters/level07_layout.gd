@@ -17,35 +17,49 @@ extends ChapterLayout
 ##   ② 一层   y=80     GalleryA；中层巢；吊台 B 把骑士送到东侧
 ##   ③ 二层   y=-160   GalleryB；中层压板开「BellGate」；上层巢
 ##   ④ 三层   y=-400   GalleryC；吊台 D；守钟人碑文
-##   ⑤ 塔顶   y=-640   Summit（256px）；第三巢、路牌、出口「运渣井门」
-##   可选：顶板壁龛 NookDeck（y=-560）——钩锁锚点 HookUpper + 碑文
+##   ⑤ 旧塔顶 y=-640   旧 Summit（256px）：中段落脚，吊台 E 继续向上
+##   ⑥ 四层   y=-880   GalleryD：空钟残响层（旧钟架/断链的氛围层）
+##   ⑦ 五层   y=-1120  GalleryE：更高的窄台，吊台 G 送进新塔顶
+##   ⑧ 塔顶   y=-1280  Crown（256px）：第三巢、路牌、出口「运渣井门」；总高 1600
+##   可选：顶板壁龛 NookDeck（y=-560）——钩锁锚点 HookUpper + 碑文（仍在 GalleryC 上方）
 
 const ENTRY_SPAWN := Vector2(96, 300)
 const EAST_LIMIT := 1280
-const TOP_Y := -640.0
-const CEILING_Y := -800.0
-## 顶板壁龛（NookDeck）：贴着顶板下方、避开碑文嵌入顶板的死区。
-## 钩锁锚点（HookUpper）悬在壁龛正上方，从 GalleryC（-400）起跳在 250px 索距内，
+const TOP_Y := -1280.0
+const CEILING_Y := -1440.0
+## 顶板壁龛（NookDeck）：藏在新塔顶 Crown 上方的顶板缝里。
+## 钩锁锚点（HookUpper）悬在壁龛正上方：从 Crown（-1280）起跳在 250px 索距内，
 ## 落台 NookDeck 在锚点下方 40px、横向 0px，是标准钩锁降落。
-const NOOK_Y := -560.0
-const HOOK_UPPER_POS := Vector2(384, -600)
-## 支路碑文：站在壁龛台面上读（台面顶 -560，碑底贴台面顶）。
-const STELE_NOOK_POS := Vector2(384, NOOK_Y)
+## 它比所有可站立台面都高，主路线没有任何落脚面能在 160px 内落到它上面 ——
+## 只能钩锁上去（level_sanity 主路线 allow_hook=false 不可达）。
+const NOOK_Y := -1360.0
+const HOOK_UPPER_POS := Vector2(1040, -1400)
+## 支路碑文：站在壁龛台面上读（台面顶 -1360，碑底贴着它）。
+const STELE_NOOK_POS := Vector2(1104, NOOK_Y)
 const DECKS: Array = [
 	["GalleryA", Vector2(480, 80), 432.0],
 	["GalleryB", Vector2(480, -160), 432.0],
 	["GalleryC", Vector2(480, -400), 432.0],
-	["Summit", Vector2(1024, TOP_Y), 256.0],
-	# 可选支路台面：贴顶板下方，宽 96，钩锁落点。
+	["Summit", Vector2(1024, -640), 256.0],
+	# 竖高扩章：旧塔顶之上再叠三层（总高 1600）。
+	["GalleryD", Vector2(480, -880), 432.0],
+	["GalleryE", Vector2(480, -1120), 432.0],
+	["Crown", Vector2(1024, -1280), 256.0],
+	# 可选支路台面：藏在塔顶 Crown 上方的顶板缝里，宽 96，钩锁落点。
 	# 名字不能以 Ceiling 开头：LevelSanity.top_segments() 会把顶板类平台
 	# 当不可站立的屋顶跳过，支路台面必须叫 NookDeck。
-	["NookDeck", Vector2(336, NOOK_Y), 96.0],
+	["NookDeck", Vector2(1008, NOOK_Y), 96.0],
 ]
+## 六座吊台：A→GalleryA→B→GalleryB→C→GalleryC→D→旧Summit→E→GalleryD→F→GalleryE→G→Crown。
 const LIFTS: Array = [
 	["LiftA", Vector2(384, 304)], ["LiftB", Vector2(928, 64)],
 	["LiftC", Vector2(384, -176)], ["LiftD", Vector2(928, -416)],
+	["LiftE", Vector2(928, -656)], ["LiftF", Vector2(384, -896)],
+	["LiftG", Vector2(928, -1136)],
 ]
 const LIFT_TRAVEL := Vector2(0, -240)
+## 最后一部吊台只升 160：把骑士送到 Crown（-1280）比 GalleryE 高一层。
+const LIFT_G_TRAVEL := Vector2(0, -160)
 const LIFT_WIDTH := 80.0
 const LIFT_PERIOD := 9.6
 ## 钟楼是橄榄城砖 + 冷光的室内；尖窗玻璃压成月光色，不是教堂的紫窗。
@@ -62,6 +76,9 @@ const ENEMIES: Array = [
 	["Ghost2", "ghost", Vector2(808, -192)],
 	["Spitter2", "spitter", Vector2(848, -400)],
 	["Demon2", "flying_demon", Vector2(608, -496)],
+	## ⑯ 竖高扩章：旧钟架层（GalleryD）的骸骨与更上层（GalleryE）的幽魂。
+	["Skeleton3", "skeleton", Vector2(700, -880)],
+	["Ghost3", "ghost", Vector2(808, -1104)],
 ]
 
 
@@ -70,11 +87,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・柒 — 钟楼"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "钟舌被熔掉，铸成最后一枚核。你背上的，是它的回声。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -86,7 +109,7 @@ func east_limit() -> int:
 
 
 func camera_top() -> int:
-	return -832
+	return -1472
 
 
 func theme() -> String:
@@ -103,40 +126,52 @@ func build(host: Node2D) -> void:
 	for deck in DECKS:
 		step(host, deck[0], deck[1], deck[2], "castle_float")
 	for item in LIFTS:
-		lift(host, item[0], item[1], LIFT_TRAVEL, LIFT_PERIOD, LIFT_WIDTH, 0.0, CEILING_Y + 32)
+		var travel := LIFT_G_TRAVEL if String(item[0]) == "LiftG" else LIFT_TRAVEL
+		lift(host, item[0], item[1], travel, LIFT_PERIOD, LIFT_WIDTH, 0.0, CEILING_Y + 32)
 	plate_door(host, "BellGate", PLATE_FEET, DOOR_POS)
 	nest(host, "EmberNestEntry", 176)
 	nest(host, "EmberNestGallery", 544, -160)
-	nest(host, "EmberNestSummit", 1052, TOP_Y)
-	stele(host, "SteleChain", Vector2(248, 320), "守钟人 · 链", "钟不响，链不停。钟舌不在了。它被熔成一枚核。")
-	stele(host, "SteleBell", Vector2(624, -160), "守钟人 · 舌", "他们熔掉钟舌，铸了最后一枚锈核。你剑上的回声，就是它。")
+	nest(host, "EmberNestSummit", 1052, -640)
+	nest(host, "EmberNestCrown", 1052, TOP_Y)
+	_stele(host, "SteleChain", Vector2(248, 320))
+	_stele(host, "SteleBell", Vector2(624, -160))
 	# 支路碑文：贴顶板的壁龛里，只有钩锁上去的人读得到。
-	stele(host, "SteleNook", STELE_NOOK_POS, "守钟人 · 余", "他们把剩下的核系在最后一根链上。上去读它的人，替守钟人把索收完。")
+	_stele(host, "SteleNook", STELE_NOOK_POS)
 	waymark(host, Vector2(336, 320), "上行")
-	# 塔顶只有 256px：栏杆让出来，巢、路牌、门、火把才排得开。
-	# 巢视觉 1036..1084，牌 1099..1134，门 1148..1196，火把 1216..1280。
+	# 塔顶只有 256px：巢、路牌、门、火把排得开（门右缘 1196，火把左缘 1216）。
 	waymark(host, Vector2(1116, TOP_Y), "渣井")
 	hook(host, "HookGallery", Vector2(940, -216))
 	# 支路锚点：从 GalleryC（-400）起跳在 250px 索距内，落点 NookDeck 在锚点下方
 	# 40px、横向 0px，是标准钩锁降落。没有钩锁也能通关（主路线不依赖它）。
 	hook(host, "HookUpper", HOOK_UPPER_POS)
-	exit_door(host, EXIT_POS.x, "运渣井门", PackedStringArray([
-		"井下的渣还热。", "它记得每一把剑，包括你这一把。",
-	]), "level07_done", "level08", TOP_Y)
+	exit_door(host, EXIT_POS.x, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level07_done",
+			GameContext.next_level_id(level_id()), TOP_Y)
 	for e in ENEMIES:
 		enemy(host, e[0], e[1], e[2], e[3] if e.size() > 3 else {})
-	# 塔顶火把原在 1232，墙板从 1200 起，和出口门叠在一起。现在门右缘 1196，火把左缘 1216。
-	for feet in [Vector2(80, 320), Vector2(656, 80), Vector2(784, -160), Vector2(656, -400), Vector2(1248, TOP_Y)]:
-		torch(host, feet.x, feet.y, Color(0.8, 0.82, 1.0))
+	# 塔底两盏 + 每层一盏：井底不再是近黑，竖井每一层都有可见的落点边线。
+	var torch_tint := Color(0.8, 0.82, 1.0)
+	for feet in [Vector2(80, 320), Vector2(400, 320), Vector2(1200, 320),
+			Vector2(656, 80), Vector2(784, -160), Vector2(656, -400),
+			Vector2(656, -880), Vector2(784, -1120), Vector2(1248, TOP_Y)]:
+		torch(host, feet.x, feet.y, torch_tint)
 	# 1x 整数缩放：0.7 / 0.65 会把像素拉成半格，近看是软边（docs/art-spec.md）。
-	for feet in [Vector2(520, 80), Vector2(520, -400)]:
+	for feet in [Vector2(520, 80), Vector2(520, -400), Vector2(520, -880), Vector2(520, -1120)]:
 		prop(host, "balustrade", feet, 1.0)
 	# GalleryB 东端 912：80px 石栏在 888 会探出台面 16px，收到 864。
 	prop(host, "balustrade", Vector2(864, -160), 1.0)
 	# 尖窗是墙面装饰（z=-3），让开 64px 宽的壁炬墙板（624..688 / 752..816），
 	# 否则窗框会被火盘吞掉一半。
-	for feet in [Vector2(800, 320), Vector2(768, 80), Vector2(640, -160), Vector2(768, -400)]:
+	for feet in [Vector2(800, 320), Vector2(768, 80), Vector2(640, -160), Vector2(768, -400),
+			Vector2(768, -880), Vector2(640, -1120)]:
 		prop(host, "window", feet, 1.0, WINDOW_TINT)
+	# GalleryD（旧塔顶之上）是「空钟残响」氛围层：拆下来的钟架基座、断链与碎石，
+	# 没有钟，只剩钟被搬走以后留下的一圈刮痕。
+	prop(host, "altar", Vector2(700, -880), 1.0, Color(0.74, 0.76, 0.9))
+	prop(host, "rubble_dry", Vector2(560, -880))
+	prop(host, "rubble_dry_b", Vector2(820, -880))
+	for x in [640.0, 760.0]:
+		hanging(host, "chain", Vector2(x, CEILING_Y + 32), Color(0.62, 0.64, 0.78, 0.85))
 	# 鲜绿苔藤是地窟的。钟楼里压成灰，才像梁上的积尘。
 	for x in [256.0, 672.0, 1120.0]:
 		hanging(host, "vine", Vector2(x, CEILING_Y + 32), Color(0.5, 0.5, 0.56, 0.7))

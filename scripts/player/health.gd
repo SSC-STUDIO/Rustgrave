@@ -64,3 +64,13 @@ func heal_full() -> void:
 	current = max_hp
 	_dead = false
 	changed.emit(current, max_hp)
+
+
+## 定量回血（奖励位回退、未来消耗品）。不会复活已死亡单位；返回实际回复量。
+func heal(amount: int) -> int:
+	if amount <= 0 or _dead or current >= max_hp:
+		return 0
+	var before := current
+	current = clampi(current + amount, 0, max_hp)
+	changed.emit(current, max_hp)
+	return current - before

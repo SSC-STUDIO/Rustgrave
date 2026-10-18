@@ -21,7 +21,7 @@ extends ChapterLayout
 ## 土台约定：踩在地面上的土丘比上升高度多铺一格（32 高 → 48 厚），底行埋进草皮，
 ## 读作从土里鼓起来的坟，而不是放在草上的箱子。
 
-const EAST := 2880
+const EAST := 4000
 const PIT_DEPTH := 32.0
 ## 毒坑床顶 = FLOOR_Y + PIT_DEPTH；两侧一跳 32px 爬出。
 const PIT_BED_Y := FLOOR_Y + PIT_DEPTH
@@ -35,12 +35,14 @@ const SLAB_TONE := Color(0.98, 0.9, 0.62)
 const FLOORS: Array = [
 	["FloorA", 0.0, 928.0, false, true],
 	["FloorD", 1152.0, 2304.0, true, true],
-	["FloorH", 2608.0, 2880.0, true, false],
+	["FloorH", 2608.0, 3200.0, true, true],
+	["FloorJ", 3360.0, 4000.0, true, false],
 ]
 ## [name, x0, x1]
 const PITS: Array = [
 	["PitC", 928.0, 1152.0],
 	["PitG", 2304.0, 2608.0],
+	["PitK", 3200.0, 3360.0],
 ]
 ## 土丘 / 土台：[name, pos, size]（ground 皮肤，48 厚 = 32 上升 + 一格埋进下方台面）
 const MOUNDS: Array = [
@@ -48,6 +50,10 @@ const MOUNDS: Array = [
 	["MoundD", Vector2(1232, 288), Vector2(80, 48)],
 	["TerraceE1", Vector2(1632, 288), Vector2(208, 48)],
 	["TerraceE2", Vector2(1696, 256), Vector2(96, 48)],
+	## ⑨⑪ 扩章中段 / 钟楼门前的坟台
+	["MoundI", Vector2(2800, 288), Vector2(96, 48)],
+	["TerraceJ1", Vector2(3504, 288), Vector2(160, 48)],
+	["TerraceJ2", Vector2(3536, 256), Vector2(96, 48)],
 ]
 ## 浮石：[name, pos, width]（floating 皮肤，16 厚）
 const STONES: Array = [
@@ -57,6 +63,8 @@ const STONES: Array = [
 	["StoneG1", Vector2(2352, 288), 48.0],
 	["StoneG2", Vector2(2448, 272), 48.0],
 	["StoneG3", Vector2(2544, 288), 48.0],
+	["StoneK1", Vector2(3248, 288), 48.0],
+	["StoneK2", Vector2(3296, 272), 48.0],
 ]
 ## 主路线台阶链（测试用）：每一步上升 ≤32、横跨 ≤72。
 const CHAINS: Array = [
@@ -70,6 +78,12 @@ const CHAINS: Array = [
 	[Vector2(1628, 320), Vector2(1636, 288), Vector2(1700, 256), Vector2(1796, 288), Vector2(1844, 320)],
 	# ⑦ 长毒沟：坑沿 → 三块浮石 → 对岸
 	[Vector2(2304, 320), Vector2(2352, 288), Vector2(2448, 272), Vector2(2544, 288), Vector2(2608, 320)],
+	# ⑨ 荒坟坡：地面 → 土坟顶 → 地面
+	[Vector2(2796, 320), Vector2(2804, 288), Vector2(2892, 288), Vector2(2900, 320)],
+	# ⑩ 东墓沟：坑沿 → 两块浮石 → 对岸
+	[Vector2(3200, 320), Vector2(3248, 288), Vector2(3296, 272), Vector2(3360, 320)],
+	# ⑪ 钟楼门前坟台：地面 → 一级 → 二级 → 地面
+	[Vector2(3500, 320), Vector2(3508, 288), Vector2(3540, 256), Vector2(3636, 288), Vector2(3668, 320)],
 ]
 const PLATE_FEET := Vector2(1272, 288)
 const DOOR_POS := Vector2(1400, 256)
@@ -82,9 +96,12 @@ const NEST_GROVE_X := 2120.0
 ## Phase 3: past the mausoleum door, before the high grave terrace (route audit: the start ->
 ## grove gap was 1944 px). Ghost2 hovers ~64 px east; the nest flame is lit only by the player.
 const NEST_CRYPT_X := 1504.0
+## ⑪ 钟楼门前的第四巢：扩章后出口在 3840，最后一段回程 1720px，门前补一口余火。
+## 巢距上一巢 2120 只有 1304px（检查点间距 ≤1400），且离新敌人 >215px 仇恨圈。
+const NEST_EAST_X := 3424.0
 const STELE_A_POS := Vector2(256, 320)
 const STELE_B_POS := Vector2(2176, 320)
-const EXIT_X := 2760.0
+const EXIT_X := 3840.0
 ## [name, kind, pos]：落地敌人给脚点，幽魂给悬停中心。
 const ENEMIES: Array = [
 	["Skeleton1", "skeleton", Vector2(500, 320)],
@@ -97,10 +114,15 @@ const ENEMIES: Array = [
 	["Skeleton4", "skeleton", Vector2(2236, 320)],
 	# 雾里多一具：站在坟堆与毒沟之间，等玩家按脚步靠近才发现。
 	["Skeleton5", "skeleton", Vector2(864, 320)],
+	## ⑨⑪ 扩章中段 / 钟楼门外：雾里再起身的骸骨、荒坟坡上的幽魂、门前的碎铁犬。
+	["Skeleton6", "skeleton", Vector2(2920, 320)],
+	["Ghost3", "ghost", Vector2(3104, 236)],
+	["Skeleton7", "skeleton", Vector2(3700, 320)],
+	["Scrapper2", "scrapper", Vector2(3800, 320)],
 ]
 ## 陵门 / 钟楼门两侧：低石栏，不用 bg_wall_torch（室外墓园天空上的室内墙板）。
 const GATE_RAILS: Array = [1360.0, 1456.0, 2708.0, 2812.0]
-const WAYMARKS: Array = [[Vector2(416, 320), "墓园"], [Vector2(2648, 320), "钟楼"]]
+const WAYMARKS: Array = [[Vector2(416, 320), "墓园"], [Vector2(3788, 320), "钟楼"]]
 
 
 func level_id() -> String:
@@ -108,11 +130,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・陆 — 墓园夜雨"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "哈伦的剑做了门闩。薇尔的三把剑，自己走了。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -164,6 +192,9 @@ func weather_regions() -> Array:
 			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
 		{"name": "DitchSquall", "rect": Rect2(2304, 128, 304, 160),
 			"weather": WorldClock.Weather.RUST_RAIN, "intensity": 1.0, "wind_scale": 1.35},
+		## ⑨ 扩章中段：荒坟坡被东段浓雾接住，骸骨在雾里起身。
+		{"name": "EastGraveFog", "rect": Rect2(2880, 96, 1120, 160),
+			"weather": WorldClock.Weather.FOG, "intensity": 0.85, "wind_scale": 0.45},
 	]
 
 
@@ -172,10 +203,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_X, "钟楼门", PackedStringArray([
-		"钟楼在雨上面。",
-		"他们把钟舌熔了，去铸最后一枚核。",
-	]), "level06_done", GameContext.next_level_id(level_id()))
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level06_done",
+			GameContext.next_level_id(level_id()))
 	finish(host)
 
 
@@ -196,16 +226,14 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStart", NEST_START_X)
 	nest(host, "EmberNestCrypt", NEST_CRYPT_X)
 	nest(host, "EmberNestGrove", NEST_GROVE_X)
-	stele(host, "SteleHallen", STELE_A_POS, "墓志 · 哈伦",
-			"锻工哈伦，葬于此土，无剑。剑被拆去做了钟楼的门闩。")
-	stele(host, "SteleVeil", STELE_B_POS, "墓志 · 薇尔",
-			"锻工薇尔，与三把剑同葬。土里只剩下她；三把剑自己走了。")
+	nest(host, "EmberNestEast", NEST_EAST_X)
+	_stele(host, "SteleHallen", STELE_A_POS)
+	_stele(host, "SteleVeil", STELE_B_POS)
 	plate_door(host, "Mausoleum", PLATE_FEET, DOOR_POS)
 	hook(host, "HookTreeTop", HOOK_POS)
 	pickup(host, "EmberCoreTreeTop", PICKUP_POS, &"ember_core")
 	# 树顶支路：一枚可选的核之外，补一块只有钩锁能读的墓志。
-	stele(host, "SteleTree", STELE_TREE_POS, "墓志 · 树",
-			"树根穿过两口空棺。哈伦的剑做了门闩，薇尔的剑自己走了，树哪里也不去。")
+	_stele(host, "SteleTree", STELE_TREE_POS)
 	for w in WAYMARKS:
 		waymark(host, w[0] as Vector2, String(w[1]))
 
@@ -246,3 +274,18 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "stone_2", Vector2(2632, 320))
 	for x in GATE_RAILS:
 		prop(host, "balustrade", Vector2(float(x), FLOOR_Y))
+	# ⑨ 荒坟坡：又一片坟与老树，雾里只有十字和石头的轮廓。
+	prop(host, "grave_cross", Vector2(2864, 320))
+	prop(host, "stone_4", Vector2(2944, 320))
+	foliage(host, "tree_2_px", Vector2(3008, 320), 1.0, true)
+	foliage(host, "bush_l_px", Vector2(3104, 320), 1.0)
+	prop(host, "stone_1", Vector2(3168, 320))
+	# ⑩ 东墓沟两岸：碎石抵住坑沿，读作塌下去的坟沟。
+	prop(host, "stone_3", Vector2(3200, 320))
+	prop(host, "stone_4", Vector2(3376, 320))
+	# ⑪ 钟楼门外：门前坟台 + 石像守门，墙边碎碑。
+	prop(host, "grave_cross", Vector2(3508, 288))
+	prop(host, "stone_1", Vector2(3560, 256))
+	prop(host, "statue", Vector2(3744, 320))
+	prop(host, "balustrade", Vector2(3820, 320))
+	foliage(host, "tree_1_px", Vector2(3888, 320), 1.0, true)

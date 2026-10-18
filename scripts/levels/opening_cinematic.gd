@@ -1,48 +1,50 @@
 class_name OpeningCinematic
 extends RefCounted
-## 新游戏开场（约 14.4 秒，随时可跳过）。只在第一章醒来之前播一次，和醒来是同一条剧本。
+## 新游戏开场（约 44 秒，随时可跳过）。只在第一章醒来之前播一次，和醒来是同一条剧本。
 ## 继续、读档、死亡重进、已经醒过都不重播。不写结局。
 ## opening_seen 与 wake 在整段结束或跳过时一起点上；abort 两点都不点。
 ##
-## 分镜（秒；Director 步骤 + 一个只管镜头的 dolly，坟的回应挂在 dolly 的时间线上）：
-##   0.0  处境  骑士趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
-##   2.1  「剑先锈了。里面还有人。」
-##   3.7  身份  镜头退后到巢与坟，巢口飘起一缕火星  「你不是被选中的。刮锈的偶，自己先锈透了。」
-##   6.8  异象  地下一声钟：每座坟依次冒灰回应，镜头沿走廊往东推
-##        「钟响了一声。底下有人在数。」
-##   8.8  远处走廊尽头先应一声低钟、亮一团暖光（ECHO_AT），镜头继续走
-##  10.2  目标  走廊尽头残芯的光跳两下，刽子手立在门后，铁门沉一下
-##        「炉还在下面。你得把他们带下去。」
-##  11.4  章节卡；镜头在卡下切回骑士
-##  13.6  交还操作；脚边火星与巢边余火先响，队列清空后底部一行移动提示，第一次输入后消失
-##  14.5  全段预算（按步骤估算 14.44）
+## 前 3 分钟的可读性由这一段铺：每个专名第一次出现就地解释（文本在
+## ChapterText.OPENING），其余是画面钉字幕的短句。分镜（秒，按步骤估算 ~44）：
+##   0.0  处境  你趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
+##   2.8  「剑先锈了。核里还有人。」
+##   5.0  专名四拍  镜头退后到巢与坟  「那座誓叫炉约：烧名字换灯，立了二百年。」
+##        「立誓的那批人，叫守炉人。」「守炉人造过很多具净化偶——刮锈的人偶。」
+##        「你不是被选中的；你是最后一具，自己先锈透了。」（坟群依次冒灰）
+##  13.0  伊尔两拍  「伊尔从渣里捡回你，嵌核进剑，点亮你。」
+##        「你听见的是回声——她封进核之前的话。」
+##  16.5  名字  「名字刻在剑上，烧进铁里，人就回不来。」
+##  19.0  时间线四拍  「炉心是城下的大炉膛，一百年前熄了。」→「残芯是炉心最后一口火封成的核。」
+##        →「最后一百年，灯靠残芯当灯芯。」→「灯越来越暗。她把核从座上取下。」
+##  26.0  异象  地下一声钟，镜头沿走廊往东推  「钟响了一声。底下有人在数。」
+##  29.3  目标两拍  走廊尽头空炉座的光跳两下，刽子手立在门后
+##        「带剑里的残芯到炉心，替名字问火一句。」「这火该不该还？」
+##  33.4  阻碍  「刽子手守着炉座。他发过誓。」
+##  35.4  章节卡（2.6 秒）；镜头在卡下切回你
+##  38.0  交还操作；脚边火星与巢边余火先响，队列清空后底部一行移动提示，第一次输入后消失
+##  45.0  全段预算（按步骤估算 ~44）
 ##
-## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「剑里有人」靠火星从剑背
-## 应声而起（bell_ring fx），「坟在数人」靠每座坟依次冒灰（grave_answer），「炉在下面」
-## 靠镜头推近时残芯跳两下（heart_pulse + glow），「目标」则让刽子手真的立在门后 ——
-## 玩家先看见他要打谁，字幕才落到「把他们带下去」。钟声在走廊尽头先应一次
-## （_heart_echo），把坟群和残芯说成同一个地方；交接不是又一段字幕，是巢边余火、
+## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「核里有人」靠火星从剑背
+## 应声而起（bell_ring fx），「坟在数人」靠每座坟依次冒灰（grave_answer），「炉座空着」
+## 靠镜头推近时空炉座的光（heart_pulse + glow），「目标」则让刽子手真的立在门后 ——
+## 玩家先看见他要打谁，字幕才落到「问火一句」。钟声在走廊尽头先应一次
+## （_heart_echo），把坟群和炉座说成同一个地方；交接不是又一段字幕，是巢边余火、
 ## 脚边火星和一次真正的输入解锁。
 ## 用到的 Director 步骤：lock unlock wait tableau caption cam_focus cam_release
 ## letterbox sfx fx。新 fx id：rust_flake plant bell_ring。
 
 const FLAG := "opening_seen"
 const WAKE_FLAG := "wake"
-const CHAPTER := "锈墓・壹 — 腐液回廊"
-const CARD_SECONDS := 2.2
+static var CHAPTER: String = ChapterText.title_of("level01")
+const CARD_SECONDS := 2.6
 ## 整段（不跳过）的预算。测试按步骤估算，不许超。
-const MAX_SECONDS := 14.5
+const MAX_SECONDS := 45.0
+## 低于这个时长就说明被删成了幻灯片：前 3 分钟的可读性靠这 45 秒铺。
+const MIN_SECONDS := 40.0
 
-## 顺序 = 处境、身份、异象、目标。身份拆两拍播：先「你不是被选中的」（镜头开始退），
-## 等坟群应声、画面把「偶也是坟里的一座」说完，才落「自己先锈透了」。
-## 每句都短：画面讲长的，字幕只钉那一钉。
-const LINES: Array[String] = [
-	"剑先锈了。里面还有人。",
-	"你不是被选中的。",
-	"刮锈的偶，自己先锈透了。",
-	"钟响了一声。底下有人在数。",
-	"炉还在下面。你得把他们带下去。",
-]
+## 顺序 = 处境、誓约/守炉人/净化偶（四拍）、伊尔与回声（两拍）、名字、时间线四拍、
+## 异象、目标两拍、阻碍。文本单一源在 ChapterText.OPENING。
+static var LINES: Array[String] = ChapterText.opening_lines()
 
 const KNIGHT_FALLBACK := Vector2(96, 320)
 const NEST_FALLBACK := Vector2(150, 306)
@@ -121,8 +123,9 @@ static func move_prompt() -> String:
 	]
 
 
-## 处境 → 身份 → 异象 → 目标 → 章节卡。没有第二段醒来，一次跳过结束整条。
-## 带 tag 的步骤由 _on_step 挂上镜头 / 动画 / 坟的回应。
+## 处境 → 誓约/守炉人/净化偶（四拍）→ 伊尔与回声（两拍）→ 名字（一拍）→ 时间线/残芯/灯（四拍）
+## → 异象 → 目标（两拍）→ 阻碍 → 章节卡。每个专名第一次出现就带白话。
+## 没有第二段醒来，一次跳过结束整条。带 tag 的步骤由 _on_step 挂上镜头 / 动画 / 坟的回应。
 static func steps() -> Array:
 	var knight: Variant = _knight if _knight != null else KNIGHT_FALLBACK
 	var card := ChapterLevel.chapter_card(CHAPTER, CARD_SECONDS)
@@ -132,26 +135,48 @@ static func steps() -> Array:
 		{"kind": "cam_focus", "target": knight, "zoom": ZOOM_CLOSE, "duration": 0.12, "tag": "rouse"},
 		{"kind": "fx", "id": "rust_flake", "target": knight, "seconds": 0.5},
 		{"kind": "sfx", "id": "land", "db": -14.0},
-		{"kind": "wait", "seconds": 0.35},
+		{"kind": "wait", "seconds": 0.6},
 		{"kind": "sfx", "id": "step", "db": -12.0},
 		{"kind": "fx", "id": "rust_flake", "target": knight, "seconds": 0.5},
-		{"kind": "wait", "seconds": 0.55},
+		{"kind": "wait", "seconds": 1.0},
 		{"kind": "fx", "id": "plant", "target": knight, "seconds": 0.1, "tag": "stand"},
 		{"kind": "sfx", "id": "land", "db": -8.0},
-		# 处境：剑里的火星替「里面还有人」作证，字幕只是钉一下。
-		{"kind": "caption", "text": LINES[0], "hold": 1.1},
-		# 身份第一拍：镜头开始退，「你不是被选中的」跟着退。
-		{"kind": "caption", "text": LINES[1], "hold": 1.2, "tag": "pullback"},
-		# 身份第二拍：坟群应声亮起，偶也是其中一座 —— 这句等画面说完再落。
-		{"kind": "caption", "text": LINES[2], "hold": 1.0, "tag": "grave_row"},
+		# 处境：剑里的火星替「核里还有人」作证，字幕只是钉一下。
+		{"kind": "caption", "text": LINES[0], "hold": 1.6},
+		{"kind": "wait", "seconds": 0.3},
+		# 专名首现就地解释：炉约=誓约、守炉人=立誓那批人、净化偶=刮锈人偶。
+		{"kind": "caption", "text": LINES[1], "hold": 1.4},
+		{"kind": "caption", "text": LINES[2], "hold": 1.2},
+		# 镜头退到坟群：你也不过是其中一座。
+		{"kind": "caption", "text": LINES[3], "hold": 1.4, "tag": "pullback"},
+		{"kind": "caption", "text": LINES[4], "hold": 1.4, "tag": "grave_row"},
+		{"kind": "wait", "seconds": 0.6},
+		# 伊尔：她做的事都在封核之前；你听见的是回声。
+		{"kind": "caption", "text": LINES[5], "hold": 1.5},
+		{"kind": "caption", "text": LINES[6], "hold": 1.4},
+		{"kind": "wait", "seconds": 0.3},
+		# 名字：刻在剑上、烧进铁里就回不来。
+		{"kind": "caption", "text": LINES[7], "hold": 1.4},
+		{"kind": "wait", "seconds": 0.5},
+		# 时间线四拍：炉心 → 残芯 → 灯靠残芯当灯芯 → 如今灯暗、她把核取下。
+		{"kind": "caption", "text": LINES[8], "hold": 1.4, "tag": "world"},
+		{"kind": "caption", "text": LINES[9], "hold": 1.3},
+		{"kind": "caption", "text": LINES[10], "hold": 1.2},
+		{"kind": "caption", "text": LINES[11], "hold": 1.3},
+		{"kind": "wait", "seconds": 0.6},
+		# 异象：地下一声钟，镜头沿着坟群往东推。
 		{"kind": "sfx", "id": "bell_toll", "tag": "toll"},
 		{"kind": "fx", "id": "bell_ring", "target": knight, "seconds": 0.0},
-		{"kind": "caption", "text": LINES[3], "hold": 1.0},
-		{"kind": "wait", "seconds": 1.0},
-		# 目标：残芯的光已经跳了两下，字幕才落 —— 这一拍带 line_forge，
-		# 截图夹具按 tag 认它，不按第几句认（LINES 的下标会随分镜调整而变）。
-		{"kind": "caption", "text": LINES[4], "hold": 1.1, "tag": "line_forge"},
-		{"kind": "wait", "seconds": 0.15},
+		{"kind": "caption", "text": LINES[12], "hold": 1.4, "tag": "anomaly"},
+		{"kind": "wait", "seconds": 1.4},
+		# 目标两拍：把残芯带到炉心，替名字问火一句「这火该不该还？」。
+		# 这一拍带 line_forge，截图夹具按 tag 认它，不按第几句认。
+		{"kind": "caption", "text": LINES[13], "hold": 1.6, "tag": "line_forge"},
+		{"kind": "caption", "text": LINES[14], "hold": 1.3},
+		{"kind": "wait", "seconds": 0.4},
+		# 阻碍：玩家先看见刽子手立在门后，字幕才说他守着什么。
+		{"kind": "caption", "text": LINES[15], "hold": 1.4, "tag": "obstacle"},
+		{"kind": "wait", "seconds": 0.3},
 		card,
 		{"kind": "tableau", "id": "world"},
 		{"kind": "letterbox", "on": false, "duration": 0.4},

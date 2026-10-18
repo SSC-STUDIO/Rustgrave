@@ -8,10 +8,13 @@ extends ChapterLayout
 ##   ④ 齿盾卫走廊 1360–1856 第一只齿盾卫守窄路；走廊尽头是讲坛，喷吐者站在上面
 ##   ⑤ 廊桥      1856–2336 六跳悬空石链，下方毒池；第四块石上有中段余烬巢
 ##   ⑥ 祭坛区    2336–3008 第二余烬巢、碑文「炉约」、祭坛、第二只齿盾卫、锈门（热锻）、工坊暗门
+##   ⑦ 侧廊      3008–3600 祭坛后的侧廊：唱诗席高台（可选支路，奖励位）与廊柱、
+##                         壁龛；侧廊尽头补一个余烬巢，出口回程不再从祭坛重走
+##   ⑧ 后殿      3600–4200 第三只齿盾卫守门，圣殿后门（出口）→ level04b
 ##   可选：祭坛上方拱顶下有钩锁锚点 + 高台，台上悬着一枚余烬核；
 ##         高台东端还有一块碑文（世界信息），让支路不只是多一枚核。
 
-const EAST_LIMIT := 3008
+const EAST_LIMIT := 4200
 const CAMERA_TOP := -96
 const CEILING_Y := -32.0
 const ENTRY_SPAWN := Vector2(96, 300)
@@ -34,7 +37,8 @@ const FLOORS: Array = [
 	["FloorA", 0.0, 544.0, false, true],
 	["FloorB", 864.0, 1360.0, true, true],
 	["FloorC", 1360.0, 1856.0, true, true],
-	["FloorD", 2336.0, 3008.0, true, false],
+	["FloorD", 2336.0, 3008.0, true, true],
+	["FloorE", 3008.0, 4200.0, true, false],
 ]
 ## [name, x0, x1] —— 坑底 352，液面 336..368，两侧一跳（32）爬出。
 const PITS: Array = [
@@ -65,6 +69,11 @@ const BLOCKS: Array = [
 	["PulpitStep", Vector2(1728, 288), Vector2(48, 32)],
 	["PulpitBase", Vector2(1776, 288), Vector2(64, 32)],
 	["Pulpit", Vector2(1776, 256), Vector2(64, 32)],
+	## ⑦ 侧廊唱诗席：三级台阶上到侧廊高台（可选支路，台上有奖励位）。
+	["SideStep1", Vector2(3248, 288), Vector2(48, 32)],
+	["SideStep2Base", Vector2(3320, 288), Vector2(48, 32)],
+	["SideStep2", Vector2(3320, 256), Vector2(48, 32)],
+	["SideLoft", Vector2(3376, 224), Vector2(176, 32)],
 ]
 ## 台阶链（平台名），测试逐段验证一跳可达。
 const FONT_CHAIN: Array = ["FloorA", "StoneF1", "StoneF2", "StoneF3", "FloorB"]
@@ -81,6 +90,8 @@ const NEST_BRIDGE_Y := 264.0
 ## 阶段 2 路线审计：中庭两巢相距 2208px（三屏半，含压板门与齿盾卫）。唱诗门后补一个巢，
 ## 死在桥上或齿盾卫前不必从洗礼池重走。门在 1328，齿盾卫 1 巡逻 1624–1704。
 const NEST_CHOIR_X := 1392.0
+## ⑦ 侧廊巢：扩章后出口在 3984，最后一段回程 1600px，侧廊口补一口余火。
+const NEST_CLOISTER_X := 3560.0
 const STELE_A_POS := Vector2(248, 320)
 const STELE_B_POS := Vector2(2496, 320)
 ## 压板在唱诗台面上（脚点 y=224）；闸门立在中殿地面，门顶 256、门底 320。
@@ -93,8 +104,13 @@ const PICKUP_POS := Vector2(2480, 136)
 ## 支路碑文：拱顶高台东端，和余烬核错开。只有钩锁能读，是本章的支路奖励。
 ## 它说的是「灯照不到的地方」——炉约的代价被谁收走了。
 const STELE_VAULT_POS := Vector2(2504, 152)
-const EXIT_X := 2928.0
-const WAYMARKS: Array = [[Vector2(300, 320), "圣殿"], [Vector2(2440, 320), "祭坛"]]
+## ⑦ 侧廊唱诗席支路的奖励位：EquipmentPickup 的 Fill 底边在节点 +7px，落在 224 台面。
+const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
+const REWARD_POS := Vector2(3464, 217)
+const REWARD_KIND := "equipment"
+const REWARD_REF := "bone_charm"
+const EXIT_X := 3984.0
+const WAYMARKS: Array = [[Vector2(300, 320), "圣殿"], [Vector2(2440, 320), "祭坛"], [Vector2(3640, 320), "侧廊"]]
 
 ## [name, kind, pos, overrides]
 ## 齿盾卫的巡逻范围收窄：一只离唱诗台/闸门西侧 ≥300（否则隔着门朝台上放弹），
@@ -106,11 +122,15 @@ const ENEMIES: Array = [
 	["GearShield1", "gear_shield", Vector2(1664, 320), {"patrol_range": 40.0}],
 	["Spitter1", "spitter", Vector2(1808, 256), {}],
 	["GearShield2", "gear_shield", Vector2(2736, 320), {"patrol_range": 16.0}],
+	## ⑦⑧ 侧廊 / 后殿：幽魂在唱诗席上方、碎铁犬守后殿出口、第三只齿盾卫守侧廊窄路。
+	["Ghost3", "ghost", Vector2(3140, 232), {}],
+	["GearShield3", "gear_shield", Vector2(3700, 320), {"patrol_range": 16.0}],
+	["Scrapper2", "scrapper", Vector2(3860, 320), {"patrol_range": 16.0}],
 ]
 
 ## 壁炬 x（64px 墙板以 x 为中心，板底贴地面）。
 ## 880 的左缘在 848，洗礼池铺到 864，有一截悬在毒液上。896 起整块落在 FloorB。
-const TORCHES: Array = [352.0, 896.0, 1544.0, 2768.0]
+const TORCHES: Array = [352.0, 896.0, 1544.0, 2768.0, 3104.0, 3408.0, 3720.0, 4056.0]
 ## 接地装饰 [key, feet]。墙板都是背景层，避开浮石落点正上方。
 const PROPS: Array = [
 	["window", Vector2(72, 320)],
@@ -125,8 +145,17 @@ const PROPS: Array = [
 	["balustrade", Vector2(2560, 320)],
 	["altar", Vector2(2672, 320)],
 	["gargoyle", Vector2(2868, 320)],
+	## ⑦⑧ 侧廊 / 后殿：廊柱、石栏、壁龛和侧廊尽头的祭坛。
+	["column", Vector2(3144, 320)],
+	["balustrade", Vector2(3216, 320)],
+	["balustrade", Vector2(3376, 224)],
+	["gargoyle", Vector2(3504, 320)],
+	["window", Vector2(3592, 320)],
+	["balustrade", Vector2(3664, 320)],
+	["skull_column", Vector2(3776, 320)],
+	["altar", Vector2(3880, 320)],
 ]
-const VINES: Array = [248.0, 656.0, 1096.0, 1320.0, 1600.0, 2040.0, 2280.0, 2600.0]
+const VINES: Array = [248.0, 656.0, 1096.0, 1320.0, 1600.0, 2040.0, 2280.0, 2600.0, 3104.0, 3424.0, 3744.0]
 
 
 func level_id() -> String:
@@ -134,11 +163,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・肆 — 圣殿中庭"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "灯还亮着。签过名的手，已经成灰。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -184,10 +219,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_X, "工坊暗门", PackedStringArray([
-		"暗门后是工坊。",
-		"剑上的插座，是在那里切开的。",
-	]), "level04_done", GameContext.next_level_id(level_id()))
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level04_done",
+			GameContext.next_level_id(level_id()))
 	finish(host)
 
 
@@ -210,18 +244,36 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestBridge", NEST_BRIDGE_X, NEST_BRIDGE_Y)
 	nest(host, "EmberNestAltar", NEST_ALTAR_X)
 	nest(host, "EmberNestChoir", NEST_CHOIR_X)
-	stele(host, "SteleCompact", STELE_A_POS, "圣殿铭 · 炉约誓",
-			"以剑饲炉，以火养城。一百年的灯，是用签过名的剑换的。")
-	stele(host, "StelePrice", STELE_B_POS, "炉约 · 代价",
-			"灯还亮着。握过剑的手早已锈成灰。名字还刻在石上。")
+	nest(host, "EmberNestCloister", NEST_CLOISTER_X)
+	_stele(host, "SteleCompact", STELE_A_POS)
+	_stele(host, "StelePrice", STELE_B_POS)
 	plate_door(host, "Choir", PLATE_FEET, DOOR_POS)
 	rusty_gate(host, "RustyGate", GATE_POS)
 	hook(host, "Hook_Vault", HOOK_POS)
 	pickup(host, "EmberCoreVault", PICKUP_POS, &"ember_core")
-	stele(host, "SteleVault", STELE_VAULT_POS, "炉约 · 顶",
-			"吊灯照不到拱顶。签过名的人把名字留在下面，把剑举到上面。")
+	_stele(host, "SteleVault", STELE_VAULT_POS)
+	_reward(host)
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
+
+
+## ⑦ 侧廊唱诗席支路的奖励位：EquipmentPickup 走 LoadoutBridge（roster 缺失回退
+## 「一点余温」，不死锁）；位置在高台上，Fill 底边（节点 +7px）贴 224 台面。
+func _reward(host: Node2D) -> Node:
+	if not ResourceLoader.exists(REWARD_SCENE):
+		return null
+	var scene := load(REWARD_SCENE) as PackedScene
+	if scene == null:
+		return null
+	var pick := scene.instantiate()
+	pick.name = "RewardChoir"
+	pick.position = REWARD_POS
+	pick.set("reward_kind", REWARD_KIND)
+	pick.set("reward_ref", REWARD_REF)
+	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
+	pick.set("reward_name", item.display_name if item != null else "")
+	group(host, "Pickups").add_child(pick)
+	return pick
 
 
 func _build_enemies(host: Node2D) -> void:

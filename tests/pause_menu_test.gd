@@ -48,6 +48,11 @@ func test_map_and_pause_share_the_chapter_title_source() -> void:
 	first.free()
 
 	var second := Level02Undercroft.new()
+	# 第二章的章节名现在由 Level02Layout.title() 提供（文本在 ChapterText）；真实场景
+	# _ready 会把这个 Layout 子节点挂进来，裸 fixture 也补一个同名子节点走同一条路径。
+	var crypt := Level02Layout.new()
+	crypt.name = "Layout"
+	second.add_child(crypt)
 	eq(MapScreen.chapter_title(second), ChapterTitles.LEVEL02,
 			"level 2 title comes from the shared chapter titles")
 	second.free()

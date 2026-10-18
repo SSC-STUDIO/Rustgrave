@@ -228,7 +228,9 @@ func _decorate_cathedral(host: Node2D) -> void:
 	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。
 	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png", Vector2(1616, 224), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
 
-	_plant_lore_stele(host, Vector2(1636, 320), "SteleExecutioner", "断头者誓言", "我守残芯。谁来点这炉，谁就先被斩。直到我自己化成灰。")
+	var vow := ChapterText.stele_of("level01", "SteleExecutioner")
+	_plant_lore_stele(host, Vector2(1636, 320), "SteleExecutioner",
+			String(vow.get("title", "")), String(vow.get("text", "")))
 
 
 func _plant_balustrade(parent: Node2D, feet: Vector2) -> void:

@@ -88,6 +88,8 @@ func test_drain_crossings_are_single_jumps() -> void:
 	_assert_chain(host, ["FloorB", "StoneB1", "StoneB2", "StoneB3", "FloorC"], JUMP_GAP_MAX)
 	# The wind gap is a run of short stones: tighter spacing, never wider than 64.
 	_assert_chain(host, ["FloorC", "WindS1", "WindS2", "WindS3", "WindS4", "WindS5", "FloorD"], WIND_GAP_MAX)
+	# ⑧ 第四口排水沟：两块浮石。
+	_assert_chain(host, ["FloorD", "StoneD1", "StoneD2", "FloorE"], JUMP_GAP_MAX)
 	for stone_name in ["WindS1", "WindS2", "WindS3", "WindS4", "WindS5"]:
 		var r := _rect_of(host, stone_name)
 		almost(r.size.x, 32.0, 0.01, "%s is a short stone" % stone_name)
@@ -103,6 +105,7 @@ func test_towers_climb_in_32px_steps() -> void:
 	_assert_chain(host, ["FloorB", "TowerAStep", "TowerA"], 0.0)
 	_assert_chain(host, ["FloorC", "TowerBStep", "TowerB"], 0.0)
 	_assert_chain(host, ["FloorD", "TowerCStep1", "TowerCStep2", "TowerC"], 0.0)
+	_assert_chain(host, ["FloorE", "TowerDStep", "TowerDBase1", "TowerD"], 0.0)
 	for t in LAYOUT.TOWERS:
 		var block := host.get_node_or_null("Platforms/" + String(t[0])) as SolidPlatform
 		ok(block != null, "%s exists" % t[0])
@@ -180,7 +183,7 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var host := _build()
 	var props := host.get_node("Props")
 	var rects := _solids(host)
-	for nest_name in ["EmberNestGate", "EmberNestMid", "EmberNestEast"]:
+	for nest_name in ["EmberNestGate", "EmberNestMid", "EmberNestEast", "EmberNestRampart"]:
 		var nest := props.get_node_or_null(nest_name) as EmberNest
 		ok(nest != null, "%s exists" % nest_name)
 		if nest != null:
@@ -197,11 +200,11 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var exit := props.get_node_or_null("Exit") as LevelExit
 	ok(exit != null, "the furnace door ends the level")
 	if exit != null:
-		eq(exit.target_scene, GameContext.LEVELS["level10"], "furnace door hops to level10")
+		eq(exit.target_scene, GameContext.LEVELS["level09b"], "furnace door leads to the emberwind cliffs")
 		eq(exit.flag_id, "level09_done")
 		eq(exit.door_label, "炉心大门")
-		eq(exit.spawn, ChapterLayout.entry_spawn_of("level10"), "arrival point is level10's entry spawn")
-		ok(_standing_on(rects, exit.position), "exit door stands on FloorD")
+		eq(exit.spawn, ChapterLayout.entry_spawn_of("level09b"), "arrival point is the emberwind cliffs entry spawn")
+		ok(_standing_on(rects, exit.position), "exit door stands on the arrow-tower floor")
 		ok(exit.position.x + 24.0 <= float(LAYOUT.EAST_LIMIT) - 80.0, "exit keeps clear of the east wall")
 	var hook := host.get_node_or_null("Hooks/HookTower") as HookAnchor
 	var core := host.get_node_or_null("Pickups/EmberCore") as CorePickup
@@ -263,10 +266,10 @@ func test_enemies_stand_where_they_are_placed() -> void:
 			ok(_standing_on(rects, Vector2(enemy.position.x - reach, FLOOR_Y))
 					and _standing_on(rects, Vector2(enemy.position.x + reach, FLOOR_Y)),
 					"%s's beat stays on one floor" % e[0])
-	eq(demons, 3, "three flying demons")
-	eq(spitters, 3, "three spitters")
+	eq(demons, 4, "four flying demons")
+	eq(spitters, 4, "four spitters")
 	eq(scrappers, 2, "two scrappers")
-	eq(ghosts, 1, "one ghost")
+	eq(ghosts, 2, "two ghosts")
 	# Spitters never share a jump: each tower top is at least 380px (their
 	# aggro range) from the previous crossing's last stone.
 	var spitter_xs: Array[float] = []
@@ -274,8 +277,40 @@ func test_enemies_stand_where_they_are_placed() -> void:
 		if child is SpitterEnemy:
 			spitter_xs.append((child as Node2D).position.x)
 	spitter_xs.sort()
-	ok(spitter_xs.size() == 3 and spitter_xs[1] - spitter_xs[0] > 380.0 and spitter_xs[2] - spitter_xs[1] > 380.0,
+	ok(spitter_xs.size() == 4 and spitter_xs[1] - spitter_xs[0] > 380.0 and spitter_xs[2] - spitter_xs[1] > 380.0
+			and spitter_xs[3] - spitter_xs[2] > 380.0,
 			"spitters are spread out along the wall")
+
+
+## ⑧ 墙顶箭楼（3200 → 4200）：第四口排水沟由两块浮石横渡，箭楼顶是可选支路，
+## 上面有 1 个奖励位；箭楼前补一个余烬巢，出口在旧墙东端。
+func test_arrow_tower_branch_and_rampart_checkpoint() -> void:
+	var host := _build()
+	eq(LAYOUT.EAST_LIMIT, 4200, "锈城城墙扩到 4200 宽")
+	var rects := _solids(host)
+	ok(_standing_on(rects, Vector2(3300, 320)), "FloorD continues the wall top")
+	ok(_standing_on(rects, Vector2(4100, 320)), "FloorE reaches the new east wall")
+	var tower_d := _rect_of(host, "TowerD")
+	almost(tower_d.position.y, 224.0, 0.01, "the arrow tower is three storeys tall")
+	var reward := host.get_node_or_null("Pickups/RewardEyrie") as EquipmentPickup
+	ok(reward != null, "the arrow tower carries one reward slot")
+	if reward != null:
+		eq(reward.position, LAYOUT.REWARD_POS)
+		eq(String(reward.get("reward_kind")), "equipment")
+		ok(String(reward.get("reward_ref")) != "")
+		ok(_standing_on(rects, LevelSanity.feet_of(reward)), "reward rests on the arrow tower top")
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LevelSanity.feet_of(reward), false),
+				"the arrow tower is a walkable side branch")
+	var nest := host.get_node_or_null("Props/EmberNestRampart") as EmberNest
+	ok(nest != null, "a new checkpoint waits before the arrow tower")
+	if nest != null:
+		ok(_standing_on(rects, nest.position + Vector2(6, 14)), "rampart nest stands on FloorD")
+		ok(nest.position.x < LAYOUT.EXIT_X and LAYOUT.EXIT_X - nest.position.x <= 1400.0,
+				"checkpoint spacing to the furnace door stays <= 1400px")
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, nest.position + Vector2(6, 14), false),
+				"rampart nest is reachable on the main route")
+	var exit := host.get_node_or_null("Props/Exit") as LevelExit
+	ok(exit != null and _standing_on(rects, exit.position), "the furnace door stands on FloorE")
 
 
 func test_layout_passes_sanity_on_a_bare_host() -> void:
@@ -288,7 +323,7 @@ func test_layout_passes_sanity_on_a_bare_host() -> void:
 	var spawn: Vector2 = LAYOUT.ENTRY_SPAWN
 	var exit := host.get_node("Props/Exit") as LevelExit
 	ok(LevelSanity.is_reachable(host, spawn, exit.position), "exit reachable from spawn")
-	for nest_name in ["EmberNestGate", "EmberNestMid", "EmberNestEast"]:
+	for nest_name in ["EmberNestGate", "EmberNestMid", "EmberNestEast", "EmberNestRampart"]:
 		var nest := host.get_node("Props/" + nest_name)
 		ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest)), "%s reachable from spawn" % nest_name)
 	# The eyrie is a hook-only bonus: without the anchor it must be out of reach.
@@ -303,11 +338,11 @@ func test_backdrop_is_the_windy_outdoor_town() -> void:
 	var host := _build()
 	var level := LAYOUT.new()
 	eq(level.level_id(), "level09")
-	eq(level.title(), "锈墓・玖 — 锈城城墙")
+	eq(level.title(), "锈墓・拾贰 — 锈城城墙")
 	ok(level.wake_line() != "", "an opening line")
 	eq(level.theme(), "ramparts")
 	ok(not level.indoors(), "ramparts are open to the sky")
-	eq(level.east_limit(), 3200)
+	eq(level.east_limit(), 4200)
 	level.free()
 	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	ok(backdrop != null)

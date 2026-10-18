@@ -48,7 +48,7 @@ func try_wake() -> void:
 	GameEvents.chapter_started.emit(LEVEL_ID)
 	if SaveData.entering_from_checkpoint or SaveData.has_pending_spawn() or SaveData.has_flag("wake"):
 		if not Director.playing:
-			GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
+			GameEvents.announcement.emit(ChapterText.title_of(LEVEL_ID))
 		return
 	# 全新一局只播开场这一条（含章节卡）。旗标由开场在结束或跳过时点上。
 	var nest: Node = null
@@ -59,7 +59,7 @@ func try_wake() -> void:
 	# 继续、已有存档、已有结局：不重播开场，也不再接一段醒来。
 	SaveData.mark_flag("wake")
 	if not Director.playing:
-		GameEvents.announcement.emit("锈墓・壹 — 腐液回廊")
+		GameEvents.announcement.emit(ChapterText.title_of(LEVEL_ID))
 
 
 ## 刽子手：铁门沉下、炉火涌起，镜头先把整座竞技场（门 + 他）交出来，再推近。
@@ -87,7 +87,7 @@ func on_boss_gate(body: Node) -> void:
 		{"kind": "fx", "id": "phase_flash", "target": gate, "seconds": 0.35},
 		# 一拍静默：让他先站着，别急着解释。
 		{"kind": "wait", "seconds": 0.35},
-		{"kind": "caption", "text": "刽子手还守着残芯。他发过誓：谁来点炉，谁就先被斩。", "hold": 1.3},
+		{"kind": "caption", "text": ChapterText.event_line("boss_gate"), "hold": 1.3},
 		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
 	], true)
@@ -116,7 +116,7 @@ func on_boss_slain() -> void:
 		{"kind": "cam_focus", "target": heart, "zoom": 1.0, "duration": 0.7},
 		{"kind": "sfx", "id": "forge_pulse"},
 		{"kind": "fx", "id": "heart_pulse", "target": heart, "seconds": 0.4},
-		{"kind": "caption", "text": "残芯还在跳。熄掉它，或者答应往下问一次。", "hold": 1.4},
+		{"kind": "caption", "text": ChapterText.event_line("boss_slain"), "hold": 1.4},
 		{"kind": "cam_release", "duration": 0.4},
 		{"kind": "unlock"},
 	], true)
@@ -133,7 +133,7 @@ func _on_toxin_story(current: float, _maximum: float) -> void:
 		# 先让镜头看见那片橙色，再让字幕说它曾是冷却剂。
 		{"kind": "cam_focus", "target": pool, "duration": 0.4},
 		{"kind": "fx", "id": "ash_fall", "target": pool, "seconds": 0.5},
-		{"kind": "caption", "text": "它曾是冷却剂。吃肺，也把记忆淬进剑里。", "hold": 1.6},
+		{"kind": "caption", "text": ChapterText.event_line("toxin"), "hold": 1.6},
 		{"kind": "cam_release"},
 		{"kind": "unlock"},
 	], true)
@@ -155,7 +155,7 @@ func _on_parry_story(_bolt: Node, _by: Node) -> void:
 		{"kind": "lock"},
 		{"kind": "cam_focus", "target": _player, "zoom": 1.35, "duration": 0.3},
 		{"kind": "fx", "id": "shock_ring", "target": _player, "seconds": 0.1},
-		{"kind": "caption", "text": "打回去的是他们的火。锈被你炼过一次。", "hold": 1.6},
+		{"kind": "caption", "text": ChapterText.event_line("parry"), "hold": 1.6},
 		{"kind": "cam_release", "duration": 0.35},
 		{"kind": "unlock"},
 	], true)

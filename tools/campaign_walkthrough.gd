@@ -23,10 +23,10 @@ func _after_undercroft() -> bool:
 	if not _player().inventory.has_ability(AbilityIds.HEAT_FORGE):
 		await _tap(&"socket_2")
 	if not _require(_player().inventory.has_ability(AbilityIds.HEAT_FORGE), "campaign has heat forge"): return false
-	var first := GameContext.LEVEL_ORDER.find(GameContext.level_id_of(_player())) + 1
+	var start := maxi(1, GameContext.LEVEL_ORDER.find(GameContext.level_id_of(_player())))
 	var resume_feet := _player().position
-	for n in range(maxi(2, first), 11):
-		var id := "level%02d" % n
+	for idx in range(start, GameContext.LEVEL_ORDER.size()):
+		var id := GameContext.LEVEL_ORDER[idx]
 		if not await _wait_world(): return false
 		if not _require(GameContext.world_scene_path(_player()) == GameContext.LEVELS[id], "arrived in " + id): return false
 		if _basic_abilities:
@@ -37,7 +37,7 @@ func _after_undercroft() -> bool:
 			if node is EmberNest or node is PressurePlate or node is RustyGate or node is LevelExit:
 				goals.append({"name": str(node.name), "feet": LevelSanity.feet_of(node)})
 		goals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.feet.x < b.feet.x)
-		if n == 7:
+		if id == "level07":
 			# 竖井不能按 x 排序：先踩中层压板，再点巢，再上塔顶。脚点读当前节点，
 			# 塔顶巢和出口挪过之后旧的写死坐标会对不准。
 			goals.clear()
@@ -46,22 +46,22 @@ func _after_undercroft() -> bool:
 				if goal_node != null:
 					goals.append({"name": goal_name, "feet": LevelSanity.feet_of(goal_node)})
 		for goal in goals:
-			if n == first and "--resume" in OS.get_cmdline_user_args():
-				if (n == 7 and goal.feet.y > resume_feet.y + 16) or (n != 7 and goal.feet.x < resume_feet.x - 24): continue
+			if idx == start and "--resume" in OS.get_cmdline_user_args():
+				if (id == "level07" and goal.feet.y > resume_feet.y + 16) or (id != "level07" and goal.feet.x < resume_feet.x - 24): continue
 			var node := _world().get_node_or_null("Props/" + goal.name)
 			if node == null: continue
 			var is_exit := node is LevelExit
 			# Interacting may replace the scene and free the exit immediately.
-			var has_ending_choice: bool = is_exit and n == 10 and node.get("ending_choice") == true
+			var has_ending_choice: bool = is_exit and id == "level10" and node.get("ending_choice") == true
 			var is_plate := node is PressurePlate
 			var is_gate := node is RustyGate
-			if is_exit and n == 10:
+			if is_exit and id == "level10":
 				if not await _nightmare(): return false
 			var feet: Vector2 = goal.feet
 			if is_gate: feet.x -= 28
 			if is_exit: feet.x -= 12
 			if not await _navigate(feet): return false
-			if is_exit and n == 10: _skip_captions = false
+			if is_exit and id == "level10": _skip_captions = false
 			if not is_plate:
 				await _tap(&"interact")
 				await _frames(12)
@@ -72,10 +72,10 @@ func _after_undercroft() -> bool:
 			else:
 				await _frames(12)
 			_record(id + "_" + goal.name)
-			if goal.name == "EmberNestGallery" and n == 7:
+			if goal.name == "EmberNestGallery" and id == "level07":
 				if not await _continue_round_trip(id): return false
 			if is_exit:
-				var next := GameContext.LEVELS.get("level%02d" % (n + 1), TITLE) as String
+				var next := GameContext.LEVELS.get(GameContext.next_level_id(id), TITLE) as String
 				if not await _await_scene(next): return false
 	if not _require(SaveData.has_flag("game_complete") and SaveData.has_flag("nightmare_dead"), "final completion saved"): return false
 	_record("campaign_complete")

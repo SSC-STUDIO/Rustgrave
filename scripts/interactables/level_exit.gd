@@ -48,6 +48,10 @@ func get_prompt(_actor: Node) -> String:
 func interact(actor: Node) -> void:
 	if _used or _choosing or not actor is Player:
 		return
+	# 回火试炼：推开门 = 到达终点（限时 / 禁核结算），不执行战役换场、不写战役档。
+	if TrialRun.active():
+		TrialRun.reach_goal()
+		return
 	if is_locked():
 		Sfx.play(&"ui_denied", 0.04, -4.0)
 		GameEvents.announcement.emit(locked_prompt)
@@ -68,6 +72,8 @@ func confirm_ending(id: StringName) -> void:
 	_close_ending_choice()
 	var kind := "keep" if id == &"keep" else "give"
 	SaveData.ending = kind
+	# 契约 §5：任一结局都解锁回火试炼（战役写；试炼中 mark_flag 会被守卫 no-op）。
+	SaveData.mark_flag("trial_unlocked")
 	GameEvents.ending_chosen.emit(StringName(kind))
 	var lines := keep_captions if kind == "keep" else give_captions
 	Sfx.play(&"gate")

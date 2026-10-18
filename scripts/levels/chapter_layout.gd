@@ -429,6 +429,21 @@ func boss_arena(host: Node2D, boss_name: String) -> Node:
 
 
 
+## 关卡奖励位（契约 §3）：角色/武器/装备奖励。roster 不存在时 EquipmentPickup
+## 自己回退为"一点余温"（回血 + 消耗），绝不空转也绝不死锁；奖励文案由 ChapterText 提供。
+func reward(host: Node2D, node_name: String, feet: Vector2, kind: String, reward_id: String,
+		display_name: String = "") -> EquipmentPickup:
+	var pickup := EquipmentPickup.new()
+	pickup.name = node_name
+	pickup.reward_kind = kind
+	pickup.reward_ref = reward_id
+	pickup.reward_name = display_name
+	pickup.position = feet
+	var layer := group(host, "Props")
+	layer.add_child(pickup)
+	return pickup
+
+
 ## ---------------------------------------------------------------- decor --
 
 ## 壁炬（墙板 64×192 居中于 pos；y = 台面 - 96 时板底贴台面）。

@@ -44,6 +44,42 @@ const SLASH_ZONE_COLOR := Color(1.0, 0.42, 0.18, 0.95)
 const SLASH_TRIGGER_RANGE := 78.0 * BOSS_SCALE
 ## 二阶段开场的吼叫：这段时间里不开新的斩 / 射，让玩家看清相变。
 const PHASE_ROAR_TIME := 0.6
+
+# --- 炉膛终局（phase 2 finale，<=20% HP 的一次性高潮） ---------------------------
+## 框架测试锁死本 Boss 的 Kit 为 2 阶段，所以终局做成「等价高潮」：不改阶段刻度，
+## 在 <=20% 生命时触发一次炉膛终局演出，并解锁三招终局招（震地波 / 抓取处决 / 炉膛火柱）。
+## 三招都进二阶段攻击表（windup >= 0.35s，契约可读性），由本脚本的终局状态机逐条执行；
+## 同一时刻只有一条预警（斩 / 射 / 终局招互斥）。
+const FINAL_STAND_RATIO := 0.20
+const FINAL_FIRST_DELAY := 1.6
+const FINAL_COOLDOWN := 3.0
+## 震地波：举斧砸地，两道火浪沿地面向两侧推进（跳跃可躲）。
+const WAVE_WINDUP := 0.60
+const WAVE_ACTIVE := 0.20
+const WAVE_RECOVERY := 0.55
+const WAVE_DAMAGE := 2
+const WAVE_SIZE := Vector2(24.0, 22.0)
+const WAVE_SPEED := 210.0
+const WAVE_REACH := 240.0
+const WAVE_TRIGGER_RANGE := 260.0
+const WAVE_ZONE_COLOR := Color(1.0, 0.52, 0.20, 0.95)
+## 抓取处决：0.9s 的「斩」预警，红光框盖住身前，被抓住 = 3 点重击。
+const GRAB_WINDUP := 0.90
+const GRAB_ACTIVE := 0.18
+const GRAB_RECOVERY := 0.70
+const GRAB_DAMAGE := 3
+const GRAB_ZONE_OFFSET := Vector2(46.0, -22.0)
+const GRAB_ZONE_SIZE := Vector2(60.0, 44.0)
+const GRAB_TRIGGER_RANGE := 120.0
+const GRAB_COLOR := Color(1.0, 0.86, 0.55, 0.98)
+## 炉膛火柱：场地里的炉口喷火（每招一条落点预警，柱子从地面冲到胸高）。
+const PILLAR_WINDUP := 0.55
+const PILLAR_ACTIVE := 0.30
+const PILLAR_RECOVERY := 0.60
+const PILLAR_DAMAGE := 1
+const PILLAR_SIZE := Vector2(26.0, 86.0)
+const PILLAR_SPACING := 140.0
+const PILLAR_COLOR := Color(1.0, 0.55, 0.22, 0.95)
 ## 背光 / 接地阴影的调色（art-spec 调色板族：Ember / Toxic Glow / Rust Shadow）
 ## 与加法背光 alpha 上限（特效不遮挡：再亮就把剪影洗白）都在 BossPresence 里。
 
@@ -64,6 +100,18 @@ var _presence: BossPresence
 ## Boss 框架（契约 §4.1）：攻击表 / 阶段 / 场地事件的数据与观测。
 var _boss_kit: BossKit
 var _boss_director: BossDirector
+# --- 炉膛终局状态 ---
+enum FinalPhase { NONE, WINDUP, ACTIVE, RECOVERY }
+var _final_stand := false
+var _final_phase: FinalPhase = FinalPhase.NONE
+var _final_id: StringName = &""
+var _final_timer := 0.0
+var _final_cd := 0.0
+var _final_marker: CombatMarker
+var _final_box: Hitbox
+var _pillar_cursor := 0
+var _pillar_spots: Array[float] = []
+var _pillar_target := 0.0
 
 
 func is_enraged() -> bool:
@@ -182,7 +230,54 @@ func _on_hp_changed(current: int, maximum: int) -> void:
 	# 阶段语义不变：生命 <= 一半且还没狂暴时进入二阶段（原逻辑的唯一分支）。
 	if not _enraged and maximum > 0 and current > 0 and current <= maximum / 2:
 		_enter_phase_two()
+	# 20% 终局高潮：一次性门口（不改 Kit 阶段，HUD 仍是 2 相刻度）。
+	if not _final_stand and maximum > 0 and current > 0 \
+			and float(current) / float(maximum) <= FINAL_STAND_RATIO:
+		_enter_final_stand()
 	_sync_boss_framework(current, maximum)
+
+
+## 炉膛终局：<=20% 生命的一次性高潮。演出是可跳过的（不进 Director，只走
+## Juice / announcement / 背光，不锁输入）；随后解锁震地波 / 抓取处决 / 炉膛火柱。
+func _enter_final_stand() -> void:
+	_final_stand = true
+	_final_phase = FinalPhase.NONE
+	_final_cd = FINAL_FIRST_DELAY
+	shoot_interval = 0.85
+	Juice.boss_phase_beat(global_position + Vector2(0.0, -30.0), Color(1.0, 0.45, 0.16))
+	Juice.shake(4.0, 260)
+	Sfx.play_at(&"boss_roar", global_position, 0.03, -1.0)
+	Fx.attach_heat_lick(visual)
+	var lick := visual.get_node_or_null(Fx.HEAT_LICK_NAME)
+	if lick is Node2D:
+		(lick as Node2D).position = Vector2(34.0, -58.0)
+	if _presence != null:
+		_presence.set_hot(true)
+		_presence.surge(1.4)
+	if visual != null and is_inside_tree() and get_tree() != null:
+		var tint := create_tween()
+		tint.tween_property(visual, "modulate", BODY_LIFT_HOT, 0.3)
+	else:
+		_apply_body_lift()
+	GameEvents.announcement.emit("炉膛裂了。他不再收斧。")
+	_build_pillar_spots()
+
+
+## 终局招的炉口位置：沿竞技场中线摆三处，Boss 站的那格除外（避免脚下立刻喷）。
+func _build_pillar_spots() -> void:
+	_pillar_spots.clear()
+	var center := global_position.x
+	var bounds := boss_arena_bounds()
+	var usable := is_finite(bounds.x) and is_finite(bounds.y) and bounds.y > bounds.x
+	var candidates := [center - PILLAR_SPACING, center, center + PILLAR_SPACING]
+	for x in candidates:
+		if usable and (x < bounds.x + 24.0 or x > bounds.y - 24.0):
+			continue
+		if absf(x - center) < 40.0:
+			continue
+		_pillar_spots.append(x)
+	if _pillar_spots.is_empty():
+		_pillar_spots.append(center)
 
 
 ## 二阶段：相变演出（短慢动作 + 震屏 + 圆环 + 受 Settings 缩放的闪色 + 吼叫）、
@@ -228,6 +323,12 @@ func _tick_block(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 		_set_blocking(true)
 		return
+	if _final_stand:
+		# 终局：三招轮转优先于斩 / 射；每招一条预警，执行期间不再起别的招。
+		_final_cd = maxf(0.0, _final_cd - delta)
+		if _final_cd <= 0.0:
+			_begin_final_move()
+			return
 	_slash_cd = maxf(0.0, _slash_cd - delta)
 	var player := knight()
 	if player != null and _slash_cd <= 0.0 \
@@ -239,6 +340,9 @@ func _tick_block(delta: float) -> void:
 
 func _tick_state(delta: float) -> void:
 	if _dead:
+		return
+	if _final_phase != FinalPhase.NONE:
+		_tick_final(delta)
 		return
 	if _slash_phase == SlashPhase.NONE:
 		super._tick_state(delta)
@@ -259,11 +363,177 @@ func _tick_state(delta: float) -> void:
 	else:
 		_slash_phase = SlashPhase.NONE
 		_state = State.BLOCK
-		_slash_cd = 1.6 if _enraged else 2.1
+		_slash_cd = 1.0 if _final_stand else (1.6 if _enraged else 2.1)
 		# 二阶段「斩 → 射」连招：收斧后紧跟一发弹，不再等满一个射击间隔。
 		_shoot_timer = CombatRules.EXECUTIONER_P2_FOLLOWUP if _enraged else shoot_interval
 		_set_blocking(true)
 		hide_opening()
+
+
+# --- 炉膛终局（等价 phase 2 finale） -----------------------------------------
+## 终局招轮转：近身优先抓取处决，其次轮换震地波 / 炉膛火柱。三招互斥，
+## 起手时才开始一条预警，收招后才允许下一招 -> 同刻最多一条预警。
+func _begin_final_move() -> void:
+	var player := knight()
+	var dist := global_position.distance_to(player.global_position) if player != null else INF
+	var choice: StringName
+	if dist <= GRAB_TRIGGER_RANGE:
+		choice = &"execution_grab"
+	elif _pillar_cursor % 2 == 1:
+		choice = &"furnace_pillar"
+	else:
+		choice = &"ground_wave"
+	_pillar_cursor += 1
+	_final_id = choice
+	_final_phase = FinalPhase.WINDUP
+	_final_cd = 0.0
+	_set_blocking(true)
+	velocity.x = move_toward(velocity.x, 0.0, 500.0 * get_physics_process_delta_time())
+	var windup := WAVE_WINDUP
+	var telegraph := &"executioner"
+	match String(choice):
+		"execution_grab":
+			windup = GRAB_WINDUP
+			telegraph = &"executioner"
+			_flicker_slash()
+			if _anim != null and _anim.has_anim("slash"):
+				_anim.play("slash", true)
+			Sfx.play_at(&"boss_axe_swing", global_position, 0.04, 1.0)
+		"furnace_pillar":
+			windup = PILLAR_WINDUP
+			telegraph = &"boss_arena_fire"
+			_pillar_target = _next_pillar_x()
+			if _anim != null and _anim.has_anim("charge"):
+				_anim.play("charge", true)
+			Sfx.play_at(&"boss_roar", global_position, 0.06, -8.0)
+		_:
+			windup = WAVE_WINDUP
+			telegraph = &"executioner"
+			if _anim != null and _anim.has_anim("slash"):
+				_anim.play("slash", true)
+			Sfx.play_at(&"boss_axe_swing", global_position, 0.04, -2.0)
+	_final_timer = windup
+	begin_telegraph(telegraph, windup)
+	_spawn_final_warning(windup)
+
+
+func _next_pillar_x() -> float:
+	if _pillar_spots.is_empty():
+		_build_pillar_spots()
+	var x: float = _pillar_spots[_pillar_cursor % _pillar_spots.size()]
+	return x
+
+
+func _spawn_final_warning(windup: float) -> void:
+	var facing := float(_shield_facing)
+	match String(_final_id):
+		"execution_grab":
+			_final_marker = CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
+					Vector2(facing * GRAB_ZONE_OFFSET.x, GRAB_ZONE_OFFSET.y),
+					windup, GRAB_COLOR,
+					{"rect": Rect2(-GRAB_ZONE_SIZE * 0.5, GRAB_ZONE_SIZE)})
+		"furnace_pillar":
+			_final_marker = CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
+					Vector2(_pillar_target - global_position.x, -PILLAR_SIZE.y * 0.5),
+					windup, PILLAR_COLOR,
+					{"rect": Rect2(-PILLAR_SIZE * 0.5, PILLAR_SIZE)})
+		_:
+			_final_marker = CombatMarker.spawn(self, CombatMarker.Kind.RING,
+					Vector2(0.0, -6.0), windup, WAVE_ZONE_COLOR,
+					{"radius_from": 34.0, "radius_to": 10.0})
+
+
+func _tick_final(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
+	_final_timer -= delta
+	if _final_timer > 0.0:
+		return
+	match _final_phase:
+		FinalPhase.WINDUP:
+			_final_phase = FinalPhase.ACTIVE
+			_final_timer = WAVE_ACTIVE
+			_dismiss_final_marker()
+			_execute_final_move()
+		FinalPhase.ACTIVE:
+			_clear_final_box()
+			_final_phase = FinalPhase.RECOVERY
+			_final_timer = GRAB_RECOVERY
+			_set_blocking(false)
+			# 抓取 / 震地波落空后的收招也是可打的破绽窗口。
+			show_opening(GRAB_RECOVERY)
+		_:
+			_final_phase = FinalPhase.NONE
+			_final_id = &""
+			hide_opening()
+			_set_blocking(true)
+			_final_cd = FINAL_COOLDOWN
+			_final_timer = 0.0
+
+
+func _execute_final_move() -> void:
+	var facing := float(_shield_facing)
+	match String(_final_id):
+		"execution_grab":
+			var box := Hitbox.new()
+			box.damage = GRAB_DAMAGE
+			box.team = &"enemy"
+			box.blow = &"heavy"
+			var shape := CollisionShape2D.new()
+			var rect := RectangleShape2D.new()
+			rect.size = GRAB_ZONE_SIZE
+			shape.shape = rect
+			box.add_child(shape)
+			_effects().add_child(box)
+			box.global_position = global_position + Vector2(facing * GRAB_ZONE_OFFSET.x, GRAB_ZONE_OFFSET.y)
+			box.arm(Vector2(facing * 170.0, -40.0))
+			_final_box = box
+			Sfx.play_at(&"boss_axe_slam", box.global_position, 0.02, 2.0)
+			Fx.dust_puff(box.global_position + Vector2(0.0, 18.0), -PI * 0.5)
+			Juice.shake(4.0, 200)
+			GameEvents.announcement.emit("处决落空 —— 他的斧劈进了地砖")
+		"furnace_pillar":
+			var pillar := FurnacePillar.new()
+			pillar.size = PILLAR_SIZE
+			pillar.damage = PILLAR_DAMAGE
+			pillar.lifetime = PILLAR_ACTIVE + 0.35
+			pillar.position = Vector2(_pillar_target, global_position.y)
+			_effects().add_child(pillar)
+			Sfx.play_at(&"boss_axe_slam", Vector2(_pillar_target, global_position.y), 0.03, -1.0)
+			Juice.shake(2.5, 180)
+		_:
+			# 震地波：两道火浪沿地面向左右推进，跳跃可躲。
+			for dir: float in [-1.0, 1.0]:
+				var wave := FurnaceWave.new()
+				wave.direction = dir
+				wave.speed = WAVE_SPEED
+				wave.travel = WAVE_REACH
+				wave.damage = WAVE_DAMAGE
+				wave.size = WAVE_SIZE
+				wave.position = global_position + Vector2(dir * 34.0, -WAVE_SIZE.y * 0.5)
+				_effects().add_child(wave)
+			Sfx.play_at(&"boss_axe_slam", global_position, 0.02, 1.0)
+			Juice.shake(5.0, 240)
+			Fx.dust_puff(global_position + Vector2(0.0, -4.0), -PI * 0.5)
+
+
+func _dismiss_final_marker() -> void:
+	if _final_marker != null and is_instance_valid(_final_marker):
+		_final_marker.dismiss()
+	_final_marker = null
+
+
+func _clear_final_box() -> void:
+	if _final_box != null and is_instance_valid(_final_box):
+		_final_box.disarm()
+		_final_box.queue_free()
+	_final_box = null
+
+
+func _effects() -> Node:
+	var host := GameContext.world_effects(self)
+	if host == null:
+		host = get_parent()
+	return host
 
 
 func _clear_slash_box() -> void:
@@ -277,7 +547,19 @@ func _enter_stagger() -> void:
 	_slash_next = false
 	_slash_phase = SlashPhase.NONE
 	_clear_slash_box()
+	_interrupt_final_stand()
 	super._enter_stagger()
+
+
+## 被打断（硬直 / 死亡）时终局招立刻收口，不留悬空判定与预警。
+func _interrupt_final_stand() -> void:
+	_final_phase = FinalPhase.NONE
+	_final_id = &""
+	_final_timer = 0.0
+	_final_cd = maxf(_final_cd, 0.6)
+	_dismiss_final_marker()
+	_clear_final_box()
+	hide_opening()
 
 
 func _begin_slash() -> void:
@@ -397,6 +679,7 @@ func _on_died() -> void:
 	_slash_next = false
 	_slash_phase = SlashPhase.NONE
 	_clear_slash_box()
+	_interrupt_final_stand()
 	if _boss_director != null:
 		_boss_director.notify_death()
 	if _presence != null:
@@ -666,6 +949,96 @@ class BossCorpseFrames extends Sprite2D:
 			texture = _frames[idx]
 
 
+## 震地波：贴地的一道火浪，向一侧推进；跳跃可躲。自带 Hitbox，走完射程自毁。
+class FurnaceWave extends Node2D:
+	var direction := 1.0
+	var speed := 210.0
+	var travel := 240.0
+	var damage := 2
+	var size := Vector2(24.0, 22.0)
+	var _moved := 0.0
+	var _box: Hitbox
+
+	func _ready() -> void:
+		z_index = 5
+		material = Fx.additive_mat()
+		_box = Hitbox.new()
+		_box.damage = damage
+		_box.team = &"enemy"
+		_box.blow = &"heavy"
+		var shape := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = size
+		shape.shape = rect
+		_box.add_child(shape)
+		add_child(_box)
+		_box.arm(Vector2(direction * 120.0, -70.0))
+		set_process(true)
+
+	func _physics_process(delta: float) -> void:
+		var step := speed * delta
+		position.x += direction * step
+		_moved += step
+		if _moved >= travel:
+			queue_free()
+
+	func _draw() -> void:
+		var flick := 0.75 + 0.25 * sin(float(Time.get_ticks_msec()) * 0.03)
+		var w := size.x
+		var h := size.y
+		for i in 4:
+			var t := float(i) / 3.0
+			var row_y := -h * t
+			var row_h := maxf(3.0, h * 0.34)
+			draw_rect(Rect2(Vector2(roundf(-w * 0.5), roundf(row_y)), Vector2(roundf(w), roundf(row_h))),
+					Color(1.0, 0.42 + 0.3 * t, 0.14, 0.75 * flick * (1.0 - t * 0.35)))
+
+
+## 炉膛火柱：地面炉口喷火，贴地一条高判定。预警由 Boss 画，柱子自带判定。
+class FurnacePillar extends Node2D:
+	var size := Vector2(26.0, 86.0)
+	var damage := 1
+	var lifetime := 0.65
+	var _age := 0.0
+	var _box: Hitbox
+
+	func _ready() -> void:
+		z_index = 6
+		material = Fx.additive_mat()
+		_box = Hitbox.new()
+		_box.damage = damage
+		_box.team = &"enemy"
+		_box.blow = &"light"
+		var shape := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = size
+		shape.shape = rect
+		_box.add_child(shape)
+		add_child(_box)
+		_box.position = Vector2(0.0, -size.y * 0.5)
+		_box.arm(Vector2(0.0, -90.0))
+		Fx.dust_puff(global_position + Vector2(0.0, -4.0), -PI * 0.5)
+		set_process(true)
+
+	func _process(delta: float) -> void:
+		_age += delta
+		if _age >= lifetime:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := clampf(_age / maxf(lifetime, 0.01), 0.0, 1.0)
+		var height := size.y * clampf(_age / 0.18, 0.0, 1.0)
+		var a := clampf(1.0 - k, 0.0, 1.0) * 0.7
+		for i in 5:
+			var t := float(i) / 4.0
+			var row_y := -height * t
+			var row_w := size.x * (0.9 - 0.35 * t)
+			draw_rect(Rect2(Vector2(roundf(-row_w * 0.5), roundf(row_y)), Vector2(roundf(row_w), 5)),
+					Color(1.0, 0.52 + 0.25 * (1.0 - t), 0.16, a * (1.0 - t * 0.4)))
+
+
 # --- boss framework (M3) -----------------------------------------------------
 ## 结构迁移（契约 §4.1）：这场 Boss 的「可被框架读到的东西」收敛到一份 BossKit，
 ## 由 BossDirector 以协助模式挂载 —— 只观测（阶段 / 招式 / 场地事件 / 死亡），不接管
@@ -716,6 +1089,9 @@ func _notify_framework_attack(id: StringName) -> void:
 ## 攻击表数据源。数值全部引用本脚本既有的常量，和实现逐项同源：
 ##   slash —— 0.52s 余烬脉冲 + 地面落点红框；判定盒 = SLASH_ZONE_SIZE，与画幅同位同尺寸。
 ##   bolt  —— 沿用齿轮盾卫的 0.5s 蓄力暗号；二阶段射弹加密由 cooldown_by_phase 表达。
+##   ground_wave / execution_grab / furnace_pillar —— 20% 终局的等价 phase 2 finale 三招
+##   （见 _enter_final_stand）：震地波两道火浪 / 0.9s「斩」预警的抓取处决 / 炉膛火柱落点。
+##   三招只进表给框架观测与可读性校验；本 Boss 仍是 2 阶段，由本脚本的终局状态机执行。
 ## 二阶段「斩后紧跟一发」（EXECUTIONER_P2_FOLLOWUP）是斩的连段，不是独立可选招，
 ## 所以不进攻击表（它共享斩的前摇与预警，不违反「同刻最多一条预警」）。
 func _boss_kit_config() -> Dictionary:
@@ -741,6 +1117,27 @@ func _boss_kit_config() -> Dictionary:
 				"min_range": 0.0, "max_range": 360.0,
 				"windup": 0.5, "active": 0.1, "recovery": 0.3,
 				"telegraph": &"gear_shield",
+				"hitbox": {},
+			},
+			{
+				"id": &"ground_wave", "phase": 2, "weight": 1.6,
+				"cooldown": 3.0, "min_range": 0.0, "max_range": WAVE_TRIGGER_RANGE,
+				"windup": WAVE_WINDUP, "active": WAVE_ACTIVE, "recovery": WAVE_RECOVERY,
+				"telegraph": &"executioner",
+				"hitbox": {},
+			},
+			{
+				"id": &"execution_grab", "phase": 2, "weight": 1.4,
+				"cooldown": 4.0, "min_range": 0.0, "max_range": GRAB_TRIGGER_RANGE,
+				"windup": GRAB_WINDUP, "active": GRAB_ACTIVE, "recovery": GRAB_RECOVERY,
+				"telegraph": &"executioner",
+				"hitbox": {"offset": GRAB_ZONE_OFFSET, "size": GRAB_ZONE_SIZE},
+			},
+			{
+				"id": &"furnace_pillar", "phase": 2, "weight": 1.2,
+				"cooldown": 4.0, "min_range": 0.0, "max_range": 0.0,
+				"windup": PILLAR_WINDUP, "active": PILLAR_ACTIVE, "recovery": PILLAR_RECOVERY,
+				"telegraph": &"boss_arena_fire",
 				"hitbox": {},
 			},
 		],

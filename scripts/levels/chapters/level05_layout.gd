@@ -11,9 +11,11 @@ extends ChapterLayout
 ##                     可选：池面上方的检修龛（钩锁），碑文「吊」——本章支路
 ##   D 压板塔       1568–2112 余烬巢二；竖向吊台 D 送上压板台（碑文二），开闸门 B；幽魂守走廊
 ##   E 双吊台接力   2112–2512 吊台 E1/E2 相位错开半周，半程换乘
-##   F 锈门与运渣道 2512–3040 余烬巢三；台阶上检修走道（喷吐者、钩锁锚点、系核）；齿盾卫守锈门；出口
+##   F 锈门与运渣道 2512–3440 余烬巢三；台阶上检修走道（喷吐者、钩锁锚点、系核）；齿盾卫守锈门
+##   G 吊装下层     3440–4000 锈门后的吊装下层：吊台 F 横渡第二口冷却槽、吊装检修台
+##                     （钩锁支路，带 1 个奖励位）、下层巢；出口「运渣道」→ level06
 
-const EAST := 3040
+const EAST := 4000
 const CEILING_Y := -32.0
 ## 暖色石板：工坊是烘过的地面，和地窟的青砖、圣殿的冷紫分开。
 const STONE_WARM := Color(1.0, 0.92, 0.82)
@@ -90,7 +92,7 @@ const HOOK_NOOK_POS := Vector2(1488, 120)
 const STELE_NOOK_POS := Vector2(1520, 152)
 
 ## F 锈门与运渣道
-const FLOOR_E := Vector2(2512, 3040)
+const FLOOR_E := Vector2(2512, 3440)
 const NEST_GATE_X := 2576.0
 const STEPS_E: Array = [Vector2(2624, 296), Vector2(2688, 264), Vector2(2752, 232)]
 const WALK_E := Rect2(2816, 208, 192, 16)
@@ -98,7 +100,21 @@ const HOOK_POS := Vector2(2936, 136)
 const PICKUP_POS := Vector2(2920, 160)
 const GATE_POS := Vector2(2872, 256)
 const SIGN_F_POS := Vector2(2912, 320)
-const EXIT_X := 2960.0
+const EXIT_X := 3900.0
+
+## G 吊装下层：锈门后的第二口冷却槽（坑底 352），吊台 F 横渡；下层检修台是钩锁支路。
+const PIT_F := Vector2(3440, 3680)
+const LIFT_F_POS := Vector2(3440, 296)
+const LIFT_F_TRAVEL := Vector2(240, 0)
+const LIFT_F_PERIOD := 7.0
+const HOIST_DECK := Rect2(3560, 240, 96, 16)
+const HOOK_HOIST_POS := Vector2(3560, 136)
+const REWARD_POS := Vector2(3600, 233)
+const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
+const REWARD_KIND := "equipment"
+const REWARD_REF := "iron_carapace"
+const NEST_HOIST_X := 3408.0
+const FLOOR_G := Vector2(3680, 4000)
 
 ## [name, kind, pos]；落地敌人给脚点，飞行/穿墙给悬停中心。
 const ENEMIES: Array = [
@@ -109,6 +125,9 @@ const ENEMIES: Array = [
 	["Ghost1", "ghost", Vector2(1968, 256)],
 	["GearShield1", "gear_shield", Vector2(2816, 320)],
 	["Spitter2", "spitter", Vector2(2984, 208)],
+	## G 吊装下层：幽魂在吊台渡口上方，碎铁犬守下层出口前的地面。
+	["Ghost2", "ghost", Vector2(3180, 256)],
+	["Scrapper3", "scrapper", Vector2(3840, 320)],
 ]
 
 
@@ -117,11 +136,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・伍 — 齿轮工坊"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "插座是在这里切开的。核是职称，不是力气。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -156,10 +181,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_X, "运渣道", PackedStringArray([
-		"运渣道通向雨里。",
-		"土里埋着两个还叫得出名字的人。",
-	]), "level05_done", GameContext.next_level_id(level_id()))
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level05_done",
+			GameContext.next_level_id(level_id()))
 	finish(host)
 
 
@@ -177,7 +201,10 @@ func _build_terrain(host: Node2D) -> void:
 	toxin(host, "PoolC", POOL_C.position, POOL_C.size, COOLANT)
 	floor_strip(host, "FloorC", FLOOR_C.x, FLOOR_C.y, "iron", true, true, FLOOR_Y)
 	_coolant_pit(host, "PitE", PIT_E.x, PIT_E.y, FLOOR_Y + 32.0)
-	floor_strip(host, "FloorE", FLOOR_E.x, FLOOR_E.y, "iron", true, false, FLOOR_Y)
+	floor_strip(host, "FloorE", FLOOR_E.x, FLOOR_E.y, "iron", true, true, FLOOR_Y)
+	# G 吊装下层：第二口冷却槽 + 对岸地面；吊台 F 横渡。
+	_coolant_pit(host, "PitF", PIT_F.x, PIT_F.y, FLOOR_Y + 32.0)
+	floor_strip(host, "FloorG", FLOOR_G.x, FLOOR_G.y, "iron", true, false, FLOOR_Y)
 	enclose(host, "iron", CEILING_Y)
 
 	# 齿轮踏点：淬火坑上两块，长池池心一块（半截泡在液里，掉下去的人踩它歇口气）。
@@ -198,6 +225,8 @@ func _build_terrain(host: Node2D) -> void:
 	for i in STEPS_E.size():
 		step(host, "StepE%d" % (i + 1), STEPS_E[i], STEP_W, "iron_float")
 	step(host, "WalkE", WALK_E.position, WALK_E.size.x, "iron_float")
+	# G 吊装下层：吊装检修台悬在第二口冷却槽上方，只有钩锁能从坑边拉上去。
+	step(host, "HoistDeck", HOIST_DECK.position, HOIST_DECK.size.x, "iron_float")
 
 
 ## 冷却液坑：坑底铺暖石板，液面（32 厚）压在坑底上方 16px。
@@ -229,8 +258,11 @@ func _build_mechanisms(host: Node2D) -> void:
 	pickup(host, "TetherCoreE", PICKUP_POS, &"tether_core")
 	# 支路锚点：从 FloorC 东端起跳在 250px 索距内，落台在锚点下方 48px。
 	hook(host, "HookNook", HOOK_NOOK_POS)
-	stele(host, "SteleNook", STELE_NOOK_POS, "工坊遗训 · 吊",
-			"吊索断过一次。接上以后，工坊还是照旧开工。人不是吊索，断了接不回来。")
+	_stele(host, "SteleNook", STELE_NOOK_POS)
+	# G 吊装下层：吊台 F 横渡第二口冷却槽；吊装检修台（钩锁支路）与它的锚点。
+	lift(host, "LiftF", LIFT_F_POS, LIFT_F_TRAVEL, LIFT_F_PERIOD, 64.0)
+	hook(host, "HookHoist", HOOK_HOIST_POS)
+	_reward(host)
 
 
 ## -------------------------------------------------------------------- props --
@@ -239,12 +271,29 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStart", NEST_START_X)
 	nest(host, "EmberNestLift", NEST_LIFT_X)
 	nest(host, "EmberNestGate", NEST_GATE_X)
-	stele(host, "SteleQuench", STELE_A_POS, "工坊遗训 · 淬火",
-			"他们把剑淬进冷却液，换出一枚锈核。核上刻的是职称，不是力气。")
-	stele(host, "SteleChain", STELE_B_POS, "工坊遗训 · 吊链",
-			"吊链的每一环都曾有过名字。名字离开了人，留在铁上。")
+	nest(host, "EmberNestHoist", NEST_HOIST_X)
+	_stele(host, "SteleQuench", STELE_A_POS)
+	_stele(host, "SteleChain", STELE_B_POS)
 	waymark(host, SIGN_A_POS, "工坊")
 	waymark(host, SIGN_F_POS, "渣道")
+
+
+## G 吊装下层的奖励位：吊装检修台（钩锁支路）上的一件工坊遗物。
+func _reward(host: Node2D) -> Node:
+	if not ResourceLoader.exists(REWARD_SCENE):
+		return null
+	var scene := load(REWARD_SCENE) as PackedScene
+	if scene == null:
+		return null
+	var pick := scene.instantiate()
+	pick.name = "RewardHoist"
+	pick.position = REWARD_POS
+	pick.set("reward_kind", REWARD_KIND)
+	pick.set("reward_ref", REWARD_REF)
+	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
+	pick.set("reward_name", item.display_name if item != null else "")
+	group(host, "Pickups").add_child(pick)
+	return pick
 
 
 ## ------------------------------------------------------------------ enemies --
@@ -284,9 +333,20 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "broken_machine", Vector2(2696, FLOOR_Y), 1.0, GIRDER_TINT)
 	prop(host, "plate", Vector2(2856, WALK_Y), 1.0, Color(0.7, 0.62, 0.55))
 	torch(host, 2832.0, FLOOR_Y, TORCH_TINT)
+	# G 吊装下层：锈门后的第二段运渣道，吊装机械与断缆更密。
+	torch(host, 3080.0, FLOOR_Y, TORCH_TINT)
+	prop(host, "girder_l", Vector2(3128, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "pipe_valve", Vector2(3208, FLOOR_Y), 1.0, PIPE_TINT)
+	prop(host, "plate", Vector2(3288, FLOOR_Y), 1.0, PILLAR)
+	prop(host, "broken_machine", Vector2(3392, FLOOR_Y), 1.0, GIRDER_TINT)
+	torch(host, 3400.0, FLOOR_Y, TORCH_TINT)
+	torch(host, 3760.0, FLOOR_Y, TORCH_TINT)
+	prop(host, "slab", Vector2(3728, FLOOR_Y), 1.0, Color(0.68, 0.58, 0.5))
+	prop(host, "rubble_dry", Vector2(3808, FLOOR_Y))
+	prop(host, "girder_r", Vector2(3880, FLOOR_Y), 1.0, GIRDER_TINT)
 	# 顶板垂下的旧缆：仍用窄藤条资源，但染成锈缆色，数量更少。
-	for x in [300.0, 1560.0, 2596.0]:
+	for x in [300.0, 1560.0, 2596.0, 3352.0, 3856.0]:
 		hanging(host, "vine", Vector2(x, 0), CABLE_TINT)
 	# 吊装的残链：工坊的核心机械是吊链，断掉的那半截还挂在顶板下。
-	for x in [640.0, 1904.0]:
+	for x in [640.0, 1904.0, 3184.0, 3560.0]:
 		hanging(host, "chain", Vector2(x, 0), CHAIN_TINT)

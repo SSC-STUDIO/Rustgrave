@@ -754,6 +754,106 @@ BOSSES = {
             "rasp": lane("rasp", ["x.......x.......", "x...x...x...x..."], 0.65, 0.0, f=100, dur=0.45),
         },
     ),
+    # --- 二期 Boss 曲（M3b）：每场 2 层 <track>_bed / _hi，和现有 Boss 同一 pipeline ---
+    # 空钟（level02 沉钟地窟）：替数人的钟说话 —— 低沉的钟腔 drone、远处钟鸣、慢锤。
+    "boss_hollow_bell": dict(
+        drone=[24, 31, 36, 43], drone_kw=dict(voices=4, cents=12.0, tilt=0.9, lfo_depth=0.65),
+        pad=[[45, 48, 52], [43, 47, 50], [41, 45, 48], [38, 43, 47]], pad_db=-8.0,
+        layers=[L_("beams", -16.0, freqs=[98.0, 196.0, 294.0]),
+                L_("heartbeat", -14.0, bpm=52.0, f=46.0)],
+        bed_rt60=5.5, bed_wet=0.42,
+        bpm=66,
+        lanes={
+            "kick": kick_lane(["x.......x.......", "x.......x.....o."], 0.9, f_hi=110, f_lo=42, decay=0.45, drive=1.2),
+            "toll": lane("toll", ["x.......x.......", "x.......x......."], 0.75, -0.2, f=98.0),
+            "tom": lane("tom", ["................", "........x.x....."], 0.5, -0.3, f=72),
+            "anvil": lane("anvil", ["....x.......x...", "....x.......x..."], 0.35, 0.3, f=330, decay=0.9),
+        },
+        hi_lanes={
+            "clank": lane("clank", ["x...x...x...x...", "o...o...o...o..."], 0.4, 0.3, f=1500),
+            "scrape": lane("scrape", ["x...............", "........x......."], 0.5, -0.4, f0=900, f1=2600),
+            "snare": lane("snare", ["................", "....o...o...o..."], 0.3, 0.1, body=180),
+        },
+    ),
+    # 铸钟人（level07b 铸钟厅）：熔金浇铸、名字下锅 —— 炉吼、铁砧与铸模的敲击。
+    "boss_bell_founder": dict(
+        drone=[26, 33, 38, 45], drone_kw=dict(voices=4, cents=14.0, tilt=1.1, lfo_depth=0.55),
+        pad=[[43, 46, 50], [40, 43, 47], [38, 42, 45], [45, 48, 52]], pad_db=-9.0,
+        layers=[L_("roar", -6.0, kw=dict(mid_gain=0.7, hiss_gain=0.06, crackle_rate=22.0, crackle_gain=0.6)),
+                L_("hum", -18.0, f=100.0)],
+        bed_rt60=2.8, bed_wet=0.24,
+        bpm=90,
+        lanes={
+            "kick": kick_lane(["x...x...x...x...", "x...x...x..ox..."], 1.0, f_hi=150, f_lo=46, decay=0.3, drive=2.6),
+            "anvil": lane("anvil", ["x.......x.......", "x.....x.x......."], 0.8, 0.0, f=460, decay=0.5),
+            "chug": lane("chug", ["x.xx.xx.x.xx.xx.", "x.xx.xx.x.xxxox."], 0.55, 0.0, midi=27, dur=0.2),
+            "tom": lane("tom", ["................", "................", ".......x........", "..........x....."], 0.5, -0.25, f=82),
+        },
+        hi_lanes={
+            "snare": lane("snare", ["x...x...x...x...", "x.x.x.x.x.xx.xxx"], 0.5, 0.0, body=190),
+            "clank": lane("clank", ["....x.......x...", "o...o...o...o..."], 0.45, 0.4, f=1650),
+            "scrape": lane("scrape", ["x...............", "........x......."], 0.55, -0.35, f0=1100, f1=3400),
+        },
+    ),
+    # 炉风先驱（level09b 炉风崖道）：没有路的崖道，只有风 —— 风带、俯冲与灰烬。
+    "boss_emberwind_herald": dict(
+        drone=[31, 38, 43, 50], drone_kw=dict(voices=3, cents=11.0, tilt=1.0, lfo_depth=0.7),
+        pad=[[50, 53, 57], [47, 50, 54], [45, 48, 52], [43, 47, 50]], pad_db=-8.0,
+        layers=[L_("wind", -4.0, bands=[(300.0, 900.0), (900.0, 2400.0)], gusts=9, widths=(2.0, 5.0),
+                   depth=0.85, whistles=[(880.0, 30.0), (1320.0, 36.0)], whistle_gain=0.18)],
+        bed_rt60=4.6, bed_wet=0.3,
+        bpm=102,
+        lanes={
+            "kick": kick_lane(["x...x...x...x...", "x...x...x..ox..x"], 1.0, f_hi=145, f_lo=48, decay=0.28, drive=2.2),
+            "tom": lane("tom", ["....x.......x...", "....x.....x.x..."], 0.6, -0.3, f=78),
+            "scrape": lane("scrape", ["x.......x.......", "................", "x...............", "........x......."], 0.5, 0.4),
+            "chug": lane("chug", ["x.x.x.x.x.x.x.x.", "x.x.x.x.x.xxxoxx"], 0.4, 0.0, midi=30, dur=0.15),
+        },
+        hi_lanes={
+            "snare": lane("snare", ["x...x...x...x...", "x.x.x.x.x.x.xxxx"], 0.45, 0.0, body=205),
+            "clank": lane("clank", ["..x...x...x...x.", ".o..x...o..x..o."], 0.35, 0.4, f=1600),
+            "scrape": lane("scrape", ["x...............", "........x.......", "................", "................"], 0.55, -0.4, f0=1300, f1=3800),
+        },
+    ),
+    # 绞盘守渠人（level02b 运渣水渠）：绞盘、链与黑水。
+    "boss_capstan": dict(
+        drone=[27, 34, 39, 46], drone_kw=dict(voices=3, cents=13.0, tilt=1.15, lfo_depth=0.5),
+        pad=[[41, 44, 48], [38, 41, 45], [36, 40, 43], [43, 46, 50]], pad_db=-10.0,
+        layers=[L_("water", -8.0, bubbles=0.45), L_("ticks", -15.0, bpm=84.0,
+                   accents=[1.0, 0.3, 0.55, 0.3, 0.85, 0.3, 0.5, 0.3])],
+        bed_rt60=4.0, bed_wet=0.32,
+        bpm=84,
+        lanes={
+            "kick": kick_lane(["x.....x...x.....", "x.....x.....o..."], 0.9, f_hi=120, f_lo=44, decay=0.4, drive=1.4),
+            "tick": lane("tick", ["x.x.x.x.x.x.x.x.", "x.xox.x.x.xox.x."], 0.28, 0.4),
+            "anvil": lane("anvil", ["x.......x.......", "x.......x......."], 0.4, 0.0, f=520, decay=0.6),
+            "tom": lane("tom", ["................", "........x.x....."], 0.45, -0.3, f=84),
+        },
+        hi_lanes={
+            "snare": lane("snare", ["....x.......x...", "..x...x...x...x."], 0.4, 0.0, body=185),
+            "clank": lane("clank", ["x...x...x...x...", "o...o...o...o..."], 0.4, -0.3, f=1450),
+            "scrape": lane("scrape", ["................", "x..............."], 0.5, 0.4, f0=1000, f1=3000),
+        },
+    ),
+    # 无声唱诗班（level04b 圣殿地窖）：没有声音的唱诗 —— 只有合唱和地下的心跳。
+    "boss_choir": dict(
+        drone=[30, 37, 42, 49], drone_kw=dict(voices=4, cents=9.0, tilt=0.95, lfo_depth=0.55),
+        pad=[[45, 48, 52], [42, 45, 49], [40, 43, 47], [38, 42, 45]], pad_db=-8.0,
+        layers=[L_("choir", -7.0, midis=[45, 52, 57], vowel=(600.0, 1000.0, 2200.0)),
+                L_("drips", -14.0, count=18, lo=500.0, hi=1200.0)],
+        bed_rt60=6.5, bed_wet=0.5,
+        bpm=60,
+        lanes={
+            "kick": kick_lane(["x.......x.......", "x.......x.....o."], 0.8, f_hi=100.0, f_lo=40.0, decay=0.5, drive=1.1),
+            "toll": lane("toll", ["x...............", "................", "x...............", "................"], 0.65, -0.2, f=110.0),
+            "tom": lane("tom", ["................", "........x......."], 0.4, -0.3, f=70),
+        },
+        hi_lanes={
+            "clank": lane("clank", ["x.......x.......", "....o.......o..."], 0.35, 0.3, f=1300),
+            "snare": lane("snare", ["................", "x...x...x...x..."], 0.25, 0.0, body=175),
+            "scrape": lane("scrape", ["x...............", "................"], 0.4, -0.4, f0=800, f1=2400),
+        },
+    ),
 }
 
 ENDING = dict(

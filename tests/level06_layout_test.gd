@@ -189,11 +189,20 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 			ok(String(stele.lore_text) != "", "%s says something" % stele_name)
 	var exit := props.get_node_or_null("Exit") as LevelExit
 	ok(exit != null, "the bell door ends the level")
+	var nest_east := props.get_node_or_null("EmberNestEast") as EmberNest
+	ok(nest_east != null, "the widened stretch has a bell-gate checkpoint")
+	if nest_east != null:
+		ok(_standing_on(rects, nest_east.position + Vector2(6, 14)), "east nest stands on FloorJ")
+		var grove_x := float(consts.get("NEST_GROVE_X", 2120.0))
+		var exit_x := float(consts.get("EXIT_X", 3840.0))
+		ok(nest_east.position.x - grove_x <= 1400.0,
+				"checkpoint spacing stays <= 1400px (%.0f)" % (nest_east.position.x - grove_x))
+		ok(nest_east.position.x < exit_x, "east nest comes before the bell door")
 	if exit != null:
 		eq(exit.target_scene, GameContext.LEVELS["level07"], "bell door hops to level07")
 		eq(exit.flag_id, "level06_done")
 		eq(exit.door_label, "钟楼门")
-		ok(_standing_on(rects, exit.position), "exit door stands on FloorH")
+		ok(_standing_on(rects, exit.position), "exit door stands on FloorJ")
 		ok(float(consts["EAST"]) - exit.position.x >= 80.0, "exit keeps clear of the east wall")
 	var pickup := host.get_node_or_null("Pickups/EmberCoreTreeTop") as CorePickup
 	var anchor := host.get_node_or_null("Hooks/HookTreeTop") as HookAnchor
@@ -240,9 +249,9 @@ func test_enemies_stand_where_they_are_placed() -> void:
 			ok(not LevelSanity.inside_solid(rects, enemy.position), "%s is not buried" % e[0])
 		else:
 			ok(_standing_on(rects, enemy.position, 4.0), "%s stands on a platform" % e[0])
-	eq(int(kinds.get("ghost", 0)), 2, "two ghosts haunt the graveyard")
+	eq(int(kinds.get("ghost", 0)), 3, "three ghosts haunt the graveyard")
 	eq(int(kinds.get("spitter", 0)), 1, "one spitter on the tomb terrace")
-	eq(int(kinds.get("scrapper", 0)), 1, "one scrapper below it")
+	eq(int(kinds.get("scrapper", 0)), 2, "two scrappers on the grave-road")
 	var spitter := enemies.get_node_or_null("Spitter1") as Node2D
 	var terrace := _plat(host, "TerraceE2")
 	if spitter != null and terrace != null:
@@ -285,9 +294,9 @@ func test_backdrop_is_the_open_graveyard_night() -> void:
 	eq(level.theme(), "graveyard")
 	ok(not level.indoors(), "graveyard is outdoors: rain and wind allowed")
 	eq(level.level_id(), "level06")
-	eq(level.title(), "锈墓・陆 — 墓园夜雨")
+	eq(level.title(), "锈墓・捌 — 墓园夜雨")
 	ok(level.wake_line() != "", "an opening line")
-	eq(level.east_limit(), 2880)
+	eq(level.east_limit(), 4000)
 	level.free()
 	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	ok(backdrop != null, "Level01's sky stack")
@@ -315,16 +324,24 @@ func test_backdrop_is_the_open_graveyard_night() -> void:
 func test_visibility_pockets_and_tree_branch() -> void:
 	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
 	var regions := layout.weather_regions()
-	eq(regions.size(), 2, "two local visibility pockets")
+	eq(regions.size(), 3, "three local visibility pockets")
 	var fog: Dictionary = {}
 	var squall: Dictionary = {}
+	var east_fog: Dictionary = {}
 	for spec in regions:
 		var s: Dictionary = spec
 		if String(s.get("name", "")) == "GraveFog":
 			fog = s
 		elif String(s.get("name", "")) == "DitchSquall":
 			squall = s
+		elif String(s.get("name", "")) == "EastGraveFog":
+			east_fog = s
 	ok(not fog.is_empty() and not squall.is_empty(), "the fog and squall are named")
+	ok(not east_fog.is_empty(), "the widened east stretch keeps the visibility theme")
+	if not east_fog.is_empty():
+		var east_rect: Rect2 = east_fog["rect"]
+		eq(int(east_fog["weather"]), WorldClock.Weather.FOG, "the east graves sit under fog")
+		ok(east_rect.position.x <= 2880.0 and east_rect.end.x >= 4000.0, "east fog covers the widened stretch")
 	if not fog.is_empty():
 		var fog_rect: Rect2 = fog["rect"]
 		eq(int(fog["weather"]), WorldClock.Weather.FOG, "the graves sit under fog")

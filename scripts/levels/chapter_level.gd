@@ -97,6 +97,11 @@ func _wake() -> void:
 	]
 	if layout.wake_line() != "":
 		steps.append({"kind": "caption", "text": layout.wake_line(), "hold": 2.0})
+	# 每章进关都要回答「我现在要干什么」：醒来句之后补一句目标（文本在 ChapterText，
+	# 一句 ≤16 字）。Boss 战/HUD 的实时目标仍由 ObjectiveTracker 另算，不改它。
+	var objective := ChapterText.objective_of(layout.level_id())
+	if objective != "":
+		steps.append({"kind": "caption", "text": "目标 · %s" % objective, "hold": 1.8})
 	steps.append({"kind": "unlock"})
 	# One press skips the card and the line together. Waits out a scene fade or an open
 	# pause menu instead of starting suspended inside a level nobody can unpause.

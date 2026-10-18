@@ -101,7 +101,15 @@ func test_bell_door_ends_the_chapter() -> void:
 	var level := await _live_level()
 	var player := get_tree().get_first_node_in_group("player") as Player
 	var exit := level.get_node("Props/BellDoor") as LevelExit
-	eq(exit.target_scene, GameContext.LEVELS["level03"], "the bell door leads on to the rust town")
+	eq(exit.target_scene, GameContext.LEVELS["level02b"], "the bell door leads on to the slag conduit")
+	# 空钟已交付：钟门锁到 hollow_bell_dead。测试模拟「空钟已倒、门前无 Boss」再走门。
+	var boss := level.get_node_or_null("Enemies/HollowBell") as Node2D
+	if boss != null:
+		boss.set_physics_process(false)
+		boss.set_process(false)
+	if exit.is_locked():
+		SaveData.mark_flag("hollow_bell_dead")
+		ok(not exit.is_locked(), "the bell door opens once the hollow bell is dead")
 	player.global_position = exit.global_position + Vector2(-16, 0)
 	var previous_path := SaveData.save_path
 	SaveData.save_path = "user://test_level02_finale.cfg"
@@ -113,13 +121,13 @@ func test_bell_door_ends_the_chapter() -> void:
 	ok(SaveData.has_flag("undercroft_done"), "chapter flag is written")
 	# last_fade_target is written when the fade-out completes, not when it starts.
 	for i in 120:
-		if Director.last_fade_target == GameContext.LEVELS["level03"]:
+		if Director.last_fade_target == GameContext.LEVELS["level02b"]:
 			break
 		await flush(1)
-	eq(Director.last_fade_target, GameContext.LEVELS["level03"], "the door fades into level03")
+	eq(Director.last_fade_target, GameContext.LEVELS["level02b"], "the door fades into the slag conduit")
 	ok(SaveData.load_game(), "the door left a save")
-	eq(SaveData.saved_scene(), GameContext.LEVELS["level03"], "continue reopens level03 at its entry")
-	eq(SaveData.data["player"]["pos"], ChapterLayout.entry_spawn_of("level03"))
+	eq(SaveData.saved_scene(), GameContext.LEVELS["level02b"], "continue reopens the slag conduit at its entry")
+	eq(SaveData.data["player"]["pos"], ChapterLayout.entry_spawn_of("level02b"))
 	SaveData.delete_save()
 	SaveData.save_path = previous_path
 

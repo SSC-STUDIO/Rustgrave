@@ -287,10 +287,10 @@ func _spawn_steles_and_bastion_decor() -> void:
 	if props != null:
 		# Plat_48_144 只铺到 x=48..104。碑宽 28、以脚点为中心，放在石台东侧：
 		# 中线 76 会探到 Kiln_LowTower 窑核（悬在台西沿上方 24px）身上。
-		_add_stele(props, Vector2(88, 144), "SteleForge", "炉约纪事 · 熔熄", "炉灭那夜，城自己沉进岩层。刮锈的偶没干完，先锈在废料里。")
+		_add_registry_stele(props, Vector2(88, 144), "SteleForge")
 		# 枯树右缘 264，「腐液」牌面从 283 起。碑站到坑东岸的矮唇上（512..552）：
 		# 站在地面 320 时碑身左下会嵌进 PitStepLow 土丘，右缘还会贴上 x=568 的锈块。
-		_add_stele(props, Vector2(532, 304), "SteleCoolant", "工坊遗训 · 冷却液", "橙色的是冷却剂。它吃肺，也把记忆淬进剑里。")
+		_add_registry_stele(props, Vector2(532, 304), "SteleCoolant")
 
 	var decor_layer := Node2D.new()
 	decor_layer.name = "BastionDecor"
@@ -300,6 +300,12 @@ func _spawn_steles_and_bastion_decor() -> void:
 	# 那张贴图几乎是一块平的暗矩形，会挡掉月亮和远山。火在栏杆贴图上。
 	_add_balustrade(decor_layer, Vector2(1130, GROUND_TOP))
 	_add_balustrade(decor_layer, Vector2(1370, GROUND_TOP))
+
+
+## 碑文文本从 ChapterText 取；位置常量留在本文件（几何归关卡，文本归注册表）。
+func _add_registry_stele(parent: Node2D, pos: Vector2, stele_name: String) -> void:
+	var entry := ChapterText.stele_of("level01", stele_name)
+	_add_stele(parent, pos, stele_name, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func _add_stele(parent: Node2D, pos: Vector2, stele_name: String, title: String, text: String) -> void:

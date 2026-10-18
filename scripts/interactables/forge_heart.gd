@@ -15,7 +15,7 @@ var _glow: WorldLight
 
 func _ready() -> void:
 	super._ready()
-	prompt = "E 触碰炉心"
+	prompt = "E 把残芯放上炉座"
 	ensure_sprite("res://assets/env/bg_altar_cut.png", Vector2(36, 40), Vector2(-10, -8), Palette.EMBER)
 	_ensure_light()
 	if SaveData.has_flag("boss_dead"):
@@ -66,6 +66,9 @@ func _ensure_light() -> void:
 
 func interact(actor: Node) -> void:
 	if _choosing or not actor is Player or not can_interact(actor):
+		return
+	# 回火试炼：炉心结局不属于试炼流程（会写战役结局/旗标），试炼里不触发。
+	if TrialRun.active():
 		return
 	_choosing = true
 	_open_choice()
@@ -118,6 +121,8 @@ func _on_chosen(id: StringName) -> void:
 	var kind := "rekindle" if id == ID_REKINDLE else "snuff"
 	if kind == "snuff":
 		SaveData.ending = kind
+		# 契约 §5：任一结局解锁回火试炼（战役写；试炼里 mark_flag 会被守卫 no-op）。
+		SaveData.mark_flag("trial_unlocked")
 	GameEvents.ending_chosen.emit(id)
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
@@ -129,7 +134,7 @@ func _on_chosen(id: StringName) -> void:
 			{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
 			{"kind": "fx", "id": "ember_rise", "seconds": 0.8},
 			{"kind": "caption", "text": "不是拯救。", "hold": 1.4},
-			{"kind": "caption", "text": "把剑里的人带到炉心，再问一次。", "hold": 2.2},
+			{"kind": "caption", "text": "点亮它，再收进剑里，带下去。", "hold": 2.2},
 			{"kind": "wait", "seconds": 0.2},
 			{"kind": "unlock"},
 		])
@@ -143,7 +148,7 @@ func _on_chosen(id: StringName) -> void:
 		{"kind": "lock"},
 		{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
 		{"kind": "fx", "id": "ash_fall", "seconds": 0.9},
-		{"kind": "caption", "text": "余烬落回炉灰。骑士也是。", "hold": 2.2},
+		{"kind": "caption", "text": "余烬落回炉灰。你没问到答案。", "hold": 2.2},
 		{"kind": "wait", "seconds": 0.2},
 		{"kind": "unlock"},
 	])

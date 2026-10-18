@@ -91,6 +91,35 @@ const TOP_LIGHT_DEPTH := 6
 const LIGHT_POOL := Color(1.0, 0.6, 0.28, 0.22)
 const POOL_FOLLOWS := [&"nest", &"torch", &"heart"]
 
+## 第一章「绯红黄昏」运行时调色（2026 用户提供的天空参考：亮品红/粉云、紫山剪影、
+## 大红月、地平线粉雾）。参考图就是作者原画的品红夜板本身——所以这里把 phase-3
+## 的锈色 grade 压到很轻（amount 0.18–0.22），只把明度结构推亮/压暗，不再把
+## 品红整片刷成锈褐。上面那些历史 phase-3 常量（GRADE / RUST_RAMP / PLATE_VALUE）
+## 留给回归测试与其它章节的默认回退，运行时默认调用方改用这份 palette。
+## 关键点：
+##   · Far 值推亮（1.16）→ 天空回到品红/粉，同时保留原有月亮的明度层次；
+##   · Mid 压暗（0.56）→ 紫山仍是剪影，但保留原画的紫而不是锈褐；
+##   · 云板提亮并偏粉（cloud_tint）→ 参考图里的粉色横云；
+##   · 地平线 glow 从余烬橙改成绯红粉（glow），山脚后才读得出粉雾；
+##   · 玩法层不动（仍走 PLAY_RAMP，回归测试与可读性约束不变）。
+const CRIMSON_DUSK := {
+	"plates": {"Far": 0.55, "Mid": 0.18, "Hills": 0.3, "SkyCloudsHigh": 0.4, "SkyCloudsLow": 0.4,
+			"FogFar": 0.4, "FogNear": 0.4, "Foreground": 0.35, "GroundFog": 0.25},
+	"values": {"Far": 0.98, "Mid": 0.74, "Hills": 0.9, "SkyCloudsHigh": 1.0, "SkyCloudsLow": 0.96,
+			"FogFar": 1.06, "FogNear": 1.06, "Foreground": 0.52, "GroundFog": 1.0},
+	"ramp": [Color("#220709"), Color("#4d0f16"), Color("#8f1e26"), Color("#c0342f"), Color("#ff8f5f")],
+	"cloud_tint": Color(1.24, 0.94, 1.0),
+	"warm": Color(1.08, 0.92, 0.94),
+	"glow": Color(1.0, 0.35, 0.4, 0.5),
+	"glow_stops": [[0.0, 0.0], [0.12, 0.12], [0.32, 0.52], [0.52, 0.96], [0.7, 0.9], [1.0, 0.5]],
+	"top_light": Color(1.0, 0.64, 0.52, 0.52),
+	"sil_tint": Color(0.2, 0.09, 0.14, 0.95),
+	"veil": Color(0.94, 0.72, 0.66),
+	"light_pool": Color(1.0, 0.62, 0.3, 0.24),
+}
+## 第一章的月亮补光：原画是红月，补光也从冷蓝改成暖玫瑰，落在角色身上的边光才接得住天空。
+const MOON_FILL := Color(1.0, 0.58, 0.5)
+
 ## Chapter palette (defaults: GRADE, RUST_RAMP, CHAPTER_WARM, PLAY_RAMP). Chapters that reuse this sky stack (Level06 night
 ## graveyard) hand in their own ramp so they do not read as a copy of chapter 1.
 var palette: Dictionary = {}
@@ -164,7 +193,7 @@ func build(host: Node2D, _theme_id: String = "graveyard") -> void:
 	if moon == null:
 		moon = DirectionalLight2D.new()
 		moon.name = "MoonFill"
-		moon.color = Color(0.72, 0.78, 1.0)
+		moon.color = MOON_FILL
 		moon.shadow_enabled = true
 		moon.height = 0.65
 		moon.rotation = deg_to_rad(-18.0)
@@ -230,12 +259,12 @@ func _follow_atmosphere(delta: float) -> void:
 	if _ground_fog != null:
 		_ground_fog.modulate = _ground_fog.modulate.lerp(Color(1, 1, 1, WorldClock.ground_fog_alpha()), k)
 	if _fog_veil != null:
-		var veil: Color = palette.get("veil", FOG_VEIL_COLOR)
+		var veil: Color = _palette().get("veil", FOG_VEIL_COLOR)
 		veil.a = WorldClock.fog_veil_alpha()
 		_fog_veil.color = _fog_veil.color.lerp(veil, k)
 	if _glow != null:
 		# Night / storm dim the horizon glow but never remove it (the forge city still smoulders).
-		var glow: Color = palette.get("glow", HORIZON_GLOW)
+		var glow: Color = _palette().get("glow", HORIZON_GLOW)
 		var dim := clampf(WorldClock.mood_luminance() / 0.82, 0.4, 1.1)
 		_glow.modulate = _glow.modulate.lerp(Color(glow.r, glow.g, glow.b, glow.a * dim), k)
 	if _moon_fill != null:
@@ -318,15 +347,15 @@ static func grade_plates(backdrop: Node, pal: Dictionary = {}) -> int:
 
 
 func _palette() -> Dictionary:
-	return palette
+	return palette if not palette.is_empty() else CRIMSON_DUSK
 
 
 func _cloud_tint() -> Color:
-	return palette.get("cloud_tint", CLOUD_TINT)
+	return _palette().get("cloud_tint", CLOUD_TINT)
 
 
 func _warm() -> Color:
-	return palette.get("warm", CHAPTER_WARM)
+	return _palette().get("warm", CHAPTER_WARM)
 
 
 ## 玩法层调色：给 PLAY_GRADE_FOLDERS 里的地形 / 装饰精灵挂共享的煤灰锈材质。
@@ -444,8 +473,9 @@ static func add_light_pools(host: Node, pal: Dictionary = {}) -> int:
 
 
 func _add_horizon_glow(backdrop: Node) -> void:
-	var glow: Color = palette.get("glow", HORIZON_GLOW)
-	var spr := add_glow(backdrop, glow, GLOW_STOPS, "Mid")
+	var glow: Color = _palette().get("glow", HORIZON_GLOW)
+	var stops: Array = _palette().get("glow_stops", GLOW_STOPS)
+	var spr := add_glow(backdrop, glow, stops, "Mid")
 	if spr != null:
 		_glow = spr
 
@@ -588,7 +618,7 @@ func _add_fog_veil(front: Node) -> ColorRect:
 	veil.position = Vector2.ZERO
 	veil.size = Vector2(PresentationMetrics.WORLD_SIZE)
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var c: Color = palette.get("veil", FOG_VEIL_COLOR)
+	var c: Color = _palette().get("veil", FOG_VEIL_COLOR)
 	c.a = WorldClock.fog_veil_alpha()
 	veil.color = c
 	front.add_child(veil)
@@ -610,7 +640,7 @@ func _add_silhouette_layer(backdrop: Node) -> Parallax2D:
 				path,
 				Vector2(float(item[1]), float(item[2])),
 				float(item[3]),
-				palette.get("sil_tint", SIL_TINT))
+				_palette().get("sil_tint", SIL_TINT))
 		if spr != null:
 			any = true
 	if any:

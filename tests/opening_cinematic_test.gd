@@ -30,6 +30,8 @@ func setup() -> void:
 
 
 func teardown() -> void:
+	Engine.time_scale = 1.0
+	Juice._restore_at_ms = 0
 	Director.abort()
 	Director.hide_hint()
 	Opening.reset()
@@ -56,20 +58,46 @@ func test_beat_sheet_fits_the_budget_and_uses_only_known_step_kinds() -> void:
 	var steps := Opening.steps()
 	var seconds := Director.estimate_seconds(steps)
 	ok(seconds <= Opening.MAX_SECONDS, "opening runs %.1fs, budget %.1fs" % [seconds, Opening.MAX_SECONDS])
-	ok(seconds >= 10.0, "opening is a real piece, not a blink (%.1fs)" % seconds)
+	ok(seconds >= Opening.MIN_SECONDS,
+			"the readable opening is a real piece, not a blink (%.1fs, min %.1fs)"
+			% [seconds, Opening.MIN_SECONDS])
 	var captions: Array[String] = []
 	for raw in steps:
 		var step: Dictionary = raw
 		ok(ALLOWED_KINDS.has(String(step.get("kind", ""))), "step kind %s is an existing Director kind" % step.get("kind", ""))
 		if step.get("kind", "") == "caption":
 			captions.append(String(step["text"]))
-	eq(captions, Opening.LINES, "situation, identity, anomaly, objective — in that order")
-	eq(Opening.LINES.size(), 5, "five beats: situation, identity split into two captions, anomaly, objective")
-	ok(Opening.LINES[0].contains("剑"), "the situation beat names the sword")
-	ok(Opening.LINES[1].contains("选中"), "the identity beat (1/2) denies the chosen-one reading")
-	ok(Opening.LINES[2].contains("锈透"), "the identity beat (2/2) closes on the knight's own rot")
-	ok(Opening.LINES[3].contains("钟"), "the anomaly is the bell under the graves")
-	ok(Opening.LINES[4].contains("炉"), "the objective names the furnace")
+	eq(captions, Opening.LINES, "situation, terms, Yir, names, timeline, anomaly, goal, obstacle — in that order")
+	eq(Opening.LINES.size(), 16, "sixteen beats: every proper noun explained on first use")
+	ok(Opening.LINES[0].contains("剑") and Opening.LINES[0].contains("核"),
+			"the situation beat names the sword and the core inside it")
+	ok(Opening.LINES[1].contains("炉约") and Opening.LINES[1].contains("誓"),
+			"the covenant is explained the first time 炉约 is named")
+	ok(Opening.LINES[2].contains("守炉人"), "the keepers are named as the people who swore")
+	ok(Opening.LINES[3].contains("净化偶") and Opening.LINES[3].contains("人偶"),
+			"净化偶 is explained the first time it is named")
+	ok(Opening.LINES[4].contains("最后一具") and Opening.LINES[4].contains("锈透"),
+			"the identity beat closes on being the last, rusted one")
+	ok(Opening.LINES[5].contains("伊尔") and Opening.LINES[5].contains("点亮"),
+			"Yir picked you up and lit you")
+	ok(Opening.LINES[6].contains("回声") and Opening.LINES[6].contains("封进核之前"),
+			"the echo is explicitly Yir's words from before she sealed herself")
+	ok(Opening.LINES[7].contains("名字") and Opening.LINES[7].contains("回不来"),
+			"the names beat explains what burning a name costs")
+	ok(Opening.LINES[8].contains("炉心") and Opening.LINES[8].contains("炉膛"),
+			"炉心 is explained as the great furnace under the city")
+	ok(Opening.LINES[9].contains("残芯") and Opening.LINES[9].contains("核"),
+			"残芯 is explained as the core holding the last fire")
+	ok(Opening.LINES[10].contains("灯") and Opening.LINES[10].contains("灯芯"),
+			"the lamp has burned on the remnant core as a wick")
+	ok(Opening.LINES[11].contains("灯越来越暗") and Opening.LINES[11].contains("取下"),
+			"the timeline ends with the dimming lamp and the core taken down")
+	ok(Opening.LINES[12].contains("钟"), "the anomaly is the bell under the graves")
+	ok(Opening.LINES[13].contains("残芯") and Opening.LINES[13].contains("问"),
+			"the goal names the core and the question")
+	ok(Opening.LINES[14].contains("这火该不该还"), "the question is stated verbatim")
+	ok(Opening.LINES[15].contains("刽子手") and Opening.LINES[15].contains("炉座"),
+			"the obstacle guards the furnace stand")
 	var card: Dictionary = {}
 	for raw in steps:
 		if (raw as Dictionary).get("id", "") == "chapter":
@@ -120,7 +148,15 @@ func test_new_game_plays_the_beat_sheet_then_marks_seen_without_ending() -> void
 	ok(not SaveData.has_flag("wake"), "wake waits until the whole piece ends")
 	eq(SaveData.ending, "")
 	ok(not Opening.try_start(), "a second call while it plays does not replay")
-	var done := await wait_until(func() -> bool: return not Director.playing, 1500)
+	# 45 秒的开场不能真等 45 秒：time_scale 只在这一条用例里加速 Director 的等待，
+	# 结束/超时都还原（真实播放时长由 estimate_seconds 断言，不靠这里）。
+	# Juice 每帧会把 time_scale 拉回 1.0（它以为在恢复慢放），这里把恢复时刻推迟。
+	var previous_scale := Engine.time_scale
+	Juice._restore_at_ms = Time.get_ticks_msec() + 120000
+	Engine.time_scale = 10.0
+	var done := await wait_until(func() -> bool: return not Director.playing, 900)
+	Engine.time_scale = previous_scale
+	Juice._restore_at_ms = 0
 	Director.step_started.disconnect(on_step)
 	ok(done, "opening finished")
 	ok(not Director.playing, "finish does not start a second wake script")
@@ -130,7 +166,8 @@ func test_new_game_plays_the_beat_sheet_then_marks_seen_without_ending() -> void
 	eq(tableau_ids, ["chapter", "world"])
 	# 身份拍的两个 tag 把镜头和坟群的回应绑在同一条字幕上；目标拍带 line_forge，
 	# 截图夹具按 tag 认它，不按第几句认。
-	eq(tags, ["rouse", "stand", "pullback", "grave_row", "toll", "line_forge", "card", "handoff"])
+	eq(tags, ["rouse", "stand", "pullback", "grave_row", "world", "toll", "anomaly",
+			"line_forge", "obstacle", "card", "handoff"])
 	ok(SaveData.has_flag(Opening.FLAG))
 	ok(SaveData.has_flag("wake"), "wake is marked with the opening")
 	eq(SaveData.flags.count(Opening.FLAG), 1)
@@ -425,18 +462,35 @@ func test_handoff_prompt_states_the_keys_and_leaves_the_direction_to_the_camera(
 
 
 ## Every caption line must be short enough that the picture carries the beat and the
-## text only pins it. Long subtitle blocks are a sign the shot stopped telling the story.
+## text only pins it. M1R2 把身份/名字/世界观拆成短拍，但每句仍是 22 字以内的短句。
 func test_lines_are_short_enough_for_the_picture_to_lead() -> void:
 	for line in Opening.LINES:
-		ok(String(line).length() <= 16, "line is a pin, not a paragraph: %s" % line)
-	# The objective beat names the furnace and the ones below in the same breath.
-	ok(Opening.LINES[4].contains("炉") and Opening.LINES[4].contains("他们"),
-			"the objective names both the furnace and who has to be taken down")
-	# The identity beat says what the knight is, not what he must do.
-	ok(Opening.LINES[2].contains("偶"), "the identity echo calls the knight what he is")
+		ok(String(line).length() <= 22, "line is a pin, not a paragraph: %s" % line)
+	# The identity beat says what you are, not what you must do.
+	ok(Opening.LINES[3].contains("偶") and Opening.LINES[4].contains("锈"),
+			"the identity beat calls you the last rusted puppet")
 	# The anomaly is one sentence; the graves' answers are the picture.
-	ok(Opening.LINES[3].contains("钟") and Opening.LINES[3].contains("数"),
+	ok(Opening.LINES[12].contains("钟") and Opening.LINES[12].contains("数"),
 			"the anomaly beat says the bell is counting")
+	# 每组信息各出现且只出现一次；每个专名组都带一句白话。
+	var opening: Dictionary = ChapterText.OPENING
+	var groups := {
+		"terms": ["oath", "keepers", "made", "furnace", "remnant"],
+		"timeline": ["lamp", "dim"],
+		"yir": ["saved", "echo"],
+		"identity": ["last_one"],
+		"names": ["names"],
+		"goal": ["goal", "question"],
+		"obstacle": ["obstacle"],
+		"situation": ["situation", "anomaly"],
+	}
+	for group in groups:
+		for key in groups[group]:
+			var hits := 0
+			for line in Opening.LINES:
+				if String(line) == String(opening[key]):
+					hits += 1
+			eq(hits, 1, "%s/%s is said exactly once" % [group, key])
 
 
 ## The objective shot ends on the forge remnant at the corridor's end: the camera must

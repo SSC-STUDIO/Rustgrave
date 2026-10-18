@@ -15,6 +15,9 @@ extends Control
 const KEYART_PATH := "res://assets/kenney_clean/backgrounds/title_keyart.png"
 const LEVEL_PATH := "res://scenes/levels/Level01_Static.tscn"
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
+## 回火试炼（新游戏模式）：入口由战役解锁旗标控制（契约 §5）。
+const TrialCatalogScript := preload("res://scripts/data/trial_catalog.gd")
+const TRIAL_MENU := "res://scenes/ui/TrialMenu.tscn"
 
 const EMBERS_RISING := 30
 const EMBERS_FALLING := 14
@@ -56,6 +59,7 @@ const QUIT_CAPTION := "余 烬 熄 灭。"
 
 const ID_NEW := &"new"
 const ID_CONTINUE := &"continue"
+const ID_TRIAL := &"trial"
 const ID_SETTINGS := &"settings"
 const ID_CONTROLS := &"controls"
 const ID_QUIT := &"quit"
@@ -194,6 +198,10 @@ func _build_rail() -> void:
 	_gap(GAP_PRIMARY)
 	var cont := "回 看 余 烬" if SaveData.peek_ending() != "" else "继 续 旅 程"
 	_menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY)
+	_gap(GAP_PRIMARY)
+	# 第三条主行动：回火试炼。未解锁（没通关第七章 / 没走完结局）时置灰。
+	var trial_ready := TrialCatalogScript.unlocked()
+	_menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.PRIMARY)
 	_gap(GAP_GROUP)
 	_menu.add_child(_rail_divider())
 	_gap(GAP_DIVIDER)
@@ -212,6 +220,14 @@ func _build_rail() -> void:
 	add_child(_spine)
 	# 叠在菜单之下：先加进来的先画，回头把脊挪到菜单下面。
 	move_child(_spine, _menu.get_index())
+
+	# 未解锁时用一行 12px 小字说明解锁条件（试炼入口保持置灰）。
+	if not trial_ready:
+		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」",
+				&"FootnoteLabel")
+		trial_hint.name = "TrialLockHint"
+		trial_hint.position = Vector2(RAIL_X, RAIL_TOP + _menu.size.y + 10.0)
+		add_child(trial_hint)
 
 	# 有存档时光标默认停在"继续"：回车不会再一键抹掉进度。
 	if has_save:
@@ -377,6 +393,10 @@ func _on_chosen(id: StringName) -> void:
 				_start(false)
 		ID_CONTINUE:
 			_start(true)
+		ID_TRIAL:
+			_menu.active = false
+			Sfx.play(&"gate")
+			Director.fade_to(TRIAL_MENU, 0.5)
 		ID_SETTINGS:
 			_menu.active = false
 			_settings.open()

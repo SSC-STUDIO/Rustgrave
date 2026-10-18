@@ -19,17 +19,15 @@ extends Node
 ## Chapter-1 gate staging lives in Level01StoryBeats (the oath, the shield).
 const BOSS_SCRIPTED_ELSEWHERE: Array[String] = ["刽子手"]
 ## What each core says the first time it is seated. One line, never repeated.
-## Same text as docs/story.md; the inventory banner must not repeat it.
-const CORE_VOICE := {
-	&"heat_forge": "窑匠：把火留在刃上。门会自己让开。",
-	&"hookshot_tether": "系索匠：你很重。让世界过来。",
-	&"ember_step": "余烬核：灰还能再跳一次。别问它从谁身上来。",
-}
-const FIRST_CORE_LINE := "这不是战利品。是一个还没说完的职称。"
+## Text lives in ChapterText (single source); docs/story.md §7.
+const CORE_VOICE := ChapterText.CORE_VOICE
+const FIRST_CORE_LINE := ChapterText.FIRST_CORE_LINE
 
 static var _seen: Dictionary = {}
 
 var test_enabled := false
+## 章间间幕执行器：挂在 StoryStage 下，跟着 Director 常驻、跨场景不销毁。
+var transition: ChapterTransition
 
 
 ## True the first time `key` is staged. The save flag is the truth; the session memory
@@ -67,6 +65,10 @@ func _ready() -> void:
 	GameEvents.chapter_started.connect(_on_chapter_started)
 	GameEvents.player_died.connect(_on_player_died)
 	GameEvents.ending_chosen.connect(_on_ending_chosen)
+	# 章间间幕执行器挂在这里：Director 的子节点跨场景常驻，间幕不用每关重建。
+	# 它自己连 chapter_started；本节点先连，所以硬复位总在间幕之前发生。
+	transition = ChapterTransition.new()
+	add_child(transition)
 
 
 func live() -> bool:

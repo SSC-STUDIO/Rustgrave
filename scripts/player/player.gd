@@ -650,6 +650,10 @@ func _on_died() -> void:
 		_anim.play("death")  # 物理停摆后由 _process 继续播完倒地
 	set_physics_process(false)
 	GameEvents.player_died.emit()
+	# 试炼：死亡由 TrialRun 计时/快速重试（0.9s 重载本场），不走战役的
+	# "回最近余烬巢重燃"，也不读写战役档（契约 §5）。
+	if TrialRun.active():
+		return
 	GameEvents.announcement.emit("余烬熄灭…")
 	var wait := Timer.new()
 	wait.one_shot = true

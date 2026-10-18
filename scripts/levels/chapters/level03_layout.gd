@@ -16,8 +16,10 @@ extends ChapterLayout
 ##                         巷口第三巢在碎铁犬/幽魂的仇恨圈外，死亡回程约 800px
 ##   ⑥ 圣殿前阶  2240–2880 三级 32px 石阶（320/288/256）上前台；喷吐者守阶口，
 ##                         齿盾卫守门；出口「圣殿门」→ level04
+##   ⑦ 死城街区  2880–4000 前台落地回到街面；死城支路（屋顶环线，可回主路）带
+##                         1 个奖励位；街尾是新的圣殿门（出口）
 
-const EAST_LIMIT := 2880
+const EAST_LIMIT := 4000
 const ENTRY_SPAWN := Vector2(96, 300)
 
 ## 地面段 [name, x0, x1, top_y]
@@ -29,8 +31,8 @@ const FLOORS: Array = [
 	["StairA", 2240.0, 2336.0, 320.0],
 	["StairB", 2336.0, 2432.0, 288.0],
 	["Terrace", 2432.0, 2880.0, 256.0],
+	["DeadStreet", 2880.0, 4000.0, 320.0],
 ]
-## 悬空石台 [name, pos(左上), width, skin]
 const STEPS: Array = [
 	["BridgeA1", Vector2(592, 288), 48.0, "brick_float"],
 	["BridgeA2", Vector2(672, 256), 48.0, "brick_float"],
@@ -40,6 +42,11 @@ const STEPS: Array = [
 	["TowerRoof", Vector2(1784, 160), 144.0, "brick"],
 	["EaveD", Vector2(1952, 256), 96.0, "brick"],
 	["EaveE", Vector2(2112, 256), 96.0, "brick"],
+	## ⑦ 死城支路：从街面爬上死屋檐口（288→256→224），沿屋脊走到奖励位，
+	## 再从屋脊直接落回街面——可回主路的环线，不需要钩锁也能走通。
+	["DeadStepA", Vector2(2952, 288), 48.0, "brick_float"],
+	["DeadRoofA", Vector2(3000, 256), 120.0, "brick"],
+	["DeadRidge", Vector2(3120, 224), 140.0, "brick"],
 ]
 ## 实心石阶 [name, pos(左上), size]：屋顶 C 东侧下到街面的两级。
 ## 每级至多 32 高；64 高的落差拆成上下两块，LevelSanity 的净空检查才把
@@ -62,7 +69,7 @@ const NEST_ALLEY_X := 2000.0
 const STELE_WINDOW_POS := Vector2(248, 320)
 const STELE_STAIR_POS := Vector2(2600, 256)
 const SIGN_TOWN_POS := Vector2(328, 320)
-const SIGN_TEMPLE_POS := Vector2(2288, 320)
+const SIGN_TEMPLE_POS := Vector2(3780, 320)
 
 ## 压板脚点在屋顶 C 上；闸门左上角在街面（门 16×64，底在 320）。
 const PLATE_FEET := Vector2(1152, 224)
@@ -73,7 +80,12 @@ const HOOK_POS := Vector2(1856, 104)
 const EMBER_CORE_POS := Vector2(1896, 128)
 ## 支路奖励：世界信息（锈城为什么熄灯），不是第二枚可收集核。
 const STELE_TOWER_POS := Vector2(1832, 160)
-const EXIT_POS := Vector2(2760, 256)
+## ⑦ 死城街区：奖励位在死屋檐脊上（EquipmentPickup 的 Fill 底边在节点 +7px）。
+const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
+const REWARD_POS := Vector2(3176, 217)
+const REWARD_KIND := "equipment"
+const REWARD_REF := "iron_blade"
+const EXIT_POS := Vector2(3840, 320)
 
 ## [name, kind, pos, overrides]：落地敌人给脚点，飞行/穿墙敌人给悬停中心。
 ## 广场两只碎铁犬的 beat 收在 16px：plaza 巢和巷口巢都在 215px 冲锋圈之外。
@@ -87,6 +99,10 @@ const ENEMIES: Array = [
 	["Ghost1", "ghost", Vector2(2228, 312), {}],
 	["Spitter2", "spitter", Vector2(2464, 256), {}],
 	["GearShield1", "gear_shield", Vector2(2656, 256), {}],
+	## ⑦ 死城街区：碎铁犬守在支路入口、幽魂在屋脊东侧、喷吐者守街尾圣殿门。
+	["Scrapper4", "scrapper", Vector2(2900, 320), {}],
+	["Ghost2", "ghost", Vector2(3420, 268), {}],
+	["Spitter3", "spitter", Vector2(3640, 320), {}],
 ]
 
 ## 街屋已经在夜城视差里。不再把圣殿尖窗板竖在街心当第二排房子。
@@ -102,11 +118,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・叁 — 锈城街巷"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "灭火那夜，人自己关了门，往下走。窗里是锈苔。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -142,10 +164,13 @@ func weather_recipe() -> Dictionary:
 
 
 ## ⑤ 窄巷（1936–2240）两侧矮屋檐口压顶：风被墙吃掉，雾沉在巷底。
+## ⑦ 死城街区（2880–4000）也是一片沉雾：死屋之间连风都懒得走。
 func weather_regions() -> Array:
 	return [
 		{"name": "AlleyCalm", "rect": Rect2(1936, 224, 304, 176),
 			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
+		{"name": "DeadQuarter", "rect": Rect2(2880, 224, 1120, 176),
+			"weather": WorldClock.Weather.FOG, "intensity": 0.85, "wind_scale": 0.5},
 	]
 
 
@@ -154,10 +179,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_POS.x, "圣殿门", PackedStringArray([
-		"圣殿的灯还在烧。",
-		"签过炉约的手，已经不在了。",
-	]), "level03_done", GameContext.next_level_id(level_id()), EXIT_POS.y)
+	exit_door(host, EXIT_POS.x, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level03_done",
+			GameContext.next_level_id(level_id()), EXIT_POS.y)
 	finish(host)
 
 
@@ -177,18 +201,36 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStreet", NEST_START_X)
 	nest(host, "EmberNestPlaza", NEST_PLAZA_X)
 	nest(host, "EmberNestAlley", NEST_ALLEY_X, 352.0)
-	stele(host, "SteleWindow", STELE_WINDOW_POS, "锈城纪事 · 窗",
-			"炉火熄的那一夜，人们把门带上，自己往下走。窗里现在亮着的，是锈苔。")
-	stele(host, "SteleStair", STELE_STAIR_POS, "锈城纪事 · 阶",
-			"没有人来赶他们。阶梯是朝下的。尽头那盏灯，还在圣殿里烧。")
+	_stele(host, "SteleWindow", STELE_WINDOW_POS)
+	_stele(host, "SteleStair", STELE_STAIR_POS)
 	waymark(host, SIGN_TOWN_POS, "锈城")
 	waymark(host, SIGN_TEMPLE_POS, "圣殿")
 	plate_door(host, "Gate", PLATE_FEET, GATE_POS)
 	hook(host, "HookTower", HOOK_POS)
 	pickup(host, "EmberCoreTower", EMBER_CORE_POS, &"ember_core")
 	# 塔顶支路：只有钩锁能读到的城市纪事。奖励是解释「窗里的灯」的世界信息。
-	stele(host, "SteleTower", STELE_TOWER_POS, "锈城纪事 · 灯",
-			"窗里亮着的不是灯，是锈苔。守灯的人先走了，灯替他留到了现在。")
+	_stele(host, "SteleTower", STELE_TOWER_POS)
+	# ⑦ 死屋檐脊上的奖励位：支路尽头的一件锈城遗物（EquipmentPickup 接应）。
+	_reward(host)
+
+
+## 奖励位：EquipmentPickup 的 reward_kind/reward_ref 走 LoadoutBridge（roster 缺失
+## 时回退「一点余温」，不死锁）。位置在支路屋脊上，Fill 底边（节点 +7px）贴台面。
+func _reward(host: Node2D) -> Node:
+	if not ResourceLoader.exists(REWARD_SCENE):
+		return null
+	var scene := load(REWARD_SCENE) as PackedScene
+	if scene == null:
+		return null
+	var pick := scene.instantiate()
+	pick.name = "RewardDeadQuarter"
+	pick.position = REWARD_POS
+	pick.set("reward_kind", REWARD_KIND)
+	pick.set("reward_ref", REWARD_REF)
+	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
+	pick.set("reward_name", item.display_name if item != null else "")
+	group(host, "Pickups").add_child(pick)
+	return pick
 
 
 func _build_enemies(host: Node2D) -> void:
@@ -222,3 +264,13 @@ func _build_decor(host: Node2D) -> void:
 	foliage(host, "bush_s", Vector2(2250, 320), 1.0, false, DRY_BUSH)
 	prop(host, "rubble_dry", Vector2(2352, 288))
 	prop(host, "balustrade_town", Vector2(2528, 256))
+	# ⑦ 死城街区：塌了半边的砖屋、门洞、干石与栏杆；支路屋脊下一盏残窗灯。
+	prop(host, "brick_house", Vector2(2960, 320), 1.0, Color(0.36, 0.4, 0.5))
+	prop(host, "door_arch_town", Vector2(3260, 320), 1.0, ARCH_TINT)
+	prop(host, "rubble_dry", Vector2(3304, 320))
+	prop(host, "rubble_dry_b", Vector2(3384, 320))
+	prop(host, "balustrade_town", Vector2(3480, 320))
+	foliage(host, "bush_s", Vector2(3540, 320), 1.0, false, DRY_BUSH)
+	prop(host, "brick_house", Vector2(3700, 320), 1.0, Color(0.4, 0.44, 0.54))
+	prop(host, "rubble_dry_c", Vector2(3806, 320))
+	hanging(host, "vine", Vector2(3096, 224), Color(0.4, 0.42, 0.4, 0.7))

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dshstoryacceptance1"]
+
+[ext_resource type="Script" path="res://tools/story_acceptance.gd" id="1_story"]
+
+[node name="StoryAcceptance" type="Node"]
+script = ExtResource("1_story")

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/loadout_merge_check.gd" id="1_merge"]
+
+[node name="LoadoutMergeCheck" type="Node"]
+script = ExtResource("1_merge")

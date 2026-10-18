@@ -92,7 +92,7 @@ func test_metadata_names_the_workshop() -> void:
 	ok(layout.wake_line() != "", "an opening line")
 	eq(layout.theme(), "industrial")
 	ok(layout.indoors(), "the workshop has a roof")
-	eq(layout.east_limit(), 3040)
+	eq(layout.east_limit(), 4000)
 	ok(layout.entry_spawn().x < 200.0, "the knight enters from the west")
 
 
@@ -219,27 +219,28 @@ func test_checkpoints_exit_and_lore_are_placed() -> void:
 	var props := host.get_node("Props")
 	var tops := _tops(host)
 	var nests: Array[EmberNest] = []
-	for nest_name in ["EmberNestStart", "EmberNestLift", "EmberNestGate"]:
+	for nest_name in ["EmberNestStart", "EmberNestLift", "EmberNestGate", "EmberNestHoist"]:
 		var n := props.get_node_or_null(nest_name) as EmberNest
 		ok(n != null, "%s exists" % nest_name)
 		if n != null:
 			nests.append(n)
 			ok(_standing_on(tops, n.position + Vector2(6, 14)), "%s stands on a floor" % nest_name)
-	if nests.size() == 3:
+	if nests.size() == 4:
 		var lift_c := host.get_node("Platforms/LiftC") as MovingPlatform
 		var gate := props.get_node("RustGate") as Node2D
 		ok(nests[0].position.x < 480.0, "first nest in the entry hall")
 		ok(nests[1].position.x > lift_c.end_position().x, "second nest waits after the long crossing")
 		ok(nests[2].position.x > 2512.0 and nests[2].position.x < gate.position.x,
 				"third nest after the relay, before the rust gate")
+		ok(nests[3].position.x > gate.position.x, "fourth nest waits past the rust gate, in the hoist run")
 	var exit := props.get_node_or_null("Exit") as LevelExit
 	ok(exit != null, "the slag road ends the level")
 	if exit != null:
 		eq(exit.target_scene, GameContext.LEVELS["level06"], "the slag road hops to level06")
 		eq(exit.flag_id, "level05_done")
 		eq(exit.door_label, "运渣道")
-		ok(_standing_on(tops, exit.position), "exit door stands on FloorE")
-		ok(exit.position.x <= 3040.0 - 80.0, "exit keeps clear of the east wall")
+		ok(_standing_on(tops, exit.position), "exit door stands on the hoist floor")
+		ok(exit.position.x <= 4000.0 - 80.0, "exit keeps clear of the east wall")
 		eq(exit.spawn, ChapterLayout.entry_spawn_of("level06"), "arrives at level06's entry spawn")
 	var quench := props.get_node_or_null("SteleQuench") as LoreStele
 	var chain_stele := props.get_node_or_null("SteleChain") as LoreStele
@@ -272,6 +273,9 @@ func test_step_chains_are_single_jumps() -> void:
 		# quench / relay pits climb straight out
 		["PitBBed", "FloorA"], ["PitBBed", "FloorB"],
 		["PitEBed", "FloorC"], ["PitEBed", "FloorE"],
+		# G 吊装下层：吊台 F 的出发/落点都在一跳内，坑底能直接爬回两岸
+		["FloorE", "LiftF@start"], ["LiftF@end", "FloorG"],
+		["PitFBed", "FloorE"], ["PitFBed", "FloorG"],
 	]
 	var platforms := host.get_node("Platforms")
 	for chain in chains:
@@ -283,12 +287,19 @@ func test_step_chains_are_single_jumps() -> void:
 
 
 func _named_rect(platforms: Node, plat_name: String) -> Rect2:
+	if plat_name.ends_with("@start") or plat_name.ends_with("@end"):
+		var m := platforms.get_node_or_null(plat_name.get_slice("@", 0)) as MovingPlatform
+		if m != null:
+			return _deck(m, plat_name.ends_with("@end"))
+		return Rect2()
 	var node := platforms.get_node_or_null(plat_name)
 	if node is SolidPlatform:
 		return Rect2((node as SolidPlatform).position, (node as SolidPlatform).size)
 	if node is GearPlatform:
 		var g := node as GearPlatform
 		return Rect2(g.position - Vector2(g.radius, g.radius), Vector2(g.radius * 2.0, g.radius * 2.0))
+	if node is MovingPlatform:
+		return _deck(node as MovingPlatform, false)
 	return Rect2()
 
 
@@ -296,7 +307,7 @@ func test_enemies_stand_where_they_are_placed() -> void:
 	var host := _build()
 	var tops := _tops(host)
 	var enemies := host.get_node("Enemies")
-	eq(enemies.get_child_count(), 7, "seven enemies")
+	eq(enemies.get_child_count(), 9, "nine enemies")
 	var kinds := {}
 	for child in enemies.get_children():
 		var e := child as Node2D
@@ -307,9 +318,9 @@ func test_enemies_stand_where_they_are_placed() -> void:
 		else:
 			ok(_standing_on(tops, e.position, 4.0), "%s stands on a platform" % e.name)
 	eq(int(kinds.get("SpitterEnemy", 0)), 2, "two spitters")
-	eq(int(kinds.get("ScrapperEnemy", 0)), 2, "two scrappers")
+	eq(int(kinds.get("ScrapperEnemy", 0)), 3, "three scrappers")
 	eq(int(kinds.get("GearShieldEnemy", 0)), 1, "one gear shield")
-	eq(int(kinds.get("GhostEnemy", 0)), 1, "one ghost")
+	eq(int(kinds.get("GhostEnemy", 0)), 2, "two ghosts")
 	eq(int(kinds.get("FlyingDemonEnemy", 0)), 1, "one flying demon")
 	# Spitters hold opposite ends of the two walkways, too high to hit anyone on the floor,
 	# and face different stair climbs.
@@ -348,6 +359,56 @@ func test_level_sanity_is_clean_on_a_bare_host() -> void:
 			ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest)), "%s reachable from spawn" % nest.name)
 	var exit := host.get_node("Props/Exit") as Node2D
 	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit)), "exit reachable from spawn")
+
+
+## G 吊装下层（3040 → 4000）：锈门后的第二段运渣道。吊台 F 横渡第二口冷却槽，
+## 坑底能爬回两岸；吊装检修台是钩锁支路，带 1 个奖励位；出口在下层东端。
+func test_hoist_lower_level_lift_reward_and_exit() -> void:
+	var host := _build()
+	var tops := _tops(host)
+	var floor_e := _rect_named(host, "FloorE")
+	var floor_g := _rect_named(host, "FloorG")
+	var lift_f := host.get_node_or_null("Platforms/LiftF") as MovingPlatform
+	ok(lift_f != null, "the second coolant pit is crossed by lift F")
+	if lift_f != null:
+		ok(_one_hop(floor_e, _deck(lift_f, false)), "lift F boards from FloorE's east lip")
+		ok(_one_hop(_deck(lift_f, true), floor_g), "lift F lands on the hoist floor")
+		ok(lift_f.travel.x >= 200.0 and lift_f.travel.y == 0.0, "lift F rides across the second pit")
+	var pit_f := host.get_node_or_null("Props/PitFPool") as ToxinPool
+	ok(pit_f != null, "second coolant pool exists")
+	if pit_f != null and lift_f != null:
+		var pr := pit_f.surface_rect()
+		ok(lift_f.start_position().x <= pr.position.x and lift_f.end_position().x + lift_f.width >= pr.end.x,
+				"lift F spans the second pool from lip to lip")
+	var nest := host.get_node_or_null("Props/EmberNestHoist") as EmberNest
+	ok(nest != null, "the hoist run has its own checkpoint")
+	if nest != null:
+		ok(_standing_on(tops, nest.position + Vector2(6, 14)), "hoist nest stands on FloorE")
+		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), LevelSanity.feet_of(nest), false),
+				"hoist nest is reachable on the main route")
+	# 吊装检修台：钩锁支路，主路线跳不上去，奖励位在台上。
+	var deck := _rect_named(host, "HoistDeck")
+	var anchor := host.get_node_or_null("Hooks/HookHoist") as HookAnchor
+	var reward := host.get_node_or_null("Pickups/RewardHoist") as EquipmentPickup
+	ok(deck.has_area() and anchor != null and reward != null, "hoist deck, anchor and reward exist")
+	if deck.has_area() and anchor != null and reward != null:
+		ok(anchor.position.y < deck.position.y, "hoist anchor hangs above the deck")
+		ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW,
+				"hoist deck is a tether drop under the anchor")
+		ok(_standing_on(tops, LevelSanity.feet_of(reward)), "reward rests on the hoist deck")
+		eq(String(reward.get("reward_kind")), "equipment")
+		ok(String(reward.get("reward_ref")) != "")
+		var feet := LevelSanity.feet_of(reward)
+		ok(not LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, false),
+				"the main route cannot reach the hoist deck")
+		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, true),
+				"the hookshot reaches the hoist deck")
+	var exit := host.get_node_or_null("Props/Exit") as LevelExit
+	ok(exit != null, "the hoist run ends at the slag road door")
+	if exit != null:
+		ok(_standing_on(tops, exit.position), "exit stands on the hoist floor")
+		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), LevelSanity.feet_of(exit), false),
+				"exit is reachable without optional abilities")
 
 
 ## 长冷却池上方的检修龛：本章的支路。主路线（allow_hook=false）跳不上去，

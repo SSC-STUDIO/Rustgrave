@@ -12,28 +12,39 @@ const LEVEL02_PATH := "res://scenes/levels/Level02_Undercroft.tscn"
 const LEVELS := {
 	"level01": WORLD_PATH,
 	"level02": LEVEL02_PATH,
+	"level02b": "res://scenes/levels/Level02b_SlagConduit.tscn",
 	"level03": "res://scenes/levels/Level03_RustTown.tscn",
 	"level04": "res://scenes/levels/Level04_Cathedral.tscn",
+	"level04b": "res://scenes/levels/Level04b_Crypt.tscn",
 	"level05": "res://scenes/levels/Level05_Workshop.tscn",
 	"level06": "res://scenes/levels/Level06_NightGraveyard.tscn",
 	"level07": "res://scenes/levels/Level07_BellTower.tscn",
+	"level07b": "res://scenes/levels/Level07b_BellFoundry.tscn",
 	"level08": "res://scenes/levels/Level08_SlagDepths.tscn",
 	"level09": "res://scenes/levels/Level09_Ramparts.tscn",
+	"level09b": "res://scenes/levels/Level09b_EmberwindCliffs.tscn",
 	"level10": "res://scenes/levels/Level10_ForgeCore.tscn",
 }
+## 14 章战役顺序。显示章号（壹…拾肆）只由 ChapterText 决定；存档旗标始终用 id，
+## 因此插入章不需要迁移旧档。
 const LEVEL_ORDER: Array[String] = [
-	"level01", "level02", "level03", "level04", "level05",
-	"level06", "level07", "level08", "level09", "level10",
+	"level01", "level02", "level02b", "level03", "level04", "level04b",
+	"level05", "level06", "level07", "level07b", "level08", "level09",
+	"level09b", "level10",
 ]
 ## ChapterLayout scripts for the data-driven chapters (level03+).
 const LAYOUTS := {
+	"level02b": "res://scripts/levels/chapters/level02b_layout.gd",
 	"level03": "res://scripts/levels/chapters/level03_layout.gd",
 	"level04": "res://scripts/levels/chapters/level04_layout.gd",
+	"level04b": "res://scripts/levels/chapters/level04b_layout.gd",
 	"level05": "res://scripts/levels/chapters/level05_layout.gd",
 	"level06": "res://scripts/levels/chapters/level06_layout.gd",
 	"level07": "res://scripts/levels/chapters/level07_layout.gd",
+	"level07b": "res://scripts/levels/chapters/level07b_layout.gd",
 	"level08": "res://scripts/levels/chapters/level08_layout.gd",
 	"level09": "res://scripts/levels/chapters/level09_layout.gd",
+	"level09b": "res://scripts/levels/chapters/level09b_layout.gd",
 	"level10": "res://scripts/levels/chapters/level10_layout.gd",
 }
 

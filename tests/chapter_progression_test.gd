@@ -26,13 +26,28 @@ func _exit_of(level: Node) -> LevelExit:
 		if node is LevelExit: return node
 	return null
 
+
+## 章节出口可能用 Boss 死亡旗标锁着（空钟/守渠人/唱诗班/铸钟人/炉风先驱��。
+## 这个 fixture 允许直接摆位/击杀来验证路由（真输入走 campaign_walkthrough）。
+func _open_gated_exit(level: Node, exit: LevelExit) -> void:
+	if exit == null or not exit.is_locked():
+		return
+	for enemy in level.get_node("Enemies").get_children():
+		var health = enemy.get("health")
+		if health != null and health.has_method("take_damage"):
+			health.take_damage(9999, _player())
+	await flush(3)
+
 func test_every_chapter_exit_saves_the_next_arrival_and_keeps_heat_forge() -> void:
 	var level := await _load_level("level02")
 	_player().inventory.add_to_pouch(AbilityCatalog.kiln_core())
 	_player().inventory.insert_into_socket(0)
-	for n in range(2, 10):
-		var next_id := "level%02d" % (n + 1)
+	var order := GameContext.LEVEL_ORDER
+	var start := maxi(1, order.find("level02"))
+	for i in range(start, order.size() - 1):
+		var next_id := order[i + 1]
 		var exit := _exit_of(level)
+		await _open_gated_exit(level, exit)
 		exit.interact(_player())
 		await flush(1)
 		Director.abort()
@@ -47,9 +62,10 @@ func test_every_chapter_exit_saves_the_next_arrival_and_keeps_heat_forge() -> vo
 		ok(_player()._resolve_lit_nest() == null, "earlier chapter checkpoint is not a respawn here")
 
 func test_each_chapter_restores_its_checkpoint_and_open_mechanisms() -> void:
-	for n in range(3, 11):
+	var order := GameContext.LEVEL_ORDER
+	for i in range(order.find("level03"), order.size()):
 		SaveData.delete_save()
-		var id := "level%02d" % n
+		var id := order[i]
 		var level := await _load_level(id)
 		var player := _player()
 		player.inventory.add_to_pouch(AbilityCatalog.kiln_core())

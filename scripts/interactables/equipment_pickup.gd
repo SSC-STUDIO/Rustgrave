@@ -6,6 +6,12 @@ extends Interactable
 
 @export var item: EquipmentItem = null
 @export var item_id: StringName = &""
+## 二期奖励位：`reward_kind` 非空时改走角色/武器接应（LoadoutBridge），
+## 装备路径（item/item_id）保持不变。
+##   reward_kind ∈ {"character", "weapon", "equipment"}；reward_ref = roster id / 装备 id。
+@export var reward_kind: String = ""
+@export var reward_ref: String = ""
+@export var reward_name: String = ""
 @export var float_amplitude: float = 5.0
 @export var float_duration: float = 0.6
 
@@ -50,7 +56,30 @@ func _resolve_item_fallback() -> void:
 
 func _update_prompt() -> void:
 	var name_str: String = item.display_name if item != null else (_item_name if _item_name != "" else "装备")
+	if reward_kind != "":
+		name_str = _reward_label()
 	prompt = "E 拾取 %s" % name_str
+
+
+func _reward_label() -> String:
+	if reward_name != "":
+		return reward_name
+	if reward_ref == "":
+		return "遗物"
+	match reward_kind:
+		"character":
+			if LoadoutBridge.character_available():
+				var def := LoadoutBridge.character_def(StringName(reward_ref))
+				if not def.is_empty() and String(def.get("display_name", "")) != "":
+					return String(def["display_name"])
+			return "遗落的偶"
+		"weapon":
+			var wdef := LoadoutBridge.weapon_def(StringName(reward_ref))
+			if not wdef.is_empty() and String(wdef.get("display_name", "")) != "":
+				return String(wdef["display_name"])
+			return "锈死的兵器"
+		_:
+			return "遗物"
 
 
 func _setup_visual() -> void:
@@ -81,6 +110,9 @@ func interact(actor: Node) -> void:
 	if not actor is Player:
 		return
 	var player := actor as Player
+	if reward_kind != "":
+		_take_reward(player)
+		return
 	_resolve_item_fallback()
 
 	# 寻找玩家身上的装备背包组件
@@ -116,6 +148,25 @@ func interact(actor: Node) -> void:
 	Sfx.play_at(&"pickup", global_position)
 	Fx.rust_debris(global_position)
 
+	queue_free()
+
+
+## --- 二期奖励位（角色/武器接应） -------------------------------------------
+## roster 存在：解锁引用并写 profile；不存在：回退成"一点余温"（回血）——
+## 奖励位不空转、也绝不因为外部系统缺席而软锁或假装获得了不存在的东西。
+func _take_reward(player: Player) -> void:
+	var label := _reward_label()
+	var granted := LoadoutBridge.grant(reward_kind, reward_ref, player)
+	if granted:
+		GameEvents.announcement.emit("获得%s：%s" % ["角色" if reward_kind == "character" else "武器", label])
+	else:
+		if player.health.current < player.health.max_hp:
+			player.health.heal(1)
+		GameEvents.announcement.emit("遗物已锈死，只剩一点余温。")
+	SaveData.mark_consumed(String(get_path()))
+	SaveData.persist_progress(player)
+	Sfx.play_at(&"pickup", global_position)
+	Fx.rust_debris(global_position)
 	queue_free()
 
 

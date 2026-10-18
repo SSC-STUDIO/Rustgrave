@@ -36,6 +36,7 @@ Fx="*res://scripts/autoload/fx.gd"
 SaveData="*res://scripts/autoload/save_data.gd"
 Director="*res://scripts/autoload/director.gd"
 WorldClock="*res://scripts/autoload/world_clock.gd"
+TrialRun="*res://scripts/autoload/trial_run.gd"
 
 [display]
 

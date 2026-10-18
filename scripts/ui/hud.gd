@@ -913,6 +913,11 @@ func banner_alpha() -> float:
 
 
 func _on_player_died() -> void:
+	# 试炼死亡是"快速重试"：战役死亡幕（余烬熄灭 / 最近余烬巢重燃）不出现，
+	# 状态与重试提示由 TrialRun 的试炼条给（scripts/autoload/trial_run.gd）。
+	if TrialRun.active():
+		_sync_prompt()
+		return
 	if _pause != null and _pause.is_open():
 		_pause.close()
 	_death_overlay.visible = true

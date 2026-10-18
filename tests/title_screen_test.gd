@@ -1,14 +1,15 @@
 extends TestCase
-## 标题屏版式回归：菜单架在左下、五格分三档、每格不低于触控下限，
-## 且不再压住 keyart 中轴（骑士与光柱）。异形板的形状/状态由 menu_plate.gd 现画，
-## 这里一并守住"三类板宽度递减、选中态确实换板、贴图有缓存"。
+## 标题屏版式回归：菜单架在左下、六格分三档（新增「回火试炼」主行动）、
+## 每格不低于触控下限，且不再压住 keyart 中轴（骑士与光柱）。异形板的形状/状态由
+## menu_plate.gd 现画，这里一并守住"三类板宽度递减、选中态确实换板、贴图有缓存"。
 
 const TITLE_SCENE := "res://scenes/ui/TitleScreen.tscn"
 const Plate := preload("res://scripts/ui/menu_plate.gd")
 ## keyart 的骑士站在 x=640 的光柱下：菜单架任何一行都不能越过这条中线。
 const KEYART_CENTER := 640.0
 const EXPECTED_KINDS := [MenuItem.Kind.PRIMARY, MenuItem.Kind.PRIMARY,
-		MenuItem.Kind.SECONDARY, MenuItem.Kind.SECONDARY, MenuItem.Kind.GHOST]
+		MenuItem.Kind.PRIMARY, MenuItem.Kind.SECONDARY, MenuItem.Kind.SECONDARY,
+		MenuItem.Kind.GHOST]
 
 
 func _open_title() -> TitleScreen:
@@ -39,7 +40,7 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 	almost(menu.position.y, TitleScreen.RAIL_TOP, 0.01, "菜单架顶边停在墓志上方")
 
 	var items := _items(title)
-	eq(items.size(), 5, "五格菜单")
+	eq(items.size(), 6, "六格菜单（点燃 / 继续 / 回火试炼 / 设置 / 说明 / 离开）")
 	for i in mini(items.size(), EXPECTED_KINDS.size()):
 		eq(items[i].kind, EXPECTED_KINDS[i], "第 %d 格的档位" % i)
 	for item in items:
@@ -87,7 +88,7 @@ func test_select_walks_the_menu_and_skips_disabled_rows() -> void:
 	var menu := title.get_node("Menu") as MenuList
 	menu.select(0, false)
 	eq(menu.selected_id(), &"new", "第一格是点燃余烬")
-	menu.select(4, false)
+	menu.select(5, false)
 	eq(menu.selected_id(), &"quit", "最后一格是离开")
 	# 上下键从顶部往下走，必须落在可用行上（无存档时"继续旅程"是禁用的）。
 	menu.select(0, false)
@@ -128,9 +129,49 @@ func test_hover_and_keyboard_share_one_selection() -> void:
 	await get_tree().process_frame
 
 
-## 菜单下标 → 菜单 id（五格顺序与 _build_rail 一致）。
+## 菜单下标 → 菜单 id（六格顺序与 _build_rail 一致）。
 func _id_for(index: int) -> StringName:
-	return [&"new", &"continue", &"settings", &"controls", &"quit"][index]
+	return [&"new", &"continue", &"trial", &"settings", &"controls", &"quit"][index]
+
+## 回火试炼入口：未解锁置灰 + 灰态说明；trial_unlocked（或第七章通关 / 结局）后点亮。
+func test_trial_entry_is_gated_by_unlock_flag() -> void:
+	var saved_flags := SaveData.flags.duplicate()
+	var saved_ending := SaveData.ending
+	var saved_path := SaveData.save_path
+	var gate_path := "user://title_trial_gate_test.cfg"
+	SaveData.save_path = gate_path
+	if FileAccess.file_exists(gate_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(gate_path))
+	SaveData.flags = PackedStringArray()
+	SaveData.ending = ""
+
+	var title: TitleScreen = await _open_title()
+	var items := _items(title)
+	eq(items.size(), 6, "六格菜单")
+	eq(items[2].kind, MenuItem.Kind.PRIMARY, "回火试炼是第三格主行动")
+	ok(items[2].disabled, "未解锁时回火试炼置灰")
+	ok((title.get_node("Menu") as MenuList).get_child_count() > 0)
+	(title.get_node("Menu") as MenuList).select(2, false)
+	eq((title.get_node("Menu") as MenuList).selected_id(), &"trial", "第三格是 trial")
+	ok(title.find_child("TrialLockHint", true, false) is Label, "灰态旁有解锁说明")
+	title.queue_free()
+	await get_tree().process_frame
+
+	SaveData.flags = PackedStringArray()
+	SaveData.mark_flag("trial_unlocked")
+	title = await _open_title()
+	items = _items(title)
+	ok(not items[2].disabled, "trial_unlocked 后回火试炼可点")
+	ok(title.find_child("TrialLockHint", true, false) == null, "解锁后不再显示灰态说明")
+	title.queue_free()
+	await get_tree().process_frame
+
+	SaveData.flags = saved_flags
+	SaveData.ending = saved_ending
+	if FileAccess.file_exists(gate_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(gate_path))
+	SaveData.save_path = saved_path
+
 
 func test_quit_plays_an_exit_sequence_and_can_be_skipped() -> void:
 	var title: TitleScreen = await _open_title()

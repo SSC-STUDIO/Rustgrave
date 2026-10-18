@@ -194,7 +194,16 @@ func test_migrated_boss_kits_describe_existing_moves() -> void:
 	var nightmare := await _spawn_nightmare(arena, Vector2(520, 0))
 	var nm_kit := nightmare.call("boss_kit") as BossKit
 	eq(nm_kit.validate().size(), 0, "梦魇 Kit 自检通过")
-	eq(nm_kit.max_phases(), 2, "梦魇二阶段")
+	eq(nm_kit.max_phases(), 3, "梦魇三期重做：三阶段")
+	var nm_phases := nm_kit.phase_thresholds()
+	eq(nm_phases.size(), 3, "梦魇三阶段阈值")
+	if nm_phases.size() == 3:
+		almost(float(nm_phases[0]), 1.0, 0.0001, "阶段阈值从 1.0 开始")
+		almost(float(nm_phases[1]), 2.0 / 3.0, 0.0001, "2/3 生命进二阶段")
+		almost(float(nm_phases[2]), 1.0 / 3.0, 0.0001, "1/3 生命进三阶段")
+		eq(nm_kit.phase_for_hp(16, 16), 1, "满血一阶段")
+		eq(nm_kit.phase_for_hp(10, 16), 2, "10/16 二阶段")
+		eq(nm_kit.phase_for_hp(5, 16), 3, "5/16 三阶段")
 	var nm_title: Variant = _script_const(nightmare, "BOSS_TITLE")
 	if nm_title is String:
 		eq(nm_kit.boss_title(), String(nm_title), "梦魇 Kit 名号和现有台词同源")
@@ -206,6 +215,14 @@ func test_migrated_boss_kits_describe_existing_moves() -> void:
 				"二阶段蓄势 0.58s（windup_by_phase）")
 		ok(nm_kit.windup_for(charge, 2) >= BossKit.BOSS_TELEGRAPH_MIN,
 				"收紧后的蓄势仍 >= 0.35s")
+		ok(nm_kit.windup_for(charge, 3) >= BossKit.BOSS_TELEGRAPH_MIN,
+				"三阶段蓄势仍 >= 0.35s")
+	# 三期新增招式进表：余烬雨 / 地裂 / 热浪，且三阶段池子能选到它们。
+	var nm_ids: Array = []
+	for entry in nm_kit.attack_pool():
+		nm_ids.append(String(entry.id))
+	for id in ["ember_rain", "quake", "heat_wave"]:
+		ok(nm_ids.has(id), "梦魇三期招式 %s 在攻击表里" % id)
 	arena.queue_free()
 	await flush(2)
 
@@ -582,9 +599,10 @@ func test_chapter_layout_boss_builds_arena_and_registers_placeholders() -> void:
 		ok(ChapterLayout.ENEMY_SCENES.has(kind), "%s 已登记占位" % kind)
 		var path := String(ChapterLayout.ENEMY_SCENES[kind])
 		ok(path.begins_with("res://scenes/enemies/") and path.ends_with(".tscn"))
-	eq(layout.enemy(host, "Placeholder", "capstan_warden", Vector2.ZERO), null,
-			"缺场景的新 Boss 占位会安全跳过（不炸布局）")
-	eq(layout.boss(host, "PlaceholderBoss", "silent_choir", Vector2.ZERO, 0.0, 100.0), null,
+	# 新 Boss 场景现已交付，缺场景守卫用一个真正不存在的 kind 验证。
+	eq(layout.enemy(host, "Placeholder", "definitely_missing_boss", Vector2.ZERO), null,
+			"缺场景的 Boss kind 会安全跳过（不炸布局）")
+	eq(layout.boss(host, "PlaceholderBoss", "definitely_missing_boss", Vector2.ZERO, 0.0, 100.0), null,
 			"缺场景时 boss() 也安全返回 null")
 	host.queue_free()
 	layout.queue_free()

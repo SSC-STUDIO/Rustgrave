@@ -37,11 +37,28 @@ const THEMES: Array[StringName] = [
 const STATES: Array[StringName] = [&"calm", &"danger", &"boss", &"ending", &"silent"]
 const LEVEL_THEMES := {
 	"level01": &"graveyard", "level02": &"undercroft", "level03": &"town", "level04": &"cathedral",
-	"level05": &"workshop", "level06": &"graveyard", "level07": &"bell_tower", "level08": &"slag",
-	"level09": &"ramparts", "level10": &"core",
+	"level02b": &"undercroft", "level04b": &"cathedral",
+	"level05": &"workshop", "level06": &"graveyard", "level07": &"bell_tower",
+	"level07b": &"slag", "level08": &"slag",
+	"level09": &"ramparts", "level09b": &"ramparts", "level10": &"core",
 }
 ## Boss track per theme (a boss in a theme without an entry uses the executioner loop).
-const BOSS_TRACKS := {&"graveyard": &"boss_executioner", &"core": &"boss_nightmare"}
+const BOSS_TRACKS := {
+	&"graveyard": &"boss_executioner", &"undercroft": &"boss_hollow_bell",
+	&"bell_tower": &"boss_bell_founder", &"ramparts": &"boss_emberwind_herald",
+	&"core": &"boss_nightmare",
+}
+## 关卡 id 优先的 Boss 曲：同一 theme 下可能有不同 Boss（level02 空钟 vs level02b 绞盘守渠人，
+## 两者都在 undercroft）。播放时按 level -> theme -> DEFAULT 的顺序查。
+const BOSS_TRACKS_BY_LEVEL := {
+	"level01": &"boss_executioner",
+	"level02": &"boss_hollow_bell",
+	"level02b": &"boss_capstan",
+	"level04b": &"boss_choir",
+	"level07b": &"boss_bell_founder",
+	"level09b": &"boss_emberwind_herald",
+	"level10": &"boss_nightmare",
+}
 const DEFAULT_BOSS_TRACK: StringName = &"boss_executioner"
 const ENDING_TRACK: StringName = &"ending"
 const MUSIC_DIR := "res://assets/audio/music/"
@@ -115,6 +132,9 @@ var state_id: StringName = &"calm"
 ## Test / debug visibility.
 var last_stinger: StringName = &""
 var front_track: StringName = &""
+## 当前 Boss 战的关卡 id / 曲目（level 优先映射；"" = 未指定，按 theme 查）。
+var boss_level: String = ""
+var boss_level_track: StringName = &""
 
 var _boss_phase := 1
 var _danger_hold := 0.0
@@ -292,6 +312,26 @@ static func boss_track_for(theme: StringName) -> StringName:
 	return BOSS_TRACKS.get(theme, DEFAULT_BOSS_TRACK)
 
 
+## 关卡 id 优先的 Boss 曲（未登记的关卡退回 theme 映射，再退回默认曲）。
+static func boss_track_for_level(level_id: String) -> StringName:
+	if BOSS_TRACKS_BY_LEVEL.has(level_id):
+		return BOSS_TRACKS_BY_LEVEL[level_id]
+	var theme := theme_for_level(level_id)
+	if theme == &"":
+		return DEFAULT_BOSS_TRACK
+	return boss_track_for(theme)
+
+
+## 开一场 Boss 战：按关卡 id 选曲。state 已是 boss 时立刻交叉淡化过去；否则只记下来，
+## 等 set_state(&"boss") 时生效。返回选中的 track。
+func play_boss_for_level(level_id: String) -> StringName:
+	boss_level = level_id
+	boss_level_track = boss_track_for_level(level_id)
+	if state_id == &"boss":
+		_apply()
+	return boss_level_track
+
+
 static func track_kind(track: StringName) -> int:
 	if track == ENDING_TRACK:
 		return KIND_ENDING
@@ -308,6 +348,8 @@ func desired_track() -> StringName:
 		&"ending":
 			return ENDING_TRACK
 		&"boss":
+			if boss_level_track != &"":
+				return boss_level_track
 			return boss_track_for(theme_id)
 	return theme_id
 
@@ -579,6 +621,8 @@ func _poll_world() -> void:
 func _on_world_loaded(world: Node) -> void:
 	reset_transient(true)
 	_world_level = String(_path_level.get(world.scene_file_path, ""))
+	boss_level = _world_level
+	boss_level_track = boss_track_for_level(_world_level) if _world_level != "" else &""
 	var theme := theme_for_level(_world_level)
 	if theme != &"":
 		set_theme(theme)
@@ -587,6 +631,8 @@ func _on_world_loaded(world: Node) -> void:
 ## Title screen: its own theme, a clean slate (no boss / danger / death latch / ending).
 func enter_title() -> void:
 	reset_transient(true)
+	boss_level = ""
+	boss_level_track = &""
 	set_theme(&"title")
 
 
@@ -597,6 +643,8 @@ func _on_chapter_started(level_id: String) -> void:
 	if theme == &"":
 		return
 	_world_level = level_id
+	boss_level = level_id
+	boss_level_track = boss_track_for_level(level_id)
 	reset_transient(true)
 	var fresh := _last_chapter != level_id
 	set_theme(theme)

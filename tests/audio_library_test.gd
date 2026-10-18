@@ -349,12 +349,20 @@ func test_every_theme_has_bed_and_keys() -> void:
 	var boss_set: Dictionary = {}
 	for theme in m["BOSS_TRACKS"]:
 		boss_set[m["BOSS_TRACKS"][theme]] = true
+	for level_id in m["BOSS_TRACKS_BY_LEVEL"]:
+		boss_set[m["BOSS_TRACKS_BY_LEVEL"][level_id]] = true
 	boss_set[m["DEFAULT_BOSS_TRACK"]] = true
-	ok(boss_set.size() == 2, "expected two boss tracks (executioner + nightmare)")
+	ok(boss_set.size() == 7,
+			"expected seven boss tracks (executioner/nightmare + five campaign bosses), got %s"
+			% [boss_set.keys()])
 	for track in boss_set:
 		for role in ["bed", "hi"]:
 			var p := "%s%s_%s.ogg" % [MUSIC_STEMS, track, role]
 			ok(ResourceLoader.exists(p), "boss track %s is missing %s" % [track, p])
+			var stream := load(p) as AudioStream
+			ok(stream != null, "boss track %s does not load as AudioStream" % p)
+			if stream != null:
+				ok(stream.get_length() >= 20.0, "boss track %s is suspiciously short" % p)
 	var ending: StringName = m["ENDING_TRACK"]
 	for role in ["bed", "keys"]:
 		var p := "%s%s_%s.ogg" % [MUSIC_STEMS, ending, role]
@@ -373,7 +381,9 @@ func test_level_theme_mapping_covers_every_level() -> void:
 	var m := _music_consts()
 	var level_themes: Dictionary = m["LEVEL_THEMES"]
 	var themes: Array = m["THEMES"]
-	ok(level_themes.size() == 10, "expected a theme for all ten levels")
+	ok(level_themes.size() >= 14, "expected a theme for all fourteen campaign chapters")
+	for chapter in ["level02b", "level04b", "level07b", "level09b"]:
+		ok(level_themes.has(chapter), "campaign chapter %s has no theme" % chapter)
 	for level_id in level_themes:
 		ok(String(level_themes[level_id]) != "", "%s maps to an empty theme" % level_id)
 		ok(themes.has(level_themes[level_id]),
@@ -385,6 +395,46 @@ func test_level_theme_mapping_covers_every_level() -> void:
 		ok(themes.has(theme), "BOSS_TRACKS references unknown theme %s" % theme)
 	eq(Music.boss_track_for(&"definitely_not_a_theme"), m["DEFAULT_BOSS_TRACK"],
 			"unknown theme must fall back to the default boss track")
+
+
+## 关卡优先的 Boss 曲映射：同一 theme 下可能有不同 Boss（level02 vs level02b）。
+func test_boss_track_for_level_prefers_level_id() -> void:
+	var m := _music_consts()
+	var by_level: Dictionary = m["BOSS_TRACKS_BY_LEVEL"]
+	eq(by_level.size(), 7, "expected seven level-locked boss tracks (campaign bosses)")
+	for level_id in by_level:
+		var track: StringName = by_level[level_id]
+		ok(String(track).begins_with("boss_"),
+				"%s boss track %s must start with boss_ (KIND_BOSS detection)" % [level_id, track])
+		eq(Music.boss_track_for_level(String(level_id)), track, "level-first lookup %s" % level_id)
+		for role in ["bed", "hi"]:
+			ok(ResourceLoader.exists("%s%s_%s.ogg" % [MUSIC_STEMS, track, role]),
+					"level boss track %s is missing %s stem" % [track, role])
+	# 同一 theme 的两个 Boss 必须落到不同曲目。
+	eq(Music.boss_track_for_level("level02"), &"boss_hollow_bell", "level02 = 空钟")
+	eq(Music.boss_track_for_level("level02b"), &"boss_capstan", "level02b = 绞盘守渠人")
+	eq(Music.boss_track_for_level("level07b"), &"boss_bell_founder", "level07b = 铸钟人")
+	eq(Music.boss_track_for_level("level09b"), &"boss_emberwind_herald", "level09b = 炉风先驱")
+	eq(Music.boss_track_for_level("level10"), &"boss_nightmare", "level10 = 梦魇")
+	eq(Music.boss_track_for_level("level01"), &"boss_executioner", "level01 = 刽子手")
+	# 未登记的关卡退回 theme 映射 / 默认曲，不会返回空。
+	var fallback := Music.boss_track_for_level("level99")
+	ok(fallback != &"", "unknown level still gets a boss track")
+	eq(fallback, m["DEFAULT_BOSS_TRACK"], "unknown level falls back to the default boss track")
+	# play_boss_for_level 记录 level 并在 boss 状态下立刻生效。
+	var saved_level := Music.boss_level
+	var saved_state := Music.state_id
+	var saved_theme := Music.theme_id
+	Music.set_state(&"boss")
+	eq(Music.play_boss_for_level("level09b"), &"boss_emberwind_herald",
+			"play_boss_for_level returns the level track")
+	eq(Music.boss_level, "level09b", "play_boss_for_level records the level")
+	eq(Music.desired_track(), &"boss_emberwind_herald", "boss state uses the level-first track")
+	Music.set_theme(&"title")
+	Music.reset_transient(true)
+	Music.set_state(saved_state)
+	Music.set_theme(saved_theme)
+	Music.boss_level = saved_level
 
 
 func test_music_stinger_rules_are_sane() -> void:

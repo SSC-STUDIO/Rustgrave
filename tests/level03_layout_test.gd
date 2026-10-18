@@ -40,6 +40,50 @@ func test_tower_reward_is_optional_and_exit_reaches_the_cathedral() -> void:
 	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, Vector2(1856, 160)), "hook makes the reward reachable")
 
 
+func _rects(host: Node2D) -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	for child in host.get_node("Platforms").get_children():
+		if child is SolidPlatform:
+			rects.append(Rect2((child as SolidPlatform).position, (child as SolidPlatform).size))
+	return rects
+
+
+func _standing_on(rects: Array[Rect2], feet: Vector2, slack: float = 0.5) -> bool:
+	for r in rects:
+		if feet.x >= r.position.x - 0.01 and feet.x <= r.end.x + 0.01 \
+				and absf(feet.y - r.position.y) <= slack:
+			return true
+	return false
+
+
+## ⑦ 死城街区：扩到 4000 宽。街道连续、死城支路是可回主路的屋顶环线，
+## 支路尽头有 1 个奖励位（EquipmentPickup 接应），主路线不需要钩锁。
+func test_dead_quarter_loop_carries_the_reward_slot() -> void:
+	var host := _build()
+	eq(LAYOUT.EAST_LIMIT, 4000, "锈城街巷扩到 4000 宽")
+	var rects := _rects(host)
+	ok(_standing_on(rects, Vector2(2900, 320)), "dead street continues the main route")
+	ok(_standing_on(rects, Vector2(3900, 320)), "dead street reaches the new east wall")
+	ok(_standing_on(rects, Vector2(LAYOUT.EXIT_POS.x, 320)), "exit stands on the dead street")
+	ok(LAYOUT.EXIT_POS.x <= float(LAYOUT.EAST_LIMIT) - 80.0, "exit keeps clear of the east wall")
+	var reward := host.get_node_or_null("Pickups/RewardDeadQuarter") as EquipmentPickup
+	ok(reward != null, "the dead-roof branch carries one reward slot")
+	if reward != null:
+		eq(reward.position, LAYOUT.REWARD_POS)
+		eq(String(reward.get("reward_kind")), "equipment", "reward slot walks the LoadoutBridge path")
+		ok(String(reward.get("reward_ref")) != "", "reward slot has a roster/equipment ref")
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), LevelSanity.feet_of(reward)) != null,
+				"reward rests on the dead roof ridge")
+	var ridge := host.get_node_or_null("Platforms/DeadRidge") as SolidPlatform
+	ok(ridge != null, "the branch ridge exists")
+	if ridge != null:
+		var feet := Vector2(ridge.position.x + ridge.size.x * 0.5, ridge.position.y)
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),
+				"the dead-roof loop is walkable without the hookshot (and returns to the street)")
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, Vector2(ridge.position.x, 320.0), false),
+				"the drop back to the street is on the main route")
+
+
 ## 支路不能只是「多一枚核」：塔顶还有一块只有钩锁能读到的碑文，
 ## 主路线（allow_hook=false）够不到它，钩锁路线（allow_hook=true）够得到。
 func test_tower_branch_rewards_world_information() -> void:

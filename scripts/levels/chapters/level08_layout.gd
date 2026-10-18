@@ -16,19 +16,26 @@ extends ChapterLayout
 ##   ⑦ 锈门       2416–2592  第三余烬巢、齿盾卫、锈门（热锻）、路牌「城墙」
 ##   ⑧ 渣河 B     2592–2880  八角渣台 + 浮石混合的最后一条熔渣河
 ##   ⑨ 出口       2880–3008  城墙梯、碑「淬」
+##   ⑩ 渣河桥     3008–3640  扩章：第三座渣河桥（三块浮石桥面），旧壳区入口
+##   ⑪ 旧壳区     3640–4200  半边埋进渣里的旧船壳/旧机械；支路奖励位与余烬巢；
+##                          出口「城墙梯」移到旧壳区东端
 
-const EAST_LIMIT := 3008
+const EAST_LIMIT := 4200
 const CEILING_Y := -32.0
 const PIT_DEPTH := 32.0
 ## 地面是 basalt（tools/gen_theme_tiles.py 的渣岩）。这个琥珀值只剩一个用处：
 ## 熔渣 tint 的红绿比必须远高于它，池面才和地面分得开（测试按它比较）。
 const GROUND_TONE := Color(1.0, 0.8, 0.6)
-## 熔渣：比琥珀地面亮得多、红得多，池面一眼能和地面分开。
-## tint 是乘法着色，而 toxin_sludge.png 本身是极暗的青绿（平均 RGB ≈ 8/32/30），
-## 红通道接近 0——温和的橙色 tint 乘上去仍是深青。这里把红通道拉到过曝：
-## 液体变成 (0.7, 0.27, 0.07) 的暗橙、亮点钳到纯橙，浮沫成为黄热的一线；
-## 项目是 gl_compatibility 的 LDR 帧缓冲，过曝会被钳住（受击白闪同理）。
-const SLAG_TINT := Color(22.0, 2.2, 0.6)
+## 熔渣：视觉 QA Phase A 的 P1（level08 屏幕底部一条高饱和橙带）修复。
+## 旧值是 (22.0, 2.2, 0.6) 的过曝红，整条河在 LDR 里钳成纯橙；现在改用
+## ToxinPool.set_sludge_ramp 的深渣色 ramp + 温和 tint：近岸亮、河心暗，
+## 颜色从「警示橙」退成「炉渣褐」。ramp 只在池子自身上，不动全局 TOXIN 常量。
+const SLAG_TINT := Color(1.22, 0.94, 0.74)
+const SLAG_RAMP := [
+	Color("#100a08"), Color("#2c1b12"), Color("#503125"),
+	Color("#7a4c34"), Color("#a3714f"),
+]
+const SLAG_VAPOR := Color(0.85, 0.55, 0.34)
 ## 吊台与八角台没有 tone 参数，用 modulate 压成同一族暖色。
 const LIFT_TONE := Color(1.0, 0.82, 0.62)
 ## 八角台原本是偏冷紫的教堂石：压成烤过的渣褐色，别在橙池上飘一块粉石头。
@@ -52,7 +59,8 @@ const FLOORS: Array = [
 	["FloorC", 1728.0, 2208.0],
 	["FloorD", 2272.0, 2352.0],
 	["FloorE", 2416.0, 2592.0],
-	["FloorG", 2880.0, 3008.0],
+	["FloorG", 2880.0, 3400.0],
+	["FloorI", 3640.0, 4200.0],
 ]
 ## [name, x0, x1] 熔渣坑：坑底 352、液面 336..368；坑沿到地面 32px，一跳爬得出来。
 const PITS: Array = [
@@ -62,6 +70,7 @@ const PITS: Array = [
 	["SlagC1", 2208.0, 2272.0],
 	["SlagC2", 2352.0, 2416.0],
 	["SlagD", 2592.0, 2880.0],
+	["SlagE", 3400.0, 3640.0],
 ]
 ## [name, 左上角, 宽] 浮石（16 厚，moss_float）。
 const STEPS: Array = [
@@ -74,6 +83,13 @@ const STEPS: Array = [
 	["PlateLedgeC", Vector2(1968, 256), 96.0],
 	["StoneD1", Vector2(2704, 264), 48.0],
 	["StoneD2", Vector2(2832, 288), 32.0],
+	## ⑩ 渣河桥：第三座熔渣河上的三块浮石桥面。
+	["StoneE1", Vector2(3424, 288), 48.0],
+	["StoneE2", Vector2(3512, 264), 48.0],
+	["StoneE3", Vector2(3584, 288), 48.0],
+	## ⑪ 旧壳区：爬上旧船壳的两级台阶（支路奖励位）。
+	["ShellStep", Vector2(3720, 288), 48.0],
+	["ShellLedge", Vector2(3768, 256), 96.0],
 ]
 ## [name, 中心, 半径] 八角渣台（顶面 = 中心 y - 半径）。
 const GEARS: Array = [
@@ -100,16 +116,23 @@ const LIFT_WIDTH := 64.0
 const PLATE_FEET := Vector2(1992, 256)
 const DOOR_POS := Vector2(2160, 256)
 const GATE_POS := Vector2(2544, 256)
-const EXIT_X := 2920.0
+const EXIT_X := 4080.0
 ## [name, x] 余烬巢（都在地面 320 上）。
 const NESTS: Array = [
 	["EmberNestStart", 176.0],
 	["EmberNestMid", 1792.0],
 	["EmberNestGate", 2440.0],
+	## ⑪ 旧壳区：扩章后出口在 4080，最后一段补一口余火（距上一巢 1240px）。
+	["EmberNestShell", 3680.0],
 ]
 const STELE_SLAG_POS := Vector2(256, 320)
-const STELE_QUENCH_POS := Vector2(2968, 320)
+const STELE_QUENCH_POS := Vector2(4036, 320)
 const WAYMARKS: Array = [[Vector2(320, 320), "渣渊"], [Vector2(2576, 320), "城墙"]]
+## ⑪ 旧壳区的支路奖励位（EquipmentPickup；Fill 底边在节点 +7px，落在 256 台面）。
+const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
+const REWARD_POS := Vector2(3816, 249)
+const REWARD_KIND := "equipment"
+const REWARD_REF := "toxic_ward"
 ## [name, kind, pos, overrides]。落地敌人给脚点；幽魂/火骷髅给悬停中心。
 ## 火骷髅悬在头顶上方 40–70px（骑士身高 26 → 中心 y 224..254）。
 const ENEMIES: Array = [
@@ -122,11 +145,17 @@ const ENEMIES: Array = [
 	["FireSkull3", "fire_skull", Vector2(2328, 240), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2288.0, "arena_right": 2416.0}],
 	["FireSkull4", "fire_skull", Vector2(2400, 224), {"aggro_range": 96.0, "patrol_range": 24.0, "arena_left": 2288.0, "arena_right": 2416.0}],
 	["GearShield1", "gear_shield", Vector2(2512, 320), {"patrol_range": 8.0, "aggro_range": 48.0}],
+	## ⑩⑪ 扩章渣河桥 / 旧壳区：碎铁犬守桥头、幽魂在壳缝里、喷吐者守出口阶。
+	["Scrapper2", "scrapper", Vector2(3200, 320), {"patrol_range": 48.0}],
+	["Ghost3", "ghost", Vector2(3280, 240), {}],
+	["Spitter3", "spitter", Vector2(3984, 320), {}],
 ]
 ## 1472 在 32px 渣柱上，64px 墙板两边各悬进熔渣 16px，改到 FloorB。
 ## 2992 的墙板盖住出口碑，还探出东墙，改到 FloorC 门西侧的实地上。
-const TORCHES: Array = [384.0, 940.0, 1004.0, 1848.0, 2088.0, 2312.0, 2480.0]
-const VINES: Array = [232.0, 560.0, 720.0, 1312.0, 1624.0, 2008.0, 2240.0, 2704.0, 2944.0]
+const TORCHES: Array = [384.0, 940.0, 1004.0, 1848.0, 2088.0, 2312.0, 2480.0,
+		3064.0, 3320.0, 3688.0, 4008.0]
+const VINES: Array = [232.0, 560.0, 720.0, 1312.0, 1624.0, 2008.0, 2240.0, 2704.0, 2944.0,
+		3144.0, 3464.0, 3864.0]
 ## 1752 的石板（48×1.15）左缘探进 FloorC 以西的渣坑，收到坑沿里面。
 const ARCHES: Array = [72.0, 1764.0]
 ## 396 叠在入口火把上；2336 叠在 FloorD 的火把上，窄台放不下。
@@ -139,11 +168,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・捌 — 熔渣深渊"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "这滩渣淬过你这把剑。它失败过一次。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -185,10 +220,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_X, "城墙梯", PackedStringArray([
-		"梯子往上是城墙。",
-		"墙不挡人。它把炉风关在里面。",
-	]), "level08_done", GameContext.next_level_id(level_id()))
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level08_done",
+			GameContext.next_level_id(level_id()))
 	finish(host)
 
 
@@ -220,24 +254,46 @@ func _slag_pit(host: Node2D, pit_name: String, x0: float, x1: float) -> ToxinPoo
 	var bed_y := FLOOR_Y + PIT_DEPTH
 	platform(host, pit_name + "Bed", Vector2(x0, bed_y), Vector2(x1 - x0, FLOOR_Y + 80.0 - bed_y),
 			"basalt", false, false)
-	return toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0), Vector2(x1 - x0, 32.0), SLAG_TINT)
+	var pool := toxin(host, pit_name + "Pool", Vector2(x0, bed_y - 16.0),
+			Vector2(x1 - x0, 32.0), SLAG_TINT)
+	if pool != null:
+		# 深渣 ramp：河心暗、近岸亮，不再是整条纯橙的高饱和带（视觉 QA P1）。
+		pool.set_sludge_ramp(SLAG_RAMP, SLAG_VAPOR)
+	return pool
 
 
 func _build_props(host: Node2D) -> void:
 	for n in NESTS:
 		nest(host, String(n[0]), n[1])
-	stele(host, "SteleSlag", STELE_SLAG_POS, "熔渣纪事 · 渣",
-			"渣记得每一把剑的形状。你这一把也在里面。它没能把锈刮完。")
-	stele(host, "SteleQuench", STELE_QUENCH_POS, "熔渣纪事 · 淬",
-			"净化偶是在这里淬火的。铁成了，人先锈了。渣面上至今浮着一层灰。")
+	_stele(host, "SteleSlag", STELE_SLAG_POS)
+	_stele(host, "SteleQuench", STELE_QUENCH_POS)
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 	plate_door(host, "Sluice", PLATE_FEET, DOOR_POS)
 	rusty_gate(host, "RustGate", GATE_POS)
 	# 支路：从渣河 A 的跳石上钩进排气龛。奖励是世界信息，不是又一枚核。
 	hook(host, "HookVent", HOOK_VENT_POS)
-	stele(host, "SteleVent", STELE_VENT_POS, "熔渣纪事 · 气",
-			"渣面下还有风。风从炉心漏出来，吹了两百年，没吹冷。")
+	_stele(host, "SteleVent", STELE_VENT_POS)
+	# ⑪ 旧壳区：旧船壳上的奖励位（支路）。
+	_reward(host)
+
+
+## ⑪ 旧壳区支路奖励位：EquipmentPickup 走 LoadoutBridge（roster 缺失回退余温，不死锁）。
+func _reward(host: Node2D) -> Node:
+	if not ResourceLoader.exists(REWARD_SCENE):
+		return null
+	var scene := load(REWARD_SCENE) as PackedScene
+	if scene == null:
+		return null
+	var pick := scene.instantiate()
+	pick.name = "RewardOldHull"
+	pick.position = REWARD_POS
+	pick.set("reward_kind", REWARD_KIND)
+	pick.set("reward_ref", REWARD_REF)
+	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
+	pick.set("reward_name", item.display_name if item != null else "")
+	group(host, "Pickups").add_child(pick)
+	return pick
 
 
 func _build_enemies(host: Node2D) -> void:
@@ -272,3 +328,24 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "pipe_valve", Vector2(2072, FLOOR_Y), 1.0, PIPE_TINT)
 	prop(host, "bones", Vector2(1016, FLOOR_Y), 1.0, RUBBLE_TINT)
 	prop(host, "bones", Vector2(2232 + 64, FLOOR_Y), 1.0, RUBBLE_TINT)
+	# ⑩⑪ 渣河桥 / 旧壳区：旧船壳、断梁与压边的碎石；桥头一台坏机械。
+	prop(host, "broken_machine", Vector2(3064, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "girder_l", Vector2(3136, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "rubble_dry", Vector2(3656, FLOOR_Y), 1.0, RUBBLE_TINT)
+	prop(host, "skull_arch", Vector2(3904, FLOOR_Y))
+	prop(host, "broken_machine", Vector2(3952, FLOOR_Y), 1.0, GIRDER_TINT)
+	prop(host, "girder_r", Vector2(4024, FLOOR_Y), 1.0, GIRDER_TINT)
+	# 视觉 QA P1：渣河两岸压边——碎石 / 坏机械 / 断梁压住几条直边，别让液面
+	# 在屏幕底部露出一整条几何直边；scum 只在近岸（ramp 的最高一档）亮。
+	var shore: Array = [
+		["rubble_dry", Vector2(400, FLOOR_Y)],
+		["rubble_dry_c", Vector2(864, FLOOR_Y)],
+		["broken_machine", Vector2(1184, FLOOR_Y)],
+		["girder_l", Vector2(2576, FLOOR_Y)],
+		["rubble_dry", Vector2(2896, FLOOR_Y)],
+		["broken_machine", Vector2(3376, FLOOR_Y)],
+		["girder_r", Vector2(3664, FLOOR_Y)],
+	]
+	for s in shore:
+		prop(host, String(s[0]), s[1], 1.0, GIRDER_TINT if String(s[0]) != "rubble_dry" \
+				and String(s[0]) != "rubble_dry_c" else RUBBLE_TINT)

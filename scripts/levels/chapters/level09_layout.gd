@@ -12,8 +12,10 @@ extends ChapterLayout
 ##   ⑥ 风口       2048–2512 排水沟 C：五块短浮石（间距 48）+ 飞行恶魔
 ##   ⑦ 塔楼三     2512–3200 第三巢；96px 塔顶喷吐者；钩锁捷径接余烬核 + 碑文「鹰」
 ##                         ——本章支路；幽魂与碎铁犬守着炉心大门
+##   ⑧ 箭楼外墙   3200–4200 扩章：第四口排水沟（两块浮石），墙顶箭楼支路
+##                         （阶梯上塔顶，带 1 个奖励位）；炉心门前补一个余烬巢
 
-const EAST_LIMIT := 3200
+const EAST_LIMIT := 4200
 const ENTRY_SPAWN := Vector2(96, 300)
 const SKIN := "rampart"
 ## 城墙缝里的草是风干的：鲜绿灌木压成冷灰橄榄，和雾青石墙同温。
@@ -25,13 +27,15 @@ const FLOORS: Array = [
 	["FloorA", 0.0, 448.0, false, true],
 	["FloorB", 720.0, 1152.0, true, true],
 	["FloorC", 1472.0, 2048.0, true, true],
-	["FloorD", 2512.0, 3200.0, true, false],
+	["FloorD", 2512.0, 3500.0, true, true],
+	["FloorE", 3640.0, 4200.0, true, false],
 ]
 ## [name, x0, x1] —— 排水沟：坑底 352，液面 336..368，两侧 32px 一跳爬出
 const PITS: Array = [
 	["PitA", 448.0, 720.0],
 	["PitB", 1152.0, 1472.0],
 	["PitC", 2048.0, 2512.0],
+	["PitD", 3500.0, 3640.0],
 ]
 ## [name, pos, size] —— 塔楼与台阶：stone 方块，每级抬 32px。
 ## 64/96 高的塔身拆成 32px 的叠石：LevelSanity 的净空检查会把一整块
@@ -50,6 +54,11 @@ const TOWERS: Array = [
 	["TowerCBase2", Vector2(2864, 288), Vector2(96, 32)],
 	["TowerCBase1", Vector2(2864, 256), Vector2(96, 32)],
 	["TowerC", Vector2(2864, 224), Vector2(96, 32)],
+	## ⑧ 墙顶箭楼：三级 32px 台阶上 96px 箭楼顶（支路奖励位）。
+	["TowerDStep", Vector2(3704, 288), Vector2(64, 32)],
+	["TowerDBase2", Vector2(3768, 288), Vector2(96, 32)],
+	["TowerDBase1", Vector2(3768, 256), Vector2(96, 32)],
+	["TowerD", Vector2(3768, 224), Vector2(96, 32)],
 ]
 ## [name, pos, width] —— 浮石（16px 厚，教堂浮石皮肤）
 const STONES: Array = [
@@ -66,6 +75,9 @@ const STONES: Array = [
 	["WindS5", Vector2(2416, 288), 32.0],
 	# 塔楼三旁的哨台：只有钩锁能上去，上面悬着余烬核
 	["EyrieC", Vector2(2960, 160), 64.0],
+	## ⑧ 第四口排水沟上的两块浮石
+	["StoneD1", Vector2(3520, 288), 48.0],
+	["StoneD2", Vector2(3584, 264), 48.0],
 ]
 ## 主路线上每一段跳跃链的脚点（测试用）：台面 y 与 x 的落点
 const CHAIN_A: Array = [Vector2(448, 320), Vector2(496, 288), Vector2(576, 264), Vector2(656, 288), Vector2(720, 320)]
@@ -76,6 +88,8 @@ const CHAIN_WIND: Array = [Vector2(2048, 320), Vector2(2096, 288), Vector2(2176,
 const NEST_GATE_X := 176.0
 const NEST_MID_X := 1544.0
 const NEST_EAST_X := 2536.0
+## ⑧ 扩章后出口在 4080：箭楼前补一口余火（距上一巢 904px）。
+const NEST_RAMPART_X := 3440.0
 const STELE_WALL_POS := Vector2(264, 320)
 const STELE_WIND_POS := Vector2(1624, 320)
 ## 压板在塔楼二顶上；闸门封住塔楼二东侧的步道（门 16×64，底在 320）
@@ -85,7 +99,12 @@ const HOOK_POS := Vector2(2992, 80)
 const EMBER_CORE_POS := Vector2(2992, 136)
 ## 支路碑文站在哨台西端：和核、锚点错开，只有钩锁上得来。
 const STELE_EYRIE_POS := Vector2(2968, 160)
-const EXIT_X := 3096.0
+const EXIT_X := 4080.0
+## ⑧ 箭楼支路奖励位（EquipmentPickup；Fill 底边在节点 +7px，落在 224 塔顶）。
+const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
+const REWARD_POS := Vector2(3840, 217)
+const REWARD_KIND := "equipment"
+const REWARD_REF := "iron_blade"
 
 ## [name, kind, pos, overrides]
 const ENEMIES: Array = [
@@ -98,6 +117,10 @@ const ENEMIES: Array = [
 	["Spitter3", "spitter", Vector2(2912, 224), {}],
 	["Ghost1", "ghost", Vector2(3000, 244), {}],
 	["Scrapper2", "scrapper", Vector2(3032, 320), {"patrol_range": 24.0}],
+	## ⑧ 箭楼外墙：第四口排水沟上空一只飞行恶魔、箭楼顶的喷吐者、墙根的幽魂。
+	["Demon4", "flying_demon", Vector2(3560, 208), {"patrol_range": 72.0}],
+	["Ghost2", "ghost", Vector2(3392, 244), {}],
+	["Spitter4", "spitter", Vector2(3792, 224), {}],
 ]
 
 ## [key, feet, z] —— 女墙、残碑、塔门；z=1 让塔门画在塔身石板之上
@@ -119,14 +142,23 @@ const PROPS: Array = [
 	["rubble_dry", Vector2(2764, 288), 0],
 	["balustrade_wall", Vector2(2912, 224), 0],
 	["door_arch_wall", Vector2(2912, 320), 1],
+	# ⑧ 箭楼外墙：新排水沟两岸的女墙、碎碑，箭楼脚下的门洞。
+	["balustrade_wall", Vector2(3488, 320), 0],
+	["rubble_dry_c", Vector2(3464, 320), 0],
+	["ruin_tower", Vector2(3920, 320), -3],
+	["balustrade_wall", Vector2(3664, 320), 0],
+	["rubble_dry", Vector2(4008, 320), 0],
+	["door_arch_wall", Vector2(3872, 320), 1],
 ]
 ## [feet(左脚点), scale] —— 墙缝里长出来的几丛灌木
 const BUSHES: Array = [
 	[Vector2(300, 320), 1.0],
 	[Vector2(1592, 320), 1.0],
 	[Vector2(2640, 320), 1.0],
+	[Vector2(3280, 320), 1.0],
+	[Vector2(4128, 320), 1.0],
 ]
-const WAYMARKS: Array = [[Vector2(352, 320), "城墙"], [Vector2(3048, 320), "炉心"]]
+const WAYMARKS: Array = [[Vector2(352, 320), "城墙"], [Vector2(4020, 320), "炉心"]]
 
 
 func level_id() -> String:
@@ -134,11 +166,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・玖 — 锈城城墙"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "这墙挡的是炉风。灰是守墙的人。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -191,10 +229,9 @@ func build(host: Node2D) -> void:
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
-	exit_door(host, EXIT_X, "炉心大门", PackedStringArray([
-		"门后没有风，只有热。",
-		"有一匹马不肯进炉，还守在芯前。",
-	]), "level09_done", GameContext.next_level_id(level_id()))
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), "level09_done",
+			GameContext.next_level_id(level_id()))
 	finish(host)
 
 
@@ -214,17 +251,35 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestGate", NEST_GATE_X)
 	nest(host, "EmberNestMid", NEST_MID_X)
 	nest(host, "EmberNestEast", NEST_EAST_X)
-	stele(host, "SteleWall", STELE_WALL_POS, "城墙铭 · 挡",
-			"这墙不挡人，挡风。风从炉心来。灰是守过这墙的人。")
-	stele(host, "SteleWind", STELE_WIND_POS, "城墙铭 · 风",
-			"风里有铁锈和烧焦的油味。墙下的灰，曾经会走路。")
+	nest(host, "EmberNestRampart", NEST_RAMPART_X)
+	_stele(host, "SteleWall", STELE_WALL_POS)
+	_stele(host, "SteleWind", STELE_WIND_POS)
 	plate_door(host, "WallGate", PLATE_FEET, GATE_DOOR_POS)
 	hook(host, "HookTower", HOOK_POS)
 	pickup(host, "EmberCore", EMBER_CORE_POS, &"ember_core")
-	stele(host, "SteleEyrie", STELE_EYRIE_POS, "城墙铭 · 鹰",
-			"哨位空着。风替守墙人看路，看久了，把眼睛也磨成了灰。")
+	_stele(host, "SteleEyrie", STELE_EYRIE_POS)
+	# ⑧ 墙顶箭楼支路的奖励位。
+	_reward(host)
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
+
+
+## ⑧ 箭楼支路奖励位：EquipmentPickup 走 LoadoutBridge（roster 缺失回退余温，不死锁）。
+func _reward(host: Node2D) -> Node:
+	if not ResourceLoader.exists(REWARD_SCENE):
+		return null
+	var scene := load(REWARD_SCENE) as PackedScene
+	if scene == null:
+		return null
+	var pick := scene.instantiate()
+	pick.name = "RewardEyrie"
+	pick.position = REWARD_POS
+	pick.set("reward_kind", REWARD_KIND)
+	pick.set("reward_ref", REWARD_REF)
+	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
+	pick.set("reward_name", item.display_name if item != null else "")
+	group(host, "Pickups").add_child(pick)
+	return pick
 
 
 func _build_enemies(host: Node2D) -> void:

@@ -9,11 +9,13 @@ extends ChapterLayout
 ##
 ## 结构（地面 y=320，一跳台阶 ≤32px）：
 ##   ① 入口回廊 0–800     余烬巢、碑文、路牌、幽魂 ×2 + 火骷髅 ×2、熔渣河（三块浮石）
-##   ② 门前厅 800–1100    Boss 前的余烬巢、第二块碑、锈门（热锻）= 竞技场门
-##   ③ 竞技场 1100–2300   1200px 连续平地，无坑无台阶；两端各一块 48×32 的小高台；梦魇 Boss
-##   ④ 终局门 2300–2560   炉心祭坛（背景）、炉心之门（需 nightmare_dead；结局字幕后回标题）
+##   ①b 加长回廊 800–1440 第二道熔渣河（三块浮石）+ 低空火骷髅；炉心回廊再长一屏
+##   ② 门前厅 1440–1740   Boss 前的余烬巢（距竞技场门 60px）、第二块碑、锈门（热锻）
+##   ③ 竞技场 1740–2940   1200px 连续平地，无坑无台阶；两端各一块 48×32 的小高台；
+##      梦魇 Boss + BossArena（统一 boss() 装配：clamp / 锁门 / 相机 limit / 清场）
+##   ④ 终局门 2940–3200   炉心祭坛（背景）、炉心之门（需 nightmare_dead；结局字幕后回标题）
 
-const EAST_LIMIT := 2560
+const EAST_LIMIT := 3200
 const ENTRY_SPAWN := Vector2(96, 300)
 const CEILING_Y := -32.0
 
@@ -46,24 +48,37 @@ const SLAG_STONES: Array = [
 	["SlagStone3", Vector2(656, 288), 48.0],
 ]
 
+## ①b 加长回廊：第二道熔渣河，和第一道同一条单跳链（岸 320 → 288 → 264 → 288 → 岸）。
+const SLAG2_X0 := 960.0
+const SLAG2_X1 := 1120.0
+const SLAG2_STONES: Array = [
+	["Slag2Stone1", Vector2(976, 288), 48.0],
+	["Slag2Stone2", Vector2(1048, 264), 48.0],
+	["Slag2Stone3", Vector2(1112, 288), 48.0],
+]
+
 ## ② 门前厅
-const NEST_ARENA_X := 880.0
-const STELE_B_POS := Vector2(940, 320)
-## 锈门左上角；门 16×64，底在 320，脚点 (1088, 320)。
-const ARENA_GATE_POS := Vector2(1080, 256)
+## Boss 前巢挪到竞技场门（1724）前 60px、竞技场左界（1740）前 76px（契约 ≤80px）。
+const NEST_ARENA_X := 1664.0
+const STELE_B_POS := Vector2(1580, 320)
+## 锈门左上角；门 16×64，底在 320，脚点 (1732, 320)。
+const ARENA_GATE_POS := Vector2(1724, 256)
+## 回廊敌人的活动边界：只追到门前厅西侧，绝不进竞技场。
+const CORRIDOR_ENEMY_MAX_X := 1580.0
 
 ## ③ 竞技场
-const ARENA_X0 := 1100.0
-const ARENA_X1 := 2300.0
+const ARENA_X0 := 1740.0
+const ARENA_X1 := 2940.0
 ## 两端的小高台：48 宽 32 高，坐在地面上，顶在 288。
 const PERCH_SIZE := Vector2(48, 32)
-const PERCH_WEST_POS := Vector2(1152, 288)
-const PERCH_EAST_POS := Vector2(2200, 288)
-const BOSS_POS := Vector2(2000, 320)
+const PERCH_WEST_POS := Vector2(1792, 288)
+const PERCH_EAST_POS := Vector2(2860, 288)
+const BOSS_POS := Vector2(2640, 320)
 
 ## ④ 终局门
-const ALTAR_FEET := Vector2(2344, 320)
-const EXIT_X := 2440.0
+const ALTAR_FEET := Vector2(2984, 320)
+const EXIT_X := 3080.0
+
 const EXIT_LABEL := "炉心之门"
 const EXIT_FLAG := "game_complete"
 const EXIT_REQUIRES := "nightmare_dead"
@@ -73,35 +88,27 @@ const EXIT_LOCKED_PROMPT := "梦魇还在喘。门不开。"
 const VIGIL_DECK := Rect2(160, 192, 96, 16)
 const HOOK_VIGIL_POS := Vector2(208, 120)
 const STELE_VIGIL_POS := Vector2(232, 192)
-const GIVE_CAPTIONS: Array = [
-	"剑进了炉。里面的人跟着进去。",
-	"火稳了。骑士散成铁。陵墓睡下。",
-	"—— 锈墓・完 ——",
-]
-const KEEP_CAPTIONS: Array = [
-	"炉心还在不规则地跳。",
-	"你留下当看守。剑里的人还在。",
-	"—— 锈墓・完 ——",
-]
 
 ## [name, kind, pos]；落地敌人给脚点，飞行/穿墙敌人给悬停中心。
-## 回廊敌人的活动限制在门前，余烬巢和梦魇竞技场不受前一战追击干扰。
-## 幽魂一只守渣河西岸、一只守东岸落点；火骷髅悬在渣河上空（避开骷髅柱的脸，别叠成两张骷髅）。
+## 回廊敌人的活动限制在门前厅西侧，余烬巢和梦魇竞技场不受前一战追击干扰。
+## 幽魂一只守第一道渣河西岸、一只守东岸落点；火骷髅低空守着两道渣河的渡口。
 const ENEMIES: Array = [
 	["Ghost1", "ghost", Vector2(424, 232)],
 	["FireSkull1", "fire_skull", Vector2(560, 192)],
 	["FireSkull2", "fire_skull", Vector2(688, 176)],
 	["Ghost2", "ghost", Vector2(816, 236)],
+	["FireSkull3", "fire_skull", Vector2(1024, 192)],
+	["FireSkull4", "fire_skull", Vector2(1240, 208)],
+	["Ghost3", "ghost", Vector2(1360, 236)],
 	["Nightmare", "nightmare_boss", BOSS_POS],
 ]
 
-## 装饰。竞技场（1100–2300）里只有壁炬和背景柱子，不放任何落地装饰，免得误导落点。
+## 装饰。竞技场里只有壁炬和背景柱子，不放任何落地装饰，免得误导落点。
 ## 壁炬板 64 宽、柱子 114 宽，两者横向错开——柱子在壁炬前面一层，叠上会把火吞掉。
-## 壁炬 2160 挪到 2192：石柱按 1x 整数缩放后右缘到 2154，原位置的火盘会被柱身吃掉。
-const TORCHES: Array = [316.0, 1016.0, 1240.0, 1560.0, 1880.0, 2192.0, 2504.0]
-const COLUMNS: Array = [64.0, 1400.0, 1720.0, 2040.0]
+const TORCHES: Array = [316.0, 848.0, 1264.0, 1584.0, 1800.0, 1880.0, 2224.0, 2568.0, 2880.0, 2904.0, 3120.0]
+const COLUMNS: Array = [64.0, 1900.0, 2340.0, 2780.0]
 ## 十字形碎石是墓园符号，炉心地面只用普通碎渣。
-const RUBBLE: Array = [120.0, 792.0, 2520.0]
+const RUBBLE: Array = [120.0, 792.0, 1240.0, 1520.0, 3020.0]
 const RUBBLE_KEYS: Array = ["rubble_dry", "rubble_dry_c"]
 const SKULL_COLUMN_X := 776.0
 
@@ -111,11 +118,17 @@ func level_id() -> String:
 
 
 func title() -> String:
-	return "锈墓・拾 — 炉心深处"
+	return ChapterText.title_of(level_id())
 
 
 func wake_line() -> String:
-	return "有一匹马不肯进炉。它守着你还没做的选择。"
+	return ChapterText.wake_of(level_id())
+
+
+## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
 func entry_spawn() -> Vector2:
@@ -162,8 +175,16 @@ func _build_terrain(host: Node2D) -> void:
 		step(host, String(s[0]), s[1], float(s[2]), "basalt_float", STONE_TONE)
 	# 守夜台：悬在入口回廊上方，只有钩锁能上；不在竞技场里，不误导 Boss 落点。
 	step(host, "VigilDeck", VIGIL_DECK.position, VIGIL_DECK.size.x, "basalt_float", STONE_TONE)
+	# ①b 加长回廊：第二道熔渣河，和第一道同一套单跳渡石。
+	floor_strip(host, "FloorHallA", SLAG_X1, SLAG2_X0, "basalt", true, true, FLOOR_Y, TONE)
+	platform(host, "Slag2Bed", Vector2(SLAG2_X0, SLAG_BED_Y),
+			Vector2(SLAG2_X1 - SLAG2_X0, FLOOR_Y + 80.0 - SLAG_BED_Y), "basalt", false, false, TONE)
+	toxin(host, "Slag2Pool", Vector2(SLAG2_X0, SLAG_BED_Y - 16.0),
+			Vector2(SLAG2_X1 - SLAG2_X0, 32.0), SLAG_TINT)
+	for s in SLAG2_STONES:
+		step(host, String(s[0]), s[1], float(s[2]), "basalt_float", STONE_TONE)
 	# 门前厅 + 竞技场 + 终局门共用一块地：竞技场必须是连续平地，Boss 来回冲锋。
-	floor_strip(host, "FloorHall", SLAG_X1, float(EAST_LIMIT), "basalt", true, false, FLOOR_Y, TONE)
+	floor_strip(host, "FloorHallB", SLAG2_X1, float(EAST_LIMIT), "basalt", true, false, FLOOR_Y, TONE)
 	platform(host, "PerchWest", PERCH_WEST_POS, PERCH_SIZE, "basalt", true, true, STONE_TONE)
 	platform(host, "PerchEast", PERCH_EAST_POS, PERCH_SIZE, "basalt", true, true, STONE_TONE)
 	enclose(host, "basalt", CEILING_Y, -1.0, 0.0, TONE)
@@ -172,30 +193,31 @@ func _build_terrain(host: Node2D) -> void:
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestGate", NEST_GATE_X)
 	nest(host, "EmberNestArena", NEST_ARENA_X)
-	stele(host, "SteleNightmare", STELE_A_POS, "炉心铭 · 梦魇",
-			"熄炉那夜，战马尽数熔回铁水。只一匹不肯进炉。它守在芯前，等一个还没把剑送进去的人。")
-	stele(host, "SteleCompact", STELE_B_POS, "炉心铭 · 炉约",
-			"炉约末条：把火还给炉，把锈还给铁。谁带着别人的声音走到这里，谁就得自己选。")
+	_stele(host, "SteleNightmare", STELE_A_POS)
+	_stele(host, "SteleCompact", STELE_B_POS)
 	waymark(host, WAYMARK_POS, "炉心")
 	rusty_gate(host, "ArenaGate", ARENA_GATE_POS)
 	# 支路：入口回廊的守夜台。只有钩锁能读，碑文把门后的选择先摆在玩家面前。
 	hook(host, "HookVigil", HOOK_VIGIL_POS)
-	stele(host, "SteleVigil", STELE_VIGIL_POS, "炉心铭 · 守",
-			"马不肯进炉，因为它记得骑手。门后只有两个选择：把剑还回去，或者留下来守火。")
-	var door := exit_door(host, EXIT_X, EXIT_LABEL, PackedStringArray(), EXIT_FLAG, "",
+	_stele(host, "SteleVigil", STELE_VIGIL_POS)
+	var door := exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+			ChapterText.exit_captions_of(level_id()), EXIT_FLAG, "",
 			FLOOR_Y, EXIT_REQUIRES, EXIT_LOCKED_PROMPT)
 	door.ending_choice = true
-	door.give_captions = PackedStringArray(GIVE_CAPTIONS)
-	door.keep_captions = PackedStringArray(KEEP_CAPTIONS)
+	door.give_captions = ChapterText.ending_lines_of("give")
+	door.keep_captions = ChapterText.ending_lines_of("keep")
 
 
 func _build_enemies(host: Node2D) -> void:
 	for e in ENEMIES:
 		if String(e[1]) == "nightmare_boss":
-			if not SaveData.has_flag("nightmare_dead"):
-				enemy(host, String(e[0]), String(e[1]), e[2], {"arena_left": ARENA_X0, "arena_right": ARENA_X1})
+			# 统一 boss() 装配：Boss + BossArena（clamp / 锁门 / 相机 limit / 清场）；
+			# 场景存在（本仓已交付）才锁终局门，`nightmare_dead` 后清场解锁。
+			if TrialRun.forces_boss_spawn() or not SaveData.has_flag(EXIT_REQUIRES):
+				boss(host, String(e[0]), String(e[1]), e[2], ARENA_X0, ARENA_X1)
 		else:
-			enemy(host, String(e[0]), String(e[1]), e[2], {"arena_left": 300.0, "arena_right": 832.0})
+			enemy(host, String(e[0]), String(e[1]), e[2],
+					{"arena_left": 300.0, "arena_right": CORRIDOR_ENEMY_MAX_X})
 
 
 func _build_decor(host: Node2D) -> void:
@@ -210,6 +232,10 @@ func _build_decor(host: Node2D) -> void:
 	# 入口回廊的炉前机械：把渣送进炉心的那台坏了，阀座还开着。竞技场里不放。
 	prop(host, "broken_machine", Vector2(420, FLOOR_Y), 1.0, MACHINE_TINT)
 	prop(host, "pipe_valve", Vector2(452, FLOOR_Y), 1.0, MACHINE_TINT)
+	# ①b 加长回廊：第二道渣河旁的送渣机械与警示牌，读得出「这里也坏在一半」。
+	prop(host, "broken_machine", Vector2(1400, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "fire_vent", Vector2(1168, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "warning_plate", Vector2(928, FLOOR_Y), 1.0, TONE)
 	for i in range(RUBBLE.size()):
 		prop(host, RUBBLE_KEYS[i % RUBBLE_KEYS.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
 

@@ -8,7 +8,10 @@ extends Node
 ## save stores that data keyed by a scene-relative path (with a resolver for
 ## older absolute `/root/...` keys) so a renamed root still remaps.
 
-const SAVE_VERSION := 1
+## v1 = 10-chapter campaign (no profile block). v2 adds the profile block
+## (character_id + extras) for the character/weapon lines. Loading a v1 save keeps
+## every old field and fills the new ones with defaults — no migration step needed.
+const SAVE_VERSION := 2
 
 const DEFAULT_EQUIPMENT := {
 	"weapon": "broken_sword",
@@ -25,6 +28,8 @@ var save_path := "user://rustgrave_save.cfg"
 ##   player    = { hp, max_hp, toxin, max_toxin, pos (Vector2), facing }
 ##   inventory = { pouch: [core ids], sockets: [core ids or ""] }
 ##   equipment = { weapon: id, armor: id, trinket: id, bag: [id, ...] }
+##   equipment = { weapon: id, armor: id, trinket: id, bag: [id, ...] }
+##   profile   = { character_id: String, extras: Dictionary }   # save v2
 ##   world     = { "Props/Door": {...}, ... }  # scene-relative; old /root keys still resolve
 ##   atmosphere = { time_of_day (0–1), weather }
 var data: Dictionary = {}
@@ -50,10 +55,25 @@ var flags: PackedStringArray = []
 ## Empty until a finished ending: "snuff" at the remnant, "give" / "keep" at the forge door.
 ## Chapter-1 rekindle is a promise to continue, not an ending.
 var ending: String = ""
+## Save v2 profile block. Owned by the character/weapon lines through this file and
+## the LoadoutBridge; campaign code only reads `character_id` for spawn/visual selection.
+## `extras` keeps unknown keys verbatim so a newer build can add data without another
+## schema bump (unlock tables, per-character progress, ...).
+var character_id: String = ""
+var extras: Dictionary = {}
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+## 试炼模式（TrialRun，契约 §2/§5）中战役档案只读：读档拒绝、写入函数 no-op、
+## 旗标/消耗/余烬巢等内存状态也不改。TrialRun 只写自己的 user://rustgrave_trials.cfg。
+func _trial_active() -> bool:
+	var loop := Engine.get_main_loop() as SceneTree
+	if loop == null:
+		return false
+	return TrialRun.active()
 
 
 func has_save() -> bool:
@@ -63,6 +83,8 @@ func has_save() -> bool:
 ## used by level exits, whose save names the *next* scene while the knight is
 ## still standing in the old one.
 func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vector2.INF) -> bool:
+	if _trial_active():
+		return false
 	var player_state := _collect_player(player)
 	if spawn_override != Vector2.INF:
 		player_state["pos"] = spawn_override
@@ -113,6 +135,9 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 		if id_str != "":
 			bag_ids.append(id_str)
 	cfg.set_value("equipment", "bag", bag_ids)
+	cfg.set_value("profile", "character_id", character_id)
+	cfg.set_value("profile", "extras", extras.duplicate(true))
+	data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
 	for key in world:
 		cfg.set_value("world", key, world[key])
 	cfg.set_value("consumed", "paths", Array(consumed))
@@ -132,6 +157,9 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 	return true
 
 func load_game() -> bool:
+	if _trial_active():
+		# 试炼有固定装载：不把战役进度/旗标灌进试炼场（也只读不写）。
+		return false
 	var cfg := _load_cfg()
 	if cfg == null:
 		data = {}
@@ -169,6 +197,14 @@ func load_game() -> bool:
 		}
 	else:
 		data["equipment"] = DEFAULT_EQUIPMENT.duplicate(true)
+	# v2 profile block: missing on v1 saves -> defaults (no migration pass needed).
+	character_id = String(cfg.get_value("profile", "character_id", ""))
+	extras = {}
+	var raw_extras: Variant = cfg.get_value("profile", "extras", {})
+	if raw_extras is Dictionary:
+		for extra_key in raw_extras:
+			extras[String(extra_key)] = (raw_extras as Dictionary)[extra_key]
+	data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
 	data["world"] = {}
 	if cfg.has_section("world"):
 		for key in cfg.get_section_keys("world"):
@@ -195,6 +231,8 @@ func load_game() -> bool:
 
 
 func delete_save() -> void:
+	if _trial_active():
+		return
 	_remove_if_exists(save_path)
 	_remove_if_exists(_backup_path())
 	_remove_if_exists(_tmp_path())
@@ -203,6 +241,8 @@ func delete_save() -> void:
 	lit_nests.clear()
 	flags.clear()
 	ending = ""
+	character_id = ""
+	extras.clear()
 	pending_spawn = Vector2.INF
 	entering_from_checkpoint = false
 	WorldClock.reset()
@@ -211,6 +251,8 @@ func delete_save() -> void:
 ## Record that a one-shot interactable at `path` has been consumed (picked up,
 ## used, melted). Survives node free because it's a plain path list.
 func mark_consumed(path: String) -> void:
+	if _trial_active():
+		return
 	path = _normalize_saved_path(path)
 	if path == "":
 		return
@@ -230,6 +272,8 @@ func is_consumed(path: String) -> bool:
 
 ## Remove from the freshly-built scene every one-shot node that was consumed.
 func apply_consumed(node: Node) -> void:
+	if _trial_active():
+		return
 	if node == null or not is_instance_valid(node):
 		return
 	for p in consumed.duplicate():
@@ -244,6 +288,8 @@ func apply_consumed(node: Node) -> void:
 
 
 func register_lit_nest(path: String) -> void:
+	if _trial_active():
+		return
 	path = _normalize_saved_path(path)
 	if path == "":
 		return
@@ -262,12 +308,57 @@ func last_lit_nest() -> String:
 
 
 func mark_flag(id: String) -> void:
+	if _trial_active():
+		return
 	if not flags.has(id):
 		flags.append(id)
+	# 契约 §5：第七章通关 / 任一结局给试炼入口上锁解除（trial_unlocked）。
+	if id == "level07_done" or id == "game_complete":
+		if not flags.has("trial_unlocked"):
+			flags.append("trial_unlocked")
 
 
 func has_flag(id: String) -> bool:
 	return flags.has(id)
+
+
+## ---------------------------------------------------------------- profile v2 --
+## Save v2 profile API used by the character/weapon lines (through LoadoutBridge)
+## and by the title/pause loadout UI. Read paths are pure; writes stay in memory
+## until save_game() / persist_profile(), so a trial run can never leak into the
+## campaign save.
+
+func set_character(id: String) -> void:
+	character_id = id.strip_edges()
+
+
+func character() -> String:
+	return character_id
+
+
+func set_extra(key: String, value: Variant) -> void:
+	if key.strip_edges() == "":
+		return
+	extras[key] = value
+
+
+func get_extra(key: String, default_value: Variant = null) -> Variant:
+	return extras.get(key, default_value)
+
+
+## Flush only the profile block onto the existing save (character select, weapon
+## unlock). No-op before the first checkpoint so a fresh run keeps no half-save.
+func persist_profile() -> bool:
+	if _trial_active():
+		return false
+	var cfg := _load_cfg()
+	if cfg == null:
+		return false
+	cfg.set_value("profile", "character_id", character_id)
+	cfg.set_value("profile", "extras", extras.duplicate(true))
+	if data.has("profile"):
+		data["profile"] = {"character_id": character_id, "extras": extras.duplicate(true)}
+	return _write_cfg(cfg)
 
 
 ## Write flags + ending onto an existing save without needing a live player.
@@ -286,6 +377,8 @@ func persist_story(player: Node = null) -> void:
 ## existing save without moving the respawn point, HP or the saved scene. No-op without a
 ## save (before the first nest a death reloads a fresh level and every pickup returns).
 func persist_progress(player: Node = null) -> bool:
+	if _trial_active():
+		return false
 	var cfg := _load_cfg()
 	if cfg == null:
 		return false
@@ -428,6 +521,8 @@ func _item_to_id(item: Variant) -> String:
 
 ## Persist player equipment to save file independently.
 func save_equipment(player: Node = null) -> bool:
+	if _trial_active():
+		return false
 	if player == null:
 		var tree := get_tree()
 		if tree != null:
@@ -474,6 +569,8 @@ func _collect_world() -> Dictionary:
 
 ## After a respawn, replay stored world state onto the freshly-built scene.
 func apply_world(node: Node) -> void:
+	if _trial_active():
+		return
 	if data.is_empty() or not data.has("world"):
 		return
 	if node == null or not is_instance_valid(node):
@@ -487,6 +584,8 @@ func apply_world(node: Node) -> void:
 
 ## Relight every recorded Ember Nest even when the world snapshot key is stale.
 func apply_lit_nests(node: Node) -> void:
+	if _trial_active():
+		return
 	if node == null or not is_instance_valid(node):
 		return
 	for p in lit_nests:
@@ -497,6 +596,8 @@ func apply_lit_nests(node: Node) -> void:
 
 ## Populate a freshly-instantiated player from the stored save.
 func apply_player(player: Node) -> void:
+	if _trial_active():
+		return
 	if player == null or data.is_empty():
 		return
 	if not data.has("player") and not data.has("equipment"):
@@ -579,6 +680,8 @@ func apply_player(player: Node) -> void:
 
 ## Record the scene we should boot into and the spawn point, then reload there.
 func respawn(scene_path: String, spawn: Vector2) -> void:
+	if _trial_active():
+		return
 	pending_spawn = spawn
 	entering_from_checkpoint = true
 	Director.fade_to(scene_path)
@@ -748,6 +851,9 @@ func _load_cfg() -> ConfigFile:
 
 
 func _write_cfg(cfg: ConfigFile) -> bool:
+	# 兜底：试炼会话中任何路径都不许把战役档写盘。
+	if _trial_active():
+		return false
 	var tmp := _tmp_path()
 	var err := cfg.save(tmp)
 	if err != OK:

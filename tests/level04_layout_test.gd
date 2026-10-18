@@ -77,7 +77,7 @@ func test_metadata_matches_the_registry() -> void:
 	var level := load(LAYOUT_PATH).new() as ChapterLayout
 	add_child(level)
 	eq(level.level_id(), "level04")
-	eq(level.title(), "锈墓・肆 — 圣殿中庭")
+	eq(level.title(), "锈墓・伍 — 圣殿中庭")
 	ok(level.wake_line() != "", "the cathedral has an opening line")
 	eq(level.theme(), "cathedral")
 	ok(level.indoors(), "cathedral is an indoor theme")
@@ -85,7 +85,7 @@ func test_metadata_matches_the_registry() -> void:
 	ok(level.camera_top() <= -96, "camera may lift toward the vault")
 	eq(level.entry_spawn(), L4.ENTRY_SPAWN)
 	eq(level.default_spawn(), level.entry_spawn())
-	eq(GameContext.next_level_id(level.level_id()), "level05")
+	eq(GameContext.next_level_id(level.level_id()), "level04b")
 
 
 func test_fallen_player_can_climb_back_to_choir_from_east() -> void:
@@ -231,10 +231,10 @@ func test_enemies_hold_their_posts() -> void:
 		var overrides: Dictionary = e[3]
 		for key in overrides:
 			eq(enemy.get(key), overrides[key], "%s.%s override applied" % [e[0], key])
-	eq(gear_shields, 2, "two gear shields, one per narrow passage")
-	eq(ghosts, 2, "two ghosts")
+	eq(gear_shields, 3, "three gear shields, one per narrow passage")
+	eq(ghosts, 3, "three ghosts")
 	eq(spitters, 1, "one spitter")
-	eq(scrappers, 1, "one scrapper")
+	eq(scrappers, 2, "two scrappers")
 	var gs1 := enemies.get_node("GearShield1") as Node2D
 	var gs2 := enemies.get_node("GearShield2") as Node2D
 	var spitter := enemies.get_node("Spitter1") as Node2D
@@ -287,11 +287,11 @@ func test_checkpoints_gate_and_exit() -> void:
 	ok(_on_named(rects, "FloorD", gate.position + Vector2(8, 64)), "gate foot meets the altar floor")
 	ok(nest_altar.position.x < gate.position.x and gate.position.x < exit.position.x,
 			"checkpoint -> rust gate -> exit, in that order")
-	ok(_on_named(rects, "FloorD", exit.position), "exit door stands on FloorD")
+	ok(_on_named(rects, "FloorE", exit.position), "exit door stands on the cloister floor")
 	ok(float(L4.EAST_LIMIT) - exit.position.x >= 80.0, "exit keeps clear of the east wall")
-	eq(exit.door_label, "工坊暗门")
+	eq(exit.door_label, "地窖暗门")
 	eq(exit.flag_id, "level04_done")
-	eq(exit.target_scene, GameContext.LEVELS["level05"], "workshop door hops to level05")
+	eq(exit.target_scene, GameContext.LEVELS["level04b"], "crypt door hops to level04b")
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level05"), "arrives at level05's entry spawn")
 	ok(exit.captions.size() >= 1, "the door has something to say")
 	for stele_name in ["SteleCompact", "StelePrice"]:
@@ -341,8 +341,41 @@ func test_vault_hook_and_ember_core_are_an_optional_detour() -> void:
 				"the hookshot reaches the vault stele")
 
 
-## 桥中段的巢落在 BridgeB4 上：它是整座廊桥唯一在喷吐者 380px 射程外的
-## 落脚面，死在桥中段的人不用走回教堂前厅。
+## ⑦⑧ 侧廊 / 后殿扩章：FloorE 接在祭坛区东侧（4200 宽），侧廊唱诗席是可回主路的
+## 三级台阶高台，台上带 1 个奖励位；侧廊口有新的余烬巢，出口在 3984。
+func test_side_corridor_choir_loft_and_cloister_checkpoint() -> void:
+	var host := _build()
+	var rects := _rects(host)
+	eq(L4.EAST_LIMIT, 4200, "圣殿中庭扩到 4200 宽")
+	ok(_on_named(rects, "FloorE", Vector2(3100, 320)), "the side corridor continues the main floor")
+	ok(_on_named(rects, "FloorE", Vector2(4100, 320)), "FloorE reaches the new east wall")
+	var loft: Rect2 = rects["SideLoft"]
+	almost(320.0 - loft.position.y, 96.0, 0.01, "choir loft sits three steps above the nave floor")
+	var chain := ["FloorE", "SideStep1", "SideStep2Base", "SideStep2", "SideLoft"]
+	for i in range(1, chain.size()):
+		var a: Rect2 = rects[String(chain[i - 1])]
+		var b: Rect2 = rects[String(chain[i])]
+		ok(a.position.y - b.position.y <= JUMP_RISE_MAX + 0.01,
+				"%s -> %s rises one hop" % [chain[i - 1], chain[i]])
+		ok(_edge_gap(a, b) <= JUMP_GAP_MAX + 0.01,
+				"%s -> %s spans one jump" % [chain[i - 1], chain[i]])
+	var reward := host.get_node_or_null("Pickups/RewardChoir") as EquipmentPickup
+	ok(reward != null, "the choir loft carries one reward slot")
+	if reward != null:
+		eq(reward.position, L4.REWARD_POS)
+		eq(String(reward.get("reward_kind")), "equipment")
+		ok(String(reward.get("reward_ref")) != "")
+		ok(_on_named(rects, "SideLoft", LevelSanity.feet_of(reward)), "reward rests on the choir loft")
+		ok(LevelSanity.is_reachable(host, Vector2(L4.ENTRY_SPAWN.x, 320.0), L4.REWARD_POS, false),
+				"the choir loft is a walkable side branch (no hookshot needed)")
+	var nest := host.get_node_or_null("Props/EmberNestCloister") as EmberNest
+	ok(nest != null, "the cloister carries a new checkpoint")
+	if nest != null:
+		ok(_on_named(rects, "FloorE", nest.position + Vector2(6, 14)), "cloister nest stands on FloorE")
+		ok(L4.EXIT_X - nest.position.x <= 1000.0, "cloister nest is within one screen-run of the exit")
+		ok(LevelSanity.is_reachable(host, Vector2(L4.ENTRY_SPAWN.x, 320.0), nest.position + Vector2(6, 14), false),
+				"cloister nest is reachable without optional abilities")
+
 func test_bridge_checkpoint_is_safe_and_reachable() -> void:
 	var host := _build()
 	var rects := _rects(host)

@@ -38,6 +38,9 @@ func setup() -> void:
 	Music._danger_hold = 0.0
 	Music._boss_phase = 1
 	Music._last_chapter = ""
+	# Boss 曲的 level-first 映射由专门用例覆盖；其余用例回到 theme 映射。
+	Music.boss_level = ""
+	Music.boss_level_track = &""
 
 
 func teardown() -> void:
@@ -105,6 +108,32 @@ func test_desired_track_matrix() -> void:
 		eq(Music.desired_track(), &"", "silent should play nothing")
 	Music.set_state(&"calm")
 	eq(Music.boss_track_for(&"not_a_theme"), default_boss, "unknown theme -> default boss track")
+
+
+## 关卡 id 优先于 theme：level02（空钟）和 level02b（绞盘守渠人）同为 undercroft，
+## 必须有各自的 Boss 曲；play_boss_for_level() 是播放入口。
+func test_boss_level_mapping_wins_over_theme() -> void:
+	Music.set_theme(&"undercroft")
+	Music.set_state(&"calm")
+	eq(Music.boss_track_for_level("level02"), &"boss_hollow_bell", "level02 -> 空钟曲")
+	eq(Music.boss_track_for_level("level02b"), &"boss_capstan", "level02b -> 绞盘守渠人曲")
+	Music.set_state(&"boss")
+	eq(Music.play_boss_for_level("level02b"), &"boss_capstan",
+			"play_boss_for_level returns the level track")
+	eq(Music.boss_level, "level02b", "boss level is recorded")
+	eq(Music.desired_track(), &"boss_capstan", "boss state plays the level track")
+	eq(Music.front_track, &"boss_capstan", "front deck follows the level track")
+	Music.play_boss_for_level("level02")
+	eq(Music.front_track, &"boss_hollow_bell", "switching level switches the boss track")
+	# 未登记关卡：theme -> default，绝不返回空。
+	Music.play_boss_for_level("level99")
+	eq(Music.boss_level_track, Music.boss_track_for_level("level99"),
+			"unknown level still resolves a track")
+	ok(Music.boss_level_track != &"", "unknown level never yields silence")
+	Music.boss_level = ""
+	Music.boss_level_track = &""
+	Music.set_state(&"calm")
+	eq(Music.desired_track(), &"undercroft", "clearing the boss level returns to the theme")
 
 
 func test_fade_and_rule_constants_are_sane() -> void:

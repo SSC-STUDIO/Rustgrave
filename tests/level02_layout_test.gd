@@ -1,4 +1,4 @@
-﻿extends TestCase
+extends TestCase
 ## Level02 "沉钟地窟": authored geometry stays jumpable, props/enemies stand on
 ## solid ground, checkpoints and the exit exist, and the level is indoor-only.
 
@@ -28,6 +28,8 @@ func _build() -> Node2D:
 	var level := Level02Layout.new()
 	add_child(level)
 	level.build(host)
+	# 测试要直接驱动「空钟倒地」的接线，把布局实例挂在 host 上（Object 引用）。
+	host.set_meta("layout", level)
 	return host
 
 
@@ -58,6 +60,8 @@ func test_step_chains_are_single_jumps() -> void:
 		[Vector2(1936, 320), Vector2(1936, 288), Vector2(2000, 256)],
 		# alcove: lift D at its top -> hop left onto the alcove's right end
 		[Vector2(1856, 224), Vector2(1840, 208)],
+		# E 沉钟回廊: west bank -> two stones -> east bank (满水渠)
+		[Vector2(2480, 320), Vector2(2512, 288), Vector2(2592, 264), Vector2(2600, 320)],
 	]
 	for chain in chains:
 		for i in range(1, chain.size()):
@@ -125,16 +129,26 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var rects := _solids(host)
 	var nest_a := props.get_node_or_null("EmberNestShaft") as EmberNest
 	var nest_b := props.get_node_or_null("EmberNestHall") as EmberNest
-	ok(nest_a != null and nest_b != null, "two checkpoints")
+	var nest_c := props.get_node_or_null("EmberNestBell") as EmberNest
+	ok(nest_a != null and nest_b != null and nest_c != null, "three checkpoints")
 	ok(_standing_on(rects, nest_a.position + Vector2(6, 14)), "shaft nest stands on FloorA")
 	ok(_standing_on(rects, nest_b.position + Vector2(6, 14)), "hall nest stands on FloorD")
 	ok(nest_b.position.x < Level02Layout.GATE_D_POS.x, "hall checkpoint comes before the rust gate")
+	# Boss 前存档点：门前 2680 / 竞技场左界 2700 —— 巢必须 <=80px。
+	ok(nest_c.position.x < Level02Layout.ARENA_GATE_X, "bell checkpoint comes before the bell gate")
+	ok(absf(nest_c.position.x - Level02Layout.ARENA_GATE_X) <= 80.0,
+			"bell checkpoint is <=80px from the arena gate")
+	ok(absf(nest_c.position.x - Level02Layout.ARENA_LEFT) <= 80.0,
+			"bell checkpoint is <=80px from the arena edge (BossArena contract)")
+	ok(_standing_on(rects, nest_c.position + Vector2(6, 14)), "bell nest stands on FloorE")
 	var exit := props.get_node_or_null("BellDoor") as LevelExit
 	ok(exit != null, "the bell door ends the level")
 	if exit != null:
-		eq(exit.target_scene, GameContext.LEVELS["level03"], "bell door hops to level03")
+		eq(exit.target_scene, GameContext.LEVELS["level02b"], "bell door hops to the slag conduit")
 		eq(exit.flag_id, "undercroft_done")
-		ok(_standing_on(rects, exit.position), "exit door stands on FloorD")
+		eq(exit.position, Level02Layout.EXIT_POS, "bell door sits at the authored arena exit")
+		ok(_standing_on(rects, exit.position), "exit door stands on FloorE")
+		ok(Level02Layout.EAST_LIMIT - exit.position.x >= 80.0, "exit keeps its distance from the east wall")
 	var door := props.get_node_or_null("Door") as ArenaDoor
 	var plate := props.get_node_or_null("Plate") as PressurePlate
 	ok(door != null and plate != null)
@@ -143,17 +157,110 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	ok(_standing_on(rects, door.position + Vector2(0, 64)), "door foot meets the floor")
 	var gate := props.get_node_or_null("RustyGate")
 	ok(gate != null, "heat forge gate before the bell hall")
-	for pool_name in ["ToxinPoolB", "ToxinPoolC"]:
+	for pool_name in ["ToxinPoolB", "ToxinPoolC", "ToxinPoolE"]:
 		ok(props.get_node_or_null(pool_name) is ToxinPool, "%s exists" % pool_name)
 	ok(host.get_node_or_null("UndercroftZone") is AtmosphereZone, "whole level is an indoor zone")
 	eq((host.get_node("UndercroftZone") as AtmosphereZone).zone, WorldClock.Zone.INDOORS)
+
+
+## 沉钟回廊（E 段）与空钟厅（F 段）的几何：
+## 渠面躺在坑里、竞技场是 920px 连续平地、出口在场地东侧、关卡宽度到位。
+func test_bell_corridor_and_arena_geometry() -> void:
+	var host := _build()
+	var rects := _solids(host)
+	eq(Level02Layout.EAST_LIMIT, 3800, "沉钟地窟扩到 3800 宽")
+	var platforms := host.get_node("Platforms")
+	var corridor_bed := platforms.get_node_or_null("PitFloorCorridor") as SolidPlatform
+	ok(corridor_bed != null and _standing_on(rects, Vector2(2540, 352)), "corridor pit has a climbable bed")
+	ok(_standing_on(rects, Vector2(2480, 320)), "west bank of the corridor pit is floor")
+	ok(_standing_on(rects, Vector2(2600, 320)), "east bank of the corridor pit is floor")
+	ok(Level02Layout.ARENA_LEFT < Level02Layout.BOSS_POS.x and Level02Layout.BOSS_POS.x < Level02Layout.ARENA_RIGHT)
+	ok(Level02Layout.ARENA_RIGHT - Level02Layout.ARENA_LEFT >= 600.0, "空钟竞技场 >= 600px 宽（契约）")
+	# 竞技场是连续平地：3160–3620 之间 y=320 的顶面没有任何断口。
+	var x := Level02Layout.ARENA_LEFT
+	while x <= Level02Layout.ARENA_RIGHT:
+		ok(_standing_on(rects, Vector2(x, 320.0)), "arena floor is continuous at x=%.0f" % x)
+		x += 80.0
+	ok(_standing_on(rects, Level02Layout.BOSS_POS), "boss stands on the arena floor")
+	ok(_standing_on(rects, Level02Layout.EXIT_POS), "exit stands on the arena floor")
+	ok(Level02Layout.EXIT_POS.x < Level02Layout.ARENA_RIGHT, "exit is inside the east end of the arena")
+	ok(host.get_node_or_null("Waymarks/Sign_回廊") != null, "corridor waymark")
+	ok(host.get_node_or_null("Waymarks/Sign_空钟") != null, "bell-hall waymark")
+
+
+## 空钟门是章节出口：站到门前交互会开演、写 undercroft_done、并保存到 level02b。
+## 这里在布局层验证接线（场景级走查在 level02_scene_test 里，两处都保留）。
+func test_bell_door_wiring_plays_captions_and_writes_the_chapter_flag() -> void:
+	var host := _build()
+	var exit := host.get_node("Props/BellDoor") as LevelExit
+	var player := await spawn_player(host, exit.position + Vector2(-16, 0))
+	var previous_path := SaveData.save_path
+	SaveData.save_path = "user://test_level02_bell_door_cfg.cfg"
+	SaveData.delete_save()
+	ok(player != null, "player spawns for the door beat")
+	ok(exit != null and exit.can_interact(player), "bell door accepts interaction")
+	ok(player is Player, "actor is a Player")
+	# 空钟场景已交付时，钟门先锁到 hollow_bell_dead；测试模拟「空钟已倒」再走门。
+	if exit.is_locked():
+		SaveData.mark_flag(Level02Layout.EXIT_REQUIRES)
+		ok(not exit.is_locked(), "boss flag opens the bell door")
+	exit.interact(player)
+	await flush(2)
+	ok(Director.playing, "bell door starts its caption beat")
+	Director.abort()
+	await flush(3)
+	ok(SaveData.has_flag("undercroft_done"), "bell door writes the chapter flag")
+	SaveData.delete_save()
+	SaveData.save_path = previous_path
+
+
+## 空钟 Boss 房：场景存在才安置 Boss + 竞技场 + 落钟机关，并把出口锁到
+## hollow_bell_dead；场景缺失时保持空厅 + 出口开放（不软锁）。两种状态都要测。
+func test_hollow_bell_room_is_conditional_and_never_softlocks() -> void:
+	var host := _build()
+	var props := host.get_node("Props")
+	var exit := props.get_node_or_null("BellDoor") as LevelExit
+	ok(exit != null, "bell door exists")
+	var has_scene: bool = ResourceLoader.exists(Level02Layout.HOLLOW_BELL_PATH)
+	if not has_scene:
+		eq(host.get_node_or_null("Enemies/HollowBell"), null, "no boss scene -> no boss node")
+		eq(host.get_node_or_null("Arenas/HollowBellArena"), null, "no boss scene -> no arena")
+		eq(exit.requires_flag, "", "no boss scene -> exit stays open (never softlock)")
+		return
+	# --- 场景已交付：Boss + 竞技场 + 两处落钟机关 + 死亡门禁。
+	var boss := host.get_node_or_null("Enemies/HollowBell") as Node2D
+	ok(boss != null, "HollowBell spawns in the bell hall")
+	if boss != null:
+		eq(boss.name, "HollowBell")
+		eq(boss.position, Level02Layout.BOSS_POS)
+	var arena := host.get_node_or_null("Arenas/HollowBellArena") as BossArena
+	ok(arena != null, "bell-hall arena is assembled by BossArena.attach")
+	if arena != null:
+		almost(arena.arena_left, Level02Layout.ARENA_LEFT, 0.01)
+		almost(arena.arena_right, Level02Layout.ARENA_RIGHT, 0.01)
+		eq(arena.boss, boss)
+		var hazards := arena.registered_hazard_ids()
+		ok(hazards.has(&"bell_fall_west") and hazards.has(&"bell_fall_east"),
+				"two falling-bell hazards are registered for the boss side")
+		ok(arena.nearest_nest() != null, "arena sees the boss-pre checkpoint")
+		if arena.nearest_nest() != null:
+			ok(arena.checkpoint_report().ok, "checkpoint report passes (<=80px)")
+	eq(exit.requires_flag, "hollow_bell_dead", "boss scene -> bell door waits for the kill flag")
+	var owner = host.get_meta("layout", null)
+	if owner != null:
+		owner.call("_on_boss_slain")
+	ok(SaveData.has_flag("hollow_bell_dead"), "slain writes the flag that unlocks the door")
+	ok(not exit.is_locked(), "the bell door opens once the bell falls")
 
 
 func test_enemies_stand_where_they_are_placed() -> void:
 	var host := _build()
 	var rects := _solids(host)
 	var enemies := host.get_node("Enemies")
-	eq(enemies.get_child_count(), Level02Layout.ENEMIES.size())
+	var expected := Level02Layout.ENEMIES.size()
+	if ResourceLoader.exists(Level02Layout.HOLLOW_BELL_PATH):
+		expected += 1  # 空钟 Boss 与杂兵同挂 Enemies/，但不在 ENEMIES 表里
+	eq(enemies.get_child_count(), expected)
 	for e in Level02Layout.ENEMIES:
 		var enemy := enemies.get_node_or_null(String(e[0])) as Node2D
 		ok(enemy != null, "%s spawned" % e[0])
@@ -163,6 +270,7 @@ func test_enemies_stand_where_they_are_placed() -> void:
 			ok(not _standing_on(rects, enemy.position, 8.0), "%s floats free of the floor" % e[0])
 		else:
 			ok(_standing_on(rects, enemy.position, 4.0), "%s stands on a platform" % e[0])
+
 
 
 func test_backdrop_and_mood_are_indoor() -> void:

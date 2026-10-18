@@ -14,6 +14,8 @@ extends CanvasLayer
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+## 回火试炼：试炼会话里左列换成"重开本场 / 退出试炼"，退出回标题且不写战役档。
+const TrialRunScript := preload("res://scripts/autoload/trial_run.gd")
 
 const ID_RESUME := &"resume"
 const ID_SETTINGS := &"settings"
@@ -21,6 +23,8 @@ const ID_TUTORIAL := &"tutorial"
 const ID_CONTROLS := &"controls"
 const ID_MAP := &"map"
 const ID_TITLE := &"title"
+const ID_TRIAL_RESTART := &"trial_restart"
+const ID_TRIAL_EXIT := &"trial_exit"
 
 ## 左列铁架：竖脊贴左缘，板面从 RAIL_X 挂出去；行距由空白节点控，主/次/第三层分开。
 const RAIL_X := 24.0
@@ -38,6 +42,8 @@ var _root: Control
 var _shell: Dictionary = {}
 var _layout: Control
 var _menu: MenuList
+var _trial_menu: MenuList
+var _spine: Control
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _tutorial: TutorialRecall
@@ -48,6 +54,7 @@ var _open_requested := false
 
 var _dossier_chapter: Label
 var _dossier_objective: Label
+var _dossier_recap: Label
 var _dossier_cores: Label
 var _dossier_nests: Label
 var _dossier_viewport: Label
@@ -136,12 +143,29 @@ func _build_rail(parent: Control) -> void:
 	_menu.reset_size()
 	_menu.chosen.connect(_on_chosen)
 
+	# 试炼专用左列：默认隐藏，open() 时按 TrialRun.active() 二选一显示。
+	_trial_menu = MenuList.new()
+	_trial_menu.name = "TrialMenu"
+	_trial_menu.add_theme_constant_override("separation", 0)
+	_trial_menu.position = Vector2(RAIL_X, MENU_TOP)
+	_trial_menu.visible = false
+	rail.add_child(_trial_menu)
+	_trial_menu.add_item(ID_TRIAL_RESTART, "重 开 本 场", false, MenuItem.Kind.PRIMARY)
+	var trial_gap := Control.new()
+	trial_gap.custom_minimum_size = Vector2(0.0, GAP_GROUP)
+	trial_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_trial_menu.add_child(trial_gap)
+	_trial_menu.add_item(ID_TRIAL_EXIT, "退 出 试 炼", false, MenuItem.Kind.SECONDARY)
+	_trial_menu.reset_size()
+	_trial_menu.chosen.connect(_on_chosen)
+
 	# 竖脊串起六格；两端铆钉+中段菱形和标题屏是同一只铁件。
 	var spine := Ornaments.spine(_menu.size.y - 16.0)
 	spine.name = "Spine"
 	spine.position = Vector2(0.0, MENU_TOP + 6.0)
 	rail.add_child(spine)
 	rail.move_child(spine, 0)
+	_spine = spine
 
 
 ## 右列：石头档案板（章节 / 目标 / 剑核 / 余烬巢 / 视口）+ 底部两行提示。
@@ -176,6 +200,8 @@ func _build_dossier(parent: Control) -> void:
 
 	_dossier_chapter = _dossier_row(inner, "章 节")
 	_dossier_objective = _dossier_row(inner, "目 标")
+	# 前情提要：按已通关章节拼 1–2 句（文本口径在 StoryFlow / ChapterText）。
+	_dossier_recap = _dossier_row(inner, "前 情")
 	_dossier_cores = _dossier_row(inner, "锈 核")
 	_dossier_nests = _dossier_row(inner, "余 烬 巢")
 	_dossier_viewport = _dossier_row(inner, "视 口")
@@ -225,11 +251,26 @@ func _gap(height: float) -> void:
 
 ## 每次打开都重算一遍：章节、当前目标、剑核、余烬巢、视口都可能变过。
 func _refresh_dossier() -> void:
+	# 试炼里档案卡改报"赛道 · 计时 · 死亡"（试炼没有章节进度可读，也不该读）。
+	if TrialRunScript.active():
+		_dossier_chapter.text = "回 火 试 炼"
+		_dossier_objective.text = TrialRunScript.status_line()
+		_dossier_recap.text = "—"
+		_dossier_cores.text = _cores_summary()
+		_dossier_nests.text = "—"
+		_dossier_viewport.text = DisplayFit.get_resolution_string()
+		return
 	_dossier_chapter.text = _chapter_title()
 	_dossier_objective.text = _objective_line()
+	_dossier_recap.text = recap_line()
 	_dossier_cores.text = _cores_summary()
 	_dossier_nests.text = "已刻录 %d 处" % SaveData.lit_nests.size()
 	_dossier_viewport.text = DisplayFit.get_resolution_string()
+
+
+## 「前情提要」：StoryFlow 按存档里已通关章节挑最近 1–2 条 recap；没通关过给兜底句。
+func recap_line() -> String:
+	return StoryFlow.recap_text()
 
 
 ## 当前章节名：与地图共用 MapScreen.chapter_title() 这一份口径，避免档案卡和
@@ -273,7 +314,10 @@ func sub_screen_open() -> bool:
 
 
 func _resume_menu() -> void:
-	_menu.active = true
+	if _trial_menu != null and _trial_menu.visible:
+		_trial_menu.active = true
+	else:
+		_menu.active = true
 
 
 func open() -> void:
@@ -286,7 +330,15 @@ func open() -> void:
 		return
 	_open_requested = false
 	visible = true
-	_menu.active = true
+	# 试炼里左列换成「重开本场 / 退出试炼」；普通暂停菜单不变。竖脊跟着可见列表收放。
+	var trial_mode := TrialRunScript.active()
+	_menu.visible = not trial_mode
+	_trial_menu.visible = trial_mode
+	_menu.active = not trial_mode
+	_trial_menu.active = trial_mode
+	if _spine != null:
+		var active_list: MenuList = _trial_menu if trial_mode else _menu
+		_spine.size = Vector2(_spine.size.x, active_list.size.y - 16.0)
 	_set_play_hud_visible(false)
 	_refresh_dossier()
 	(_shell.get("play_intro") as Callable).call()
@@ -373,6 +425,14 @@ func _on_chosen(id: StringName) -> void:
 			get_tree().paused = false
 			Director.resume()
 			Director.fade_to(TITLE_PATH)
+		ID_TRIAL_RESTART:
+			# 重开本场：先恢复暂停/收起菜单，再让 TrialRun 重载当前场（不计死亡）。
+			close()
+			TrialRunScript.retry_stage()
+		ID_TRIAL_EXIT:
+			# 退出试炼：回标题，不写战役档（TrialRun.abandon + 换场）。
+			close()
+			TrialRunScript.exit_to_title()
 
 
 # --- 测试用 -------------------------------------------------------------------
@@ -403,6 +463,8 @@ func dossier_label(key: String) -> Label:
 			return _dossier_chapter
 		"objective":
 			return _dossier_objective
+		"recap":
+			return _dossier_recap
 		"cores":
 			return _dossier_cores
 		"nests":

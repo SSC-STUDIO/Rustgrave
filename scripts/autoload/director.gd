@@ -273,6 +273,10 @@ func fade_in(duration: float = FADE_DEFAULT) -> void:
 
 ## skip_to_end：这一条剧本接受一次 ui_accept 就跳到结尾并解锁。默认仍是逐拍跳过。
 func play(script: Array, skip_to_end: bool = false) -> void:
+	# 回火试炼：不播章节卡 / 间幕 / 出口字幕等剧本；Boss 名号走 GameEvents +
+	# CinematicPresentation，不经过这里，所以仍然保留（契约 §5）。
+	if TrialRun.suppresses_cinematics():
+		return
 	if playing:
 		if _script_queue.size() >= PLAY_QUEUE_MAX:
 			var dropped: Array = _script_queue.pop_front()
@@ -300,6 +304,8 @@ func play(script: Array, skip_to_end: bool = false) -> void:
 ## would sit suspended and locked inside a level nobody can unpause. `on_start` runs
 ## right before the first step. abort() drops anything still waiting.
 func play_when_clear(script: Array, skip_to_end: bool = false, on_start: Callable = Callable()) -> void:
+	if TrialRun.suppresses_cinematics():
+		return
 	if _clear_to_start():
 		if on_start.is_valid():
 			on_start.call()

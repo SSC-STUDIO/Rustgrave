@@ -35,16 +35,17 @@ func _build() -> Node2D:
 
 func test_arena_checkpoint_and_boss_room_exclude_corridor_pursuers() -> void:
 	var host := _build()
-	var player := await spawn_player(host, Vector2(880, 300))
+	var player := await spawn_player(host, Vector2(LAYOUT.NEST_ARENA_X, 300))
 	await flush(360)
 	eq(player.health.current, player.health.max_hp, "boss checkpoint is safe while resting")
-	player.position = Vector2(820, 320)
+	player.position = Vector2(1600, 320)
 	await flush(90)
-	player.position = Vector2(1180, 288)
+	player.position = Vector2(LAYOUT.ARENA_X0 + 160.0, 288)
 	await flush(420)
 	for enemy in host.get_node("Enemies").get_children():
 		if enemy.name == "Nightmare": continue
-		ok(enemy.position.x <= 832, "corridor pursuer stays outside the boss arena")
+		ok(enemy.position.x <= LAYOUT.CORRIDOR_ENEMY_MAX_X,
+				"corridor pursuer stays outside the boss arena")
 
 
 func _solids(host: Node2D) -> Array[SolidPlatform]:
@@ -81,11 +82,11 @@ func test_metadata_is_the_final_chapter() -> void:
 	var level := LAYOUT.new() as ChapterLayout
 	add_child(level)
 	eq(level.level_id(), "level10")
-	eq(level.title(), "锈墓・拾 — 炉心深处")
+	eq(level.title(), "锈墓・拾肆 — 炉心深处")
 	ok(level.wake_line() != "", "the forge core has an opening line")
 	eq(level.theme(), "forge_core")
 	ok(level.indoors(), "the forge core is indoors")
-	eq(level.east_limit(), 2560)
+	eq(level.east_limit(), 3200)
 	eq(GameContext.next_level_id("level10"), "", "nothing comes after level10")
 	eq(level.entry_spawn(), LAYOUT.ENTRY_SPAWN)
 	eq(level.default_spawn(), level.entry_spawn())
@@ -133,6 +134,32 @@ func test_slag_crossing_is_single_hops() -> void:
 		ok(pool.tint.r > pool.tint.b, "slag is orange-red, not the undercroft's green")
 	ok(_standing_on(rects, Vector2(LAYOUT.SLAG_X0 - 1.0, 320.0)), "west bank is floor")
 	ok(_standing_on(rects, Vector2(LAYOUT.SLAG_X1 + 1.0, 320.0)), "east bank is floor")
+	# ①b 加长回廊的第二道渣河：和第一道同一条单跳链 + 可爬出的坑底 + 液面在坑里。
+	var chain2 := [Vector2(LAYOUT.SLAG2_X0, 320.0)]
+	for s in LAYOUT.SLAG2_STONES:
+		chain2.append(s[1] as Vector2)
+	chain2.append(Vector2(LAYOUT.SLAG2_X1, 320.0))
+	for i in range(1, chain2.size()):
+		var a2: Vector2 = chain2[i - 1]
+		var b2: Vector2 = chain2[i]
+		var rise2 := a2.y - b2.y
+		ok(rise2 <= JUMP_RISE_MAX + 0.01, "second slag hop %s -> %s rises %.0f <= 32" % [a2, b2, rise2])
+		var prev_w2: float = 0.0
+		if i >= 2:
+			prev_w2 = float(LAYOUT.SLAG2_STONES[i - 2][2])
+		var gap2 := b2.x - (a2.x + prev_w2)
+		ok(gap2 <= JUMP_GAP_MAX + 0.01, "second slag gap %.0f <= 72" % gap2)
+	var bed2 := host.get_node_or_null("Platforms/Slag2Bed") as SolidPlatform
+	ok(bed2 != null, "second slag bed exists")
+	if bed2 != null:
+		ok(bed2.position.y - 320.0 <= JUMP_RISE_MAX, "climbing out of the second slag river is one hop")
+		eq(bed2.tone, LAYOUT.TONE)
+	var pool2 := host.get_node_or_null("Props/Slag2Pool") as ToxinPool
+	ok(pool2 != null, "second slag pool exists")
+	if pool2 != null and bed2 != null:
+		var surface2 := pool2.surface_rect()
+		ok(bed2.position.y >= surface2.position.y and bed2.position.y <= surface2.end.y + 16.0,
+				"second pool lies on its bed")
 
 
 func test_arena_is_one_flat_run_with_only_end_perches() -> void:
@@ -141,7 +168,7 @@ func test_arena_is_one_flat_run_with_only_end_perches() -> void:
 	for p in _solids(host):
 		if absf(p.position.y - 320.0) <= 0.01 and p.position.x <= LAYOUT.ARENA_X0 and _right(p) >= LAYOUT.ARENA_X1:
 			floor_covers_arena = true
-	ok(floor_covers_arena, "one floor platform spans the whole arena 1100..2300 at y=320")
+	ok(floor_covers_arena, "one floor platform spans the whole arena 1740..2940 at y=320")
 	var perches := 0
 	for p in _solids(host):
 		var n := String(p.name)
@@ -194,7 +221,11 @@ func test_checkpoints_stand_before_the_gate() -> void:
 	if gate == null:
 		return
 	ok(nest_arena.position.x < gate.position.x, "the pre-boss nest comes before the rust gate")
-	ok(nest_arena.position.x > LAYOUT.SLAG_X1, "the pre-boss nest is past the slag river")
+	ok(nest_arena.position.x > LAYOUT.SLAG2_X1, "the pre-boss nest is past both slag rivers")
+	ok(gate.position.x - nest_arena.position.x <= 80.0,
+			"the pre-boss nest is <=80px from the arena gate (%.0f)" % (gate.position.x - nest_arena.position.x))
+	ok(LAYOUT.ARENA_X0 - nest_arena.position.x <= 80.0,
+			"the pre-boss nest is <=80px from the arena edge (BossArena contract)")
 	ok(_standing_on(rects, gate.position + Vector2(8, 64)), "gate foot meets the floor")
 	ok(gate.position.x + 16.0 <= LAYOUT.ARENA_X0, "the gate closes the arena off from the west")
 	ok(nest_gate.position.x < LAYOUT.SLAG_X0, "the entry nest sits before the slag river")
@@ -223,6 +254,15 @@ func test_exit_is_the_ending_door() -> void:
 	ok(_standing_on(rects, exit.position), "exit door stands on FloorHall")
 	ok(exit.position.x > LAYOUT.ARENA_X1, "the door is past the arena")
 	ok(exit.position.x <= LAYOUT.EAST_LIMIT - 80.0, "the door keeps clear of the east wall")
+	# 统一 boss() 装配：Nightmare 与 BossArena 一起生成，竞技场边界对齐常量。
+	var nightmare := host.get_node_or_null("Enemies/Nightmare") as Node2D
+	var arena := host.get_node_or_null("Arenas/NightmareArena") as BossArena
+	ok(nightmare != null and arena != null, "boss() assembles the Nightmare and its arena")
+	if arena != null:
+		almost(arena.arena_left, LAYOUT.ARENA_X0, 0.01)
+		almost(arena.arena_right, LAYOUT.ARENA_X1, 0.01)
+		eq(arena.boss, nightmare, "the arena is bound to the Nightmare")
+		ok(arena.checkpoint_report().ok, "BossArena checkpoint report passes for level10")
 	var altar := host.get_node_or_null("Decor/ForgeAltar") as Node2D
 	ok(altar != null, "the forge altar is placed")
 	if altar != null:
@@ -281,6 +321,7 @@ func test_slain_nightmare_does_not_respawn_and_ending_stays_open() -> void:
 	SaveData.mark_flag("nightmare_dead")
 	var host := _build()
 	ok(host.get_node_or_null("Enemies/Nightmare") == null)
+	ok(host.get_node_or_null("Arenas/NightmareArena") == null, "no boss -> no arena")
 	ok(not (host.get_node("Props/Exit") as LevelExit).is_locked())
 
 
@@ -299,7 +340,8 @@ func test_vigil_deck_is_an_optional_ending_lore_branch() -> void:
 	ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "deck is a tether drop under the anchor")
 	ok(_standing_on(_rects(host), LevelSanity.feet_of(stele), 0.5), "stele stands on the vigil deck")
 	ok(String(stele.lore_title).begins_with("炉心铭"), "vigil stele belongs to the forge-core inscriptions")
-	ok(String(stele.lore_text).contains("选择"), "it names the choice behind the door")
+	ok(String(stele.lore_text).contains("送剑") and String(stele.lore_text).contains("守火"),
+			"it names the two choices behind the door")
 	var feet := LevelSanity.feet_of(stele)
 	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),
 			"the main route cannot read the vigil stele")
@@ -320,10 +362,10 @@ func test_room_is_sealed_and_reads_as_a_forge() -> void:
 	for p in _solids(host):
 		ok(p.position != Vector2.ZERO or String(p.name) == "FloorEntry", "%s keeps its position" % p.name)
 		ok(_right(p) <= float(LAYOUT.EAST_LIMIT) + 16.0, "%s stays inside the east limit" % p.name)
-		if String(p.name) != "SlagBed":
+		if String(p.name) != "SlagBed" and String(p.name) != "Slag2Bed":
 			ok(p.position.y <= 320.0, "%s is not walkable ground below the floor line" % p.name)
-		var footing := String(p.name).begins_with("SlagStone") or String(p.name).begins_with("Perch") \
-				or String(p.name) == "VigilDeck"
+		var footing := String(p.name).begins_with("SlagStone") or String(p.name).begins_with("Slag2Stone") \
+				or String(p.name).begins_with("Perch") or String(p.name) == "VigilDeck"
 		eq(p.tone, LAYOUT.STONE_TONE if footing else LAYOUT.TONE, "%s is pressed into amber" % p.name)
 		ok(p.tone.r > p.tone.g and p.tone.g > p.tone.b, "%s tone is warm (r > g > b)" % p.name)
 	var mood := host.get_node_or_null("MoodTint") as CanvasModulate

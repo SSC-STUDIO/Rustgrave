@@ -98,54 +98,50 @@ func test_metadata_and_room() -> void:
 	eq(layout.level_id(), "level08")
 	ok(layout.title().contains("熔渣深渊"), "title names the slag depths")
 	ok(layout.wake_line() != "", "one wake line")
-	eq(layout.east_limit(), 3008)
+	eq(layout.east_limit(), 4200)
 	eq(layout.theme(), "forge")
 	ok(layout.indoors(), "forge is an indoor theme")
 	var host := _host()
 	layout.build(host)
 	var platforms := host.get_node("Platforms")
 	var wall_r := platforms.get_node("WallRight") as SolidPlatform
-	almost(wall_r.position.x, 3008.0, 0.01, "right wall at east_limit")
+	almost(wall_r.position.x, 4200.0, 0.01, "right wall at east_limit")
 	var ceiling := platforms.get_node("Ceiling") as SolidPlatform
-	ok(ceiling != null and ceiling.size.x >= 3008.0, "sealed ceiling spans the room")
+	ok(ceiling != null and ceiling.size.x >= 4200.0, "sealed ceiling spans the room")
 	var tops := LevelSanity.top_segments(host)
 	ok(LevelSanity.standing_on(tops, Vector2(layout.entry_spawn().x, FLOOR_Y)) != null, "spawn has FloorA under it")
 	for child in platforms.get_children():
 		if child is SolidPlatform:
 			var r := Rect2(child.position, child.size)
-			ok(r.position.x >= -16.0 and r.end.x <= 3024.0, "%s lies inside the room" % child.name)
+			ok(r.position.x >= -16.0 and r.end.x <= 4216.0, "%s lies inside the room" % child.name)
 			ok(r.position.y <= 384.0 or r.size.x < 24.0, "%s top is walkable (<= 384)" % child.name)
 
 
-func test_ground_is_amber_and_pools_are_slag() -> void:
+## 视觉 QA Phase A P1：渣河不再是一条高饱和纯橙带。池面改用深渣 ramp（河心暗、
+## 近岸亮），tint 只留温和暖色；岸线由碎石/坏机械压边（见 test_slag_bridge_...）。
+func test_slag_rivers_use_a_dark_desaturated_ramp() -> void:
 	var host := _build()
 	var consts := _consts()
-	var tone: Color = consts["GROUND_TONE"]
-	var floors: Array = consts["FLOORS"]
-	for f in floors:
-		var plat := host.get_node_or_null("Platforms/" + String(f[0])) as SolidPlatform
-		ok(plat != null, "%s exists" % f[0])
-		if plat == null:
-			continue
-		eq(plat.skin, "basalt", "%s wears forge basalt" % f[0])
-		almost(plat.position.y, FLOOR_Y, 0.01, "%s top is the floor line" % f[0])
-	var steps: Array = consts["STEPS"]
-	for s in steps:
-		var plat := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
-		ok(plat != null and plat.skin == "basalt_float", "%s is a basalt forge ledge" % s[0])
 	var pools: Array = []
 	for node in host.get_node("Props").get_children():
 		if node is ToxinPool:
 			pools.append(node)
-	ok(pools.size() >= 6, "the hottest level has at least six slag pools (%d)" % pools.size())
-	var tops := LevelSanity.top_segments(host)
+	ok(pools.size() >= 7, "the hottest level has at least seven slag pools (%d)" % pools.size())
+	var ramp: Array = consts["SLAG_RAMP"]
+	eq(ramp.size(), 5, "slag pools share one five-stop sludge ramp")
+	var top: Color = ramp[4]
+	var top_value := maxf(top.r, maxf(top.g, top.b))
+	var top_min := minf(top.r, minf(top.g, top.b))
+	var saturation := (top_value - top_min) / maxf(top_value, 0.001)
+	ok(top_value <= 0.75, "the brightest scum stays below warning-orange (%.2f)" % top_value)
+	ok(saturation <= 0.65, "the scum line is desaturated slag-brown (%.2f)" % saturation)
 	for pool in pools:
 		var p := pool as ToxinPool
+		ok(p.sludge_ramp.size() == 5, "%s maps the shared ramp" % p.name)
 		var tint := p.tint
-		ok(tint.r >= 1.2 and tint.r > tint.g and tint.g > tint.b and tint.b / tint.r < 0.1,
-				"%s glows slag-orange, not acid green (%s)" % [p.name, tint])
-		ok(tint.r / maxf(tint.g, 0.001) > tone.r / tone.g + 0.5,
-				"%s reads far redder than the amber ground" % p.name)
+		ok(tint.r > tint.g and tint.g > tint.b, "%s keeps a warm slag tint" % p.name)
+		ok(tint.r <= 1.6, "%s tint is no longer overexposed (%s)" % [p.name, tint])
+		ok(tint.r / maxf(tint.g, 0.001) <= 1.6, "%s tint is desaturated" % p.name)
 		var rect := p.surface_rect()
 		var bed := host.get_node_or_null("Platforms/" + String(p.name).replace("Pool", "Bed")) as SolidPlatform
 		ok(bed != null, "%s has its own bed" % p.name)
@@ -157,8 +153,10 @@ func test_ground_is_amber_and_pools_are_slag() -> void:
 		almost(bed.size.x, rect.size.x, 0.01)
 		ok(bed.position.y - FLOOR_Y <= JUMP_RISE_MAX, "%s pit is one hop deep" % p.name)
 		# Both lips are walkable ground so a fallen knight can climb out either way.
-		ok(LevelSanity.standing_on(tops, Vector2(rect.position.x - 2.0, FLOOR_Y)) != null, "%s has a west lip" % p.name)
-		ok(LevelSanity.standing_on(tops, Vector2(rect.end.x + 2.0, FLOOR_Y)) != null, "%s has an east lip" % p.name)
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), Vector2(rect.position.x - 2.0, FLOOR_Y)) != null,
+				"%s has a west lip" % p.name)
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), Vector2(rect.end.x + 2.0, FLOOR_Y)) != null,
+				"%s has an east lip" % p.name)
 
 
 func test_slag_river_a_is_a_floating_stone_chain() -> void:
@@ -255,9 +253,56 @@ func test_rust_gate_and_exit() -> void:
 		eq(exit.flag_id, "level08_done")
 		eq(exit.door_label, "城墙梯")
 		var seg := LevelSanity.standing_on(tops, LevelSanity.feet_of(exit))
-		ok(seg != null and seg.owner_name == "FloorG", "exit stands on the last floor")
-		ok(3008.0 - exit.position.x >= 80.0, "exit keeps its distance from the east wall")
+		ok(seg != null and seg.owner_name == "FloorI", "exit stands on the old-hull floor")
+		ok(4200.0 - exit.position.x >= 80.0, "exit keeps its distance from the east wall")
 		ok(exit.spawn != Vector2.ZERO, "exit knows where level09 drops the knight")
+
+
+## ⑩⑪ 扩章：3008 → 4200。渣河桥（三块浮石）横渡第三座熔渣河，旧壳区里
+## 有支路奖励位、余烬巢和新出口；渣河两岸有碎石/坏机械压边（视觉 QA P1）。
+func test_slag_bridge_and_old_hull_extension() -> void:
+	var host := _build()
+	eq(_consts()["EAST_LIMIT"], 4200, "熔渣深渊扩到 4200 宽")
+	_chain_ok(host, ["FloorG", "StoneE1", "StoneE2", "StoneE3", "FloorI"])
+	var pool := host.get_node_or_null("Props/SlagEPool") as ToxinPool
+	ok(pool != null, "the third slag river has its own pool")
+	if pool != null:
+		var surface := pool.surface_rect()
+		for stone_name in ["StoneE1", "StoneE2", "StoneE3"]:
+			var r := _rect(host, stone_name)
+			ok(r.position.x >= surface.position.x and r.end.x <= surface.end.x,
+					"%s hangs over the new river" % stone_name)
+			ok(r.position.y < surface.position.y, "%s top clears the slag" % stone_name)
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), Vector2(surface.position.x - 2.0, FLOOR_Y)) != null)
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), Vector2(surface.end.x + 2.0, FLOOR_Y)) != null)
+	var reward := host.get_node_or_null("Pickups/RewardOldHull") as EquipmentPickup
+	ok(reward != null, "the old hull carries one reward slot")
+	if reward != null:
+		eq(reward.position, _consts()["REWARD_POS"])
+		eq(String(reward.get("reward_kind")), "equipment", "reward slot walks the LoadoutBridge path")
+		ok(String(reward.get("reward_ref")) != "")
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), LevelSanity.feet_of(reward)) != null,
+				"reward rests on the old hull ledge")
+		ok(LevelSanity.is_reachable(host, _consts()["ENTRY_SPAWN"], LevelSanity.feet_of(reward), false),
+				"the hull ledge is a walkable side branch")
+	var nest := host.get_node_or_null("Props/EmberNestShell") as EmberNest
+	ok(nest != null, "the old hull district has a checkpoint")
+	if nest != null:
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), nest.position + Vector2(6, 14)) != null,
+				"shell nest stands on FloorI")
+		ok(_consts()["EXIT_X"] - nest.position.x <= 1400.0, "checkpoint spacing stays <= 1400px")
+		ok(LevelSanity.is_reachable(host, _consts()["ENTRY_SPAWN"], nest.position + Vector2(6, 14), false),
+				"shell nest is reachable on the main route")
+	# 岸线压边：渣河两岸真的有碎石/机械，而不是一条几何直边。
+	var decor := host.get_node_or_null("Decor") as Node2D
+	var shore_dressing := 0
+	if decor != null:
+		for child in decor.get_children():
+			if child is Sprite2D and child.has_meta("feet") and (child as Node2D).position.y != 0.0:
+				var feet: Vector2 = child.get_meta("feet")
+				if absf(feet.y - FLOOR_Y) < 0.01 and feet.x in [400.0, 864.0, 2896.0, 3376.0, 3664.0]:
+					shore_dressing += 1
+	ok(shore_dressing >= 4, "slag rivers are pressed by shore rubble/machinery (%d)" % shore_dressing)
 
 
 func test_last_river_mixes_gears_and_stones() -> void:
@@ -302,16 +347,17 @@ func test_checkpoints_props_and_enemies_stand() -> void:
 	var tops := LevelSanity.top_segments(host)
 	var solids := LevelSanity.solid_rects(host)
 	var nests: Array = []
-	for n in ["EmberNestStart", "EmberNestMid", "EmberNestGate"]:
+	for n in ["EmberNestStart", "EmberNestMid", "EmberNestGate", "EmberNestShell"]:
 		var nest := props.get_node_or_null(n) as EmberNest
 		ok(nest != null, "%s exists" % n)
 		if nest != null:
 			ok(LevelSanity.standing_on(tops, LevelSanity.feet_of(nest)) != null, "%s stands on ground" % n)
 			nests.append(nest)
-	ok(nests.size() == 3 and nests[0].position.x < nests[1].position.x and nests[1].position.x < nests[2].position.x,
-			"three checkpoints west to east")
+	ok(nests.size() == 4 and nests[0].position.x < nests[1].position.x \
+			and nests[1].position.x < nests[2].position.x and nests[2].position.x < nests[3].position.x,
+			"four checkpoints west to east")
 	var door := props.get_node("SluiceDoor") as ArenaDoor
-	ok(nests.size() == 3 and nests[1].position.x < door.position.x, "the middle nest comes before the sluice")
+	ok(nests.size() == 4 and nests[1].position.x < door.position.x, "the middle nest comes before the sluice")
 	for stele_name in ["SteleSlag", "SteleQuench"]:
 		var stele := props.get_node_or_null(stele_name) as LoreStele
 		ok(stele != null and stele.lore_title.begins_with("熔渣纪事"), "%s carries the slag chronicle" % stele_name)

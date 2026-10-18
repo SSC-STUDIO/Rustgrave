@@ -8,7 +8,7 @@ const PLAYER := preload("res://scenes/player/Player.tscn")
 const CAMERA := preload("res://scenes/camera/GameCamera.tscn")
 const HUD := preload("res://scenes/ui/HUD.tscn")
 
-const LEVEL_TITLE := Level02Layout.LEVEL_TITLE
+const LEVEL_ID := "level02"
 const ENTRY_SPAWN := Level02Layout.ENTRY_SPAWN
 const DEFAULT_SPAWN := Level02Layout.DEFAULT_SPAWN
 const EAST_LIMIT := Level02Layout.EAST_LIMIT
@@ -70,7 +70,7 @@ func _wake() -> void:
 	SaveData.mark_flag("l2_wake")
 	Director.play([
 		{"kind": "lock"},
-		ChapterLevel.chapter_card(LEVEL_TITLE),
-		{"kind": "caption", "text": "钟在数人。数到你，就得往下走。", "hold": 2.0},
+		ChapterLevel.chapter_card(ChapterText.title_of(LEVEL_ID)),
+		{"kind": "caption", "text": ChapterText.wake_of(LEVEL_ID), "hold": 2.0},
 		{"kind": "unlock"},
 	])
