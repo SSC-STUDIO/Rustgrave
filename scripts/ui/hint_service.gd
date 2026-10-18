@@ -48,8 +48,10 @@ const CATALOG := {
 			"text": "{dash} 冲刺：冲刺期间无敌，可以穿过攻击"},
 	&"projectile": {"order": 30, "title": "弹反",
 			"text": "弹丸飞来时在判定帧挥剑（{attack}）命中它，即可弹反"},
+	&"parry_reward": {"order": 35, "title": "弹反追击",
+			"text": "弹反净化毒素、点亮共鸣；追击青色破绽，下一剑翻倍"},
 	&"toxin": {"order": 40, "title": "毒素",
-			"text": "毒素是燃料：越高越锋利，满溢会伤血"},
+			"text": "旧冷却液也是燃料：毒素越高越锋利，满溢会伤血"},
 	&"core": {"order": 50, "title": "锈核",
 			"text": "按 {socket_1} / {socket_2} 把锈核镶入剑的插座"},
 	&"nest": {"order": 60, "title": "余烬巢",
@@ -72,6 +74,7 @@ var _queued_text := ""
 var _queued_once := true
 var _poll_t := 0.0
 var _dead := false
+var _parry_reward_pending := false
 var _bolts: Array = []
 var _repeat_seen: Dictionary = {}
 var _clock := 0.0
@@ -102,6 +105,7 @@ func _connect_sources() -> void:
 	_connected = true
 	GameEvents.swing_started.connect(_on_swing)
 	GameEvents.dash_performed.connect(_on_dash)
+	GameEvents.parried.connect(_on_parried)
 	GameEvents.player_died.connect(_on_died)
 	var tree := get_tree()
 	if tree != null:
@@ -116,6 +120,8 @@ func _disconnect_sources() -> void:
 		GameEvents.swing_started.disconnect(_on_swing)
 	if GameEvents.dash_performed.is_connected(_on_dash):
 		GameEvents.dash_performed.disconnect(_on_dash)
+	if GameEvents.parried.is_connected(_on_parried):
+		GameEvents.parried.disconnect(_on_parried)
 	if GameEvents.player_died.is_connected(_on_died):
 		GameEvents.player_died.disconnect(_on_died)
 	var tree := get_tree()
@@ -344,11 +350,26 @@ func _on_dash() -> void:
 	offer(&"dash")
 
 
+func _on_parried(_bolt: Node, by: Node) -> void:
+	if _dead or not by is Player or has_seen(&"parry_reward"):
+		return
+	_parry_reward_pending = true
+	# 已亲手弹回去，就收掉过时的「如何弹反」，把提示位留给追击。
+	dismiss_if(&"projectile")
+	if _queued == &"projectile":
+		_queued = &""
+		_queued_text = ""
+	offer(&"parry_reward")
+
+
 func _on_died() -> void:
 	_dead = true
 	if not has_seen(&"death") and enabled():
 		_death_pending = true
 	dismiss()
+	_queued = &""
+	_queued_text = ""
+	_parry_reward_pending = false
 
 
 func _on_node_added(node: Node) -> void:
@@ -368,7 +389,11 @@ func _scan_state() -> void:
 	var player := _player()
 	if player == null or not is_instance_valid(player):
 		return
-	if not has_seen(&"toxin") and player.toxin != null and player.toxin.toxin > 0.0:
+	# 事件发生时提示位可能正忙。重试到实际展示才记 hint_*，也兼容旧故事旗标。
+	if not has_seen(&"parry_reward") and (_parry_reward_pending or SaveData.has_flag("parry")):
+		offer(&"parry_reward")
+	if not has_seen(&"toxin") and player.toxin != null \
+			and (player.toxin.toxin > 0.0 or SaveData.has_flag("toxin")):
 		offer(&"toxin")
 	if not has_seen(&"core") and player.inventory != null and not player.inventory.pouch.is_empty():
 		offer(&"core")

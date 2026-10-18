@@ -123,20 +123,10 @@ func on_boss_slain() -> void:
 
 
 func _on_toxin_story(current: float, _maximum: float) -> void:
-	if current <= 0.0 or not StoryStage.once("toxin"):
-		return
-	var pool: Node = null
-	if _host != null:
-		pool = _host.get_node_or_null("Props/ToxinPool")
-	Director.play([
-		{"kind": "lock"},
-		# 先让镜头看见那片橙色，再让字幕说它曾是冷却剂。
-		{"kind": "cam_focus", "target": pool, "duration": 0.4},
-		{"kind": "fx", "id": "ash_fall", "target": pool, "seconds": 0.5},
-		{"kind": "caption", "text": "它曾是冷却剂。吃肺，也把记忆淬进剑里。", "hold": 1.6},
-		{"kind": "cam_release"},
-		{"kind": "unlock"},
-	], true)
+	# 池边正是玩家需要起跳、脱离危险的时候。保留旧存档的故事旗标，
+	# 教学由 HintService 的单条提示呈现，不夺走镜头或清掉预输入。
+	if current > 0.0:
+		StoryStage.once("toxin")
 
 
 ## 第一枚核（全游戏第一次拾取）。每一枚核各一次的演出在 StoryStage，这里只是第一章的
@@ -148,14 +138,5 @@ func _on_core_story(core: Resource) -> void:
 
 
 func _on_parry_story(_bolt: Node, _by: Node) -> void:
-	if not StoryStage.once("parry"):
-		return
-	# 弹回去的火替玩家说话：镜头只轻轻推一下，字幕钉一句。
-	Director.play([
-		{"kind": "lock"},
-		{"kind": "cam_focus", "target": _player, "zoom": 1.35, "duration": 0.3},
-		{"kind": "fx", "id": "shock_ring", "target": _player, "seconds": 0.1},
-		{"kind": "caption", "text": "打回去的是他们的火。锈被你炼过一次。", "hold": 1.6},
-		{"kind": "cam_release", "duration": 0.35},
-		{"kind": "unlock"},
-	], true)
+	# 弹反的火、音效与共鸣已经讲清成功；把接下来的两秒留给玩家追击。
+	StoryStage.once("parry")

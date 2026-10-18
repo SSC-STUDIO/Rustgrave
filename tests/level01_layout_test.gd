@@ -380,17 +380,18 @@ func test_east_wing_skips_boss_and_unlocks_heart() -> void:
 	ok(heart.unlocked, "flagged run lights the heart")
 
 
-func test_first_toxin_starts_cutscene() -> void:
+func test_first_toxin_records_story_without_taking_control() -> void:
 	var beats := _bind_beats()
 	GameEvents.toxin_changed.emit(12.0, 100.0)
 	ok(SaveData.has_flag("toxin"))
-	ok(Director.playing, "first toxin queues Director")
+	ok(not Director.playing, "first toxin leaves the Director free")
+	ok(not Director.is_input_locked(), "the player can climb out of the pool")
 	GameEvents.toxin_changed.emit(40.0, 100.0)
 	eq(SaveData.flags.count("toxin"), 1, "repeat toxin does not re-flag")
 	beats.queue_free()
 
 
-func test_first_core_and_parry_start_cutscenes() -> void:
+func test_first_core_stages_but_parry_leaves_the_reward_window_playable() -> void:
 	var beats := _bind_beats()
 	GameEvents.core_acquired.emit(AbilityCatalog.ember_core())
 	ok(SaveData.has_flag("core"))
@@ -398,7 +399,8 @@ func test_first_core_and_parry_start_cutscenes() -> void:
 	Director.abort()
 	GameEvents.parried.emit(null, null)
 	ok(SaveData.has_flag("parry"))
-	ok(Director.playing, "first parry queues Director")
+	ok(not Director.playing, "first parry does not interrupt the fight")
+	ok(not Director.is_input_locked(), "the player can use the parry reward")
 	beats.queue_free()
 
 
