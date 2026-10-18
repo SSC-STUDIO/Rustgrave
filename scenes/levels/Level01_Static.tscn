@@ -131,8 +131,8 @@ size = Vector2(88, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
-[node name="Plat_420_236" parent="Platforms" unique_id=1057811403 instance=ExtResource("2_plat")]
-position = Vector2(420, 236)
+[node name="Plat_440_236" parent="Platforms" unique_id=1057811403 instance=ExtResource("2_plat")]
+position = Vector2(440, 236)
 size = Vector2(72, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"

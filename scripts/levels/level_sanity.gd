@@ -584,7 +584,8 @@ static func _check_exit_clearance(_host: Node, limits: Rect2, problems: Array[St
 ## Platforms reachable from `from_point` by walking, single jumps, drops and
 ## hookshot pulls. Returns the set of TopSeg reached (by index into top_segments).
 static func reachable_segments(host: Node, from_point: Vector2, allow_hook: bool = true) -> Array[TopSeg]:
-	var tops := top_segments(host)
+	var blockers := _route_blockers(host)
+	var tops := _route_tops(top_segments(host), blockers)
 	var anchors: Array[Vector2] = []
 	for node in _descendants(host):
 		if node is HookAnchor:
@@ -600,7 +601,7 @@ static func reachable_segments(host: Node, from_point: Vector2, allow_hook: bool
 		for seg in tops:
 			if reached.has(seg):
 				continue
-			if _can_hop(cur, seg) or (allow_hook and _can_hook(cur, seg, anchors)) or _same_lift(cur, seg):
+			if _can_hop(cur, seg, blockers) or (allow_hook and _can_hook(cur, seg, anchors)) or _same_lift(cur, seg):
 				reached.append(seg)
 				queue.append(seg)
 	return reached
@@ -610,12 +611,13 @@ static func reachable_segments(host: Node, from_point: Vector2, allow_hook: bool
 static func _same_lift(a: TopSeg, b: TopSeg) -> bool:
 	var a_lift := a.owner_name.get_slice("@", 0)
 	var b_lift := b.owner_name.get_slice("@", 0)
-	return a.owner_name.contains("@") and b.owner_name.contains("@") and a_lift == b_lift
+	return (a.owner_name.ends_with("@start") or a.owner_name.ends_with("@end")) \
+			and (b.owner_name.ends_with("@start") or b.owner_name.ends_with("@end")) and a_lift == b_lift
 
 
 static func is_reachable(host: Node, from_point: Vector2, target: Vector2, allow_hook: bool = true) -> bool:
 	for seg in reachable_segments(host, from_point, allow_hook):
-		if target.x >= seg.x0 - FOOT_X_PAD and target.x <= seg.x1 + FOOT_X_PAD and absf(target.y - seg.y) <= FOOT_SLACK_DOWN + 40.0:
+		if target.x >= seg.x0 - FOOT_X_PAD and target.x <= seg.x1 + FOOT_X_PAD and absf(target.y - seg.y) <= FOOT_SLACK_DOWN:
 			return true
 	return false
 
@@ -640,15 +642,69 @@ static func _gap(a: TopSeg, b: TopSeg) -> float:
 	return 0.0
 
 
-static func _can_hop(a: TopSeg, b: TopSeg) -> bool:
-	var gap := _gap(a, b)
-	var rise := a.y - b.y
-	if rise > JUMP_RISE_MAX:
-		return false
-	if rise >= 0.0:
-		return gap <= JUMP_GAP_MAX
-	var drop := -rise
-	return gap <= minf(DROP_GAP_MAX, JUMP_GAP_MAX + drop * DROP_GAP_PER_PX)
+static func _can_hop(a: TopSeg, b: TopSeg, solids: Array[Rect2] = []) -> bool:
+	return TraversalModel.can_hop(a, b, solids)
+
+
+## Only static terrain blocks a jump. A lift's two stops are mutually exclusive;
+## treating both as permanent solids creates imaginary walls in its shaft.
+static func _route_blockers(host: Node) -> Array[Rect2]:
+	var blockers: Array[Rect2] = []
+	for entry in solid_entries(host):
+		if entry["kind"] == "solid":
+			blockers.append(entry["rect"] as Rect2)
+	return blockers
+
+
+## A continuous floor below a mound or wall is not one connected walkable place.
+## Keep top_segments() as the authoring API, splitting only the route graph.
+##
+## What splits and what does not: a solid that has a walkable top of its own at
+## this x-range (a step, a mound, a ledge) is something you stand ON — the floor
+## beneath it stays walkable, you just walk up onto the step. Only a solid with
+## no top of its own here (a wall, a lid) really severs the floor. Without that
+## distinction the two-step climb on level03's street is read as a wall and the
+## plaza east of it becomes unreachable.
+static func _route_tops(tops: Array[TopSeg], blockers: Array[Rect2]) -> Array[TopSeg]:
+	var exposed: Array[TopSeg] = []
+	for top in tops:
+		var ranges: Array[Vector2] = [Vector2(top.x0, top.x1)]
+		for r in blockers:
+			if r.position.y >= top.y - 0.5 or r.end.y <= top.y - TraversalModel.PLAYER_HEIGHT + 1.0:
+				continue
+			# A blocker standing on this floor with its own walkable top is a step,
+			# not a wall: its x-span must not be punched out of the floor below.
+			if _has_own_top(tops, r, top.y):
+				continue
+			var next: Array[Vector2] = []
+			for span in ranges:
+				if r.end.x <= span.x or r.position.x >= span.y:
+					next.append(span)
+					continue
+				if r.position.x - span.x >= 8.0:
+					next.append(Vector2(span.x, r.position.x))
+				if span.y - r.end.x >= 8.0:
+					next.append(Vector2(r.end.x, span.y))
+			ranges = next
+		for span in ranges:
+			exposed.append(TopSeg.new(span.x, span.y, top.y, top.owner_name))
+	return exposed
+
+
+## Does any authored platform offer a walkable top inside `r`'s x-span, at or
+## above r's own top? That is the signature of a step you can stand on rather
+## than a wall you have to go around. `floor_y` is the floor being split; a top
+## below it belongs to a pit, not to this solid. A top further up than one jump
+## is a ledge, not a step: the floor under it is still severed.
+static func _has_own_top(tops: Array[TopSeg], r: Rect2, floor_y: float) -> bool:
+	var rise := TraversalModel.max_rise()
+	for seg in tops:
+		if seg.x1 < r.position.x - 0.5 or seg.x0 > r.end.x + 0.5:
+			continue
+		if seg.y <= r.position.y + 0.5 and seg.y <= floor_y + 0.5 \
+				and floor_y - seg.y <= rise:
+			return true
+	return false
 
 
 static func _can_hook(a: TopSeg, b: TopSeg, anchors: Array[Vector2]) -> bool:

@@ -59,7 +59,7 @@ const GROUND_DETAILS := [
 ## 挂点用真实节点（悬挂件不接地、不写死坐标）：毒坑上方的悬空石台底面挂着一截
 ## 断链，垂在腐液上空——它不接地，检查逻辑也只认 hang_top。
 const HANGING_DETAILS := [
-	["toxic_pit", "chain", "Platforms/Plat_420_236", Vector2(-31, 0), WRECK_TINT],
+	["toxic_pit", "chain", "Platforms/Plat_440_236", Vector2(-31, 0), WRECK_TINT],
 ]
 
 ## 光照锚点表：[灯名, 地标节点路径, 相对地标的偏移, 类型]。
