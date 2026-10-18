@@ -19,8 +19,24 @@ var _label: Label
 var _panel: PanelContainer
 
 
+## 字幕层被 PresentationMetrics.bind_layer 包进内容矩形里（layer.transform），
+## 引擎在视口/层变换时会重排子树 Control 的 size。全矩形预设的左右（上下）
+## 锚点不相等，引擎每次重排都打印一条 "non-equal opposite anchors" 警告。
+## 这里改用相等的对角锚点 + 偏移量铺满内容矩形：布局结果一致，警告消失。
+const LAYER_SIZE := Vector2(PresentationMetrics.UI_SIZE)
+
+
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Equal opposite anchors (0,0,0,0) + offsets to the full layer: no size
+	# assignment, so the engine's resize pass never trips the anchor warning.
+	anchor_left = 0.0
+	anchor_right = 0.0
+	anchor_top = 0.0
+	anchor_bottom = 0.0
+	offset_left = 0.0
+	offset_top = 0.0
+	offset_right = LAYER_SIZE.x
+	offset_bottom = LAYER_SIZE.y
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_sync_viewport_size()
 	get_viewport().size_changed.connect(_sync_viewport_size)
@@ -45,9 +61,17 @@ func _ready() -> void:
 
 
 func _sync_viewport_size() -> void:
+	# A caption inside a presentation-bound layer is already a fixed UI_SIZE
+	# rectangle in layer units, so following the physical window would fight the
+	# layer transform. Only an unbound caption (tests, probes) on a raw viewport
+	# needs to match that viewport.
 	var vp := get_viewport()
-	if vp != null:
-		set_deferred("size", vp.get_visible_rect().size)
+	if vp == null:
+		return
+	var host := get_parent()
+	if host is CanvasLayer and host.has_meta("presentation_bound"):
+		return
+	set_deferred("size", vp.get_visible_rect().size)
 
 
 func is_busy() -> bool:
@@ -116,8 +140,8 @@ func _start_next() -> void:
 	var item: Dictionary = _queue.pop_front()
 	_full = String(item.get("text", ""))
 	_hold_left = float(item.get("hold", DEFAULT_HOLD))
-	_shown = 0.0
-	_label.text = ""
+	_shown = 1.0
+	_label.text = _full.substr(0, 1)
 	_typing = true
 	_holding = false
 	_panel.visible = true
