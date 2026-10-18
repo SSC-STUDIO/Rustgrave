@@ -120,3 +120,37 @@
 - 用户复查补丁：地形贴图（`*_slab_*` / `*_fill` / `float_*`）不得当装饰种；
   `slab` 装饰键的族变体由 `_fracture_slab()` 切碎；暗刻件（炉膛/渣口/石堆）补像素柱脚
   以真正贴地；碑石浮雕改 1×；Boss 名号卡改为居中。`prop_fit_test` 增加对应三条用例。
+
+---
+
+# 二期：Campaign v2（可读故事 + 14 章 + Boss 重做 + 回火试炼）
+
+计划全文见本轮会话批准稿；契约见 `docs/integration-contracts.md`，故事见 `docs/story.md`（v2）。
+
+## 目标
+
+1. 故事一眼能读懂（谁/要什么/代价/每章目标），章节间有因果衔接与间幕。
+2. 10 章 → **14 章**（新增 `level02b 运渣水渠`、`level04b 圣殿地窖`、`level07b 铸钟厅`、`level09b 炉风崖道`），旧章扩到 ≥4000px（竖井 ≥1600px 高），每章 ≥2 存档点、≥1 支路、奖励位。
+3. **7 场 Boss**：刽子手（重做）、空钟（level02）、绞盘守渠人（02b）、无声唱诗班（04b）、铸钟人（07b）、炉风先驱（09b）、梦魇（重做）。
+4. 新游戏模式 **回火试炼**：Boss 连战 / 章节限时 / 禁核锈行；独立记录、战役零写入。
+5. 角色/武器系统"接应"：契约 + 适配层 + 存档 v2（`profile.character_id` / `extras`）+ 关卡奖励位 + HUD/暂停/标题挂点 + 可达性矩阵。
+6. 像素 3A 标准：每章 5 节拍 × 3 分辨率渲染验收 + 自动审计 + Lead 亲查；素材放置"用途 + 叙事锚点"，禁止凭空物件。
+
+## 里程碑
+
+- [x] M0 地基：`feature/campaign-v2` 分支、14 章注册与占位关卡、存档 v2 与迁移测试、路由/进度测试与 walkthrough 改为 LEVEL_ORDER、集成契约文档。
+- [ ] M1 故事/衔接：story v2（已完成初稿）、`ChapterText` 注册表迁移、13 段间幕、开场/前情提要、测试。
+- [ ] M2 关卡：新章 A（02b/04b）、新章 B（07b/09b）、旧章扩容（02–10，含空钟 Boss 房安置）。
+- [ ] M3 Boss：框架（BossKit/Director/Arena/夹具）→ 内容 A（01/02b/04b）→ 内容 B（02/07b/09b/10）。
+- [ ] M4 回火试炼：数据/记录/运行器/UI/测试。
+- [ ] M5 接应 + 视觉/音频：loadout 适配层/奖励位/HUD/暂停/标题、外部分支合并、逐章审图与音频。
+- [ ] M6 验收：14 章真输入 walkthrough 双结局、7 Boss 夹具、试炼三赛道、故事盲测、性能、文档与最终报告。
+
+## 当前基线（Campaign v2 分支）
+
+- 起点 `53c5f19`（已含第三阶段色彩/光照与我方全部修复），全量 **798/798** 通过。
+- M0 变更：`level02b/04b/07b/09b` 注册 + 可穿越占位关卡（M2 替换）、`GameContext.LEVEL_ORDER` 14 章、
+  `SaveData` v2（profile/character_id/extras + `persist_profile()`，v1 档直接可读）、
+  `tests/save_migration_test.gd`、`tests/level_routing_test.gd` 14 章一致性、`campaign_walkthrough` 改为 LEVEL_ORDER。
+- 并行角色/武器线（外部 agent）在另一工作区改 `pause_menu.gd` + `CharacterEquipmentPanel`；我方只通过
+  `LoadoutBridge`/存档 v2/奖励位接应，不碰对方文件。
