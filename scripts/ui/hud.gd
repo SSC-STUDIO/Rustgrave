@@ -29,6 +29,8 @@ const TOXIN_BAR_SIZE := Vector2(96, 14)
 const TOXIN_ROW_HEIGHT := 16.0
 ## 毒素档位字（"溢 100%"）占的槽宽。12px 字最宽是 3 位数，"溢 100%" 约 39 设计像素。
 const TOXIN_LABEL_WIDTH := 46.0
+## 剑核插座：拿到第一枚锈核之前整条隐藏。
+const SOCKET_BREATH_PERIOD := 2.4
 const SOCKET_ICON := 26.0
 ## 与 assets/ui/banner.png 的高度一致（21 设计像素 * 2）。
 const BANNER_HEIGHT := 42.0
@@ -37,6 +39,9 @@ const BANNER_TOP := 14.0
 const PROMPT_BOTTOM := 10.0
 ## 交互提示里键帽与文案的间距。
 const PROMPT_KEY_GAP := 10.0
+## 交互提示出场：向上浮 6px 的同时淡入（像素栅格上取整，不出灰边）。
+const PROMPT_SLIDE := 6.0
+const PROMPT_FADE := 0.18
 ## Boss 条在底边中央占的高度（12px 名字行 + 2 + 12 血条 + 上下 10 内容边距）；
 ## 交互提示在 Boss 战中抬到它上面，两者不重叠。
 const BOSS_BAR_HEIGHT := 50.0
@@ -141,6 +146,8 @@ var _boss_title_label: Label
 var _boss_hp_bar: ProgressBar
 var _boss_phase_pips: PhasePips
 var _boss_max_hp: int = 1
+## 交互提示出场补间（换可交互物时先掐掉上一段）。
+var _prompt_tween: Tween
 
 
 func _ready() -> void:
@@ -312,6 +319,8 @@ func _build_stat_panel(root: Control) -> void:
 
 
 ## 一个插座：26x26 的铁环 + 按核着色的宝石 + 下方一行键名。
+## 铁环在袋里有核、插座还空着时会缓慢呼吸 —— "这里空着、袋里有货"的暗示，
+## 让玩家知道该按 1 / 2 了；镶满之后呼吸停下，环稳定压亮。
 func _make_socket(index: int) -> Control:
 	var cell := VBoxContainer.new()
 	cell.name = "Socket%d" % index
@@ -512,6 +521,23 @@ func _process(delta: float) -> void:
 		_breath_time += delta
 		_vignette.modulate.a = lerpf(VIGNETTE_BREATH_MIN, VIGNETTE_BREATH_MAX,
 				0.5 + 0.5 * sin(TAU * _breath_time / VIGNETTE_BREATH_PERIOD))
+	_tick_socket_breath()
+
+
+## 空插座的铁环呼吸：只在"袋里有核、插座空着"时进行（_cores_owned 已含口袋
+## 判定）。幅度压在 0.55-0.95 的 alpha 之间，静止画面上也读得出"这里等着镶"，
+## 又不会和 ToxinBar 的报警脉动抢同一个节奏（那是 0.5s 一次，这是 2.4s）。
+func _tick_socket_breath() -> void:
+	var empty_pending := _cores_owned
+	if not empty_pending:
+		return
+	for i in _sockets.size():
+		var gem := _sockets[i].get_node_or_null("Icon/Gem") as TextureRect
+		var ring := _sockets[i].get_node_or_null("Icon/Ring") as TextureRect
+		if gem == null or ring == null or gem.visible:
+			continue
+		var breath := 0.55 + 0.40 * (0.5 + 0.5 * sin(TAU * _time / SOCKET_BREATH_PERIOD))
+		ring.modulate = Color(0.78, 0.7, 0.62, breath)
 
 
 # --- 电影黑边 -----------------------------------------------------------------
@@ -831,16 +857,35 @@ func _on_prompt(text: String) -> void:
 	_prompt_label.text = String(parts.body)
 	_fit_single_line(_prompt_label, _prompt_label.text, PROMPT_MAX_WIDTH)
 	_sync_prompt()
-
-
 func _sync_prompt() -> void:
 	if _prompt_panel == null:
 		return
 	var cap := Director.caption()
 	var cap_busy := cap != null and cap.is_busy()
 	var dead := _death_overlay != null and _death_overlay.visible
-	_prompt_panel.visible = _prompt_text != "" and not cap_busy and not dead
+	var want := _prompt_text != "" and not cap_busy and not dead
+	var was := _prompt_panel.visible
+	_prompt_panel.visible = want
+	if want and not was:
+		_play_prompt_intro()
 	_sync_prompt_offsets()
+
+
+## 交互提示的出场：从下方 6px 处浮上来并淡入。位置取整到像素栅格，
+## 1-bit 的墨带边缘不会出现半像素灰边。重复触发（换一个可交互物）时
+## 先掐掉上一段，避免两段 tween 抢同一个属性。
+func _play_prompt_intro() -> void:
+	if _prompt_tween != null and _prompt_tween.is_valid():
+		_prompt_tween.kill()
+	_prompt_panel.modulate.a = 0.0
+	var base_top := _prompt_panel.offset_top
+	_prompt_panel.offset_top = base_top + PROMPT_SLIDE
+	_prompt_tween = create_tween()
+	_prompt_tween.set_parallel(true)
+	_prompt_tween.tween_property(_prompt_panel, "modulate:a", 1.0, PROMPT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_prompt_tween.tween_property(_prompt_panel, "offset_top", base_top, PROMPT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 ## 交互提示贴底边；Boss 条在场时抬到它之上。底边再让开触屏安全区。

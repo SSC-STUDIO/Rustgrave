@@ -241,3 +241,21 @@
   furnace / toppled tower stop reading as pasted squares.
 - Used: chapters 03-10 terrain, props and backdrops; `PropCatalog.THEME_PROPS`
   is the allowlist contract and `tools/gen_theme_tiles.py` is the only writer.
+
+## Commercial RPG Equipment & Item Packs (assets/external/commercial_rpg_assets/)
+- **Shade's 16x16 Assorted RPG Icons**:
+  - Source: https://opengameart.org/content/16x16-assorted-rpg-icons
+  - Author: Shade (https://merchant-shade.itch.io/)
+  - License: CC0 1.0 Universal (Public Domain) — commercial use fully permitted, attribution optional.
+  - Used: weapons, armors, potions, consumables, chest icons for character equipment system.
+- **Kyrise's Free 16x16 RPG Icon Pack (V1.2)**:
+  - Source: https://opengameart.org/content/kyrises-free-16x16-rpg-icon-pack
+  - Author: Kyrise (https://kyrise.itch.io/)
+  - License: CC-BY 4.0 (Creative Commons Attribution 4.0 International) — commercial use permitted.
+  - Attribution Notice: "Kyrise's 16x16 RPG Icon Pack by Kyrise (https://kyrise.itch.io/) under CC BY 4.0"
+  - Used: rings, necklaces/amulets, gems, crystals, helmets, weapons and materials in 16x16, 32x32, 48x48.
+- **Kenney's Roguelike/RPG Pack**:
+  - Source: https://kenney.nl/assets/roguelike-rpg-pack / https://opengameart.org/content/roguelikerpg-pack-1700-tiles
+  - Author: Kenney (Kenney.nl)
+  - License: CC0 1.0 Universal (Public Domain) — 100% free for commercial use.
+  - Used: gear, machinery pieces, tools, shields, items and UI tiles.

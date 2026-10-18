@@ -103,6 +103,8 @@ const SIGN_FONT_SIZE := 12
 const VINE_TEX := "res://assets/env/moss_vine.png"
 const ARCH_TEX := "res://assets/env/moss_arch.png"
 const RUBBLE_TEX := "res://assets/env/moss_rubble.png"
+const STAIR_TEX := "res://assets/env/moss_stair.png"
+const WALL_BLOCK_TEX := "res://assets/env/moss_wall_block.png"
 
 var _backdrop: Level02Backdrop
 var plate: PressurePlate
@@ -284,6 +286,27 @@ func _build_decor(host: Node2D) -> void:
 	_sprite(decor, ARCH_TEX, Vector2(1216, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95), true)
 	_sprite(decor, RUBBLE_TEX, Vector2(560, FLOOR_Y - 30.0 + 32.0), Color.WHITE, true)
 	_sprite(decor, RUBBLE_TEX, Vector2(1980, FLOOR_Y - 30.0), Color.WHITE, true)
+	# 地窟的「城沉下去之前」：每段地面都有苔藓碎石与塌下来的墙块。
+	# 落点纪律：浮台 StoneB1..B3 / StepB / LedgeB 顶面在 264–288，
+	# 接地装饰一律站在 320 的地面上，不探到毒液坑里。
+	# _sprite 的 pos 是左上角，脚点元数据 = pos + (w/2, h)：碎石 32×30，脚点居中。
+	_sprite(decor, RUBBLE_TEX, Vector2(96, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(336, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(736, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(824, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(1304, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(1664, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(2304, FLOOR_Y - 30.0), Color.WHITE, true)
+	_sprite(decor, RUBBLE_TEX, Vector2(2528, FLOOR_Y - 30.0), Color.WHITE, true)
+	# 苔阶与墙块：塌下来的生活残留，沿墙根摆，不占走道。
+	_sprite(decor, STAIR_TEX, Vector2(160, FLOOR_Y - 41.0), Color.WHITE, true)
+	_sprite(decor, STAIR_TEX, Vector2(1168, FLOOR_Y - 41.0), Color.WHITE, true)
+	_sprite(decor, STAIR_TEX, Vector2(2128, FLOOR_Y - 41.0), Color.WHITE, true)
+	_sprite(decor, WALL_BLOCK_TEX, Vector2(640, FLOOR_Y - 83.0), Color(0.82, 0.95, 0.92), true)
+	_sprite(decor, WALL_BLOCK_TEX, Vector2(2400, FLOOR_Y - 83.0), Color(0.82, 0.95, 0.92), true)
+	# 排水拱：第三段毒液坑（1376–1600）东岸的拱是「水从这里走」的痕迹。
+	# 拱 96 宽，脚点 = pos.x + 48，必须落在 FloorD（1600 起）上。
+	_sprite(decor, ARCH_TEX, Vector2(1616, FLOOR_Y - 48.0), Color(0.85, 0.95, 0.95), true)
 	var signs := Node2D.new()
 	signs.name = "Waymarks"
 	signs.z_index = 2

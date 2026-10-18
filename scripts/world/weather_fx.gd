@@ -190,6 +190,22 @@ func simulate_hit(world: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var frozen := WorldClock.is_frozen()
+	if frozen:
+		# Pause menu / cinematic / fade: every other ambient layer holds still
+		# (LeafShed, ThemeMotes, WorldClock itself). Weather must too, or rain
+		# keeps falling through a paused game and the frame keeps paying for it.
+		if _drops_active() or not _embers_hidden:
+			for spr in _drops:
+				spr.modulate.a = 0.0
+				spr.visible = false
+			for spr in _embers:
+				spr.modulate.a = 0.0
+				spr.visible = false
+			_embers_hidden = true
+		return
 	_cache_view()
 	var target := WorldClock.rain_opacity()
 	_alpha = move_toward(_alpha, target, delta / 4.5)
@@ -227,6 +243,15 @@ func _process(delta: float) -> void:
 	_tick_embers(delta)
 	_tick_wets(delta)
 	_tick_ground_fx(delta)
+
+
+## Any drop currently drawn. Used by the frozen-clock early exit so the rain
+## is parked visibly-off exactly once instead of every frame.
+func _drops_active() -> bool:
+	for spr in _drops:
+		if spr.visible:
+			return true
+	return false
 
 
 func _tick_drop(i: int, delta: float, rain_col: Color, vis: float) -> void:

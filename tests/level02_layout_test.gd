@@ -170,11 +170,19 @@ func test_backdrop_and_mood_are_indoor() -> void:
 	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
 	ok(backdrop != null)
 	ok(backdrop.get_node_or_null("Void") is ColorRect, "solid void behind everything")
+	# 远景一层：墙后还有一进更暗的拱顶大厅，视差比墙慢，才读得出纵深。
+	var hall_far := backdrop.get_node_or_null("HallFar") as Parallax2D
+	ok(hall_far != null, "a deeper hall silhouette sits behind the wall")
 	var wall := backdrop.get_node_or_null("Wall") as Parallax2D
 	ok(wall != null, "castle interior wall layer")
 	if wall != null:
 		ok(wall.repeat_times >= 4, "wall repeats enough copies for the 640 view")
 		ok(wall.scroll_scale.x < 1.0 and wall.scroll_scale.x > 0.0)
+		if hall_far != null:
+			ok(hall_far.scroll_scale.x < wall.scroll_scale.x, "the far hall scrolls slower than the wall")
+			ok(hall_far.get_index() < wall.get_index(), "and it draws behind the wall")
+			var hspr := hall_far.get_node_or_null("Sprite") as Sprite2D
+			ok(hspr != null and hspr.region_enabled, "the far hall is cropped to the vault, not the floor")
 	ok(backdrop.get_node_or_null("Columns") is Parallax2D)
 	var mood := host.get_node_or_null("MoodTint") as CanvasModulate
 	ok(mood != null)

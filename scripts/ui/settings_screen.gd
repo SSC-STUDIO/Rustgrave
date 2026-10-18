@@ -16,6 +16,7 @@ extends CanvasLayer
 signal closed
 
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+const Plate := preload("res://scripts/ui/menu_plate.gd")
 
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
@@ -45,6 +46,7 @@ const OPT_SMOOTHING := &"pixel_smoothing"
 
 var _root: Control
 var _shell: Dictionary = {}
+var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _tab_buttons: Array[Button] = []
 var _pages: Array[Control] = []
 var _tab := TAB_AUDIO
@@ -367,6 +369,14 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 	return button
 
 
+## 开关行的"开/关"染色：开是余烬金、关是灰。整页扫一眼就知道哪几项开着，
+## 不用逐行读字 —— 键位行的键帽不染色（本色已经是琥珀），只有布尔值才需要
+## 状态色，否则"关"字比键名还醒目，反而抢焦点。
+func _paint_toggle(label: Label, on: bool) -> void:
+	label.text = "开" if on else "关"
+	label.modulate = UiKit.EMBER if on else Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.75)
+
+
 func _toggle_row(id: StringName, title: String) -> Control:
 	var button := _button_row(id, title, ROW_WIDTH)
 	button.name = "Toggle_%s" % String(id)
@@ -380,6 +390,10 @@ func _key_row(action: StringName) -> Control:
 	var button := _button_row(action, KeyLabels.action_name(action), KEY_COLUMN_WIDTH)
 	button.name = "Key_%s" % String(action)
 	button.pressed.connect(_on_key_pressed.bind(action))
+	# 焦点所在的行也换选中贴图：键位页没有滑条那样的行底联动，
+	# 全靠这层让"当前在改哪一行"在鼠标和键盘下同源。
+	button.focus_entered.connect(_set_row_focus.bind(action, true))
+	button.focus_exited.connect(_set_row_focus.bind(action, false))
 	_key_buttons[action] = button
 	_key_caps[action] = button.get_node("Content/Value")
 	return button
@@ -425,7 +439,9 @@ func _toggle_state(id: StringName) -> bool:
 
 
 func _sync_toggle(id: StringName) -> void:
-	(_value_labels[id] as Label).text = "开" if _toggle_state(id) else "关"
+	var label := _value_labels.get(id) as Label
+	if label != null:
+		_paint_toggle(label, _toggle_state(id))
 
 
 func _sync_keys() -> void:
@@ -433,14 +449,39 @@ func _sync_keys() -> void:
 		var cap := _key_caps[action] as Label
 		if action == _capturing:
 			cap.text = "按下新按键…"
+			# 抓键中的那一行：键帽染成余烬色、行底换成选中贴图。整页只有这一行
+			# 亮着，"现在按哪个键都算数"才不会被读成"界面卡住了"。
+			cap.modulate = UiKit.EMBER
+			var bg := _row_bgs.get(action) as Panel
+			if bg != null:
+				bg.theme_type_variation = &"SettingsRowFocused"
 		else:
 			cap.text = KeyLabels.label(action)
+			cap.modulate = Color.WHITE
+			# 焦点行的行底由 focus_exited / focus_entered 维护；抓键结束时
+			# 如果焦点还在这一行，selected 贴图要继续留着，不能在这里清掉。
+			if _key_buttons.get(action) != null \
+					and not (_key_buttons[action] as Button).has_focus():
+				var normal := _row_bgs.get(action) as Panel
+				if normal != null:
+					normal.theme_type_variation = &"SettingsRowNormal"
 
 
 func _set_row_focus(id: StringName, focused: bool) -> void:
 	var bg := _row_bgs.get(id) as Panel
 	if bg != null:
 		bg.theme_type_variation = &"SettingsRowFocused" if focused else &"SettingsRowNormal"
+		return
+	# 键位 / 开关行整行是一个按钮：没有独立行底，直接把选中贴图换到按钮的
+	# normal 上 —— 这样悬停和键盘焦点共用同一个"这一行亮了"的信号。
+	var button := _toggles.get(id) as Button
+	if button == null:
+		button = _key_buttons.get(id) as Button
+	if button == null:
+		return
+	var style := Plate.style_box(Plate.Shape.TAG, \
+			Plate.State.SELECTED if focused else Plate.State.NORMAL)
+	button.add_theme_stylebox_override("normal", style)
 
 
 func _on_setting_changed(key: StringName) -> void:
@@ -500,6 +541,7 @@ func is_open() -> bool:
 func open() -> void:
 	if visible:
 		return
+	_closing = false
 	_cancel_capture()
 	_notice.text = ""
 	_sync_all()
@@ -513,14 +555,21 @@ func open() -> void:
 
 
 func close() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
+	_closing = true
 	_cancel_capture()
 	flush()
-	visible = false
 	GameContext.suppress_gameplay_input()
 	UiKit.sfx(&"ui_back")
-	closed.emit()
+	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。
+	(_shell.get("play_outro") as Callable).call(func() -> void:
+		if not is_instance_valid(self):
+			return
+		_closing = false
+		visible = false
+		closed.emit()
+	)
 
 
 ## 把还没落盘的改动写出去（拖动期间只改内存）。

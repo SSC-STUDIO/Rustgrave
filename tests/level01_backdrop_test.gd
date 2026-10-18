@@ -30,6 +30,9 @@ func setup() -> void:
 
 
 func teardown() -> void:
+	for child in get_children():
+		child.queue_free()
+	ThemeBackdrop.clear_cache()
 	WorldClock.reset()
 
 
@@ -111,8 +114,8 @@ func test_level01_backdrop_uses_the_rust_plates() -> void:
 		return
 	eq(String(fspr.texture.resource_path), SKY_RUST, "the sky is the rust derivation")
 	eq(String(mspr.texture.resource_path), MOUNTAINS_RUST, "the far range is the rust derivation")
-	almost(fspr.scale.x, 1.9, 0.001, "authored sky scale untouched")
-	almost(mspr.scale.x, 1.7, 0.001, "authored mountain scale untouched")
+	almost(fspr.scale.x, 2.0, 0.001, "sky plate stays on an integer scale")
+	almost(mspr.scale.x, 2.0, 0.001, "mountain plate stays on an integer scale")
 	# 飘云也换成灰烬/暖尘派生板，但作者写的运动（scroll）与云量控制点不变。
 	var high := level.get_node_or_null("ParallaxBackdrop/SkyCloudsHigh") as Parallax2D
 	var low := level.get_node_or_null("ParallaxBackdrop/SkyCloudsLow") as Parallax2D

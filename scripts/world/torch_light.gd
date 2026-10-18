@@ -19,10 +19,17 @@ const CROWN_MAX_STEPS := 6
 @export var base_energy: float = 0.60
 @export var light_radius: float = 64.0
 
+const GLOW_TEX := "res://assets/env/glow_soft.png"
+
 var _light: WorldLight
 var _sprite: Node2D
+var _halo: Sprite2D
 var _time: float = 0.0
 var _seed: float = 0.0
+## The flame steps at 8 fps while _process runs at 60+; a repeated modulate
+## write still dirties the canvas item, so only publish when the step moves.
+var _last_step: int = -1
+var _halo_alpha: float = 0.42
 
 
 func _ready() -> void:
@@ -82,10 +89,39 @@ func _setup_light() -> void:
 	_light.position = Vector2(0.0, FURNACE_FIRE_Y if style == "furnace" else -8.0)
 	add_child(_light)
 	_light.shadow_enabled = false
+	_setup_halo()
+
+
+func _setup_halo() -> void:
+	if not ResourceLoader.exists(GLOW_TEX):
+		return
+	var tex := load(GLOW_TEX) as Texture2D
+	if tex == null:
+		return
+	_halo = Sprite2D.new()
+	_halo.name = "FlameHalo"
+	_halo.texture = tex
+	_halo.centered = true
+	_halo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_halo.position = Vector2(0.0, FURNACE_FIRE_Y if style == "furnace" else -8.0)
+	_halo.scale = Vector2(0.55, 0.55) if style == "furnace" else Vector2(0.38, 0.38)
+	_halo.material = Fx.additive_mat()
+	_halo.modulate = Color(light_color.r, light_color.g, light_color.b, 0.42)
+	add_child(_halo)
 
 
 func _process(delta: float) -> void:
 	if _light == null:
 		return
 	_time += delta * 8.0
-	_light.set_flame_frame(int(_time + _seed) % 8)
+	var step := int(_time + _seed) % 8
+	if step == _last_step:
+		return
+	_last_step = step
+	_light.set_flame_frame(step)
+	if _halo != null and is_instance_valid(_halo):
+		var flicker := 0.88 + 0.24 * (float(step) / 7.0)
+		var a := 0.42 * flicker
+		if not is_equal_approx(a, _halo_alpha):
+			_halo_alpha = a
+			_halo.modulate = Color(light_color.r, light_color.g, light_color.b, a)

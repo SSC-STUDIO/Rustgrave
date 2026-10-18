@@ -203,10 +203,21 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "rubble_dry", Vector2(464, 320))
 	prop(host, "balustrade_town", Vector2(520, 320))
 	prop(host, "balustrade_town", Vector2(760, 320))
+	# 街面西段的散座：碎渣、石堆、一丛干草。水沟（560–720）两岸不探出坑沿。
+	prop(host, "rock_pile", Vector2(128, 320))
+	prop(host, "rubble_dry_c", Vector2(296, 320))
+	foliage(host, "bush_s", Vector2(200, 320), 1.0, false, DRY_BUSH)
+	prop(host, "rubble_dry_b", Vector2(424, 320))
 	# ② 屋顶下的街面：干石、店门洞、门前杂草
 	prop(host, "rubble_dry", Vector2(920, 320))
 	prop(host, "door_arch_town", Vector2(1072, 320), 1.0, ARCH_TINT)
 	foliage(host, "bush_s", Vector2(1108, 320), 1.0, false, DRY_BUSH)
+	# 屋顶 A/B/C 下的街面（720–1360）：路口散座，屋檐下挂着旧缆。
+	prop(host, "rubble_dry_b", Vector2(800, 320))
+	prop(host, "rubble_dry_c", Vector2(1016, 320))
+	prop(host, "rock_pile", Vector2(1304, 320))
+	hanging(host, "vine", Vector2(832, 240), Color(0.4, 0.42, 0.4, 0.7))
+	hanging(host, "vine", Vector2(1248, 240), Color(0.4, 0.42, 0.4, 0.7))
 	# ④ 广场：一栋还立着的砖屋当地标（压暗压冷，退到夜城后面），石栏和干石。
 	# 枯树、守墓者石像是墓园的，不搬到街上。
 	prop(host, "brick_house", Vector2(1660, 320), 1.0, Color(0.42, 0.46, 0.54))
@@ -214,11 +225,24 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "rubble_dry", Vector2(1656, 320))
 	prop(host, "rubble_dry_c", Vector2(1744, 320))
 	foliage(host, "bush_s", Vector2(1836, 320), 1.0, false, DRY_BUSH)
+	# 广场西半：塌掉的矮墙与散座，广场比街面更荒，仍有生活的痕迹。
+	prop(host, "rubble_dry_b", Vector2(1432, 320))
+	prop(host, "rock_pile", Vector2(1536, 320))
+	prop(host, "rubble_dry", Vector2(1912, 320))
 	# ⑤ 窄巷：檐下是灰藤，不是鲜苔；巷底干石
 	hanging(host, "vine", Vector2(1960, 272), Color(0.4, 0.42, 0.4, 0.75))
 	hanging(host, "vine", Vector2(2200, 272), Color(0.4, 0.42, 0.4, 0.75))
 	prop(host, "rock_pile", Vector2(2064, 352), 1.0, Color(0.6, 0.62, 0.7))
+	# 巷子下沉 32px（地面 352）：巷底散座与檐口碎渣。
+	prop(host, "rubble_dry", Vector2(1996, 352))
+	prop(host, "rubble_dry_c", Vector2(2152, 352))
+	foliage(host, "bush_s", Vector2(2024, 352), 1.0, false, DRY_BUSH)
 	# ⑥ 圣殿前阶：阶口杂草、干石、前台石栏
 	foliage(host, "bush_s", Vector2(2250, 320), 1.0, false, DRY_BUSH)
 	prop(host, "rubble_dry", Vector2(2352, 288))
 	prop(host, "balustrade_town", Vector2(2528, 256))
+	# 三级石阶之间：塌下来的碎渣嵌在阶缝里；前台尽头一堆乱石与一丛干草。
+	prop(host, "rubble_dry_b", Vector2(2360, 288))
+	prop(host, "rubble_dry_c", Vector2(2464, 256))
+	prop(host, "rock_pile", Vector2(2808, 256))
+	foliage(host, "bush_s", Vector2(2696, 256), 1.0, false, DRY_BUSH)

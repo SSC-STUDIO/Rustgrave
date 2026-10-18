@@ -114,6 +114,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	# Riposte windows are short and rare; the other ~99% of the time this
+	# callback is a no-op dispatch on every enemy in the level. Park it and
+	# let the window's own start re-arm it.
+	if _riposte_left <= 0.0:
+		set_process(false)
+		return
 	tick_riposte(delta)
 
 
@@ -231,6 +237,8 @@ func open_riposte(duration: float = CombatRules.RIPOSTE_TIME) -> void:
 	if _dead:
 		return
 	_riposte_left = maxf(_riposte_left, duration)
+	# _process parks itself while no window is open; re-arm it for this one.
+	set_process(true)
 	if _riposte_mark == null or not is_instance_valid(_riposte_mark):
 		_riposte_mark = CombatMarker.spawn(self, CombatMarker.Kind.RIPOSTE, _mark_offset(),
 				0.0, Color(0.6, 1.4, 1.7, 1.0))

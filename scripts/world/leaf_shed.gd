@@ -19,6 +19,10 @@ var canopy: Vector2 = Vector2(80.0, 60.0)
 var _accum := 0.0
 var _next := 2.0
 var _headless := false
+## Parked while the clock is frozen (pause / cinematic / fade): a shed with no
+## leaves in flight has nothing to spawn, and `_process` on every tree in the
+## level is dispatch cost for nothing.
+var _parked := false
 
 
 func _ready() -> void:
@@ -27,8 +31,23 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _headless or WorldClock.is_frozen():
+	if _headless:
 		return
+	var frozen := WorldClock.is_frozen()
+	if frozen:
+		# Leaves in flight keep falling while frozen? No — the clock is what
+		# drives wind and drift, so a frozen world holds them too.
+		if not _parked:
+			_parked = true
+			for child in get_children():
+				if child is Leaf:
+					(child as Leaf).park()
+		return
+	if _parked:
+		_parked = false
+		for child in get_children():
+			if child is Leaf:
+				(child as Leaf).resume()
 	_accum += delta
 	if _accum < _next:
 		return
@@ -78,6 +97,7 @@ class Leaf extends Node2D:
 	var _landed := -1.0
 	var _flat: Polygon2D
 	var _tall: Polygon2D
+	var _parked := false
 
 
 	func _init() -> void:
@@ -111,7 +131,20 @@ class Leaf extends Node2D:
 		return _landed >= 0.0
 
 
+	## Held mid-fall while the clock is frozen (pause / cinematic / fade).
+	## Position and age stay as they are, so resuming continues the fall
+	## without a jump.
+	func park() -> void:
+		_parked = true
+
+
+	func resume() -> void:
+		_parked = false
+
+
 	func _process(delta: float) -> void:
+		if _parked:
+			return
 		_t += delta
 		if _landed >= 0.0:
 			var k := (_t - _landed) / FADE

@@ -12,8 +12,10 @@ const SCROLL_STEP := 56.0
 
 var _root: Control
 var _shell: Dictionary = {}
+var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _scroll: ScrollContainer
 var _list: VBoxContainer
+var _empty_box: Control
 var _empty: Label
 
 
@@ -51,16 +53,28 @@ func _build() -> void:
 	_list.add_theme_constant_override("separation", 10)
 	_scroll.add_child(_list)
 
-	_empty = UiKit.label("还没有可回看的提示。\n新的机制第一次用得上时，提示会在画面上出现一次，并留在这里。",
-			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	# 空态分两层：一句暖白的"还没有可回看的提示"是主答案，下面一行暗脚注
+	# 解释机制何时会出现。整段同字同色时玩家只会扫到"一大片灰"。
+	_empty_box = VBoxContainer.new()
+	_empty_box.name = "EmptyBox"
+	_empty_box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_empty_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_empty_box.add_theme_constant_override("separation", 6)
+	_empty_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_empty_box.visible = false
+	body.add_child(_empty_box)
+	var empty_head := UiKit.label("还没有可回看的提示", &"SubHeadLabel",
+			HORIZONTAL_ALIGNMENT_CENTER)
+	empty_head.name = "EmptyHead"
+	empty_head.modulate = Color("#E4DCCC")
+	_empty_box.add_child(empty_head)
+	_empty = UiKit.label("新的机制第一次用得上时，提示会在画面上出现一次，并留在这里。",
+			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_empty.name = "Empty"
 	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_empty.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	body.add_child(_empty)
-
+	_empty.custom_minimum_size = Vector2(560.0, 0.0)
+	_empty.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_empty_box.add_child(_empty)
 
 ## 重新读取已看过的提示并重排。
 func refresh() -> void:
@@ -68,7 +82,8 @@ func refresh() -> void:
 		_list.remove_child(child)
 		child.queue_free()
 	var entries := HintService.seen_entries()
-	_empty.visible = entries.is_empty()
+	if _empty_box != null:
+		_empty_box.visible = entries.is_empty()
 	_scroll.visible = not entries.is_empty()
 	for entry in entries:
 		_list.add_child(_make_entry(String(entry["title"]), String(entry["text"])))
@@ -87,6 +102,9 @@ func _make_entry(title: String, text: String) -> Control:
 	name_label.name = "Title"
 	name_label.custom_minimum_size = Vector2(130.0, 0.0)
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# "场景提示"是关卡作者写的临时提示，排在内置键位表之后 —— 键名染成
+	# 暗铁而不是琥珀，内置条目与作者条目在颜色上就分出了主次两档。
+	name_label.modulate = Color("#B8703E") if title == "场景提示" else UiKit.EMBER
 	row.add_child(name_label)
 	var body := UiKit.label(text, &"BodyLabel")
 	body.name = "Text"
@@ -99,6 +117,7 @@ func _make_entry(title: String, text: String) -> Control:
 
 func open() -> void:
 	refresh()
+	_closing = false
 	visible = true
 	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
@@ -106,12 +125,19 @@ func open() -> void:
 
 
 func close() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
-	visible = false
+	_closing = true
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
-	closed.emit()
+	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。
+	(_shell.get("play_outro") as Callable).call(func() -> void:
+		if not is_instance_valid(self):
+			return
+		_closing = false
+		visible = false
+		closed.emit()
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:

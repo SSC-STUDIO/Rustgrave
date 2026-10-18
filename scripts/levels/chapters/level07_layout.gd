@@ -133,6 +133,22 @@ func build(host: Node2D) -> void:
 		prop(host, "balustrade", feet, 1.0)
 	# GalleryB 东端 912：80px 石栏在 888 会探出台面 16px，收到 864。
 	prop(host, "balustrade", Vector2(864, -160), 1.0)
+	# 竖井壁面的浮雕：每层 gallery 一扇尖窗 + 一尊石像鬼，柱影只站在台面上。
+	# 壁炬墙板 64 宽（624..688 / 752..816 在 GalleryB）：窗和像都让开它。
+	for feet in [Vector2(560, 80), Vector2(560, -160), Vector2(560, -400)]:
+		prop(host, "window", feet, 1.0, WINDOW_TINT)
+	for feet in [Vector2(848, 80), Vector2(848, -400)]:
+		prop(host, "gargoyle", feet, 1.0)
+	# 井底与顶层：骷髅柱立在台面内侧（GalleryA/C 都是 480..912），和塔顶的火把/巢错开。
+	prop(host, "skull_column", Vector2(488, 80), 1.0)
+	prop(host, "skull_column", Vector2(896, -400), 1.0)
+	prop(host, "column", Vector2(1216, TOP_Y), 1.0)
+	prop(host, "altar", Vector2(1248, TOP_Y), 1.0)
+	# 每层台面塌下来的碎渣：竖井里唯一「还在掉」的东西。
+	for feet in [Vector2(496, 80), Vector2(496, -160), Vector2(496, -400), Vector2(1040, TOP_Y)]:
+		prop(host, "rubble_dry", feet, 1.0)
+	# 支路壁龛（NookDeck 336..432）：龛内一扇小窗，让钩锁落点有光。
+	prop(host, "window", Vector2(384, NOOK_Y), 1.0, WINDOW_TINT)
 	# 尖窗是墙面装饰（z=-3），让开 64px 宽的壁炬墙板（624..688 / 752..816），
 	# 否则窗框会被火盘吞掉一半。
 	for feet in [Vector2(800, 320), Vector2(768, 80), Vector2(640, -160), Vector2(768, -400)]:

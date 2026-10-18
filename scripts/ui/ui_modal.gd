@@ -11,6 +11,7 @@ extends RefCounted
 ## 本文件不写 class_name：各界面按 preload 取用。
 
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
+const Transitions := preload("res://scripts/ui/ui_transition.gd")
 
 ## 背景纱幕的默认暗度：0.55 左右刚好压住画面又不至于变黑板。
 const DEFAULT_VEIL := 0.55
@@ -108,19 +109,41 @@ static func build(host: CanvasLayer, opts: Dictionary) -> Dictionary:
 	return {
 		"root": root, "veil": veil, "card": card, "body": body, "footer": footer,
 		"hint": hint, "back": back, "field": field,
-		"play_intro": func() -> void: play_intro(veil, card),
+		"card_home": card.position,
+		"play_intro": func() -> void: play_intro(root, veil, card, card.position),
+		"play_outro": func(on_done: Callable = Callable()) -> void: \
+				play_outro(root, veil, card, on_done),
+		"finish_instantly": func() -> void: finish_instantly(root, veil, card, card.position),
 	}
 
 
-## 开屏只让背景纱幕从"亮"淡到"暗"，卡片本身立刻到位。
-## 卡片跟着淡入会在开头 0.1s 变成半透明，叠在暂停菜单上就是双重曝光；
-## 弹窗要的是"啪一下出现、后面同时压暗"。
-static func play_intro(veil: CanvasItem, card: CanvasItem) -> void:
-	if veil == null or not veil.is_inside_tree():
+## 开屏：纱幕压下、卡片从下方 18px 合到位（带一点回弹）。
+## 旧版卡片立刻可见、只有纱幕淡入——双击设置时整张牌"闪"出来；
+## 现在卡片跟着纱幕一起进场，开关都走同一条曲线。
+static func play_intro(root: CanvasItem, veil: CanvasItem, card: CanvasItem,
+		card_home: Vector2) -> void:
+	if root == null or not root.is_inside_tree():
 		return
-	veil.modulate.a = 0.0
-	var tween := veil.create_tween()
-	tween.tween_property(veil, "modulate:a", 1.0, INTRO_TIME) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	root.visible = true
+	Transitions.modal_in(root, card, veil)
+
+
+## 退场：卡片沉回去 + 纱幕收掉，动画结束后回调 on_done。
+## 调用方在 on_done 里才真正 visible = false——"退完才消失"，不是闪断。
+static func play_outro(root: CanvasItem, veil: CanvasItem, card: CanvasItem,
+		on_done: Callable = Callable()) -> void:
+	if root == null or not root.is_inside_tree():
+		if on_done.is_valid():
+			on_done.call()
+		return
+	Transitions.modal_out(root, card, veil, on_done)
+
+
+## 跳过动画直接落位：开屏第一帧、headless 测试、场景切换时的兜底。
+static func finish_instantly(root: CanvasItem, veil: CanvasItem, card: CanvasItem,
+		card_home: Vector2) -> void:
+	Transitions.modal_reset(root, card, veil, card_home, 1.0)
 	if card != null:
 		card.modulate.a = 1.0
+	if veil != null:
+		veil.modulate.a = 1.0

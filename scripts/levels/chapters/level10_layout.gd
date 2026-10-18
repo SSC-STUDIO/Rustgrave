@@ -212,6 +212,21 @@ func _build_decor(host: Node2D) -> void:
 	prop(host, "pipe_valve", Vector2(452, FLOOR_Y), 1.0, MACHINE_TINT)
 	for i in range(RUBBLE.size()):
 		prop(host, RUBBLE_KEYS[i % RUBBLE_KEYS.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
+	# 送渣轨道的残件：入口回廊与门前厅各有一段铁栏和断链。竞技场（1100–2300）
+	# 仍然只有壁炬与柱子——Boss 落点不能被装饰误导。
+	for x in [64.0, 96.0, 1024.0]:
+		prop(host, "fence", Vector2(x, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "girder_l", Vector2(112.0, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "girder_r", Vector2(1048.0, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "chain", Vector2(248.0, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "chain", Vector2(1000.0, FLOOR_Y), 1.0, MACHINE_TINT)
+	prop(host, "rock_pile", Vector2(56.0, FLOOR_Y), 1.0, TONE)
+	prop(host, "rubble_dry", Vector2(1064.0, FLOOR_Y), 1.0, TONE)
+	# 熔渣河两岸的渣堤碎渣：坑沿（480–720）不探出去，只贴在岸上。
+	prop(host, "rubble_dry_c", Vector2(440.0, FLOOR_Y), 1.0, TONE)
+	prop(host, "rubble_dry", Vector2(736.0, FLOOR_Y), 1.0, TONE)
+	# 支路守夜台下：从地面钩上去的人落点旁这块是「守夜人留下的」。
+	prop(host, "bones", Vector2(288.0, FLOOR_Y), 1.0, TONE)
 
 
 ## 炉心祭坛：终局门旁的背景墙板，残芯的所在。顶 64px 是素墙，走 RuinPlate 塌成残垣，

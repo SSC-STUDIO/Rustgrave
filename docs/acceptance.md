@@ -129,6 +129,91 @@ peek `--layers`/`-Win`、walkthrough 拾取重试。合并后全量回归与双�
 结论：节点数与绘制调用在四机位间稳定、没有随停留时间增长（FX/粒子/音频节点有预算
 测试兜底）；离屏帧率不足以判断显示器性能。真机/实显示器性能仍未验证。
 
+#### 性能调优（CPU 侧，不改变任何画面输出）
+
+新增 `tools/frame_cost_probe.gd` + `scenes/tools/FrameCostProbe.tscn`：同一真实画布壳、
+相机停在一个机位，采样帧时间并遍历整棵树输出类直方图（每类节点数 / 其中带
+`_process` / `_physics_process` / Sprite / Light 的数量），JSON 存
+`screenshots/peek/frame_cost/`。它把预算归因到系统：调优前 level01 的 14.68 ms 帧时间里
+process 占 14.68 ms、physics 只占 0.25 ms——**开销在脚本与节点派发，不在填充率**，
+所以本轮全部改在 CPU 侧，没有动任何贴图、材质、着色器或绘制顺序。
+（"调优前 14.68 ms"是上一轮的单点采样，同样受下方噪声影响；本节的可靠结论是
+结构不变，不是毫秒数。）
+
+| 测量项（level01，同机同机位） | 调优前（单点采样） | 调优后（5 次区间） |
+|---|---:|---:|
+| process 平均（ms） | 14.68 | 12.13–18.04（噪声 ±50%，**不作证据**） |
+| 帧时间四机位（ms） | 13.19 / 16.41 / 12.59 / 22.68 | 12.13 / 15.54 / 16.05 / 16.83 / 18.04 |
+| 节点数 | ~2231 | 2230.9–2232.6（与调优前一致） |
+| 绘制调用 | ~236 | 236.4–236.6（与调优前一致） |
+| physics 平均（ms） | 0.25 | 0.14–0.16（与调优前同量级） |
+
+**测量可信度声明**：本机并非空闲——测量期间有另一个会话在跑
+`TransitionProbe` 等窗口化 Godot 实例，同一份代码连测 5 次的 process 平均为
+12.13 / 15.40 / 15.47 / 16.61 / 16.68 / 18.04 ms（相差 ±50%）。因此上表
+"调优后"帧时间**不能当作性能提升的证据**；可复现的是结构不变量：节点总数、
+绘制调用、physics 开销、带 `_process` 的节点数都与调优前记录值一致（见
+`screenshots/peek/frame_cost/`），说明本轮只减少了脚本派发，没有动任何画面输出。
+调优前后的毫秒数都是单点采样，同样受此噪声影响，**真实提升幅度未量化**。
+真机/实显示器性能仍未验证；要拿得出手的数字需要在空闲机器上重跑本探针。
+
+改动全部是「该动的时候才动」，视觉输出逐像素不变：
+
+1. **`WorldLight.apply()` 只绑定一次**（`scripts/world/world_light.gd`）：`follow`
+   在 `_ready` 之后永不改变，但每次 apply 都重跑 StringName 匹配 + 3 次属性写入。
+   全关 15–28 盏灯每帧都白付这笔钱；改为 `_bound` 标志只解析一次。
+2. **`WindSway` 共享一次时钟读**（`scripts/world/wind_sway.gd`）：一树一节点，
+   sway 角度是时钟风的纯函数。静态缓存按风的三个字段（heading/speed/gust）失效，
+   每个节点只比一个缓存浮点、只在角度真变了时写 `rotation`——重复写同样会弄脏
+   canvas item。
+3. **`AmbientLighting` 单趟元数据**（`scripts/levels/ambient_lighting.gd`）：闪烁灯
+   从每盏三个 meta 字典合成一个；amount/speed 为 0 的静态灯直接 early-out，
+   不再每帧重算 sin。
+4. **`ThemeMotes` 冻结时不再重绘**（`scripts/world/theme_motes.gd`）：`queue_redraw()`
+   每帧都会重跑 40 个浮尘的绘制脚本；改为只有模拟真的推进了才重绘，冻结时钟
+   （暂停菜单 / 过场 / 淡入淡出）直接 return。
+5. **`WeatherFx` 冻结时整层停摆**（`scripts/world/weather_fx.gd`）：暂停时雨继续落、
+   余烬继续飘，每帧照付全层模拟。冻结分支一次性把雨滴 / 余烬置为不可见，
+   之后每帧只做一次 `is_frozen()` 判断。
+6. **`LeafShed` 冻结时挂起**（`scripts/world/leaf_shed.gd`）：每棵树一个 `_process`，
+   冻结时把在飞的叶子 park（位置与年龄保持，恢复时无缝续落），不再逐树空转。
+7. **`TorchLight` 火焰步进缓存**（`scripts/world/torch_light.gd`）：火焰 8 fps 步进，
+   `_process` 却按 60+ fps 跑；相同步进不再重复写 halo 的 modulate。
+8. **`EnemyBase._process` 无窗口时自我挂起**（`scripts/enemies/enemy_base.gd`）：
+    riposte 窗口又短又稀有，剩下 99% 的帧是对全关每个敌人的空派发；窗口自身的
+   `open_riposte()` 重新武装它。
+
+回归（调优后全量套件，887/895 通过、0 engine errors）：`weather` 27/27、
+`wind`（含 leaf/sway）15/15、`enemy` 20/20、`boss` 27/27、`modal` 5/5、
+`layout` 111/111、`theme_motes` 10/10、`ui_transition` 6/6 通过。
+当前 8 个失败全部与本次调优无关，已用 `git stash` 剥掉本轮 8 个改动文件后重跑
+复现**同一组**失败与同一计数（887/895）：`tester_light_budget`（第一章启用 15 盏灯
+> 12 预算）、`m5_tier5` 3 条、`starter_gear_guard` 2 条属既有失败；
+`level01_backdrop` / `parallax_backdrop` 的 plate scale 3 条属本分支
+`cursor/theme-fit-level-props` 正在进行的背景主题改造（`theme_backdrop.gd`
+15:05 仍在被同一工作区的另一会话修改，两次运行的失败集随其编辑进度变化，
+与 `scripts/world/` 的改动无耦合点）。
+`character_equipment_adversarial` 在分支上属角色装备功能，与本次调优无关
+（本轮只改 `scripts/world/` 与 `scripts/enemies/enemy_base.gd`，共 8 个文件、
+198 增 22 删）。调优只降 CPU 派发，未触及任何绘制内容，因此节点数 / 绘制调用 /
+画面逐像素不变。
+
+#### 精修（本轮附加，2026-10-18 下午）
+
+1. **修回一处误删的行为保护**：`WorldLight.apply()` 的 flicker 分支原为
+   `if flicker and lit and not snap:`，本轮一度把 `not snap` 去掉，会让
+   `apply(true)`（首帧/大跳帧后瞬间到位）也吃上 flame 帧抖动——与 snap 的语义
+   相反。已恢复；ember_nest 的 `_sync_light(999.0)` 首帧亮度不受影响。
+2. **删除 git 跟踪的孤儿 uid**：`scripts/world/parallax_background.gd.uid`
+   （源文件不存在，无任何场景/脚本引用）。260 个 uid 与源文件现已一一对应。
+3. **清理调试副产物**：根目录 6.9 MB 的 `extension_api.json`
+   （`--dump-extension-api` 的误留产物）已删除并加入 `.gitignore`。
+4. **素材暂存区加 `.gdignore`**：`assets/external/commercial_rpg_assets/`
+   （9.4 MB 原始素材包，无代码引用）让 Godot 不再扫描导入。
+5. **`.gitignore` 增加 Android 构建产物**：`build/`、`*.apk`
+   （83 MB 的调试安装包不入库）。
+6. 全量脚本在项目上下文编译通过（`--import` 0 错误）。
+
 ### 阶段二 2A 补丁：装饰"方块感"与悬空件（用户复查）
 
 用户复查截图指出「意义不明的方块」与「贴地件悬空」。根因与修复：

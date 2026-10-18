@@ -43,6 +43,7 @@ const GROUPS: Array[Dictionary] = [
 
 var _root: Control
 var _shell: Dictionary = {}
+var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _scroll: ScrollContainer
 var _key_labels: Array[Label] = []
 
@@ -111,10 +112,15 @@ func _build() -> void:
 		var start_index := int(group["start"])
 		for i in range(start_index, start_index + int(group["count"])):
 			var row: Array = ROWS[i]
-			var key := UiKit.label(String(row[0]), &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-			key.custom_minimum_size = Vector2(250.0, 0.0)
+			# 键名列装进一块小铁牌（KeyCapPanel）：键名读起来才像"一个键"，
+			# 而不是一串和说明等权重的文字。牌宽 250 让左右两栏对齐。
+			var key_plate := UiKit.panel(&"KeyCapPanel")
+			key_plate.custom_minimum_size = Vector2(250.0, 30.0)
+			key_plate.size_flags_horizontal = Control.SIZE_SHRINK_END
+			var key := UiKit.label(String(row[0]), &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
 			key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			grid.add_child(key)
+			key_plate.add_child(key)
+			grid.add_child(key_plate)
 			_key_labels.append(key)
 			var desc := UiKit.label(String(row[1]), &"BodyLabel")
 			desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -187,6 +193,7 @@ func _on_setting_changed(key: StringName) -> void:
 
 func open() -> void:
 	refresh()
+	_closing = false
 	visible = true
 	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
@@ -194,12 +201,19 @@ func open() -> void:
 
 
 func close() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
-	visible = false
+	_closing = true
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
-	closed.emit()
+	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。
+	(_shell.get("play_outro") as Callable).call(func() -> void:
+		if not is_instance_valid(self):
+			return
+		_closing = false
+		visible = false
+		closed.emit()
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:

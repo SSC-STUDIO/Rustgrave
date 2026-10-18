@@ -622,6 +622,10 @@ class ToxinBubble extends Node2D:
 	var _phase := 0.0
 	var _radius := 1
 	var _tint := Color(0.55, 0.95, 0.62)
+	## 起点与浮点行程分开：每帧 round() 会把 8px/s × 0.05s = 0.4px 吃成 0。
+	var _origin := Vector2.ZERO
+	var _travel_y := 0.0
+	var _origin_captured := false
 
 	func _init(tint: Color) -> void:
 		_tint = tint
@@ -633,14 +637,17 @@ class ToxinBubble extends Node2D:
 		set_process(true)
 
 	func _process(delta: float) -> void:
+		if not _origin_captured:
+			_origin = position
+			_origin_captured = true
 		_age += delta
 		if _age >= _lifetime:
 			queue_free()
 			return
-		# 单方向：只往上飘；横向只有 ±2px 的摆动，位置取整保持像素边缘。
-		position.y -= _rise * delta
-		position.x += sin(_age * 2.2 + _phase) * 4.0 * delta
-		position = position.round()
+		# 只往上飘；横向 ±1.5px 摆动。行程在浮点里累加，显示坐标取整。
+		_travel_y += _rise * delta
+		var wobble := sin(_age * 2.2 + _phase) * 1.5
+		position = Vector2(roundf(_origin.x + wobble), roundf(_origin.y - _travel_y))
 		queue_redraw()
 
 	func _draw() -> void:

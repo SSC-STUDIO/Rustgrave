@@ -8,6 +8,9 @@ extends Node
 ## save stores that data keyed by a scene-relative path (with a resolver for
 ## older absolute `/root/...` keys) so a renamed root still remaps.
 
+const CharacterOriginScript := preload("res://scripts/data/character_origin.gd")
+const OriginCatalogScript := preload("res://scripts/data/origin_catalog.gd")
+
 const SAVE_VERSION := 1
 
 const DEFAULT_EQUIPMENT := {
@@ -59,6 +62,140 @@ func _ready() -> void:
 func has_save() -> bool:
 	return FileAccess.file_exists(save_path) or FileAccess.file_exists(_backup_path())
 
+func get_current_origin() -> StringName:
+	if data != null and data.has("player") and data["player"] is Dictionary:
+		var orig = data["player"].get("origin", "")
+		if orig != null and String(orig).strip_edges() != "":
+			return StringName(String(orig).strip_edges())
+	var tree := get_tree()
+	if tree != null:
+		var players := tree.get_nodes_in_group("player")
+		if not players.is_empty():
+			var p = players[0]
+			if p is Player and (p as Player).stats != null:
+				var oid := (p as Player).stats.get_origin_id()
+				if oid != &"":
+					return oid
+			elif "origin" in p and String(p.origin).strip_edges() != "":
+				return StringName(String(p.origin).strip_edges())
+	if FileAccess.file_exists(save_path):
+		var cfg := _load_cfg()
+		if cfg != null and cfg.has_section_key("player", "origin"):
+			var disk_origin: String = String(cfg.get_value("player", "origin", "")).strip_edges()
+			if disk_origin != "":
+				return StringName(disk_origin)
+	return &""
+
+
+## Initialize a brand new game session with selected character origin and starting loadout.
+## Clears old save, sets up in-memory data, and writes directly to disk so has_save() is true.
+func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary = {}) -> void:
+	delete_save()
+
+	var o_sym := StringName(str(origin_id)) if origin_id != null else &"ember_vanguard"
+	var o_str := String(o_sym).strip_edges()
+	if o_str == "":
+		o_sym = &"ember_vanguard"
+		o_str = "ember_vanguard"
+
+	var w_val = loadout.get("weapon", "broken_sword")
+	var a_val = loadout.get("armor", "broken_armor")
+	var t_val = loadout.get("trinket", "broken_pendant")
+	var bag_val = loadout.get("bag", [])
+
+	var w_str := _item_to_id(w_val)
+	if w_str == "":
+		w_str = "broken_sword"
+	var a_str := _item_to_id(a_val)
+	if a_str == "":
+		a_str = "broken_armor"
+	var t_str := _item_to_id(t_val)
+	if t_str == "":
+		t_str = "broken_pendant"
+
+	var clean_bag: Array = []
+	if bag_val is Array:
+		for b in bag_val:
+			var bid := _item_to_id(b)
+			if bid != "":
+				clean_bag.append(bid)
+
+	var preview: Dictionary = OriginCatalogScript.calculate_preview_stats(o_sym, w_str, a_str, t_str)
+	var max_hp: int = int(preview.get("max_hp", 5))
+
+	data = {
+		"meta": {
+			"version": SAVE_VERSION,
+			"scene": GameContext.WORLD_PATH,
+			"saved_at": Time.get_datetime_string_from_system(),
+			"ending": "",
+		},
+		"player": {
+			"origin": o_str,
+			"hp": max_hp,
+			"max_hp": max_hp,
+			"toxin": 0.0,
+			"max_toxin": 100.0,
+			"pos": Vector2.ZERO,
+			"facing": 1,
+			"pouch": [],
+			"sockets": [],
+		},
+		"equipment": {
+			"weapon": w_str,
+			"armor": a_str,
+			"trinket": t_str,
+			"bag": clean_bag,
+		},
+		"world": {},
+	}
+
+	consumed.clear()
+	lit_nests.clear()
+	flags.clear()
+	ending = ""
+	pending_spawn = Vector2.INF
+	entering_from_checkpoint = false
+	WorldClock.reset()
+	var atmosphere := WorldClock.snapshot()
+	data["atmosphere"] = atmosphere
+
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", SAVE_VERSION)
+	cfg.set_value("meta", "scene", GameContext.WORLD_PATH)
+	cfg.set_value("meta", "saved_at", data["meta"]["saved_at"])
+	cfg.set_value("meta", "ending", ending)
+
+	cfg.set_value("player", "origin", o_str)
+	cfg.set_value("player", "hp", max_hp)
+	cfg.set_value("player", "max_hp", max_hp)
+	cfg.set_value("player", "toxin", 0.0)
+	cfg.set_value("player", "max_toxin", 100.0)
+	cfg.set_value("player", "pos_x", 0.0)
+	cfg.set_value("player", "pos_y", 0.0)
+	cfg.set_value("player", "facing", 1)
+	cfg.set_value("player", "pouch", [])
+	cfg.set_value("player", "sockets", [])
+
+	cfg.set_value("equipment", "weapon", w_str)
+	cfg.set_value("equipment", "armor", a_str)
+	cfg.set_value("equipment", "trinket", t_str)
+	cfg.set_value("equipment", "bag", clean_bag)
+
+	cfg.set_value("consumed", "paths", [])
+	cfg.set_value("lit_nests", "paths", [])
+	cfg.set_value("story", "flags", [])
+
+	cfg.set_value("atmosphere", "time_of_day", float(atmosphere.get("time_of_day", WorldClock.DEFAULT_TIME)))
+	cfg.set_value("atmosphere", "weather", String(atmosphere.get("weather", "haze")))
+	cfg.set_value("atmosphere", "zone", String(atmosphere.get("zone", "outdoors")))
+	cfg.set_value("atmosphere", "wind_heading", float(atmosphere.get("wind_heading", -1.0)))
+
+	if not _write_cfg(cfg):
+		push_warning("SaveData: failed to save in init_new_game to %s" % save_path)
+	GameEvents.game_saved.emit()
+
+
 ## `spawn_override`: where the knight should stand when this save is loaded —
 ## used by level exits, whose save names the *next* scene while the knight is
 ## still standing in the old one.
@@ -86,6 +223,9 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 	cfg.set_value("meta", "scene", scene_path)
 	cfg.set_value("meta", "saved_at", data["meta"]["saved_at"])
 	var ps: Dictionary = player_state
+	var origin_str: String = String(ps.get("origin", "")).strip_edges()
+	if origin_str != "":
+		cfg.set_value("player", "origin", origin_str)
 	cfg.set_value("player", "hp", ps.get("hp", 0))
 	cfg.set_value("player", "max_hp", ps.get("max_hp", 1))
 	cfg.set_value("player", "toxin", ps.get("toxin", 0.0))
@@ -142,7 +282,7 @@ func load_game() -> bool:
 		"scene": cfg.get_value("meta", "scene", ""),
 		"saved_at": cfg.get_value("meta", "saved_at", ""),
 	}
-	data["player"] = {
+	var player_dict: Dictionary = {
 		"hp": cfg.get_value("player", "hp", 0),
 		"max_hp": cfg.get_value("player", "max_hp", 5),
 		"toxin": cfg.get_value("player", "toxin", 0.0),
@@ -152,6 +292,9 @@ func load_game() -> bool:
 		"pouch": cfg.get_value("player", "pouch", []),
 		"sockets": cfg.get_value("player", "sockets", []),
 	}
+	if cfg.has_section_key("player", "origin"):
+		player_dict["origin"] = String(cfg.get_value("player", "origin", ""))
+	data["player"] = player_dict
 	if cfg.has_section("equipment"):
 		var raw_bag: Variant = cfg.get_value("equipment", "bag", [])
 		var clean_bag: Array = []
@@ -294,6 +437,15 @@ func _collect_player(player: Node) -> Dictionary:
 	var hp := player.get_node_or_null("Health") as Health
 	var tox := player.get_node_or_null("ToxinMeter") as ToxinMeter
 	var state: Dictionary = {}
+	var cur_origin: String = ""
+	if player is Player and (player as Player).stats != null:
+		cur_origin = String((player as Player).stats.get_origin_id()).strip_edges()
+	elif "origin" in player and player.origin != null:
+		cur_origin = String(player.origin).strip_edges()
+	if cur_origin == "" and data != null and data.has("player") and data["player"] is Dictionary:
+		cur_origin = String(data["player"].get("origin", "")).strip_edges()
+	if cur_origin != "":
+		state["origin"] = cur_origin
 	state["hp"] = hp.current if hp else 0
 	state["max_hp"] = hp.max_hp if hp else 5
 	state["toxin"] = tox.toxin if tox else 0.0
@@ -436,7 +588,21 @@ func apply_player(player: Node) -> void:
 	if not data.has("player") and not data.has("equipment"):
 		return
 
-	# 1. Restore equipment first so character stats & max HP bonuses update before health clamping
+	# 1. Apply origin first so base stats are established before equipment calculations
+	var o := get_current_origin()
+	if player is Player:
+		(player as Player).origin = o
+		if (player as Player).stats != null:
+			if o != &"":
+				(player as Player).stats.apply_origin(o)
+			else:
+				(player as Player).stats.apply_origin(&"")
+	elif "origin" in player:
+		player.origin = o
+		if "stats" in player and player.stats != null and player.stats.has_method("apply_origin"):
+			player.stats.apply_origin(o)
+
+	# 2. Restore equipment so character stats & max HP bonuses update before health clamping
 	var eq: EquipmentInventory = null
 	if player is Player:
 		eq = (player as Player).equipment_inventory

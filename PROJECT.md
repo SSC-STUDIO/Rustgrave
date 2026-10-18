@@ -1,121 +1,136 @@
-# Project: Rustgrave Character Attributes & Equipment System
+# Project: Rustgrave Character Origin Selection & Starting Loadout System
 
 ## Architecture
-- **Attributes Component** (`scripts/player/character_stats.gd`):
-  Lightweight numerical model managing base attributes, equipment bonuses, and computed effective attributes:
-  - `max_hp`: Base 5, modified by equipment.
-  - `attack`: Base 0, adds directly to melee swing active hitbox damage (`hitbox.damage`).
-  - `defense`: Base 0, subtracts from received damage in `Hurtbox`/`Health` with a strict floor of 1 damage.
-  - `toxin_resist`: Base 0.0 (clamped [0.0, 0.8]), reduces toxin accumulation from `ToxinMeter.expose()`.
-  - `toxin_decay`: Base 0.0, multiplies natural toxin drain rate in `ToxinMeter._process()`.
-  - `speed_mult`: Base 1.0, scales player horizontal and dash speeds in `PlayerController`.
-  - Harmonious with existing ember resonance (`Resonance`) and toxin bands (`cold`, `warm`, `hot`, `overflow`).
-- **Equipment Component** (`scripts/data/equipment_item.gd`, `scripts/data/equipment_catalog.gd`, `scripts/player/equipment_inventory.gd`):
-  - 3 Distinct slots: `weapon`, `armor`, `trinket`.
-  - Equipment bag: Array of inventory items (capacity: 16).
-  - Starter set: "Broken Knight" set (`broken_sword`, `broken_armor`, `broken_pendant`).
-  - Set synergy: 2-piece and 3-piece set bonuses calculated and applied to total stats.
-  - World pickups: `EquipmentPickup` (`Interactable` on collision layer 64 / mask 2), `SaveData.consumed` integration, HUD banner announcement.
-- **Persistence & Migration** (`scripts/autoload/save_data.gd`):
-  - Section `[equipment]` in `rustgrave_save.cfg`: `weapon`, `armor`, `trinket`, `bag`.
-  - 100% backward compatible: Missing `[equipment]` in legacy saves safely initializes default Broken Knight starter gear without errors.
-  - Full lifecycle preservation: Restored upon game load, death respawn, and cross-level scene travel.
-- **UI & Controls Integration** (`scripts/ui/character_equipment_panel.gd`, `scripts/ui/pause_menu.gd`):
-  - Standalone HUD / CanvasLayer UI panel (`layer = 21` or embedded in PauseMenu).
-  - Toggled via `Tab` / `I` shortcut or from `PauseMenu` item `ID_EQUIPMENT := &"equipment"`.
-  - Handles game pause (`get_tree().paused = true`), focus capture, and resume on close.
-  - Full keyboard, mouse, and touch interaction.
+- **Origin Model & Catalog** (`scripts/data/character_origin.gd`, `scripts/data/origin_catalog.gd`):
+  - 3 Distinct character origins:
+    - **Ember Vanguard (余烬重骑)**: `max_hp +1`, `defense +1`. Focus: Sturdy defense and attrition.
+    - **Scrap Scavenger (废料剑客)**: `attack +1`, `speed_mult +10%` (+0.10). Focus: High mobility slash and agile evasions.
+    - **Rust Automaton (锈械学者)**: `toxin_resist +20%` (+0.20), `toxin_decay +50%` (+0.50). Focus: Corrosive fluid immunity and toxic mire combat.
+  - Data-driven definition: ID, title, lore description, combat focus, stat modifiers, preset weapon & armor IDs, allowed trinket pool.
+  - Static preview helper: `OriginCatalog.calculate_preview_stats(origin_id, weapon_id, armor_id, trinket_id) -> Dictionary` ensuring mathematical parity between UI preview and runtime `CharacterStats`.
+
+- **Equipment & Starting Loadout System** (`scripts/data/equipment_catalog.gd`, `scripts/player/equipment_inventory.gd`):
+  - Trinket pool:
+    - `broken_pendant` ("破损挂坠", toxin_resist +0.05, Broken Knight set).
+    - `bone_amulet` / `bone_charm` ("白骨护身符", max_hp +1, speed_mult +0.05). Symmetrically aliased in `EquipmentCatalog.for_id()` for 100% backward compatibility with existing tests.
+    - `toxic_filter_talisman` / `toxic_ward` ("滤毒符印", toxin_resist +0.15, toxin_decay +0.50). Symmetrically aliased in `EquipmentCatalog.for_id()`.
+  - Origin starting equipment:
+    - Ember Vanguard: `broken_sword` (atk +1), `broken_armor` (def +1, max_hp +1).
+    - Scrap Scavenger: `scavenger_blade` (atk +1), `scavenger_rags` (def +1).
+    - Rust Automaton: `scholar_probe` (atk +1), `scholar_cowl` (def +1, toxin_resist +0.05).
+
+- **Character Stats Integration** (`scripts/player/character_stats.gd`):
+  - Bare default stats remain unadjusted (HP 5, ATK 0, DEF 0, RES 0.0, DEC 0.0, SPD 1.0) when origin is `""` to preserve existing lifecycle tests.
+  - `apply_origin(origin_id: StringName) -> void` dynamically adjusts base stats and emits `stats_changed`.
+  - Strict clamping: Toxin resist `[0.0, 0.8]`, speed mult `[0.1, 3.0]`, damage floor `>= 1`.
+
+- **Title Screen to Gameplay Flow** (`scripts/ui/title_screen.gd`, `scenes/ui/CharacterSelectScreen.tscn`, `scripts/ui/character_select_screen.gd`):
+  - `CharacterSelectScreen` modal built with `Modal.build()` on `CanvasLayer` at `layer = 8`.
+  - TitleScreen menu rail keeps exactly 5 items (strictly adhering to `tests/title_screen_test.gd`).
+  - Interception:
+    - "点燃余烬 (New Game)": If save exists, prompt overwrite confirmation. Upon overwrite, open `CharacterSelectScreen`. If no save exists, open `CharacterSelectScreen` directly.
+    - Cancellation: Esc or "取消" closes `CharacterSelectScreen` and restores `TitleScreen._menu.active = true` safely.
+    - Embarkation: "点燃启程" calls `SaveData.init_new_game(origin_id, loadout)` and transitions via `Director.fade_to(GameContext.WORLD_PATH, FADE_OUT)` to `Level01_Static`.
+
+- **Persistence & Player Lifecycle** (`scripts/autoload/save_data.gd`, `scripts/player/player.gd`):
+  - `SaveData.init_new_game(origin_id, loadout)` initializes memory state and saves to disk immediately, so `has_save()` returns true.
+  - ConfigFile `[player]` section persists `origin = "<id>"`.
+  - 100% backward compatible: Missing `origin` key in legacy saves safely defaults without crashing.
+  - In `SaveData.apply_player(player)`: Correct restoration order:
+    1. Apply origin to `player.stats`
+    2. Apply equipment to `player.equipment`
+    3. Apply health and toxin with clamping to effective max values
+    4. Restore facing and cores
+
+- **In-Game UI Polish & Color Coding** (`scripts/ui/character_equipment_panel.gd`):
+  - Top-left header displays selected origin badge: `身份 · 余烬重骑`.
+  - Chromatic color hierarchy for attributes:
+    - Attack: Warm yellow (`#FFC14A`)
+    - Defense: Metallic iron grey (`#BAC4CC`)
+    - Toxin Resist & Decay: Teal/cyan (`#5CE1B6`)
+    - Speed Multiplier: Agility blue (`#5CB3FF`)
+    - Max HP: Vitality green (`#76E074` or warm amber)
+  - Tooltips formatted with detailed calculation formulas and mitigation explanations.
+  - Pixel-perfect layout across resolutions, gamepad/keyboard/mouse support.
 
 ## Code Layout
-- `scripts/data/equipment_item.gd`: Resource definition for equipment items.
-- `scripts/data/equipment_catalog.gd`: Static registry and factory for all equipment definitions.
-- `scripts/player/character_stats.gd`: Attribute computation and modifier engine.
-- `scripts/player/equipment_inventory.gd`: Slot manager and bag container.
-- `scripts/interactables/equipment_pickup.gd`: World pickup scene and script.
-- `scenes/interactables/EquipmentPickup.tscn`: Pickup scene.
-- `scripts/ui/character_equipment_panel.gd`: UI script for attributes and equipment slots/bag.
-- `scenes/ui/CharacterEquipmentPanel.tscn`: UI scene.
-- `scripts/autoload/save_data.gd`: Save, load, and player restore integration.
-- `scripts/combat/melee_combat.gd`: Melee damage integration point.
-- `scripts/combat/hurtbox.gd` / `scripts/player/health.gd`: Defense reduction integration point.
-- `scripts/player/toxin_meter.gd`: Toxin resistance and decay integration point.
-- `scripts/player/player_controller.gd`: Movement speed modifier integration point.
-- `scripts/player/player.gd`: Node composition and wiring.
-- `scripts/ui/pause_menu.gd`: Submenu entry point.
-- `tests/character_stats_test.gd`: Tier 1 tests.
-- `tests/equipment_inventory_test.gd`: Tier 2 tests.
-- `tests/stats_combat_integration_test.gd`: Tier 3 tests.
-- `tests/equipment_e2e_test.gd`: Tier 4 tests.
+- `scripts/data/character_origin.gd`: Origin resource definition.
+- `scripts/data/origin_catalog.gd`: Origin registry, metadata, and static preview calculations.
+- `scripts/data/equipment_catalog.gd`: Catalog registry with aliasing (`bone_amulet`, `toxic_filter_talisman`) and origin starter gear.
+- `scripts/player/character_stats.gd`: Origin modifier integration and dynamic calculation.
+- `scripts/autoload/save_data.gd`: `init_new_game()`, `origin` serialization, and `apply_player()` sequencing.
+- `scripts/ui/character_select_screen.gd`: Modal UI for origin selection, trinket picking, 6-stat live preview, and embarkation.
+- `scenes/ui/CharacterSelectScreen.tscn`: Modal scene for character selection.
+- `scripts/ui/title_screen.gd`: New Game flow interception, modal activation, Esc safety.
+- `scripts/ui/character_equipment_panel.gd`: Origin title badge, chromatic stat color hierarchy, tooltips.
+- `tests/character_origin_test.gd`: Origin data, catalog, and stat calculation unit tests.
+- `tests/character_select_flow_test.gd`: Title flow, modal interaction, Esc cancellation, and embarkation tests.
+- `tests/origin_persistence_lifecycle_test.gd`: SaveData serialization, legacy compatibility, and player lifecycle tests.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Attribute Model & Calculation | Base attributes, equipment modifiers, and clamped stat getters | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Melee Attack Scaling | Attack attribute directly scales melee active hitbox damage | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | Defense & Damage Mitigation | Defense attribute mitigates incoming damage with a 1-damage floor | M1 | ORIGINAL_REQUEST §R1 |
-| 4 | Toxin Resistance & Decay | Resist reduces exposure accumulation; decay speeds up drain | M1 | ORIGINAL_REQUEST §R1 |
-| 5 | Movement Speed Scaling | Speed multiplier dynamically scales player cruise and dash speeds | M1 | ORIGINAL_REQUEST §R1 |
-| 6 | Equipment Resource & Catalog | EquipmentItem resource and EquipmentCatalog factory | M2 | ORIGINAL_REQUEST §R2 |
-| 7 | Slot Management & Inventory | 3 Slots (Weapon, Armor, Trinket), bag storage, equip, unequip, swap | M2 | ORIGINAL_REQUEST §R2 |
-| 8 | Starter Gear & Set Synergy | Broken Knight starter set with 2pc/3pc synergy bonuses | M2 | ORIGINAL_REQUEST §R2 |
-| 9 | World Equipment Pickup & Drop | EquipmentPickup interactable, scrap pile / enemy drop, HUD announcement | M2 | ORIGINAL_REQUEST §R2 |
-| 10 | SaveData Serialization | ConfigFile [equipment] section read/write | M3 | ORIGINAL_REQUEST §R4 |
-| 11 | Legacy Save Backward Compatibility | Safe default fallback for old saves without [equipment] | M3 | ORIGINAL_REQUEST §R4 |
-| 12 | Respawn & Level Transition Retention | Equipment and bag retained across death respawn and level exit | M3 | ORIGINAL_REQUEST §R4 |
-| 13 | Character & Equipment UI Panel | Visual overview of stats, 3 slots, bag grid, item tooltips | M4 | ORIGINAL_REQUEST §R3 |
-| 14 | Tab/I Hotkey & Pause Arbitration | Open/close with Tab or I, proper tree pause and input focus | M4 | ORIGINAL_REQUEST §R3 |
-| 15 | PauseMenu Integration | Equipment entry in PauseMenu with back navigation | M4 | ORIGINAL_REQUEST §R3 |
-| 16 | Multi-Input Support | Keyboard, mouse click/hover, and touch support | M4 | ORIGINAL_REQUEST §R3 |
-| 17 | E2E Test Suite (Tiers 1-4) | Comprehensive 4-Tier test suite covering all features and boundaries | E2E_Track | ORIGINAL_REQUEST §Acceptance |
-| 18 | Final Verification & Hardening | 100% test pass on run_tests.ps1, 0 errors, no regressions, Tier 5 hardening | M5 | ORIGINAL_REQUEST §Acceptance |
+| 1 | Origin Resource & Catalog | 3 Origins (Ember Vanguard, Scrap Scavenger, Rust Automaton) with stats, lore, and loadouts | M1 | ORIGINAL_REQUEST §R1 |
+| 2 | Starter Loadout & Trinket Aliasing | Origin gear definitions and dual-aliasing for `bone_amulet` and `toxic_filter_talisman` | M1 | ORIGINAL_REQUEST §R2 |
+| 3 | Dynamic 6-Stat Preview Model | Static calculation helper producing preview stats matching CharacterStats | M1 | ORIGINAL_REQUEST §R2 |
+| 4 | CharacterStats Origin Integration | `apply_origin()` on CharacterStats without regressing unassigned bare stats | M1 | ORIGINAL_REQUEST §R1 |
+| 5 | CharacterSelectScreen Modal | Origin tabs, loadout display, trinket picker, dynamic 6-stat preview | M2 | ORIGINAL_REQUEST §R2, §R3 |
+| 6 | TitleScreen New Game Flow Interception | Overwrite confirmation if save exists -> CharacterSelectScreen modal | M2 | ORIGINAL_REQUEST §R3 |
+| 7 | Esc & Cancel Safe Return | Cleanly dismiss CharacterSelectScreen and reactivate TitleScreen menu | M2 | ORIGINAL_REQUEST §R3 |
+| 8 | Embarkation & Transition | "点燃启程" calls init_new_game and transitions to Level01_Static via Director | M2 | ORIGINAL_REQUEST §R3 |
+| 9 | SaveData Origin Persistence | ConfigFile [player] origin serialization and backward-compatible fallback | M3 | ORIGINAL_REQUEST §R3, §R4 |
+| 10 | SaveData init_new_game() | Atomic creation of fresh save with origin and loadout written to disk | M3 | ORIGINAL_REQUEST §R3 |
+| 11 | Player Lifecycle State Restoration | `apply_player()` sequencing: origin -> equipment -> health & toxin clamping | M3 | ORIGINAL_REQUEST §R3 |
+| 12 | In-Game Origin Badge Header | Top-left header displays `身份 · <Origin Title>` | M4 | ORIGINAL_REQUEST §R4 |
+| 13 | Chromatic Stat Color Grading | Distinct color hierarchy: yellow attack, grey defense, teal toxin, blue speed | M4 | ORIGINAL_REQUEST §R4 |
+| 14 | In-Game Stat Tooltips & Layout | Detailed formula tooltips, pixel alignment across resolutions and input modes | M4 | ORIGINAL_REQUEST §R4 |
+| 15 | E2E Test Suite (Tiers 1-4) | Comprehensive test coverage for origins, loadouts, title flow, and lifecycle | E2E_Track | ORIGINAL_REQUEST §Acceptance |
+| 16 | Final Verification & Hardening | 100% full-suite pass, 0 engine errors, zero regressions, Tier 5 adversarial hardening | M5 | ORIGINAL_REQUEST §Acceptance |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Attributes & Combat Integration | `character_stats.gd`, wiring into `melee_combat.gd`, `hurtbox.gd`/`health.gd`, `toxin_meter.gd`, `player_controller.gd` | none | DONE |
-| M2 | Equipment System & Drops | `equipment_item.gd`, `equipment_catalog.gd`, `equipment_inventory.gd`, `EquipmentPickup.tscn`, starter gear, set synergy | M1 | DONE |
-| M3 | Persistence & Backward Compatibility | `save_data.gd` integration, legacy save fallback, respawn & level transition retention | M2 | DONE |
-| M4 | UI & Pause Menu Integration | `character_equipment_panel.gd`, `CharacterEquipmentPanel.tscn`, `pause_menu.gd` integration, Tab/I hotkey, input focus | M2, M3 | IN_PROGRESS |
-| E2E | E2E Testing Track | Test infra setup, Tiers 1-4 test scripts, publishes `TEST_READY.md` | M1 interface contracts | DONE |
-| M5 | Final Milestone: 100% Pass & Tier 5 Hardening | Pass 100% E2E tests, 0 engine errors, no regression, Phase 2 adversarial hardening | M1, M2, M3, M4, E2E | PLANNED |
+| M1 | Origin Models, Catalog & Stat Calculation | `character_origin.gd`, `origin_catalog.gd`, `equipment_catalog.gd` aliasing & loadout gear, `character_stats.gd` origin integration | none | DONE |
+| M2 | CharacterSelectScreen & Title Flow | `character_select_screen.gd`, `CharacterSelectScreen.tscn`, `title_screen.gd` interception, Esc cancellation, embarkation flow | M1 | DONE |
+| M3 | SaveData & Player Lifecycle Integration | `save_data.gd` `init_new_game()`, `origin` serialization, `apply_player()` restoration, level transition retention | M1, M2 | DONE |
+| M4 | In-Game UI Polish & Visuals | `character_equipment_panel.gd` origin badge header, chromatic color hierarchy, stat tooltips | M1, M3 | DONE |
+| E2E | E2E Testing Track | Design & implement comprehensive automated tests across Tiers 1-4 | M1, M2, M3, M4 | DONE |
+| M5 | Final Milestone: 100% Pass & Hardening | Full test runner execution (`run_tests.ps1`), 0 engine errors, Phase 2 adversarial coverage hardening | M1, M2, M3, M4, E2E | IN_PROGRESS |
 
 ## Interface Contracts
-### Player ↔ CharacterStats
+### OriginCatalog ↔ CharacterStats
+- `character_origin.gd`:
+  - `id: StringName` (`&"ember_vanguard"`, `&"scrap_scavenger"`, `&"rust_automaton"`)
+  - `title: String` ("余烬重骑", "废料剑客", "锈械学者")
+  - `lore: String`
+  - `combat_focus: String`
+  - `stat_modifiers: Dictionary` (`{"max_hp": int, "attack": int, "defense": int, "toxin_resist": float, "toxin_decay": float, "speed_mult": float}`)
+  - `default_weapon: StringName`
+  - `default_armor: StringName`
+  - `allowed_trinkets: Array[StringName]`
+- `origin_catalog.gd`:
+  - `static func get_all_origins() -> Array[CharacterOrigin]`
+  - `static func get_origin(id: StringName) -> CharacterOrigin`
+  - `static func calculate_preview_stats(origin_id: StringName, weapon_id: StringName, armor_id: StringName, trinket_id: StringName) -> Dictionary`
 - `character_stats.gd`:
-  - `get_attack_bonus() -> int`
-  - `get_defense_reduction() -> int`
-  - `get_max_hp_bonus() -> int`
-  - `get_toxin_resistance() -> float` (clamped [0.0, 0.8])
-  - `get_toxin_decay_bonus() -> float`
-  - `get_speed_multiplier() -> float`
-  - `recalculate(equipped_items: Array, set_bonuses: Dictionary) -> void`
-  - `signal stats_changed()`
+  - `apply_origin(origin_id: StringName) -> void`
+  - `get_origin_id() -> StringName`
 
-### Player ↔ EquipmentInventory
-- `equipment_inventory.gd`:
-  - `const SLOT_WEAPON := &"weapon"`
-  - `const SLOT_ARMOR := &"armor"`
-  - `const SLOT_TRINKET := &"trinket"`
-  - `var equipped := { SLOT_WEAPON: null, SLOT_ARMOR: null, SLOT_TRINKET: null }`
-  - `var bag: Array = []`
-  - `func equip_item(item: EquipmentItem, slot: StringName) -> bool`
-  - `func unequip_slot(slot: StringName) -> bool`
-  - `func swap_item(slot: StringName, bag_index: int) -> bool`
-  - `func add_to_bag(item: EquipmentItem) -> bool`
-  - `func remove_from_bag(bag_index: int) -> EquipmentItem`
-  - `func get_equipped(slot: StringName) -> EquipmentItem`
-  - `func get_set_synergies() -> Array[Dictionary]`
-  - `signal equipment_changed()`
-  - `signal bag_changed()`
+### TitleScreen ↔ CharacterSelectScreen
+- `CharacterSelectScreen`:
+  - `signal embark_requested(origin_id: StringName, loadout: Dictionary)`
+  - `signal cancelled()`
+  - `open() -> void`
+  - `close() -> void`
+- `TitleScreen`:
+  - Intercept `ID_NEW` -> open confirmation if save exists -> open `CharacterSelectScreen`
+  - On `cancelled` -> reactivate `_menu.active = true`
+  - On `embark_requested` -> call `SaveData.init_new_game(origin_id, loadout)` -> `Director.fade_to(GameContext.WORLD_PATH, FADE_OUT)`
 
-### SaveData ↔ Equipment
-- Section `[equipment]` in ConfigFile:
-  - `weapon`: String (item ID, e.g. `"broken_sword"`)
-  - `armor`: String (item ID, e.g. `"broken_armor"`)
-  - `trinket`: String (item ID, e.g. `"broken_pendant"`)
-  - `bag`: Array[String] (list of item IDs)
-- Fallback for missing section/keys:
-  - Default `weapon = "broken_sword"`
-  - Default `armor = "broken_armor"`
-  - Default `trinket = "broken_pendant"`
-  - Default `bag = []`
+### SaveData ↔ Player & Systems
+- `save_data.gd`:
+  - `func init_new_game(origin_id: StringName, loadout: Dictionary) -> void`
+  - `func get_current_origin() -> StringName`
+  - ConfigFile `[player]` key `origin: String` (defaults safely to `""` for legacy saves)
+  - `apply_player(player: Node) -> void`:
+    Order: `origin` -> `equipment` -> `health & toxin` -> `facing & cores`

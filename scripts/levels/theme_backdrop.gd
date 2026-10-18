@@ -136,8 +136,11 @@ const THEMES := {
 		"void": Color(0.035, 0.07, 0.085),
 		"mood": Color(0.66, 0.82, 0.84),
 		"layers": [
+			# 远景：更深的拱顶大厅剪影（慢速 0.16，只留窗光），和苔砖墙之间拉开
+			# 一层空气。原 2 层叠在一起时墙与柱糊成一张纸。
+			{"name": "HallFar", "path": GOTHIC_CASTLE, "scroll": Vector2(0.16, 0.06), "pos": Vector2(0, 40), "scale": 1.0, "tint": Color(0.34, 0.46, 0.48), "region": Rect2(0, 0, 480, 200)},
 			{"path": CASTLE_INTERIOR, "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(0.78, 0.9, 0.9)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
 		],
 	},
 	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
@@ -152,13 +155,15 @@ const THEMES := {
 			{"path": BACKDROP_DIR + "wall_forge.png", "scroll": Vector2(0.14, 0.1),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.72, 0.62),
 				 "tile": true, "covers_top": true},
-			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1, 1, 1, 0.5)},
-			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color.WHITE},
-			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color.WHITE},
-			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(1, 1, 1, 0.9)},
+			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.0, "tint": Color(1, 1, 1, 0.5)},
+			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.0, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.0, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.0, "tint": Color(1, 1, 1, 0.9)},
 			{"path": BACKDROP_DIR + "truss_forge.png", "scroll": Vector2(0.22, 0.16),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.8, 0.74), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_forge.png", "scroll": Vector2(0.5, 0.3),
+			# 机械剪影站在地面线上，是最近的一层：scroll 必须比 forge_near 快，
+			# 否则「近的比远的慢」，视差方向反了，纵深读不出来。
+			{"path": BACKDROP_DIR + "machinery_forge.png", "scroll": Vector2(0.7, 0.3),
 				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.88, 0.82)},
 		],
 	},
@@ -172,10 +177,10 @@ const THEMES := {
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.88, 0.72, 0.64),
 				 "tile": true, "covers_top": true},
 			{"path": BACKDROP_DIR + "core_hall.png", "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(1, 1, 1, 0.82)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.3, 0.08, 0.07, 0.92), "repeat": 352.0},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 190), "scale": 1.0, "tint": Color(0.3, 0.08, 0.07, 0.92), "repeat": 352.0},
 			{"path": BACKDROP_DIR + "truss_core.png", "scroll": Vector2(0.22, 0.16),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.9, 0.82, 0.76), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_core.png", "scroll": Vector2(0.5, 0.3),
+			{"path": BACKDROP_DIR + "machinery_core.png", "scroll": Vector2(0.7, 0.3),
 				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(1.0, 0.9, 0.84)},
 		],
 	},
@@ -191,7 +196,7 @@ const THEMES := {
 			{"name": "WallPlate", "path": BACKDROP_DIR + "wall_slate.png", "scroll": Vector2(0.14, 0.1),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.84, 0.82, 0.94),
 				 "tile": true, "covers_top": true},
-			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 110), "scale": 1.25, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
+			{"path": GOTHIC_CASTLE, "scroll": Vector2(0.4, 0.16), "pos": Vector2(0, 152), "scale": 1.0, "tint": Color(0.9, 0.9, 1.0), "region": Rect2(0, 0, 480, 168)},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.2, 0.17, 0.3, 0.9), "repeat": 448.0},
 			{"name": "VaultTruss", "path": BACKDROP_DIR + "truss_slate.png", "scroll": Vector2(0.24, 0.18),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.72, 0.7, 0.82), "covers_top": true},
@@ -204,6 +209,10 @@ const THEMES := {
 		"void": Color(0.03, 0.03, 0.04),
 		"mood": Color(0.78, 0.78, 0.9),
 		"layers": [
+			# 竖井远景：塔中塔。外层一座更暗、更窄的塔身剪影（慢速 0.12），只留
+			# 顶部一列透光的箭窗；它和近处的 tower_wall 形成「墙在前、塔在后」
+			# 的纵深，不然整座竖井只是一张贴着砖的纸。
+			{"name": "TowerFar", "path": GOTHIC_CASTLE, "scroll": Vector2(0.12, 0.05), "pos": Vector2(64, 24), "scale": 1.4, "tint": Color(0.3, 0.3, 0.38), "region": Rect2(120, 0, 240, 300)},
 			{"path": BACKDROP_DIR + "tower_wall.png", "scroll": Vector2(0.3, 0.3), "pos": Vector2(0, 0), "scale": 1.0, "tint": Color.WHITE, "tile": true, "covers_top": true},
 			{"path": COLUMN_PATH, "scroll": Vector2(0.62, 0.28), "pos": Vector2(220, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.15, 0.2, 0.9), "repeat": 448.0},
 		],
@@ -214,10 +223,15 @@ const THEMES := {
 		"void": Color(0.06, 0.1, 0.11),
 		"mood": Color(0.8, 0.86, 0.86),
 		"layers": [
-			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 1.8, "tint": Color(0.8, 0.9, 0.92)},
+			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 2.0, "tint": Color(0.8, 0.9, 0.92)},
 			{"path": BACKDROP_DIR + "wall_clouds.png", "scroll": Vector2(0.07, 0.03), "pos": Vector2(0, -60), "scale": 2.0, "tint": Color(1, 1, 1, 0.85)},
-			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.14, 0.05), "pos": Vector2(0, 20), "scale": 1.6, "tint": Color(0.82, 0.9, 0.9)},
-			{"path": BACKDROP_DIR + "wall_town.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 160), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.14, 0.05), "pos": Vector2(0, 20), "scale": 2.0, "tint": Color(0.82, 0.9, 0.9)},
+			# 城墙脚下整座锈城：远一层的楼房剪影视差最慢（0.3），熄灯；近一层
+			# （0.44）只有零星窗火——站在墙顶往下看，城是压暗的、有光的，不是
+			# 一块贴纸。wall_town 的 0.62 是最后一道墙沿，仍然最快。
+			{"name": "CityFar", "path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 210), "scale": 2.0, "tint": Color(0.7, 0.78, 0.8)},
+			{"name": "CityLights", "path": TOWN_DIR + "night-town-background-mountains-lights.png", "scroll": Vector2(0.44, 0.12), "pos": Vector2(0, 240), "scale": 2.0, "tint": Color(0.85, 0.8, 0.7)},
+			{"path": BACKDROP_DIR + "wall_town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 160), "scale": 2.0, "tint": Color.WHITE},
 		],
 	},
 	# 锈城：夜色小镇——天、云、山、林、远屋、近屋。室外，有天气与风。
@@ -226,12 +240,12 @@ const THEMES := {
 		"void": Color(0.04, 0.08, 0.09),
 		"mood": Color(0.74, 0.82, 0.84),
 		"layers": [
-			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 1.8, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-clouds.png", "scroll": Vector2(0.08, 0.03), "pos": Vector2(0, -20), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.16, 0.05), "pos": Vector2(0, -4), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-forest.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 168), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.42, 0.1), "pos": Vector2(0, 200), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 178), "scale": 1.6, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-clouds.png", "scroll": Vector2(0.08, 0.03), "pos": Vector2(0, -20), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.16, 0.05), "pos": Vector2(0, -4), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-forest.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 168), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.42, 0.1), "pos": Vector2(0, 200), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 178), "scale": 2.0, "tint": Color.WHITE},
 		],
 	},
 	# 锈厂：工业剪影——脚手架、厂房、烟囱。有顶棚，算室内（无雨），暖灰色调。
@@ -242,13 +256,19 @@ const THEMES := {
 		"void": Color(0.06, 0.06, 0.06),
 		"mood": Color(0.82, 0.74, 0.68),
 		"layers": [
+			# 远景三件套（tools/gen_theme_tiles.py 的 workshop_* 派生板）：车间有顶棚，
+			# 但顶棚上的天窗缝漏得进城——最远是霾里的天际线，中间是远处厂房，
+			# 近一点是贴着工坊的邻楼。都在 wall_iron 这堵实墙前面，所以读作
+			# 「墙外还有一座城」，而不是把室内墙糊成半透明。
+			{"name": "CityFar", "path": BACKDROP_DIR + "workshop_haze.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.0, "tint": Color(1.0, 0.96, 0.92, 0.25)},
+			{"name": "CityMid", "path": BACKDROP_DIR + "workshop_far.png", "scroll": Vector2(0.16, 0.05), "pos": Vector2(0, 128), "scale": 2.0, "tint": Color(0.94, 0.9, 0.86)},
+			{"name": "CityNear", "path": BACKDROP_DIR + "workshop_near.png", "scroll": Vector2(0.34, 0.1), "pos": Vector2(0, 168), "scale": 2.0, "tint": Color(0.88, 0.84, 0.8)},
 			{"path": BACKDROP_DIR + "wall_iron.png", "scroll": Vector2(0.14, 0.1),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.86, 0.82, 0.78),
 				 "tile": true, "covers_top": true},
-			{"path": BACKDROP_DIR + "workshop_haze.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color(1.0, 0.96, 0.92, 0.25)},
 			{"path": BACKDROP_DIR + "truss_iron.png", "scroll": Vector2(0.22, 0.16),
 				 "pos": Vector2(0, 0), "scale": 1.0, "tint": Color(0.8, 0.76, 0.72), "covers_top": true},
-			{"path": BACKDROP_DIR + "machinery_iron.png", "scroll": Vector2(0.5, 0.3),
+			{"path": BACKDROP_DIR + "machinery_iron.png", "scroll": Vector2(0.7, 0.3),
 				 "pos": Vector2(-48, 152), "scale": 1.0, "tint": Color(0.95, 0.9, 0.85)},
 		],
 	},
@@ -271,6 +291,14 @@ static var _add_mat: CanvasItemMaterial
 static var _luma_cache: Dictionary = {}
 
 
+static func clear_cache() -> void:
+	_beam_tex = null
+	_glow_tex = null
+	_pixel_tex = null
+	_add_mat = null
+	_luma_cache.clear()
+
+
 static func has_theme(theme_id: String) -> bool:
 	return THEMES.has(theme_id) or theme_id == "graveyard"
 
@@ -278,14 +306,14 @@ static func has_theme(theme_id: String) -> bool:
 ## 每主题的独有元素名（视觉身份：不能只换底色）。写在这里由测试锁定，
 ## 新增主题必须同时登记 THEMES、has_theme 与本表。
 const SIGNATURE_LAYERS := {
-	"undercroft": ["Layer0"],
+	"undercroft": ["HallFar", "Layer1"],
 	"forge": ["Layer0", "Layer5", "Layer6"],
 	"forge_core": ["Layer0", "Layer3", "Layer4"],
 	"cathedral": ["WallPlate", "VaultTruss"],
-	"belltower": ["Layer0"],
-	"ramparts": ["Layer1", "Layer2", "Layer3"],
+	"belltower": ["TowerFar", "Layer1"],
+	"ramparts": ["Layer0", "Layer1", "Layer2", "CityFar", "CityLights", "Layer3"],
 	"town": ["Layer0", "Layer1", "Layer2", "Layer3", "Layer4", "Layer5"],
-	"industrial": ["Layer0", "Layer2", "Layer3"],
+	"industrial": ["CityFar", "CityMid", "CityNear", "Layer1", "Layer2"],
 }
 
 
@@ -374,9 +402,9 @@ func _build_graveyard(host: Node2D, theme_id: String = "graveyard") -> void:
 		backdrop.layer = -10
 		backdrop.follow_viewport_enabled = false
 		host.add_child(backdrop)
-		_add_plate(backdrop, "Far", sky_path, Vector2(0.08, 0.04), Vector2(0, -24), 1.9)
-		_add_plate(backdrop, "Mid", mountain_path, Vector2(0.22, 0.06), Vector2(0, 48), 1.7)
-		_add_plate(backdrop, "Hills", "res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), Vector2(0, 168), 1.85)
+		_add_plate(backdrop, "Far", sky_path, Vector2(0.08, 0.04), Vector2(0, -24), 2.0)
+		_add_plate(backdrop, "Mid", mountain_path, Vector2(0.22, 0.06), Vector2(0, 48), 2.0)
+		_add_plate(backdrop, "Hills", "res://assets/env/parallax_graveyard.png", Vector2(0.48, 0.1), Vector2(0, 168), 2.0)
 	# Foreground CanvasLayer 只留给 GroundFog / FogVeil（贴地雾与雾幕）。离地最近的
 	# 「幕前草」剪影（Foreground / ForegroundFringe）在墓园主题里**整段删除**：
 	# 它们的屏幕 y 贴在视口底边（约 347–352），而横截面镜头的底边就是地面平台的土壤

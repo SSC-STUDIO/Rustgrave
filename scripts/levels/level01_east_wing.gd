@@ -209,7 +209,9 @@ func _decorate_cathedral(host: Node2D) -> void:
 	# floating masonry against the moon and purple mountains — especially near
 	# the 东翼 sign and EmberLedge. Only low door/rails/rubble on the approach,
 	# and roofed forge-remnant art under ForgeShelter.
-	_plant_env_sprite(decor, "res://assets/env/door_arch.png", Vector2(1672, 256), Vector2(1, 1), Color(0.85, 0.82, 0.95, 0.95))
+	# 墓园族门洞，不要教堂薰衣草原图。path_for 在有 ground 变体时自动换。
+	_plant_env_sprite(decor, PropCatalog.path_for("door_arch", "graveyard"),
+			Vector2(1672, 256), Vector2.ONE, Color(0.78, 0.72, 0.68, 0.95))
 
 	# Low bastion rails along the nave — shared with the west cemetery, not
 	# 192px indoor slabs over open sky. 东侧栏杆退到炉棚前，让出右火膛的位置。

@@ -109,6 +109,7 @@ const ENEMIES: Array = [
 ## 880 的左缘在 848，洗礼池铺到 864，有一截悬在毒液上。896 起整块落在 FloorB。
 const TORCHES: Array = [352.0, 896.0, 1544.0, 2768.0]
 ## 接地装饰 [key, feet]。墙板都是背景层，避开浮石落点正上方。
+## 洗礼池（544–864）与廊桥坑（1856–2336）是毒液：装饰只立在两侧岸上。
 const PROPS: Array = [
 	["window", Vector2(72, 320)],
 	["gargoyle", Vector2(424, 320)],
@@ -122,8 +123,31 @@ const PROPS: Array = [
 	["balustrade", Vector2(2560, 320)],
 	["altar", Vector2(2672, 320)],
 	["gargoyle", Vector2(2868, 320)],
+	# 前厅与洗礼池东岸：柱影、残碑、塌下来的碎渣。
+	["column", Vector2(160, 320)],
+	["window", Vector2(248, 320)],
+	["slab", Vector2(880, 320)],
+	["rubble_dry", Vector2(944, 320)],
+	["rubble_dry_b", Vector2(1336, 320)],
+	["rubble_dry_c", Vector2(1616, 320)],
+	# 廊桥西侧走廊与祭坛区东端：桥头散座、桥尾的碎渣。
+	["rubble_dry", Vector2(1824, 320)],
+	# 岩架下方留空：VaultLedge 的钩锁落点在 2432，装饰别贴到落点下面。
+	["slab", Vector2(2360, 320)],
+	["rubble_dry_c", Vector2(2960, 320)],
+	# 唱诗台与讲坛的踏步旁：阶缝里的碎石。
+	["rubble_dry", Vector2(952, 320)],
+	["rubble_dry_b", Vector2(1080, 288)],
+	["slab", Vector2(1720, 320)],
+	["rubble_dry", Vector2(1792, 320)],
 ]
 const VINES: Array = [248.0, 656.0, 1096.0, 1320.0, 1600.0, 2040.0, 2280.0, 2600.0]
+## 前厅与中殿之间垂下来的帷幔：祭坛区的纱幔比别处厚（烛火 mote 同源）。
+const DRAPES: Array = [
+	[Vector2(336, 0), Color(0.62, 0.62, 0.8, 0.8)],
+	[Vector2(1504, 0), Color(0.62, 0.62, 0.8, 0.8)],
+	[Vector2(2720, 0), Color(0.62, 0.62, 0.8, 0.8)],
+]
 
 
 func level_id() -> String:
@@ -232,3 +256,6 @@ func _build_decor(host: Node2D) -> void:
 		prop(host, String(p[0]), p[1])
 	for x in VINES:
 		hanging(host, "vine", Vector2(x, 0.0), VINE_TINT)
+	# 帷幔：同一张贴图染成更暗的紫灰，和藤蔓的落灰感分开。
+	for d in DRAPES:
+		hanging(host, "vine", d[0], d[1])

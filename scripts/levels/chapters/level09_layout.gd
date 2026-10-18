@@ -102,29 +102,62 @@ const ENEMIES: Array = [
 
 ## [key, feet, z] —— 女墙、残碑、塔门；z=1 让塔门画在塔身石板之上
 ## 室外城墙不用壁炬墙板（bg_wall_torch 是室内板）。
+## 每段步道都有同一套「守墙人的日常」：女墙、塌下来的碎石、坏掉的器械。
+## 落点纪律——排水沟上的浮石顶面在 264–288，落地装饰一律站在 320 的步道顶，
+## 不往坑沿探：探出去的贴图会被读成「能踩的第四块石」。
 const PROPS: Array = [
-	# 城墙用女墙、门洞、干石。墓碑（stone_*）立在墙顶上，读成墓园搬进城里。
+	# ① 城墙梯口：女墙 + 门洞残框，碎石是从梯口带出来的渣。
 	["balustrade_wall", Vector2(72, 320), 0],
+	["door_arch_wall", Vector2(104, 320), 1],
 	["rubble_dry", Vector2(232, 320), 0],
+	["rubble_dry_b", Vector2(392, 320), 0],
+	["rock_pile", Vector2(424, 320), 0],
+	# 塔楼一（832–992）：塔身两侧的渣与倒下的器械。
+	# 坏机械站在 FloorB（720–1152）的实地上，不往排水沟 A 的坑沿探。
 	["rubble_dry_c", Vector2(776, 320), 0],
+	["broken_machine", Vector2(760, 320), 0],
 	["balustrade_wall", Vector2(944, 256), 0],
 	["door_arch_wall", Vector2(944, 320), 1],
 	["balustrade_wall", Vector2(1032, 320), 0],
+	["fence", Vector2(1088, 320), 0],
+	["rubble_dry_b", Vector2(1136, 320), 0],
+	# ④ 长缺口之后的中段起点：坏机械躺在第二座塔西侧。
 	["rubble_dry_c", Vector2(1504, 320), 0],
+	["broken_machine", Vector2(1560, 320), 0],
+	["warning_plate", Vector2(1664, 320), 0],
 	# 中段：一座倒在城墙上的塔身，墙上唯一的大剪影。
 	["ruin_tower", Vector2(1700, 320), -3],
+	["rock_pile", Vector2(1768, 320), 0],
+	["rubble_dry", Vector2(1992, 320), 0],
 	["balustrade_wall", Vector2(1872, 256), 0],
 	["door_arch_wall", Vector2(1872, 320), 1],
+	# ⑦ 塔楼三：门洞两侧的渣、断链与塌下来的器械。
+	["rubble_dry_b", Vector2(2640, 320), 0],
+	["life_remains", Vector2(2664, 320), 0],
+	["broken_machine", Vector2(2856, 320), 0],
 	["balustrade_wall", Vector2(2696, 320), 0],
 	["rubble_dry", Vector2(2764, 288), 0],
+	["rubble_dry_c", Vector2(3032, 320), 0],
 	["balustrade_wall", Vector2(2912, 224), 0],
 	["door_arch_wall", Vector2(2912, 320), 1],
 ]
 ## [feet(左脚点), scale] —— 墙缝里长出来的几丛灌木
+## 全站在实心步道上：排水沟上的浮石是落点，灌木挤上去会被读成能踩的草。
 const BUSHES: Array = [
 	[Vector2(300, 320), 1.0],
+	[Vector2(832, 320), 1.0],
+	[Vector2(872, 320), 1.0],
 	[Vector2(1592, 320), 1.0],
+	[Vector2(1968, 320), 1.0],
 	[Vector2(2640, 320), 1.0],
+	[Vector2(2880, 320), 1.0],
+]
+## 塔门上方垂下来的吊链 / 缆绳：城墙顶上唯一「还在动」的东西。
+## hanging() 的 top 给的是贴图顶部中点；链尾不接地，LevelSanity 不查它。
+const HANGING: Array = [
+	[Vector2(944, 176), Color(0.7, 0.72, 0.78, 0.9)],
+	[Vector2(1872, 176), Color(0.7, 0.72, 0.78, 0.9)],
+	[Vector2(2912, 176), Color(0.7, 0.72, 0.78, 0.9)],
 ]
 const WAYMARKS: Array = [[Vector2(352, 320), "城墙"], [Vector2(3048, 320), "炉心"]]
 
@@ -238,3 +271,5 @@ func _build_decor(host: Node2D) -> void:
 		prop(host, String(p[0]), p[1], 1.0, tint, int(p[2]))
 	for b in BUSHES:
 		foliage(host, "bush_s", b[0], float(b[1]), false, DRY_BUSH)
+	for h in HANGING:
+		hanging(host, "chain", h[0], h[1])

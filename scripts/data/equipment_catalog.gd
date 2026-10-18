@@ -115,6 +115,20 @@ static func toxic_ward() -> EquipmentItem:
 	return item
 
 
+## Symmetrical alias for toxic_ward: Toxic Filter Talisman.
+static func toxic_filter_talisman() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"toxic_filter_talisman",
+		"滤毒符印",
+		EquipmentItem.SLOT_TRINKET,
+		&"",
+		"凝结高纯度净化滤芯的炼金符印，大幅降低毒素侵蚀速度并加速体内排毒。"
+	)
+	item.toxin_resist = 0.15
+	item.toxin_decay = 0.5
+	return item
+
+
 ## Backward-compatibility / E2E test item: Bone Charm.
 static func bone_charm() -> EquipmentItem:
 	var item := EquipmentItem.new(
@@ -126,6 +140,73 @@ static func bone_charm() -> EquipmentItem:
 	)
 	item.max_hp = 1
 	item.speed_mult = 0.05
+	return item
+
+
+## Symmetrical alias for bone_charm: Bone Amulet.
+static func bone_amulet() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"bone_amulet",
+		"白骨护身符",
+		EquipmentItem.SLOT_TRINKET,
+		&"",
+		"刻有祈愿铭文的异兽遗骨，微幅提升配戴者的生命与机敏行动力。"
+	)
+	item.max_hp = 1
+	item.speed_mult = 0.05
+	return item
+
+
+## Origin starter weapon: Scavenger Blade (Scrap Scavenger).
+static func scavenger_blade() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"scavenger_blade",
+		"废料短刃",
+		EquipmentItem.SLOT_WEAPON,
+		&"",
+		"以生锈弹簧与锋利齿轮残片手工打磨的短刃，轻盈且撕裂力惊人。"
+	)
+	item.attack = 1
+	return item
+
+
+## Origin starter armor: Scavenger Rags (Scrap Scavenger).
+static func scavenger_rags() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"scavenger_rags",
+		"拾荒残革",
+		EquipmentItem.SLOT_ARMOR,
+		&"",
+		"多层防腐皮革与细密铁丝缝缀而成的轻便防具，贴身且不妨碍快速翻滚。"
+	)
+	item.defense = 1
+	return item
+
+
+## Origin starter weapon: Scholar Probe (Rust Automaton).
+static func scholar_probe() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"scholar_probe",
+		"探针短杖",
+		EquipmentItem.SLOT_WEAPON,
+		&"",
+		"尖端带有放电触点与酸液取样针的学者短杖，既可解构遗迹样本亦可御敌。"
+	)
+	item.attack = 1
+	return item
+
+
+## Origin starter armor: Scholar Cowl (Rust Automaton).
+static func scholar_cowl() -> EquipmentItem:
+	var item := EquipmentItem.new(
+		&"scholar_cowl",
+		"耐酸头罩",
+		EquipmentItem.SLOT_ARMOR,
+		&"",
+		"浸透高分子中和凝胶的紧密防毒斗篷，能阻绝飞溅酸液并过滤微小毒雾。"
+	)
+	item.defense = 1
+	item.toxin_resist = 0.05
 	return item
 
 
@@ -152,8 +233,20 @@ static func for_id(p_id: Variant) -> EquipmentItem:
 			return iron_carapace()
 		&"toxic_ward":
 			return toxic_ward()
+		&"toxic_filter_talisman":
+			return toxic_filter_talisman()
 		&"bone_charm":
 			return bone_charm()
+		&"bone_amulet":
+			return bone_amulet()
+		&"scavenger_blade":
+			return scavenger_blade()
+		&"scavenger_rags":
+			return scavenger_rags()
+		&"scholar_probe":
+			return scholar_probe()
+		&"scholar_cowl":
+			return scholar_cowl()
 	return null
 
 
@@ -171,7 +264,13 @@ static func get_all_registered_ids() -> Array[StringName]:
 		&"iron_blade",
 		&"iron_carapace",
 		&"toxic_ward",
-		&"bone_charm"
+		&"toxic_filter_talisman",
+		&"bone_charm",
+		&"bone_amulet",
+		&"scavenger_blade",
+		&"scavenger_rags",
+		&"scholar_probe",
+		&"scholar_cowl"
 	]
 
 

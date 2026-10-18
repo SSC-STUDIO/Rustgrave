@@ -3,6 +3,9 @@ extends Node
 ## Lightweight numerical model managing base attributes, equipment bonuses,
 ## temporary modifiers, and computed effective attributes for the Player.
 
+const CharacterOriginScript := preload("res://scripts/data/character_origin.gd")
+const OriginCatalogScript := preload("res://scripts/data/origin_catalog.gd")
+
 signal stats_changed()
 
 const BASE_MAX_HP: int = 5
@@ -92,6 +95,15 @@ var equip_toxin_resist: float = 0.0
 var equip_toxin_decay: float = 0.0
 var equip_speed_mult: float = 0.0
 
+# Origin tracking
+var origin_id: StringName = &""
+var origin_max_hp: int = 0
+var origin_attack: int = 0
+var origin_defense: int = 0
+var origin_toxin_resist: float = 0.0
+var origin_toxin_decay: float = 0.0
+var origin_speed_mult: float = 0.0
+
 # Temporary modifiers: id -> { "stats": Dictionary, "duration": float, "time_left": float }
 var _modifiers: Dictionary = {}
 
@@ -165,6 +177,63 @@ func get_toxin_decay_bonus() -> float:
 
 func get_speed_multiplier() -> float:
 	return _effective_speed_mult
+
+
+func get_origin_id() -> StringName:
+	return origin_id
+
+
+func get_origin_stat_modifiers() -> Dictionary:
+	return {
+		"max_hp": origin_max_hp,
+		"attack": origin_attack,
+		"defense": origin_defense,
+		"toxin_resist": origin_toxin_resist,
+		"toxin_decay": origin_toxin_decay,
+		"speed_mult": origin_speed_mult
+	}
+
+
+## Applies a character origin by ID or CharacterOrigin instance.
+## Passing empty string or null resets origin modifiers back to 0.
+func apply_origin(p_origin: Variant) -> void:
+	if p_origin == null or str(p_origin) == "":
+		origin_id = &""
+		origin_max_hp = 0
+		origin_attack = 0
+		origin_defense = 0
+		origin_toxin_resist = 0.0
+		origin_toxin_decay = 0.0
+		origin_speed_mult = 0.0
+		_recompute(true)
+		return
+
+	var origin = null
+	if is_instance_of(p_origin, CharacterOriginScript):
+		origin = p_origin
+	else:
+		var sym := StringName(str(p_origin))
+		origin = OriginCatalogScript.get_origin(sym)
+
+	if origin == null:
+		origin_id = StringName(str(p_origin))
+		origin_max_hp = 0
+		origin_attack = 0
+		origin_defense = 0
+		origin_toxin_resist = 0.0
+		origin_toxin_decay = 0.0
+		origin_speed_mult = 0.0
+	else:
+		origin_id = origin.id
+		var mods: Dictionary = origin.stat_modifiers
+		origin_max_hp = int(mods.get("max_hp", 0))
+		origin_attack = int(mods.get("attack", 0))
+		origin_defense = int(mods.get("defense", 0))
+		origin_toxin_resist = float(mods.get("toxin_resist", 0.0))
+		origin_toxin_decay = float(mods.get("toxin_decay", 0.0))
+		origin_speed_mult = float(mods.get("speed_mult", 0.0))
+
+	_recompute(true)
 
 
 ## Recalculate all equipment bonuses and trigger stats recomputation.
@@ -269,12 +338,12 @@ func _recompute(p_emit_signal: bool = true) -> void:
 		mod_toxin_decay += _extract_float(st, [&"toxin_decay", &"toxin_decay_bonus", &"decay"])
 		mod_speed_mult += _extract_speed(st)
 
-	_effective_max_hp = maxi(1, base_max_hp + bonus_max_hp + mod_max_hp)
-	_effective_attack = maxi(0, base_attack + bonus_attack + mod_attack)
-	_effective_defense = maxi(0, base_defense + bonus_defense + mod_defense)
-	_effective_toxin_resist = clampf(base_toxin_resist + bonus_toxin_resist + mod_toxin_resist, TOXIN_RESIST_MIN, TOXIN_RESIST_MAX)
-	_effective_toxin_decay = maxf(0.0, base_toxin_decay + bonus_toxin_decay + mod_toxin_decay)
-	_effective_speed_mult = clampf(base_speed_mult + bonus_speed_mult + mod_speed_mult, SPEED_MULT_MIN, SPEED_MULT_MAX)
+	_effective_max_hp = maxi(1, base_max_hp + origin_max_hp + bonus_max_hp + mod_max_hp)
+	_effective_attack = maxi(0, base_attack + origin_attack + bonus_attack + mod_attack)
+	_effective_defense = maxi(0, base_defense + origin_defense + bonus_defense + mod_defense)
+	_effective_toxin_resist = clampf(base_toxin_resist + origin_toxin_resist + bonus_toxin_resist + mod_toxin_resist, TOXIN_RESIST_MIN, TOXIN_RESIST_MAX)
+	_effective_toxin_decay = maxf(0.0, base_toxin_decay + origin_toxin_decay + bonus_toxin_decay + mod_toxin_decay)
+	_effective_speed_mult = clampf(base_speed_mult + origin_speed_mult + bonus_speed_mult + mod_speed_mult, SPEED_MULT_MIN, SPEED_MULT_MAX)
 
 	if p_emit_signal:
 		stats_changed.emit()

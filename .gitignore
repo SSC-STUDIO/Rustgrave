@@ -23,3 +23,8 @@ export/
 *.pck
 *.exe
 *.zip
+
+# Android build artifacts
+build/
+*.apk
+extension_api.json

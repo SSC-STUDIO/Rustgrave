@@ -16,6 +16,25 @@ extends CharacterBody2D
 @onready var equipment: EquipmentInventory = get_node_or_null("EquipmentInventory")
 @onready var equipment_inventory: EquipmentInventory = get_node_or_null("EquipmentInventory")
 
+var origin: StringName = &"":
+	get:
+		if stats != null:
+			return stats.get_origin_id()
+		return origin
+	set(v):
+		origin = StringName(str(v))
+		if stats != null:
+			stats.apply_origin(origin)
+
+
+func get_origin() -> StringName:
+	return origin
+
+
+func set_origin(p_origin: Variant) -> void:
+	origin = StringName(str(p_origin))
+
+
 @export var auto_equip_starter: bool = true
 
 ## Director sets this during a cutscene. Input is ignored; gravity still applies.
@@ -91,6 +110,8 @@ func _ready() -> void:
 	inventory.sockets_changed.connect(_refresh_heat_lick)
 	_refresh_heat_lick()
 	if stats != null:
+		if origin != &"":
+			stats.apply_origin(origin)
 		stats.stats_changed.connect(_on_stats_changed)
 		_on_stats_changed()
 	if equipment == null:
@@ -382,6 +403,9 @@ func _poll_slash_arc(face: float) -> void:
 				arc.modulate = tier["arc_color"]
 				arc.position = Vector2(20.0 * face, -18.0)
 			arc.flicker = bool(tier["flicker"])
+			var l_color: Color = Color(1.0, 0.88, 0.52).lerp(Color(tier["tint"]), 0.35)
+			var l_energy: float = 1.45 * (1.15 if bool(tier["weight_up"]) else 1.0)
+			arc.set_light_properties(l_color, l_energy, 112.0)
 			add_child(arc)
 	_melee_active_prev = active_now
 

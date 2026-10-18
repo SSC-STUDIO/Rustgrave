@@ -94,10 +94,10 @@ func test_pause_menu_is_a_modal_card_with_rail_and_dossier() -> void:
 	for child in pause.menu().get_children():
 		if child is MenuItem:
 			items.append(child)
-	eq(items.size(), 6, "暂停菜单六格")
-	if items.size() == 6:
+	eq(items.size(), 7, "暂停菜单七格")
+	if items.size() == 7:
 		eq(items[0].kind, MenuItem.Kind.PRIMARY, "第一格是主行动")
-		eq(items[5].kind, MenuItem.Kind.GHOST, "最后一格是第三层")
+		eq(items[6].kind, MenuItem.Kind.GHOST, "最后一格是第三层")
 	ok(pause.dossier_label("chapter") != null, "右列有行程档案")
 	ok(pause.dossier_label("objective") != null, "档案里有当前目标行")
 
