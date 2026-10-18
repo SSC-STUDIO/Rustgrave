@@ -86,14 +86,16 @@ func _process(delta: float) -> void:
 	for light in _lights:
 		if not is_instance_valid(light):
 			continue
-		var flicker_amount: float = light.get_meta(&"flicker_amount", 0.0)
-		var flicker_speed: float = light.get_meta(&"flicker_speed", 0.0)
-		var base_energy: float = light.get_meta(&"base_energy", 1.0)
-		if flicker_amount > 0.0 and flicker_speed > 0.0:
-			var noise := sin(_time * flicker_speed + light.position.x * 0.01) * 0.5 + 0.5
-			light.set_base_energy(base_energy * (1.0 - flicker_amount * noise))
-		else:
-			light.set_base_energy(base_energy)
+		var flicker: Dictionary = light.get_meta(&"flicker", {}) as Dictionary
+		var amount: float = float(flicker.get("amount", 0.0))
+		if amount <= 0.0:
+			continue
+		var speed: float = float(flicker.get("speed", 0.0))
+		if speed <= 0.0:
+			light.set_base_energy(float(flicker.get("base", 1.0)))
+			continue
+		var noise := sin(_time * speed + light.position.x * 0.01) * 0.5 + 0.5
+		light.set_base_energy(float(flicker.get("base", 1.0)) * (1.0 - amount * noise))
 
 
 ## 添加光源到指定位置
@@ -112,10 +114,13 @@ func add_light(pos: Vector2, type: LightType) -> WorldLight:
 	light.lit = true
 	light.set_base_energy(float(config["energy"]))
 
-	# 闪烁参数留给 _process 驱动
-	light.set_meta(&"base_energy", float(config["energy"]))
-	light.set_meta(&"flicker_amount", float(config["flicker_amount"]))
-	light.set_meta(&"flicker_speed", float(config["flicker_speed"]))
+	# 闪烁参数留给 _process 驱动：一个字典一次 get_meta，而不是三次
+	# （每盏灯每帧三次元数据查询在十几盏灯的关卡上是可测的开销）。
+	light.set_meta(&"flicker", {
+		"base": float(config["energy"]),
+		"amount": float(config["flicker_amount"]),
+		"speed": float(config["flicker_speed"]),
+	})
 
 	add_child(light)
 	# WorldLight._ready() 会把阴影打开；氛围灯不想为这点光算遮挡。

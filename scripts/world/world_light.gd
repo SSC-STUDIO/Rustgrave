@@ -26,6 +26,9 @@ var _flame_frame: int = 0
 ## separately: reading `energy` as the target multiplied last frame's flicker into the
 ## next one and every torch dimmed to black within a minute.
 var _base_energy: float = -1.0
+## Presentation binding cache: `follow` never changes after _ready, so the blend
+## mode / height / texture are resolved once instead of on every apply() call.
+var _bound := false
 static var _radial_tight: Texture2D
 static var _radial_soft: Texture2D
 
@@ -46,8 +49,14 @@ func set_flame_frame(frame: int) -> void:
 	_flame_frame = frame
 
 
+## `follow` never changes after _ready, so the blend mode / height / texture
+## are resolved once. apply() runs for every light every frame; re-running the
+## StringName match plus three property writes per light per frame is
+## measurable across a level's 15-28 lights and can never change at runtime.
 func apply(snap: bool = false) -> void:
-	_bind_presentation()
+	if not _bound:
+		_bind_presentation()
+		_bound = true
 	var e := _present_energy()
 	var r := _present_radius()
 	if flicker and lit and not snap:
@@ -78,6 +87,11 @@ func _bind_presentation() -> void:
 			blend_mode = Light2D.BLEND_MODE_ADD
 			height = 0.20
 			texture = _tight_texture()
+		&"torch":
+			# 火把/火炉：暖光平滑过渡，照亮砖拱与地面。
+			blend_mode = Light2D.BLEND_MODE_ADD
+			height = 0.25
+			texture = _soft_texture()
 		_:
 			blend_mode = Light2D.BLEND_MODE_ADD
 			# height 0 wraps every occluder; 0.40 keeps a readable nest shadow.

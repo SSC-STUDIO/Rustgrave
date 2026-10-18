@@ -61,6 +61,11 @@ var _burst_t := 0.0
 var _primed := false
 var _headless := false
 var _spec: Dictionary = {}
+## `_draw` is one draw call for the whole pool, but queue_redraw() still marks
+## the canvas item dirty every frame and re-runs the draw script for all 40
+## motes even when nothing moved (a paused menu, a frozen clock). Only redraw
+## when the simulation actually advanced something.
+var _needs_redraw := true
 
 
 static func has_flavor(id: String) -> bool:
@@ -109,10 +114,17 @@ func live_count() -> int:
 
 
 func _process(delta: float) -> void:
+	# A frozen clock (pause menu, cinematic, fade) holds every other ambient
+	# layer still — LeafShed and WeatherFx already bail here. Motes must too,
+	# or they keep drifting while the world is paused.
+	if delta <= 0.0 or WorldClock.is_frozen():
+		return
 	var cam := get_viewport().get_camera_2d()
 	var origin := cam.get_screen_center_position() if cam != null else global_position
 	step(delta, origin)
-	queue_redraw()
+	if _needs_redraw:
+		_needs_redraw = false
+		queue_redraw()
 
 
 ## Advance the simulation. Public so tests drive it without a camera.
@@ -172,6 +184,7 @@ func _respawn(i: int, origin: Vector2, anywhere: bool) -> void:
 	_life[i] = _rng.randf_range(life.x, life.y)
 	_age[i] = _rng.randf_range(0.0, _life[i]) if anywhere else 0.0
 	_phase[i] = _rng.randf() * TAU
+	_needs_redraw = true
 
 
 ## A cluster of sparks thrown from one point on the lower third of the view.
