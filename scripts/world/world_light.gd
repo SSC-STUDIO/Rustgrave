@@ -34,7 +34,8 @@ static var _radial_soft: Texture2D
 
 
 func _ready() -> void:
-	shadow_enabled = true
+	# Authored FX pools must keep silhouettes and attack windups unobscured.
+	shadow_enabled = follow != &"authored"
 	shadow_filter = Light2D.SHADOW_FILTER_NONE
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_bind_presentation()

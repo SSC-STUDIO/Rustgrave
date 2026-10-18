@@ -147,10 +147,10 @@ func _tune_play_layout() -> void:
 ## 第一章材质色阶（不换贴图、不动碰撞）：让墓园的地面、悬空石台和毒液
 ## 收进同一个"锈/余烬"温度里，而不是鲜草绿 + 薰衣草紫 + 青苔绿三套色板打架。
 ## 颜色经 SolidPlatform.apply_tone 乘在每一块贴片上；东翼的石头铺面同样收暖。
-const GROUND_TONE := Color(1.14, 0.76, 0.38)   # 草地 → 枯橄榄/墓土（去鲜绿）
-const FLOAT_TONE := Color(1.10, 0.88, 0.60)    # 悬浮石板 → 暖灰石（去薰衣草紫）
-const STONE_TONE := Color(1.12, 0.90, 0.62)    # 决斗台铺路 → 暖石
-const TOXIN_TINT := Color(1.16, 1.08, 0.48)    # 腐液 → 酸黄绿（与草地绿分开）
+const GROUND_TONE := Color(1.05, 0.72, 0.65)   # 草地 → 枯橄榄/墓土（去鲜绿）
+const FLOAT_TONE := Color(1.08, 1.32, 0.70)    # 悬浮石板 → 暖灰石（去薰衣草紫）
+const STONE_TONE := Color(0.96, 1.32, 0.66)    # 决斗台铺路 → 暖石
+const TOXIN_TINT := Color(0.96, 1.10, 0.90)    # 腐液保留独立的危险绿，避免与余烬暖光混同
 
 
 func _grade_materials(platforms: Node2D) -> void:
@@ -167,7 +167,11 @@ func _grade_materials(platforms: Node2D) -> void:
 		if grade == Color.WHITE:
 			continue
 		plat.apply_tone(plat.tone * grade)
-	# 毒池调酸：墓园的青绿液体和草地同一个绿，读不出"危险"。
+	# 齿轮也复用原石板纹理，和可站立石台保持同一材质色阶。
+	var gear := platforms.get_node_or_null("Gear") as CanvasItem
+	if gear != null:
+		gear.modulate = FLOAT_TONE
+	# 草地去饱和后保留毒池的独立青绿，危险边界不靠亮度区分。
 	var toxin := get_node_or_null("Props/ToxinPool") as ToxinPool
 	if toxin != null:
 		toxin.tint = TOXIN_TINT
