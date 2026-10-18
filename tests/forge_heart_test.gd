@@ -24,6 +24,7 @@ func test_heart_locked_until_boss_dead() -> void:
 	ok(not heart.can_interact(heart), "flag alone does not unlock a locked heart")
 	ok(not heart.monitoring, "flag does not turn monitoring back on")
 	heart.unlock()
+	await flush(1)
 	ok(heart.can_interact(heart), "unlock → can E")
 	ok(heart.monitoring)
 
@@ -105,5 +106,6 @@ func test_locked_heart_is_not_sensor_focus() -> void:
 	ok(not heart.can_interact(player))
 	ok(player.sensor.get_focus() != heart, "locked heart is not an E target")
 	heart.unlock()
+	await flush(1)
 	player.sensor._on_area_entered(heart)
 	eq(player.sensor.get_focus(), heart, "unlocked heart is focusable")

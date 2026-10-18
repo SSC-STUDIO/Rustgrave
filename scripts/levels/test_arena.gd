@@ -17,6 +17,10 @@ const SOCKET := preload("res://scenes/interactables/SocketStation.tscn")
 const GATE := preload("res://scenes/interactables/RustyGate.tscn")
 
 
+func _enter_tree() -> void:
+	add_to_group("game_world")
+
+
 func _ready() -> void:
 	_build_backdrop()
 	_build_collision()

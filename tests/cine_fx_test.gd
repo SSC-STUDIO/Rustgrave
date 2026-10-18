@@ -13,6 +13,7 @@ func teardown() -> void:
 func test_indoor_hides_mid_motes() -> void:
 	var fx := CineFx.new()
 	add_child(fx)
+	eq(fx.z_index, -1, "depth dust stays behind the knight")
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 	WorldClock.set_weather(WorldClock.Weather.HAZE, true)
 	WorldClock._snap_wind_speed()

@@ -160,6 +160,7 @@ func test_parallax_follows_clock_tint() -> void:
 	host.add_child(backdrop)
 	var far := Parallax2D.new()
 	far.name = "Far"
+	far.follow_viewport = false
 	backdrop.add_child(far)
 	var extras := Level01Parallax.new()
 	add_child(extras)
