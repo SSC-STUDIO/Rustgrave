@@ -241,7 +241,7 @@ func test_exit_is_the_ending_door() -> void:
 	eq(exit.target_scene, "", "the ending door leads nowhere but the title")
 	eq(exit.requires_flag, "nightmare_dead", "the door waits for the Nightmare's death")
 	eq(exit.flag_id, "game_complete", "walking through completes the game")
-	eq(exit.door_label, "炉心之门")
+	eq(exit.door_label, "炉心门")
 	eq(exit.locked_prompt, "梦魇还在喘。门不开。")
 	ok(exit.ending_choice, "the forge door asks instead of walking through")
 	eq(exit.give_captions.size(), 3, "giving the sword has three lines")

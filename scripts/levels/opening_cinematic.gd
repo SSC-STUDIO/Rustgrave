@@ -146,34 +146,36 @@ static func steps() -> Array:
 		{"kind": "wait", "seconds": 0.3},
 		# 专名首现就地解释：炉约=誓约、守炉人=立誓那批人、净化偶=刮锈人偶。
 		{"kind": "caption", "text": LINES[1], "hold": 1.4},
-		{"kind": "caption", "text": LINES[2], "hold": 1.2},
+		{"kind": "caption", "text": LINES[2], "hold": 1.3, "tag": "pullback"},
 		# 镜头退到坟群：你也不过是其中一座。
-		{"kind": "caption", "text": LINES[3], "hold": 1.4, "tag": "pullback"},
-		{"kind": "caption", "text": LINES[4], "hold": 1.4, "tag": "grave_row"},
-		{"kind": "wait", "seconds": 0.6},
-		# 伊尔：她做的事都在封核之前；你听见的是回声。
-		{"kind": "caption", "text": LINES[5], "hold": 1.5},
-		{"kind": "caption", "text": LINES[6], "hold": 1.4},
+		{"kind": "caption", "text": LINES[3], "hold": 1.3, "tag": "grave_row"},
+		{"kind": "wait", "seconds": 0.5},
+		# 动机与回声：她只求你带她问一次；你听见的是她封进核之前的回声。
+		{"kind": "caption", "text": LINES[4], "hold": 1.5},
+		{"kind": "caption", "text": LINES[5], "hold": 1.4},
 		{"kind": "wait", "seconds": 0.3},
 		# 名字：刻在剑上、烧进铁里就回不来。
-		{"kind": "caption", "text": LINES[7], "hold": 1.4},
+		{"kind": "caption", "text": LINES[6], "hold": 1.4},
 		{"kind": "wait", "seconds": 0.5},
 		# 时间线四拍：炉心 → 残芯 → 灯靠残芯当灯芯 → 如今灯暗、她把核取下。
-		{"kind": "caption", "text": LINES[8], "hold": 1.4, "tag": "world"},
-		{"kind": "caption", "text": LINES[9], "hold": 1.3},
-		{"kind": "caption", "text": LINES[10], "hold": 1.2},
-		{"kind": "caption", "text": LINES[11], "hold": 1.3},
-		{"kind": "wait", "seconds": 0.6},
+		{"kind": "caption", "text": LINES[7], "hold": 1.4, "tag": "world"},
+		{"kind": "caption", "text": LINES[8], "hold": 1.3},
+		{"kind": "caption", "text": LINES[9], "hold": 1.2},
+		{"kind": "caption", "text": LINES[10], "hold": 1.3},
+		{"kind": "wait", "seconds": 0.5},
 		# 异象：地下一声钟，镜头沿着坟群往东推。
 		{"kind": "sfx", "id": "bell_toll", "tag": "toll"},
 		{"kind": "fx", "id": "bell_ring", "target": knight, "seconds": 0.0},
-		{"kind": "caption", "text": LINES[12], "hold": 1.4, "tag": "anomaly"},
-		{"kind": "wait", "seconds": 1.4},
+		{"kind": "caption", "text": LINES[11], "hold": 1.3, "tag": "anomaly"},
+		{"kind": "wait", "seconds": 0.8},
+		# 代价：还火的人自己也要进炉（送剑=你散成铁），在目标之前钉住。
+		{"kind": "caption", "text": LINES[12], "hold": 1.5},
+		{"kind": "wait", "seconds": 0.3},
 		# 目标两拍：把残芯带到炉心，替名字问火一句「这火该不该还？」。
 		# 这一拍带 line_forge，截图夹具按 tag 认它，不按第几句认。
-		{"kind": "caption", "text": LINES[13], "hold": 1.6, "tag": "line_forge"},
+		{"kind": "caption", "text": LINES[13], "hold": 1.5, "tag": "line_forge"},
 		{"kind": "caption", "text": LINES[14], "hold": 1.3},
-		{"kind": "wait", "seconds": 0.4},
+		{"kind": "wait", "seconds": 0.3},
 		# 阻碍：玩家先看见刽子手立在门后，字幕才说他守着什么。
 		{"kind": "caption", "text": LINES[15], "hold": 1.4, "tag": "obstacle"},
 		{"kind": "wait", "seconds": 0.3},

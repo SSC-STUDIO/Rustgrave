@@ -298,13 +298,16 @@ func test_pre_ending_and_post_ending_sequences() -> void:
 	for line in StoryFlow.SPECIALS["pre_ending"]["lines"]:
 		ok(texts.has(String(line)), "the pre-ending special line plays: %s" % line)
 	ok(texts[texts.size() - 1].contains("目标"), "the interlude closes on the objective")
-	# 盲测 P0：做选择前必须把两个选择的代价说清（结局词面要能区分）。
+	# M1R4：先问火、门才开；两个选择的代价与结局词面都要能区分。
 	var specials := " ".join(StoryFlow.SPECIALS["pre_ending"]["lines"])
+	ok(specials.contains("先在门外问火") and specials.contains("门才会开"),
+			"the interlude states the order: ask the fire first, then the door opens")
 	ok(specials.contains("送剑") and specials.contains("守火"),
 			"both choices are named before the final door")
-	ok(specials.contains("散成铁") and specials.contains("城终于睡下"), "the give cost is stated")
-	ok(specials.contains("一年一年") and specials.contains("城还醒着"), "the keep cost is stated")
-	ok(specials.contains("都要付账"), "the interlude says both choices cost something")
+	ok(specials.contains("名字和伊尔归火") and specials.contains("你散成铁"),
+			"the give cost is stated (names + Yir return, you scatter)")
+	ok(specials.contains("你永留炉边") and specials.contains("城一直半醒"),
+			"the keep cost is stated (you stay forever, the city half-awake)")
 
 	for kind in ["give", "keep", "snuff"]:
 		var ending := StoryFlow.post_ending_steps(kind)
@@ -326,39 +329,50 @@ func test_pre_ending_and_post_ending_sequences() -> void:
 			"the two endings close differently")
 	ok(StoryFlow.post_ending_line("give").contains("听不真"),
 			"give's closing keeps the fire's answer ambiguous")
-	ok(StoryFlow.post_ending_line("keep").contains("城还醒着"),
-			"keep closes with the city still awake")
+	ok(StoryFlow.post_ending_line("keep").contains("城一直半醒"),
+			"keep closes with the city half-awake")
 
 
-## M1R3 canon：间幕不出现设计术语/旧称呼；伊尔动作有「封核之前」；代价预埋；钥匙落地。
+## M1R4 canon：间幕不出现设计术语/旧称呼；术语统一；路线与门序有交代。
 func test_interludes_keep_the_core_canon() -> void:
 	var all := ""
 	for edge in StoryFlow.boundaries():
 		all += " " + " ".join(edge.get("epilogue", []))
 		all += " " + " ".join(edge.get("teaser", []))
 	for word in ["骑士", "陵墓", "塞进剑", "你这把剑", "你这一把", "收索", "欠伊尔一次回答",
-			"不是灯芯", "第一幕", "第二幕", "幕", "债", "借他们的手艺往前"]:
+			"不是灯芯", "第一幕", "第二幕", "幕", "债", "借他们的手艺往前",
+			"插座", "封核", "炉门", "提前离场结局"]:
 		ok(not all.contains(word), "interludes do not use the retired wording '%s'" % word)
-	# 渣渊间幕必须说：伊尔（封核之前）把残芯嵌进你背上的剑、点亮你。
+	# 第一章机关在间幕里也兑现：炉座只认点过的核，点亮才能带走。
+	ok(" ".join(StoryFlow.for_edge("level01")["epilogue"]).contains("炉座只认点过的核"),
+			"the first bridge states the stand mechanism")
+	# 渣渊间幕必须说：伊尔（封进核之前）把残芯嵌进你背上的剑、点亮你。
 	var slag_edge := StoryFlow.for_edge("level08")
 	ok(not slag_edge.is_empty(), "the slag boundary exists")
 	var slag := " ".join(slag_edge["epilogue"])
-	ok(slag.contains("封核之前") and slag.contains("残芯嵌进你背上的剑"),
+	ok(slag.contains("封进核之前") and slag.contains("残芯嵌进你背上的剑"),
 			"the slag interlude marks Yir's action as pre-sealing")
+	# D2：去炉心没有直路——渠顶旧街通圣殿，圣殿地窖才有下城的暗门。
+	var water_edge := StoryFlow.for_edge("level02")
+	ok(" ".join(water_edge["epilogue"]).contains("渠顶旧街")
+			and " ".join(water_edge["epilogue"]).contains("圣殿地窖"),
+			"the undercroft bridge closes the up-then-down route with a concrete path")
 	# 第二幕开场：债只作剧情句（你欠她一次问火），不带幕/债的设计词。
 	var debt_edge := StoryFlow.for_edge("level03")
 	ok(" ".join(debt_edge["epilogue"]).contains("你欠她一次问火"),
 			"the bridge points the debt the right way: you owe her one question")
 	ok(" ".join(debt_edge["epilogue"]).contains("往下走，才有机会还"),
 			"the bridge tells you where to go to pay it back, in plain plot terms")
-	# 地窖→工坊：伊尔的动作是她留下的字/封核前画的一笔，不是现在时。
+	# 地窖→工坊：伊尔的动作是她留下的字/封进核前画的一笔；插座统一叫剑槽。
 	var crypt_edge := StoryFlow.for_edge("level04b")
 	var crypt_text := " ".join(crypt_edge["epilogue"]) + " " + " ".join(crypt_edge["teaser"])
-	ok(crypt_text.contains("封核之前") and crypt_text.contains("画的一笔"),
+	ok(crypt_text.contains("封进核之前") and crypt_text.contains("画的一笔"),
 			"the workshop bridge uses the page she left, not a present-tense Yir")
+	ok(crypt_text.contains("剑槽"), "the workshop bridge calls the socket 剑槽")
 	# 工坊→墓园：借手艺在通关时兑现，不是空口欠债。
 	var rain_edge := StoryFlow.for_edge("level05")
-	ok(" ".join(rain_edge["epilogue"]).contains("机关") and " ".join(rain_edge["epilogue"]).contains("手艺"),
+	ok(" ".join(rain_edge["epilogue"]).contains("机关")
+			and " ".join(rain_edge["epilogue"]).contains("手艺"),
 			"the borrowed craft pays off at the next mechanism")
 	# 墓园→钟楼：第一次预埋「还火的人自己也要进炉」的代价。
 	ok(" ".join(StoryFlow.for_edge("level06")["epilogue"]).contains("自己也要进炉"),
@@ -369,9 +383,12 @@ func test_interludes_keep_the_core_canon() -> void:
 	# 钟舌熔核的发现留到 ch9，间幕不在 ch6→07 提前剧透。
 	var bell_teaser := " ".join(StoryFlow.for_edge("level06")["teaser"])
 	ok(not bell_teaser.contains("熔"), "the bell-tower teaser does not spoil the melted tongue")
-	# 终章前的 teaser 让钥匙落地（门认核不认人）。
-	ok(" ".join(StoryFlow.for_edge("level09b")["teaser"]).contains("门认核不认人"),
-			"the final bridge turns the key into a door rule")
+	# 终章前的 teaser：门名统一、先问火、钥匙落地。
+	var last_teaser := " ".join(StoryFlow.for_edge("level09b")["teaser"])
+	ok(last_teaser.contains("炉心门") and last_teaser.contains("先问火一句"),
+			"the final bridge names the door and the ask-first order")
+	ok(" ".join(StoryFlow.for_edge("level09")["teaser"]).contains("炉心门"),
+			"the cliff bridge no longer mixes door names")
 
 
 func test_recap_uses_cleared_chapters() -> void:

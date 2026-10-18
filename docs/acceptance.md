@@ -260,3 +260,66 @@ Boss 两阶段截图包含完整马身与血条；恢复截图等待淡入完成
 ## 可恢复性
 
 实施前快照位于 `C:/Users/Administrator/.codex/artifacts/rustgrave-before-20260905-112740.zip`。既有存档迁移会保留 `.before_progress_repair.bak`。本轮沿用 save version 1，以既有剧情标志保存 `nightmare_dead` 和 `game_complete`。
+
+
+## Campaign v2 验收（2026-10-18，feature/campaign-v2）
+
+本轮把 10 章战役扩为 **14 章 / 四幕 / 7 场 Boss**，并重写故事文本、章间间幕、试炼模式与角色/武器接应层。提交：
+
+- `5b5990c` feat(boss): shared boss framework, arena and acceptance fixture
+- `57f9a38` feat(campaign-v2): 14-chapter campaign with story, bosses, trials and loadout bridge
+- `44947a1` docs: campaign v2 story bible, integration contracts and acceptance plan
+
+### 1. 自动化测试
+
+- 全量：`--headless res://tests/run_tests.tscn` → **OK — 987/987 passed; 0 engine errors**（unique APPDATA，GL Compatibility）。
+- 新增/重写过滤：chapter_text 20、story_flow 13、opening_cinematic 19、chapter_transition/interlude_overlay 2、save_migration 4、level_routing 6、chapter_progression 3、level02b 11、level04b 8、level07b 6、level09b 8、boss_framework 14、capstan_warden 9、silent_choir 9、hollow_bell 5、bell_founder 5、emberwind_herald 6、nightmare 10、executioner_finale 1、trial 35（catalog/records/mode/integration）、title/pause/hud/director、loadout_contract 6、loadout_route 2、chapter_art_audit 4。
+- 所有过滤均要求 0 engine errors；`tests/chapter_text_test.gd` 内含 canon 回归门（残芯时间线唯一、锈核 vs 残芯、无"幕/债"元语言、伊尔"封核之前"标记、首现术语白话、钥匙落地、结局区分词、配机动因）。
+
+### 2. 渲染证据（`screenshots/`，gitignored；路径为仓库相对）
+
+| 内容 | 路径 |
+| --- | --- |
+| 视觉审计 Phase A：10 章 × 5 节拍 1280×720 | `screenshots/peek/campaign-v2/<chapter>/` |
+| 视觉审计结论：Top 问题 + 逐章 FINDINGS + Phase B 队列 | `screenshots/peek/campaign-v2/TOP_ISSUES.md`、`PHASE_B_QUEUE.md` |
+| level02b/04b P0 修前/修后 与对比拼图 | `screenshots/peek/campaign-v2/{level02b,level04b}-fixed/`、`before-after/compare_*.png` |
+| 7 场 Boss 入场/各阶段/死亡/清场 + report.json | `screenshots/boss/<level>_<Boss>/` |
+| 新章与扩章关键节拍（M2c 22 张） | `screenshots/peek/m2c-evidence/` |
+| 14 章干净渲染（重拍用） | `screenshots/peek/qc-07b/`、`qc-09b/`、`level02b_fixed/`、`level04b_fixed/` |
+| 试炼菜单/结算/HUD 9 张 | `screenshots/trial/` |
+| 故事开场/间幕/章节卡/暂停前情 9 张 | `screenshots/acceptance/story/` |
+| Boss 框架首轮 fixture 证据 | `screenshots/peek/m3-boss-framework/` |
+
+Boss fixture 的 report.json 均 `kit_problems=[]`、Boss 前存档点 42–77px（契约 ≤80px）、死亡后 arena cleared；level09b 的 `checkpoint.ok=false` 是飞行 Boss fixture 把悬停 y 当地面造成的取景 artifact，真实布局门前巢距门 61.6px（`level09b_layout_test` 断言）。
+
+### 3. 本轮已修的真实缺陷
+
+- 间幕遮罩在 `Director.abort()/reset_view()` 后不消失（只连 `script_finished`，abort 只发 `finished`）→ 所有渲染被 0.82 scrim 压暗；执行器补连 `Director.finished`，`tests/interlude_overlay_test.gd` 锁定。
+- 新 Boss 占位场景缺失/已交付两种状态下的 `ChapterLayout.boss()` 行为由测试双分支锁定；Boss 出口门禁只在场景存在时挂载（不软锁）。
+- level02 空钟厅、level10 梦魇竞技场统一 `boss()` 装配；level10 门前存档点 220px→76px。
+- level02b 荧光绿带（降饱和 + sludge_ramp + 岸线压边 + brick_float 桥石/吊台链条）；level04b 过暗（暖光池 + 暖雾 veil，0.10→0.16 亮度）；level08 渣河高饱和橙带（降饱和 + 压边）；level07 井底与 level10 竞技场补光。
+- 刽子手二阶段"炉膛终局"（≤20% HP，不改变 2 阶段 Kit/HUD 断言）；梦魇三期（余烬雨/地裂/热浪 + 两侧收窄 96px）。
+- 音频：新增 5 轨 Boss×2 层，`BOSS_TRACKS_BY_LEVEL` 按关卡优先解析；全部 40s、bed −19.5 LUFS / hi −23.1 LUFS、峰值 ≤−3.3 dBFS、循环接缝 r_p999<1。
+- 接应：`LoadoutBridge` 测试注入 + 正向契约、14 章 × 4 能力集可达性矩阵、`tools/loadout_merge_check.gd` 合并门（当前项目 PASS 21 / WARN 5 / FAIL 0）。
+
+### 4. 故事盲测（独立 reviewer，只读玩家可见文本）
+
+同一份 6 题问卷跑了 5 轮（每轮换独立 reviewer，避免前一轮记忆污染），评分变化：
+**2/5 → 2/5 → 3/5 → 3/5 → 2/5**（第 5 轮 reviewer 更严格；不同 reviewer 对"术语表是否算首现解释"的判定不同，故 3/5 与 2/5 之间有评分方差）。
+- 稳定通过的项：A（身份/目标/动机/代价）、B（剑里是伊尔/问火/残芯在背上剑里）、10 章后的主线复述；
+- 未过项：C（专名首现解释不齐：炉约首次无誓的内容、残芯的两个来源没合并、炉座/剑槽等承重词不在术语表）、
+  D（第 4/8/10/12/14 章"为什么去下一章"仍靠出口字幕报下个地名；第 8 章目标字面做不到；同一扇"炉心门"连报三章）、
+  E（守火"名字还困着"未在选择前说清；"城睡下/半醒"未定义）、F（仍有需长猜的句子）。
+
+M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只认点过的核 + 圣殿另点守灯、钟舌线挂回主目标并拆重复目标、
+结局补名字下场与守火代价、术语清理（封进核之前/剑槽/炉心门/当年守炉人）。**故事线在此冻结**：剩余 C/D/E/F 是
+下一轮文本迭代的明确清单（详见评审原文；不要回退已通过的 canon 门），不在本轮继续循环。
+
+### 5. 未验证 / 已知限制
+
+- 真实输入 14 章通关：**未完成**。`scenes/tools/CampaignWalkthrough.tscn` 在本机 headless 跑 >20 分钟无输出（疑似等待游戏输入/标题流程），已中止；真实手柄/键盘人工通关也未做。因此"14 章可从头玩到尾"本轮**没有**正常输入证据，只有逐章 fixture/布局/路由/存储测试与各章渲染证据；这是本轮最大的未验证项。
+- 真机触控/刘海、960×540 与 1920×1080 的试炼菜单实拍（只验证布局数学与控件边界）；真机 Boss 战 HUD 未录。
+- Boss 视觉：新 Boss 主体为程序化像素 + 复用角色帧（CapstanWarden=gear_shield 冷青、SilentChoir=ghost 3 暖壳+2× 指挥、其余程序化），属可读性达标的占位美术；正式美术替换不改判定/测试。
+- 视觉审计 Phase B/C（扩章后重拍、Boss 房逐场构图）未全量完成：Phase A 已修 P0；02b/04b 有 before/after；其余扩章段与 7 场 Boss 房列入 `PHASE_B_QUEUE.md` / Phase C，待后续。
+- 外部角色/武器线未合并：契约 §3 + `LoadoutBridge`（feature-detect）+ 奖励位 + 可达性矩阵 + `LoadoutMergeCheck` 已就绪；合并时按契约 SMOKE 1–7 跑门禁。
+- `docs/` 与源码在同一分支；`screenshots/` 全量 gitignore（证据只在本地，路径如上）。
