@@ -30,11 +30,15 @@ func _ready() -> void:
 
 
 func receive_hit(amount: int, attacker: Node) -> void:
+	# Scripted/direct hits use this entry too. A hard cinematic owns the knight's
+	# movement: reject contact before knockback, signals or riposte consumption.
+	var body := get_parent()
+	if body is Player and (body as Player).cutscene_locked:
+		return
 	hurt.emit(amount, attacker)
 	# Blocking owners veto the damage before it reaches the health pool.
 	if block_check.is_valid() and block_check.call(attacker, amount):
 		return
-	var body := get_parent()
 	amount = _riposte_amount(body, attacker, amount)
 	_apply_knockback(attacker)
 	if _health == null:

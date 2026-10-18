@@ -125,6 +125,10 @@ func deflect(_by: Node2D) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Enemy AI already waits for hard cinematics. In-flight bolts must wait too,
+	# retaining both their trajectory and remaining lifetime for the handoff.
+	if Director.is_input_locked():
+		return
 	global_position += velocity * delta
 	if velocity.length_squared() > 4.0:
 		rotation = velocity.angle()
@@ -136,6 +140,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node2D) -> void:
+	if Director.is_input_locked():
+		return
 	if body is Player:
 		return
 	queue_free()

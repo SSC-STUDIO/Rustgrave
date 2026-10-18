@@ -260,6 +260,8 @@ func consume_riposte() -> int:
 
 
 func tick_riposte(delta: float) -> void:
+	if Director.is_input_locked():
+		return
 	if _riposte_left <= 0.0:
 		return
 	_riposte_left = maxf(0.0, _riposte_left - delta)

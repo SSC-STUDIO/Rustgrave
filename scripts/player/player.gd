@@ -38,7 +38,13 @@ func set_origin(p_origin: Variant) -> void:
 @export var auto_equip_starter: bool = true
 
 ## Director sets this during a cutscene. Input is ignored; gravity still applies.
-var cutscene_locked: bool = false
+var cutscene_locked: bool = false:
+	set(value):
+		cutscene_locked = value
+		# Apply on the lock boundary, before the next physics tick or a deferred
+		# projectile contact can land. Unlock restores the controller's own i-frames.
+		if health != null:
+			health.invincible = value or (controller != null and controller.is_invincible())
 
 const P_STAND_PATH := "res://assets/kenney_clean/player/p1_stand.png"
 const P_JUMP_PATH := "res://assets/kenney_clean/player/p1_jump.png"
@@ -477,7 +483,7 @@ func _on_game_hit(_attacker: Node, target: Node, _amount: int) -> void:
 
 
 func is_invincible() -> bool:
-	return controller.is_invincible() or health.is_invincible()
+	return cutscene_locked or controller.is_invincible() or health.is_invincible()
 
 
 func collect_core(core: RustCore) -> void:
