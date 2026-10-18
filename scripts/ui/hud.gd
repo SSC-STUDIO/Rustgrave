@@ -140,6 +140,8 @@ var _peek_was_on := false
 var _peek_alpha := 0.0
 var _boss_name := ""
 var _insets := Vector4.ZERO
+var _critical_font_sizes: Dictionary = {}
+var _small_window := false
 
 var _boss_bar_panel: PanelContainer
 var _boss_title_label: Label
@@ -890,7 +892,7 @@ func _play_prompt_intro() -> void:
 
 ## 交互提示贴底边；Boss 条在场时抬到它之上。底边再让开触屏安全区。
 func _sync_prompt_offsets() -> void:
-	var lift := BOSS_BAR_LIFT if _boss_bar_panel != null and _boss_bar_panel.visible else 0.0
+	var lift := (BOSS_BAR_LIFT + (12.0 if _small_window else 0.0)) if _boss_bar_panel != null and _boss_bar_panel.visible else 0.0
 	var bottom := PROMPT_BOTTOM + _insets.w + lift
 	_prompt_panel.offset_top = -bottom
 	_prompt_panel.offset_bottom = -bottom
@@ -1054,7 +1056,35 @@ func _refresh_cores() -> void:
 ## 触屏刘海 / 圆角的安全区（设计单位，已换算到 HUD 层坐标）。桌面与 headless 为零。
 ## 只在窗口尺寸变化时重算，不逐帧问 DisplayServer。
 func _apply_safe_area() -> void:
+	_apply_readable_text(get_tree().root.size)
 	apply_safe_insets(PresentationMetrics.safe_layer_insets(get_tree().root))
+
+
+## The 640px world picture uses half-size UI at a small window. Promote critical
+## readouts to 24 design pixels there so Chinese glyphs retain 12 physical pixels.
+## Secondary weather copy still appears only on request; the world pixel grid stays intact.
+## A headless root is a 64x64 stub that PresentationMetrics clamps up to 640x360,
+## which would read as "1x window": require a genuine window (>= 640x360) before
+## promoting, so headless layout tests keep the desktop typography.
+func _apply_readable_text(window_size: Vector2i) -> void:
+	var genuine := window_size.x >= 640 and window_size.y >= 360
+	_small_window = genuine and int(PresentationMetrics.calculate(window_size)["scale"]) == 1
+	var labels: Array[Label] = [_toxin_label, _objective_label, _socket_label,
+		_pouch_label, _boss_title_label]
+	for socket in _sockets:
+		labels.append(socket.get_node("Key") as Label)
+	for label in labels:
+		if label == null: continue
+		var id := label.get_instance_id()
+		if not _critical_font_sizes.has(id):
+			_critical_font_sizes[id] = label.get_theme_font_size("font_size")
+		var base: int = _critical_font_sizes[id]
+		label.add_theme_font_size_override("font_size", maxi(base, 24) if _small_window else base)
+	if _toxin_label != null:
+		(_toxin_label.get_parent() as Control).custom_minimum_size = Vector2(
+			TOXIN_LABEL_WIDTH, TOXIN_ROW_HEIGHT) * (2.0 if _small_window else 1.0)
+	if _boss_bar_panel != null:
+		_boss_bar_panel.custom_minimum_size.y = BOSS_BAR_HEIGHT + (12.0 if _small_window else 0.0)
 
 
 ## 把一组安全区边距摆进 HUD 各条：状态带 / 横幅 / 天气行 / Boss 条 / 交互提示。
@@ -1073,7 +1103,7 @@ func apply_safe_insets(insets: Vector4) -> void:
 	if _hints != null:
 		_hints.set_top(HintService.TOP + insets.y)
 	var bottom := 22.0 + insets.w
-	_boss_bar_panel.offset_top = -(bottom + BOSS_BAR_HEIGHT)
+	_boss_bar_panel.offset_top = -(bottom + BOSS_BAR_HEIGHT + (12.0 if _small_window else 0.0))
 	_boss_bar_panel.offset_bottom = -bottom
 	_sync_prompt_offsets()
 
