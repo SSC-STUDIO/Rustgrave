@@ -202,7 +202,7 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	if exit != null:
 		eq(exit.target_scene, GameContext.LEVELS["level09b"], "furnace door leads to the emberwind cliffs")
 		eq(exit.flag_id, "level09_done")
-		eq(exit.door_label, "炉心门")
+		eq(exit.door_label, "城墙外")
 		eq(exit.spawn, ChapterLayout.entry_spawn_of("level09b"), "arrival point is the emberwind cliffs entry spawn")
 		ok(_standing_on(rects, exit.position), "exit door stands on the arrow-tower floor")
 		ok(exit.position.x + 24.0 <= float(LAYOUT.EAST_LIMIT) - 80.0, "exit keeps clear of the east wall")

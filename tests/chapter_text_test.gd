@@ -6,7 +6,8 @@ extends TestCase
 
 const DOC_PATH := "res://docs/story.md"
 const EXPECTED_TERMS: Array[String] = [
-	"炉约", "炉心", "锈墓", "锈", "净化偶", "锈核", "残芯", "名字", "腐液", "余烬巢", "灰卫",
+	"炉约", "炉心", "锈墓", "锈", "净化偶", "锈核", "残芯", "名字",
+	"炉座", "剑槽", "守灯", "上城", "送剑", "守火", "腐液", "余烬巢", "灰卫",
 ]
 const EXPECTED_CAST: Array[String] = [
 	"净化偶", "伊尔", "刽子手", "守炉人", "灰卫", "哈伦", "薇尔", "梦魇",
@@ -197,8 +198,8 @@ func _glossary_rows() -> Dictionary:
 
 func test_docs_glossary_matches_registry() -> void:
 	var glossary := _glossary_rows()
-	eq(ChapterText.TERMS.size(), 11, "glossary covers eleven terms")
-	eq(glossary.size(), 11, "docs glossary lists eleven terms")
+	eq(ChapterText.TERMS.size(), 17, "glossary covers seventeen terms")
+	eq(glossary.size(), 17, "docs glossary lists seventeen terms")
 	for term in EXPECTED_TERMS:
 		ok(ChapterText.TERMS.has(term), "%s is a defined term" % term)
 		ok(glossary.has(term), "docs explains %s" % term)
@@ -255,7 +256,7 @@ func _opening_text() -> String:
 
 func test_openings_explain_terms_give_motive_and_cost() -> void:
 	var lines := ChapterText.opening_lines()
-	eq(lines.size(), 16, "the opening has sixteen beats")
+	eq(lines.size(), 17, "the opening has seventeen beats")
 	var opening: Dictionary = ChapterText.OPENING
 	for key in opening:
 		var hits := 0
@@ -271,7 +272,7 @@ func test_openings_explain_terms_give_motive_and_cost() -> void:
 	ok(all.contains("守炉人") and all.contains("立誓"), "守炉人 is explained as the people who swore")
 	ok(all.contains("净化偶") and all.contains("人偶"), "净化偶 is explained as a puppet")
 	ok(all.contains("炉心") and all.contains("炉膛"), "炉心 is explained as the furnace")
-	ok(all.contains("残芯") and all.contains("封成"), "残芯 is explained as the sealed fire")
+	ok(all.contains("残芯") and all.contains("封着最后一口火"), "残芯 is explained as the sealed fire")
 	# 评审 E/F 硬伤：动机与代价必须在开场。
 	ok(String(opening["saved"]).contains("只求你带她问一次"),
 			"the opening states her motive: she only asks to be taken to ask once")
@@ -356,7 +357,7 @@ func test_no_forbidden_words_in_player_text() -> void:
 func test_remnant_core_timeline_is_unique() -> void:
 	var c1 := _prose_of("level01")
 	ok(c1.contains("一百年前炉心熄灭"), "chapter 1 pins the furnace going out a hundred years ago")
-	ok(c1.contains("封进残芯") and c1.contains("放上炉座当灯芯") and c1.contains("又点了一百年"),
+	ok(c1.contains("封成") and c1.contains("放上炉座当灯芯") and c1.contains("又点了一百年"),
 			"chapter 1: the last fire was sealed into the core and burned on the stand as a wick")
 	ok(ChapterText.wake_of("level01").contains("从座上取下"),
 			"chapter 1 wake says Yir took the core down from the stand")
@@ -371,7 +372,7 @@ func test_remnant_core_timeline_is_unique() -> void:
 ## 评审硬伤 2：第一章的机关（点过才能带走）与「另一盏守灯」continuity。
 func test_chapter1_mechanism_and_lamp_continuity() -> void:
 	var exit_caps := " ".join(ChapterText.exit_captions_of("level01"))
-	ok(exit_caps.contains("炉座认点过的核") and exit_caps.contains("点过的核才能带走"),
+	ok(exit_caps.contains("炉座认点过的核") and exit_caps.contains("才准带走"),
 			"chapter 1 states the mechanism: only a core lit on the stand can be taken")
 	var c4 := _prose_of("level03")
 	ok(c4.contains("守灯"), "chapter 4 names the separate guardian lamp")
@@ -420,7 +421,7 @@ func test_terminology_and_meta_language_are_clean() -> void:
 		ok(not prose.contains(banned), "no retired meta/term '%s' in player text" % banned)
 	ok(prose.contains("剑槽"), "the socket is called 剑槽 in player text")
 	ok(TERMS_has("锈核") and ChapterText.term_of("锈核").contains("剑槽"), "锈核 is seated in the 剑槽")
-	ok(ChapterText.exit_label_of("level09") == "炉心门", "the last door is called 炉心门")
+	ok(ChapterText.exit_label_of("level09") == "城墙外", "the wall gate leads to the wind mouth, not the furnace door")
 	ok(ChapterText.exit_label_of("level09b") == "炉心门", "the cliff door is called 炉心门")
 	ok(ChapterText.exit_label_of("level10") == "炉心门", "the forge door is called 炉心门")
 	ok(_prose_of("level10").contains("让城睡下"), "'把锈还给铁' is glossed as letting the city sleep")

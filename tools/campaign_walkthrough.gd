@@ -62,6 +62,10 @@ func _after_undercroft() -> bool:
 			if is_exit: feet.x -= 12
 			if not await _navigate(feet): return false
 			if is_exit and id == "level10": _skip_captions = false
+			if is_exit and node is LevelExit:
+				# 章节出口可能被 Boss 死亡旗标锁着（hollow_bell_dead 等）：
+				# 验收驱动要像玩家一样真打，而不是撞锁门。
+				if not await _clear_gate_boss(node as LevelExit): return false
 			if not is_plate:
 				await _tap(&"interact")
 				await _frames(12)
@@ -99,7 +103,7 @@ func _await_scene(path: String) -> bool:
 
 func _continue_round_trip(id: String) -> bool:
 	var checkpoint: Vector2 = SaveData.data["player"]["pos"]
-	if not await _pause_to_title(): return false
+	if not await _pause_return_to_title(): return false
 	if not await _await_scene(TITLE): return false
 	await _frames(6)
 	await _title_continue()
@@ -405,6 +409,76 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 		await _frames(1)
 	_release()
 	return false
+
+## 章节出口可能被 Boss 死亡旗标锁着（hollow_bell_dead / capstan_dead / choir_dead /
+## founder_dead / herald_dead）。验收驱动必须像玩家一样真打：找到本章 Boss（实现
+## boss_kit() 的敌人），回到竞技场把它打倒，再回来推门。
+func _clear_gate_boss(exit: LevelExit) -> bool:
+	var flag := String(exit.requires_flag)
+	if flag == "" or SaveData.has_flag(flag): return true
+	var boss := _gate_boss()
+	if boss == null:
+		# 没有 Boss 可打：门仍锁着就是布局/旗标问题，让后面的 interact 暴露出来。
+		return true
+	_step = "campaign_boss_" + flag
+	print("[BOSS GATE] fighting %s for flag %s" % [boss.name, flag])
+	# 只给一次有界尝试：验收驱动不会为一场 Boss 无限重试（Boss 战正确性由
+	# tests/<boss>_test.gd 与 tools/boss_fixture.gd 覆盖）。
+	for i in 5400:
+		if SaveData.has_flag(flag):
+			_release()
+			await _frames(60)
+			await _settle_fade()
+			_record(boss.name + "_slain")
+			return true
+		var p := _player()
+		if p == null: return false
+		if p.health.current <= 0:
+			# 死了：等余烬巢复活再试（正常输入，不跳过战斗）。
+			_release()
+			for _wait in 600:
+				await _frames(1)
+				if _player() != null and _player().health.current > 0: break
+			continue
+		if not is_instance_valid(boss) or boss._dead:
+			await _frames(30)
+			continue
+		var feet: Vector2 = LevelSanity.feet_of(boss)
+		var dx: float = boss.position.x - p.position.x
+		var gap := absf(dx)
+		# 出招中：拉开距离、必要时跳/冲躲判定；收招/空闲才贴身输出。
+		var busy := false
+		if boss.has_method("attack_name"):
+			busy = String(boss.attack_name()) != ""
+		if busy:
+			var away := signf(-dx) if absf(dx) > 1.0 else 1.0
+			if gap < 132.0: _move(away)
+			_set_action(&"attack", false)
+			_set_action(&"dash", gap < 84.0 and p.controller._dash_cd <= 0)
+			_set_action(&"jump", p.is_on_floor() and gap < 110.0 and i % 21 == 0)
+			await _frames(1)
+			continue
+		if gap > 96.0 or absf(p.position.y - feet.y) > 48.0:
+			var side := signf(dx) if absf(dx) > 1.0 else 1.0
+			if not await _navigate(Vector2(boss.position.x - 48.0 * side, feet.y)): return false
+			continue
+		_combat()
+		if i % 300 == 0:
+			print("[BOSS GATE] %s hp=%d player hp=%d" % [boss.name, boss.health.current, p.health.current])
+		await _frames(1)
+	_fail("boss gate not won by the input robot (combat skill limit): " + flag)
+	return false
+
+
+## 本章的 Boss：Enemies/ 下实现 boss_kit() 的敌人（每章最多一个正式 Boss）。
+func _gate_boss() -> EnemyBase:
+	var enemies := _world().get_node_or_null("Enemies")
+	if enemies == null: return null
+	for e in enemies.get_children():
+		if e is EnemyBase and not e._dead and e.has_method("boss_kit"):
+			return e
+	return null
+
 
 func _nightmare() -> bool:
 	if not await _navigate(Vector2(1668, 320)): return false

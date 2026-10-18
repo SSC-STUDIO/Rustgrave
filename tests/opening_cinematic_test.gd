@@ -67,38 +67,39 @@ func test_beat_sheet_fits_the_budget_and_uses_only_known_step_kinds() -> void:
 		ok(ALLOWED_KINDS.has(String(step.get("kind", ""))), "step kind %s is an existing Director kind" % step.get("kind", ""))
 		if step.get("kind", "") == "caption":
 			captions.append(String(step["text"]))
-	eq(captions, Opening.LINES, "situation, terms, motive, names, timeline, anomaly, cost, goal, obstacle — in that order")
-	eq(Opening.LINES.size(), 16, "sixteen beats: proper nouns, motive and cost all land before the card")
+	eq(captions, Opening.LINES, "situation, oath, keepers, motive, names, timeline, cost, goal, obstacle — in that order")
+	eq(Opening.LINES.size(), 17, "seventeen beats: proper nouns, motive and cost all land before the card")
 	ok(Opening.LINES[0].contains("剑") and Opening.LINES[0].contains("核"),
 			"the situation beat names the sword and the core inside it")
-	ok(Opening.LINES[1].contains("炉约") and Opening.LINES[1].contains("誓")
-			and Opening.LINES[1].contains("守炉人"),
-			"the covenant and the keepers are explained the first time 炉约 is named")
-	ok(Opening.LINES[2].contains("净化偶") and Opening.LINES[2].contains("人偶"),
+	ok(Opening.LINES[1].contains("炉约") and Opening.LINES[1].contains("誓"),
+			"the covenant explains what 炉约 is the first time it is named")
+	ok(Opening.LINES[2].contains("守炉人"),
+			"the keepers are named right after the covenant")
+	ok(Opening.LINES[3].contains("净化偶") and Opening.LINES[3].contains("人偶"),
 			"净化偶 is explained the first time it is named")
-	ok(Opening.LINES[3].contains("最后一具") and Opening.LINES[3].contains("锈透"),
+	ok(Opening.LINES[4].contains("最后一具") and Opening.LINES[4].contains("锈透"),
 			"the identity beat closes on being the last, rusted one")
-	ok(Opening.LINES[4].contains("伊尔") and Opening.LINES[4].contains("问一次"),
+	ok(Opening.LINES[5].contains("伊尔") and Opening.LINES[5].contains("问一次"),
 			"the motive beat says Yir only asks to be taken to ask once")
-	ok(Opening.LINES[5].contains("回声") and Opening.LINES[5].contains("封进核之前"),
+	ok(Opening.LINES[6].contains("回声") and Opening.LINES[6].contains("封进核之前"),
 			"the echo is explicitly Yir's words from before she sealed herself")
-	ok(Opening.LINES[6].contains("名字") and Opening.LINES[6].contains("回不来"),
+	ok(Opening.LINES[7].contains("名字") and Opening.LINES[7].contains("回不来"),
 			"the names beat explains what burning a name costs")
-	ok(Opening.LINES[7].contains("炉心") and Opening.LINES[7].contains("炉膛"),
+	ok(Opening.LINES[8].contains("炉心") and Opening.LINES[8].contains("炉膛"),
 			"炉心 is explained as the great furnace under the city")
-	ok(Opening.LINES[8].contains("残芯") and Opening.LINES[8].contains("核"),
+	ok(Opening.LINES[9].contains("残芯") and Opening.LINES[9].contains("核"),
 			"残芯 is explained as the core holding the last fire")
-	ok(Opening.LINES[9].contains("灯") and Opening.LINES[9].contains("灯芯"),
+	ok(Opening.LINES[10].contains("灯") and Opening.LINES[10].contains("灯芯"),
 			"the lamp has burned on the remnant core as a wick")
-	ok(Opening.LINES[10].contains("灯越来越暗") and Opening.LINES[10].contains("取下"),
+	ok(Opening.LINES[11].contains("灯越来越暗") and Opening.LINES[11].contains("取下"),
 			"the timeline ends with the dimming lamp and the core taken down")
-	ok(Opening.LINES[11].contains("钟"), "the anomaly is the bell under the graves")
-	ok(Opening.LINES[12].contains("还火") and Opening.LINES[12].contains("散成铁"),
+	ok(Opening.LINES[12].contains("钟"), "the anomaly is the bell under the graves")
+	ok(Opening.LINES[13].contains("还火") and Opening.LINES[13].contains("散成铁"),
 			"the cost beat says returning the fire means you scatter into iron")
-	ok(Opening.LINES[13].contains("残芯") and Opening.LINES[13].contains("问"),
+	ok(Opening.LINES[14].contains("残芯") and Opening.LINES[14].contains("问"),
 			"the goal names the core and the question")
-	ok(Opening.LINES[14].contains("这火该不该还"), "the question is stated verbatim")
-	ok(Opening.LINES[15].contains("刽子手") and Opening.LINES[15].contains("炉座"),
+	ok(Opening.LINES[15].contains("这火该不该还"), "the question is stated verbatim")
+	ok(Opening.LINES[16].contains("刽子手") and Opening.LINES[16].contains("炉座"),
 			"the obstacle guards the furnace stand")
 	var card: Dictionary = {}
 	for raw in steps:
@@ -469,15 +470,15 @@ func test_lines_are_short_enough_for_the_picture_to_lead() -> void:
 	for line in Opening.LINES:
 		ok(String(line).length() <= 22, "line is a pin, not a paragraph: %s" % line)
 	# The identity beats say what you are, not what you must do.
-	ok(Opening.LINES[2].contains("偶") and Opening.LINES[3].contains("锈"),
+	ok(Opening.LINES[3].contains("偶") and Opening.LINES[4].contains("锈"),
 			"the identity beat calls you the last rusted puppet")
 	# The anomaly is one sentence; the graves' answers are the picture.
-	ok(Opening.LINES[11].contains("钟") and Opening.LINES[11].contains("数"),
+	ok(Opening.LINES[12].contains("钟") and Opening.LINES[12].contains("数"),
 			"the anomaly beat says the bell is counting")
 	# 每组信息各出现且只出现一次；每个专名组都带一句白话，动机与代价各一句。
 	var opening: Dictionary = ChapterText.OPENING
 	var groups := {
-		"terms": ["covenant", "made", "furnace", "remnant"],
+		"terms": ["oath", "keepers", "made", "furnace", "remnant"],
 		"timeline": ["lamp", "dim"],
 		"yir": ["saved", "echo"],
 		"identity": ["last_one"],
