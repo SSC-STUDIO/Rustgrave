@@ -279,7 +279,7 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
-		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < 12:
+		if _nv_grounded_near(x, y):
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
@@ -311,16 +311,7 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 	return false
 
 func _steer(x: float) -> void:
-	var p := _player()
-	var dx := x - p.position.x
-	var speed := p.velocity.x
-	var brake := speed * speed / (2.0 * (400.0 if p.is_on_floor() else 270.0) * 1.55)
-	if absf(dx) < 2 and absf(speed) < 10:
-		_move(0)
-	elif signf(dx) == signf(speed) and absf(dx) < brake + 2:
-		_move(0 if p.is_on_floor() and p.controller._land_grip > 0 else -signf(speed))
-	else:
-		_move(signf(dx))
+	_nv_steer(x)
 
 func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 	_fight_tick += 1

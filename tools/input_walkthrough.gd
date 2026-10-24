@@ -881,12 +881,22 @@ func _nv_hazard_blocks(p: Player, target_x: float) -> bool:
 			p.controller.max_speed)
 
 
+func _nv_grounded_near(x: float, y: float) -> bool:
+	var p := _player()
+	if p == null or not p.is_on_floor() or absf(p.position.x - x) >= 4.0 \
+			or absf(p.get_real_velocity().x) >= 12.0: return false
+	# A live slope is connected ground, even though the static graph records
+	# the adjacent platform's level top. Read its actual contact normal.
+	var tolerance := 36.0 if absf(p.get_floor_normal().x) > 0.1 else 9.0
+	return absf(p.position.y - y) < tolerance
+
+
 func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 	if not fight: _release()
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
-		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.get_real_velocity().x) < 12:
+		if _nv_grounded_near(x, y):
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
