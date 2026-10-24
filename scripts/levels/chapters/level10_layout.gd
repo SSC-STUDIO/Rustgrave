@@ -50,7 +50,8 @@ const STEPS: Array = [
 	["ReturnD", Vector2(1520, 224), 112.0],
 	["ReturnE", Vector2(1664, 224), 112.0],
 	["ReturnStairHigh", Vector2(1776, 256), 64.0],
-	["ReturnStairMid", Vector2(1840, 288), 64.0],
+	# End before AscendA's jump run-up: a 64px canopy traps the knight's head.
+	["ReturnStairMid", Vector2(1840, 288), 32.0],
 	["ReturnStairLow", Vector2(1904, 320), 64.0],
 	["RingStairWestLow", Vector2(2288, 288), 64.0],
 	["RingStairWestMid", Vector2(2352, 256), 64.0],

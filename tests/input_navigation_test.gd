@@ -217,6 +217,30 @@ func test_full_height_contiguous_riser_is_jumped_before_touching_the_face() -> v
 	driver._release()
 
 
+func test_finale_bed_riser_has_real_single_jump_headroom_under_the_return_stair() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	var spec: Array = []
+	for step in preload("res://scripts/levels/chapters/level10_layout.gd").STEPS:
+		if step[0] == "ReturnStairMid": spec = step
+	ok(not spec.is_empty())
+	if spec.is_empty(): return
+	layout.step(host, "Bed", Vector2(1472,352),432.0)
+	layout.step(host, "AscendA", Vector2(1904,320),64.0)
+	layout.step(host, "ReturnStairMid", spec[1],spec[2])
+	var player := await spawn_player(host, Vector2(1856,328))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(1936,320)
+	ok(await driver._nv_cross(_segment(Rect2(1472,352,432,16)),
+			_segment(Rect2(1904,320,64,16))), "authored canopy leaves room for the full jump")
+	almost(player.position.y,320.0,1.0)
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()
+
+
 func test_closed_pressure_gate_uses_the_upper_route_until_it_is_open() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()
