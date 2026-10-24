@@ -90,6 +90,10 @@ func _ready() -> void:
 	add_child(presentation)
 	for i in 5:
 		await RenderingServer.frame_post_draw
+	# Project starts maximized. Windows can deliver that resize after the first
+	# windowed assignment; settle again once GamePresentation has initialized.
+	if not await _settle_window(win, win_size):
+		return
 	Director.abort()
 	Director.set_letterbox(false, true)
 	var player := get_tree().get_first_node_in_group("player") as Player
@@ -155,7 +159,8 @@ func _ready() -> void:
 			Engine.time_scale = 0.0
 			for i in 3:
 				await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		if not await _settle_window(win, win_size):
+			return
 		var image := win.get_texture().get_image()
 		var tag := "" if is_equal_approx(cam_y, 220.0) else "_y%d" % int(cam_y)
 		var err := image.save_png("%s/live_%s%s%s.png" % [out_dir, spot, tag, suffix])
@@ -170,6 +175,27 @@ func _ready() -> void:
 				layer.visible = true
 			Engine.time_scale = 1.0
 	get_tree().quit(0)
+
+
+## A named resolution is evidence only when the actual render target matches it.
+## Require three consecutive correctly sized draws so delayed maximize events
+## cannot silently produce a desktop-sized PNG in a folder called "1080p".
+func _settle_window(win: Window, wanted: Vector2i) -> bool:
+	var stable := 0
+	for frame in 120:
+		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
+			win.mode = Window.MODE_WINDOWED
+			win.size = wanted
+			win.position = Vector2i(-12000, -12000)
+			stable = 0
+		await RenderingServer.frame_post_draw
+		var actual := win.get_texture().get_image().get_size()
+		stable = stable + 1 if actual == wanted and win.size == wanted else 0
+		if stable >= 3:
+			return true
+	push_error("peek_live: render target did not settle at %s (window=%s)" % [wanted, win.size])
+	get_tree().quit(1)
+	return false
 
 
 ## Nearest fixed support with room for the whole 14x26 knight body. Moving and
