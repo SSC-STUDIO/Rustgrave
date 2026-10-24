@@ -81,7 +81,7 @@ func test_acts_split_the_fourteen_chapters_as_1_3_4_7_8_11_12_14() -> void:
 
 
 func test_lit_lanterns_follow_cleared_chapters() -> void:
-	var table := {0: 0, 1: 1, 2: 1, 3: 2, 5: 2, 6: 3, 8: 3, 9: 4, 11: 4, 12: 5, 14: 5}
+	var table := {0: 0, 1: 1, 2: 2, 3: 3, 5: 5, 6: 6, 8: 8, 9: 9, 11: 11, 12: 12, 14: 14}
 	for cleared in table:
 		eq(TitleWorld.lit_lantern_count(int(cleared)), int(table[cleared]), "通关 %d 章点亮几盏" % int(cleared))
 	var previous := 0
@@ -107,9 +107,9 @@ func test_state_for_a_journey_grades_by_act_and_counts_lanterns() -> void:
 	eq(fresh["lit"], 0, "没通关任何一章，灯还没亮")
 	eq(TitleWorld.grade_id(fresh), &"act1")
 	# 每一幕取一个章：存档章节决定幕，通关旗标决定灯
-	var cases := [["level02b", 2, 1, &"act1"], ["level03", 3, 2, &"act2"], ["level05", 6, 3, &"act2"],
-			["level07", 8, 3, &"act3"], ["level08", 10, 4, &"act3"], ["level09", 11, 4, &"act4"],
-			["level10", 13, 5, &"act4"]]
+	var cases := [["level02b", 2, 2, &"act1"], ["level03", 3, 3, &"act2"], ["level05", 6, 6, &"act2"],
+			["level07", 8, 8, &"act3"], ["level08", 10, 10, &"act3"], ["level09", 11, 11, &"act4"],
+			["level10", 13, 13, &"act4"]]
 	for c in cases:
 		var s := TitleWorld.build_state(_peek(String(c[0]), _done_flags(int(c[1]))))
 		eq(s["cleared"], int(c[1]), "%s: 通关章数" % String(c[0]))
@@ -130,8 +130,8 @@ func test_state_for_each_ending() -> void:
 		eq(s["act"], 4, "结局都在第四幕的终点")
 		eq(s["cleared"], 14, "全部通关")
 		eq(TitleWorld.grade_id(s), StringName(ending), "%s 有自己的调色" % ending)
-	eq(TitleWorld.build_state(_peek("level10", [], "give"))["lit"], 5, "送剑：灯全亮")
-	eq(TitleWorld.build_state(_peek("level10", [], "keep"))["lit"], 5, "守火：灯全亮")
+	eq(TitleWorld.build_state(_peek("level10", [], "give"))["lit"], 14, "送剑：灯全亮")
+	eq(TitleWorld.build_state(_peek("level10", [], "keep"))["lit"], 14, "守火：灯全亮")
 	eq(TitleWorld.build_state(_peek("level10", [], "snuff"))["lit"], 0, "熄灭：灯全暗")
 	# 没见过的结局 id（旧测试里写过 "purified"）按已完成处理，不崩
 	eq(TitleWorld.build_state(_peek("level10", [], "purified"))["variant"], TitleWorld.VARIANT_GIVE)
@@ -196,16 +196,21 @@ func test_every_variant_builds_within_the_light_and_node_budget() -> void:
 		await flush(6)
 		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "%s: 灯 %d <= %d" % [label, world.light_count(), TitleWorld.MAX_LIGHTS])
 		ok(world.node_count() <= 250, "%s: 节点 %d <= 250" % [label, world.node_count()])
-		eq(world.lantern_count(), TitleWorld.LANTERN_COUNT, "%s: 五盏吊灯" % label)
+		eq(world.lantern_count(), 14, "%s: 十四盏可见吊灯" % label)
 		eq(world.lit_lanterns(), int(entry[1]["lit"]), "%s: 亮着的灯数 = 状态里的 lit" % label)
 		ok(world.camera() != null, "%s: 活景自带 Camera2D" % label)
 		var enabled := 0
 		for lantern in world.lanterns():
 			var light := lantern.light_node()
+			if light == null:
+				continue
 			if light.enabled:
 				enabled += 1
 			ok(light.enabled == lantern.is_lit(), "%s: 灯亮 <=> 点光源开着" % label)
-		eq(enabled, world.lit_lanterns(), "%s: 点光源数与亮灯数一致" % label)
+		ok(enabled <= 5, "%s: 十四盏灯共享不超过五个点光池" % label)
+		ok(world.find_children("*", "LightOccluder2D", true, false).size() >= 2)
+		ok((world.get_node("ShaftLight") as PointLight2D).shadow_enabled)
+		ok((world.get_node("ForgeLight") as PointLight2D).shadow_enabled)
 		await _free_world(world)
 
 
@@ -246,7 +251,9 @@ func test_each_variant_puts_the_right_actors_on_the_bridge() -> void:
 	var keep := _make_world(TitleWorld.build_state(_peek("level10", [], "keep")))
 	await flush(3)
 	ok(keep.knight() != null, "守火：骑士在")
-	ok(keep.knight().position.x > TitleWorld.KNIGHT_X + 40.0, "守火：骑士站在炉口那一端")
+	ok(keep.knight().position.x > TitleWorld.KNIGHT_X + 40.0, "守火：骑士位于炉口那一端")
+	eq(keep.knight_sprite().current(), "seated", "守火：专用坐姿，不再复用站立idle")
+	ok(keep.knight_sprite().texture.resource_path.contains("seated_"))
 	ok(keep.nest() != null, "守火：余烬巢点着")
 	await _free_world(keep)
 
@@ -270,7 +277,7 @@ func test_configure_swaps_the_actors() -> void:
 	world.configure(TitleWorld.build_state(_peek("level04", _done_flags(4))))
 	await flush(3)
 	ok(world.knight() != null and world.planted_sword() == null, "回到旅程：骑士回来，巨剑收走")
-	eq(world.lit_lanterns(), 2, "亮灯数跟着状态走")
+	eq(world.lit_lanterns(), 4, "亮灯数跟着状态走")
 	await _free_world(world)
 
 
@@ -364,7 +371,8 @@ func test_intro_lights_come_on_one_by_one_and_skip_lands_the_final_state() -> vo
 	eq(world.lit_lanterns(), 0, "开屏一开始灯全是暗的")
 	# one by one: frame by frame we must see an in-between count (not 0 -> all at once)
 	var seen := {}
-	for i in 150:
+	var intro_wait := get_tree().create_timer(duration + 0.4)
+	while intro_wait.time_left > 0.0:
 		await get_tree().process_frame
 		seen[world.lit_lanterns()] = true
 	var intermediate := false
@@ -379,7 +387,8 @@ func test_intro_lights_come_on_one_by_one_and_skip_lands_the_final_state() -> vo
 	var out := world.quit_out(0.1)
 	ok(out > 0.5, "退场有时长")
 	var seen_out := {}
-	for i in 90:
+	var outro_wait := get_tree().create_timer(out + 0.4)
+	while outro_wait.time_left > 0.0:
 		await get_tree().process_frame
 		seen_out[world.lit_lanterns()] = true
 	var intermediate_out := false

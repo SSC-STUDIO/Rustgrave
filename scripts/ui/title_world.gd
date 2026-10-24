@@ -5,7 +5,7 @@ extends Node2D
 ##
 ## The Ember Knight (current skin) stands on a long iron bridge in a vast forge hall:
 ## a light shaft from the torn roof, huge slow gears on pre-rendered rotation frames,
-## swaying lanterns (a point light each), a furnace pit and a furnace door glowing
+## fourteen swaying lanterns (five pooled point lights), a glowing furnace pit/door
 ## below and beside him, embers / ash / steam. The camera breathes and follows the
 ## pointer by WHOLE pixels, layer by layer (orbit parallax around the knight plane).
 ##
@@ -14,7 +14,7 @@ extends Node2D
 ##   cold     no save: a cold forge, rusty and unlit, the ember almost out
 ##   journey  in progress: colour grade by act, lit lanterns = cleared chapters / 14
 ##   give     the knight is gone, only the planted greatsword; warm and steady
-##   keep     the knight stands at the forge end looking into the fire; nest lit
+##   keep     the knight sits at the forge end looking into the fire; nest lit
 ##   snuff    lanterns dark, one dying red glow where he stood
 ##
 ## Budgets (tests/title_world_test.gd): <= 8 lights, <= 250 nodes, no per-frame
@@ -24,12 +24,13 @@ const WORLD := Vector2(640.0, 360.0)
 const CENTER := Vector2(320.0, 180.0)
 const DIR := "res://assets/title/"
 const MAX_LIGHTS := 8
-const LANTERN_COUNT := 5
+const LANTERN_COUNT := 14
 const CHAPTERS := 14
+const LIGHT_POOL_FIXTURES := [1, 4, 7, 10, 13]
 
 const DECK_Y := 266.0
 const KNIGHT_X := 326.0
-## 'keep': the knight stands at the forge end of the bridge, just clear of the housing (x=440).
+## 'keep': a seated knight beside the furnace, clear of the foreground housing.
 const KEEP_X := 420.0
 const FEET := Vector2(KNIGHT_X, DECK_Y)
 const BRIDGE_POS := Vector2(150.0, DECK_Y - 26.0)
@@ -226,12 +227,9 @@ static func build_state(peek: Dictionary) -> Dictionary:
 	}
 
 
-## 5 hanging lanterns stand for 14 chapters: none lit until a chapter is cleared,
-## then proportionally (1 at 1-2 chapters ... all 5 at 12+).
+## One visible hanging fixture per cleared chapter; physical light pools are shared.
 static func lit_lantern_count(cleared: int) -> int:
-	if cleared <= 0:
-		return 0
-	return clampi(ceili(float(cleared) * float(LANTERN_COUNT) / float(CHAPTERS)), 1, LANTERN_COUNT)
+	return clampi(cleared, 0, LANTERN_COUNT)
 
 
 ## Acts by chapter index in GameContext.LEVEL_ORDER: 1-3, 4-7, 8-11, 12-14 -> 1..4.
@@ -366,6 +364,7 @@ func _build() -> void:
 	bridge.z_index = -5
 	bridge.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_stage.add_child(bridge)
+	_occluder(_stage, "BridgeShadow", Rect2(150, DECK_Y + 2, 344, 9))
 
 	_build_chains()
 
@@ -386,6 +385,7 @@ func _build() -> void:
 	_mouth.material = mouth_mat
 	mass_right.add_child(_mouth)
 	_front_gear(mass_right)
+	_occluder(mass_right, "FurnacePierShadow", Rect2(32, 144, 14, 114))
 
 	_build_lights()
 	_build_glow_layer()
@@ -467,23 +467,21 @@ func _build_chains() -> void:
 		host.add_child(c)
 		_chains.append(c)
 		_register(c, c.position, float(spec[3]), c.position + Vector2(0.0, c.length * 0.5))
-	# lanterns, in lighting order (nearest the knight first): [x, top, length, depth, amp, period, phase, radius]
-	for spec in [
-		[236.0, 46.0, 138.0, 0.15, 2.5, 6.2, 0.7, 92.0], [410.0, 46.0, 122.0, 0.15, 2.5, 6.8, 2.4, 88.0],
-		[104.0, 46.0, 98.0, 0.45, 2.0, 7.4, 4.1, 80.0], [522.0, 44.0, 74.0, 0.6, 2.0, 6.6, 5.2, 76.0],
-		[338.0, 44.0, 62.0, -0.1, 1.5, 7.9, 1.6, 64.0],
-	]:
+	# All fourteen chapter lamps remain below the logo and above the menu rail.
+	for i in LANTERN_COUNT:
 		var lantern := TitleLantern.new()
 		lantern.name = "Lantern%d" % _lanterns.size()
-		lantern.length = float(spec[2])
-		lantern.swing_amp = float(spec[4])
-		lantern.swing_period = float(spec[5])
-		lantern.swing_phase = float(spec[6])
-		lantern.light_radius = float(spec[7])
-		lantern.position = Vector2(float(spec[0]), float(spec[1]))
+		lantern.length = 62.0 + float(i % 3) * 4.0
+		lantern.swing_amp = 1.0
+		lantern.swing_period = 6.2 + float(i % 4) * 0.4
+		lantern.swing_phase = float(i) * 0.7
+		lantern.light_radius = 84.0
+		lantern.emits_light = LIGHT_POOL_FIXTURES.has(i)
+		lantern.casts_shadows = i in [4, 10]
+		lantern.position = Vector2(44.0 + float(i) * 42.0, 40.0)
 		host.add_child(lantern)
 		_lanterns.append(lantern)
-		_register(lantern, lantern.position, float(spec[3]), lantern.position + Vector2(0.0, lantern.length * 0.5))
+		_register(lantern, lantern.position, 0.15, lantern.position + Vector2(0.0, lantern.length * 0.5))
 
 
 func _make_light(node_name: String, pos: Vector2, radius: float) -> PointLight2D:
@@ -503,6 +501,16 @@ func _build_lights() -> void:
 	_pit_light = _make_light("PitLight", Vector2(340.0, 336.0), 280.0)
 	_shaft_light = _make_light("ShaftLight", Vector2(292.0, 150.0), 210.0)
 	_forge_light = _make_light("ForgeLight", Vector2(486.0, 246.0), 150.0)
+	_shaft_light.shadow_enabled = true
+	_forge_light.shadow_enabled = true
+
+
+func _occluder(parent: Node, node_name: String, rect: Rect2) -> void:
+	var blocker := LightOccluder2D.new()
+	blocker.name = node_name
+	blocker.occluder = OccluderPolygon2D.new()
+	blocker.occluder.polygon = _rect_polygon(rect)
+	parent.add_child(blocker)
 
 
 func _build_glow_layer() -> void:
@@ -552,7 +560,7 @@ func _apply_state() -> void:
 		VARIANT_SNUFF:
 			pass
 		VARIANT_KEEP:
-			_place_knight(skin, KEEP_X)
+			_place_knight(skin, KEEP_X, true)
 			_place_nest(KEEP_X - 40.0)
 		_:
 			_place_knight(skin, KNIGHT_X)
@@ -584,7 +592,7 @@ func _clear_actors() -> void:
 	_nest_flame = null
 
 
-func _place_knight(skin: StringName, x: float) -> void:
+func _place_knight(skin: StringName, x: float, seated: bool = false) -> void:
 	_knight = Node2D.new()
 	_knight.name = "Knight"
 	_knight.position = Vector2(x, DECK_Y)
@@ -595,14 +603,22 @@ func _place_knight(skin: StringName, x: float) -> void:
 	var frames := SkinCatalog.frames_for(skin, &"idle")
 	var anim := FrameAnimSprite.new()
 	anim.name = "KnightSprite"
-	if not frames.is_empty():
+	if seated:
+		var pose := load("res://assets/title/seated_%s.png" % SkinCatalog.folder_of(skin)) as Texture2D
+		anim.register("seated", [pose], 1.0, true, Vector2(0, -24))
+		anim.play("seated")
+		_occluder(_knight, "KnightShadow", Rect2(-7, -29, 17, 28))
+	elif not frames.is_empty():
 		anim.register("idle", frames, 10.0, true, SkinCatalog.offset_for(skin, &"idle"))
 		anim.play("idle")
+		_occluder(_knight, "KnightShadow", Rect2(-5, -34, 10, 34))
 	anim.modulate = SkinCatalog.tint_of(skin)
 	visual.add_child(anim)
 	var sword := Greatsword.new()
 	visual.add_child(sword)
 	sword.show_carried()
+	if seated:
+		sword.hide()
 
 
 func _place_planted() -> void:

@@ -20,7 +20,7 @@
 场景文件 `scenes/ui/TitleWorld.tscn`（`scripts/ui/title_world.gd`，`class_name TitleWorld extends Node2D`），配套组件：
 
 - `scripts/ui/title_chain.gd`（`TitleChain`）：程序化整像素逐环绘制吊链（正面环与侧面环交替），随正弦整像素摆动。
-- `scripts/ui/title_lantern.gd`（`TitleLantern extends TitleChain`）：链端挂铁笼吊灯（`assets/title/lantern.png` 两帧：灭/亮）、`PointLight2D` 与加法混合光晕 `Halo`，火苗按 12fps 阶梯闪烁。
+- `scripts/ui/title_lantern.gd`（`TitleLantern extends TitleChain`）：14 个链端铁笼吊灯（`assets/title/lantern.png` 灭/亮两帧）均保留加法光晕；其中 5 个使用 `PointLight2D` 光池，火苗按 12fps 阶梯闪烁。
 - `scripts/ui/title_gear.gd`（`TitleGear extends Sprite2D`）：预渲染旋转帧网格（大齿轮 8×4=32 帧覆盖 45°、中齿轮 8×4=32 帧覆盖 45°、小齿轮 6×4=24 帧覆盖 60°），运行时只切帧不旋转 Sprite，严守像素网格且跨周期无缝循环。
 - `scripts/ui/title_sparks.gd`（`TitleSparks extends Node2D`）：单画布项定长粒子池（零逐帧分配），承载上升余烬（`EMBER`）、下落灰烬（`ASH`）、光柱浮尘（`DUST`）、送剑锈屑（`SPECK`）、焦点/确认迸发火星（`SPARK`）以及 6 帧蒸汽团（`STEAM`）。
 
@@ -37,10 +37,10 @@
 | `PitGlow` (`Sprite2D`) | 2 | `-0.10` | 桥下炉心辉光（`glow.png`，加法混合） |
 | `Gears` (`GearBig` / `GearSmall`) | 2 | `+0.55` | 左侧咬合大小齿轮（`gear_big.png` / `gear_small.png`） |
 | `Stage` (`Bridge` + 角色/巨剑/余烬巢) | 10 | `0.00` | 中央铁桥（`bridge.png`，桥面 `DECK_Y = 266`）与桥上叙事主体 |
-| `Chains` (`Chain0..5` + `Lantern0..4`) | 20 | `-0.10 .. +0.70` | 6 条铁链与 5 盏进度吊灯（按离骑士由近到远排列点亮顺序） |
+| `Chains` (`Chain0..5` + `Lantern0..13`) | 20 | `-0.10 .. +0.70` | 6 条装饰铁链与 14 盏进度吊灯；每通关一章点亮一盏，按索引从左至右 |
 | `Roof` (`Sprite2D`) | 30 | `+0.50` | 顶部桁架与天窗裂口（`roof.png`） |
 | `MassLeft` / `MassRight` (`Sprite2D`) | 40 | `+1.00` | 左右近景机械山体；右侧含自发光炉门 `ForgeMouth` 与前景齿轮 `GearFront` |
-| `PitLight` / `ShaftLight` / `ForgeLight` | — | — | 3 盏环境 `PointLight2D`（连同 5 盏吊灯共 **8 盏点光**，0 阴影，符合 `≤8` 预算） |
+| `PitLight` / `ShaftLight` / `ForgeLight` | — | — | 3 盏环境光与 5 个吊灯光池共 **8 盏点光**；光柱、炉门及 2 个吊灯光池开启阴影，桥身/炉柱/骑士有真实 `LightOccluder2D` |
 | `Glow` (`CanvasLayer` layer `1`) | — | `-0.20 / +0.45` | 不受 `CanvasModulate` 压暗的 `Motes`、`Sparks`、`Vignette` 与入场白热 `Flash` |
 | `Camera` (`Camera2D`) | — | — | 居中于 `(320, 180)`，7s 周期 `±1px` 整数像素垂直呼吸 |
 
@@ -50,12 +50,12 @@
 
 `TitleWorld.peek_save()` 在未调用 `SaveData.load_game()` 的冷启动状态下直接只读解析内存或磁盘存档（`user://rustgrave_save.cfg` 及 `.bak`），再交由纯函数 `TitleWorld.build_state(peek)` 计算场景状态字典：
 
-| 变体 ID (`variant`) | 触发条件 | 调色档 (`grade_id`) | 桥面主体 | 吊灯亮起数 (`lit` / 5) | 齿轮 / 炉火 / 粒子表现 |
+| 变体 ID (`variant`) | 触发条件 | 调色档 (`grade_id`) | 桥面主体 | 吊灯亮起数 (`lit` / 14) | 齿轮 / 炉火 / 粒子表现 |
 |---|---|---|---|---|---|
 | `&"cold"` | 无存档（`has_save == false`） | `&"cold"` | 骑士立于桥心（`x=326`），背负巨剑待机 | `0` | 冷灰蓝环境光、炉门微弱暗红、齿轮极慢（`0.12×`）、无蒸汽、极少余烬 |
-| `&"journey"` | 有存档且无结局 | `&"act1" .. &"act4"`（按章节下标分四幕：1–3 / 4–7 / 8–11 / 12–14 章） | 骑士穿戴当前存档皮肤（`SaveData.skin_id` 或起源默认皮肤）立于桥心，背负巨剑微摆 | `ceili(cleared * 5.0 / 14.0)`（0 章为 0 盏，1–2 章 1 盏……12–14 章 5 盏） | 由第一幕冷青逐幕升温至第四幕炽热炉红；齿轮转速（`0.45× → 1.30×`）、炉火、余烬、蒸汽随幕次递进 |
-| `&"give"`（送剑） | `ending == "give"`（或未知非空结局回退） | `&"give"` | 骑士离去，桥心只留插地巨剑（`Greatsword.spawn_planted`） | `5`（全亮、火焰平稳 `flicker=0.15`） | 炉火温暖稳定，剑周飘浮锈屑粒子（`SPECK`） |
-| `&"keep"`（守火） | `ending == "keep"` | `&"keep"` | 骑士移至右侧炉口端（`KEEP_X = 420`），身旁点燃一座余烬巢（`EmberNest`） | `5`（全亮） | 炉火与炉口光最盛（`furnace=1.2, forge=1.3`），余烬密集升腾 |
+| `&"journey"` | 有存档且无结局 | `&"act1" .. &"act4"`（按章节下标分四幕：1–3 / 4–7 / 8–11 / 12–14 章） | 骑士穿戴当前存档皮肤（`SaveData.skin_id` 或起源默认皮肤）立于桥心，背负巨剑微摆 | `clampi(cleared, 0, 14)`，精确 N/14 | 由第一幕冷青逐幕升温至第四幕炽热炉红；齿轮转速（`0.45× → 1.30×`）、炉火、余烬、蒸汽随幕次递进 |
+| `&"give"`（送剑） | `ending == "give"`（或未知非空结局回退） | `&"give"` | 骑士离去，桥心只留插地巨剑（`Greatsword.spawn_planted`） | `14`（全亮、火焰平稳 `flicker=0.15`） | 炉火温暖稳定，剑周飘浮锈屑粒子（`SPECK`） |
+| `&"keep"`（守火） | `ending == "keep"` | `&"keep"` | 骑士坐在右侧炉边铁凳（`KEEP_X = 420`），使用各皮肤独立的 48×48 坐姿；旁有余烬巢（`EmberNest`） | `14`（全亮） | 炉火与炉口光最盛（`furnace=1.2, forge=1.3`），余烬密集升腾 |
 | `&"snuff"`（熄灭） | `ending == "snuff"` | `&"snuff"` | 骑士与巨剑俱无，桥面空寂 | `0`（全灭） | 炉门熄灭、齿轮停转（`0.0×`）、无余烬无蒸汽，仅桥心留一盏微弱呼吸的残红点光 |
 
 > 通关章数判定：遍历 `GameContext.LEVEL_ORDER`（14 章），读取 `StoryFlow.DONE_FLAGS`（第一章 `boss_dead`、第二章 `undercroft_done`、其余 `levelNN_done`），或位于当前存档章节之前的章节均计为已通关。
@@ -97,7 +97,8 @@
 | 常量 | 默认值 | 说明 |
 |---|---|---|
 | `MAX_LIGHTS` | `8` | 视口内 `PointLight2D` 预算上限（3 环境光 + 5 吊灯） |
-| `LANTERN_COUNT` / `CHAPTERS` | `5` / `14` | 吊灯总数与战役总章数 |
+| `LANTERN_COUNT` / `CHAPTERS` | `14` / `14` | 可见吊灯总数与战役总章数 |
+| `LIGHT_POOL_FIXTURES` | `[1,4,7,10,13]` | 带物理光池的吊灯索引；其中 4、10 开启投影 |
 | `DECK_Y` / `KNIGHT_X` / `KEEP_X` | `266.0` / `326.0` / `420.0` | 铁桥桥面 Y、骑士默认 X、守火结局骑士 X |
 | `PARALLAX` / `POINTER_EASE` | `Vector2(9.0, 4.5)` / `3.2` | 深度 `1.0` 层的最大鼠标整像素偏移与平滑系数 |
 | `BREATH_PERIOD` | `7.0` | 摄像机 `±1px` 呼吸周期（秒） |
@@ -121,18 +122,18 @@
 
 ### 自动化测试
 
-- `tests/title_world_test.gd`（19 个用例）：
-  - 14 章 → 4 幕划分与通关章数 → 5 盏吊灯单调映射；
+- `tests/title_world_test.gd`（20 个用例）：
+  - 14 章 → 4 幕划分、通关章数 → 14 盏吊灯精确 N/14 映射；
   - `build_state()` 与 `state_from_save()` 在无存档、各幕旅程、三种结局（`give`/`keep`/`snuff`）及未知结局下的取值；
   - 8 种状态（`cold`、`act1..4`、`give`、`keep`、`snuff`）全部在 headless 下构建无错，点光源数 `≤ 8`、节点数 `≤ 250`；
   - 全部皮肤（`SkinCatalog.ids()`）待机帧、染色、偏移与背负巨剑校验；
-  - 各变体桥上演员切换与 `configure()` 动态热切换；
+  - 各变体桥上演员切换、守火坐姿、真实遮挡节点与 `configure()` 动态热切换；
   - 齿轮整周期无缝循环、冷炉慢转与熄灭停转；
   - 鼠标视差与相机呼吸严格落在整数像素；
   - 开屏逐盏亮灯、跳过开屏、退场逐盏灭灯；
   - 粒子池容量上限与连续 300 帧零节点增长；
   - `Keyart` 视口挂载、隐藏停渲、`USE_LIVE_SCENE = false` 静态回退、`bed_title` 音频特性探测。
-- `tests/title_screen_test.gd`（21 个用例）：
+- `tests/title_screen_test.gd`（20 个用例）：
   - 左下铁条菜单三档宽度、52px 触控高度、四组间距、不过中线（`< 640`）；
   - 键鼠共享同一选中态、聚焦联动活景微推与闪亮；
   - 回火试炼锁态提示、余烬竞技场 `ID_ARENA` 派发与真实 `ArenaRun.start()` 接线；
