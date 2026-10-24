@@ -114,6 +114,8 @@ Style Guide: No anti-aliasing, use sharp jagged edges (chunky pixels) to emphasi
 
 ## 角色接地（Foot Pinning）
 
+七位Boss的原创帧、独立设计与源稿索引见 `docs/original-bosses.md`。空钟、绞盘守渠人、唱诗班、铸钟人、炉风先驱和梦魇均为适配各自体型的原生1倍帧；没有继续使用旧盾卫、ghost或horse作为Boss身体。三名唱诗壳分别拥有不同面具和发声帧。所有输出采用最近邻和二值透明边缘。
+
 - **所有接地装饰 / 道具 / 敌人 / 存档点**的节点原点就是脚点：脚点（底边中点）
   必须坐在台面顶 y 上，且 y 取整数。
   `Level01Env.plant_texture()`（`scripts/levels/level01_env.gd:114-154`）把脚点写进

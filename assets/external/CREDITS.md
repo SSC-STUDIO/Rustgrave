@@ -301,3 +301,15 @@
   select separate cold/hot poses, including the death fold.
 - Source and output delivered for project use. Authorship manifest records
   palette, dimensions and exact pixel hashes.
+
+## Original HollowBell and BellFounder pixel animations
+- Both use independent project-authored integer-pixel contours and poses in
+  `tools/gen_original_bell_bosses.py`, with no source pictures, tracing,
+  downloaded character pixels or external API inputs.
+- `assets/characters/original_hollow_bell/`: 72 transparent frames for a
+  suspended cracked bell and a separate articulated clapper weakpoint.
+- `assets/characters/original_bell_founder/`: 128 transparent frames for a
+  four-course foundry automaton and its independent segmented hammer.
+- Source and output delivered for project use; palettes are explicit in source.
+  `tools/art/review_original_bosses.py --reproduce` compares the exact pixels
+  redrawn from source for all seven bosses and records their hashes.
