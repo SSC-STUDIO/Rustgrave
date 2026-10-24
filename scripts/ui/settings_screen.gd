@@ -558,6 +558,8 @@ func _on_setting_changed(key: StringName) -> void:
 		return
 	if key == &"keys":
 		_sync_keys()
+	elif _sliders.has(key):
+		_sync_slider(key)
 
 
 # --- 页面 ----------------------------------------------------------------------

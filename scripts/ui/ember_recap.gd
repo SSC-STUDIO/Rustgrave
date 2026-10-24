@@ -41,11 +41,6 @@ func _ready() -> void:
 	_practice.custom_minimum_size.y = UiKit.TOUCH_MIN
 	_practice.pressed.connect(start_selected_rematch)
 	box.add_child(_practice)
-	var back := Button.new()
-	back.text = "返 回 标 题"
-	back.custom_minimum_size.y = UiKit.TOUCH_MIN
-	back.pressed.connect(close)
-	box.add_child(back)
 	PresentationMetrics.bind_layer(self)
 
 
@@ -63,10 +58,16 @@ func open(refresh_from_disk: bool = true) -> void:
 	if _summary.text == "":
 		_summary.text = "这段旅程的余温仍在。"
 	var done := Catalog.cleared_chapters()
-	var names := PackedStringArray()
-	for row in done:
-		names.append(String(row["title"]))
-	_chapters.text = "章节  %d / %d\n%s" % [done.size(), GameContext.LEVEL_ORDER.size(), " · ".join(names)]
+	var ticks := PackedStringArray()
+	for index in GameContext.LEVEL_ORDER.size():
+		var cleared := false
+		for row in done:
+			if row["id"] == GameContext.LEVEL_ORDER[index]:
+				cleared = true
+				break
+		ticks.append("%02d %s" % [index + 1, "◆" if cleared else "◇"])
+	_chapters.text = "章节  %d / %d\n%s\n%s" % [done.size(), GameContext.LEVEL_ORDER.size(),
+		"   ".join(ticks.slice(0, 7)), "   ".join(ticks.slice(7))]
 	var total_runs := 0
 	var bests := PackedStringArray()
 	for track in Catalog.TRACKS:
