@@ -1,6 +1,30 @@
 extends TestCase
 ## Logical viewport stays 1280x720; stretch is integer for 2x / 3x desktops.
 
+const TEST_PATH := "user://display_fit_test_settings.cfg"
+var _settings_path: String
+var _extra: Dictionary
+var _fit_mode: DisplayFit.FitMode
+var _saved_mode_applied: bool
+
+
+func setup() -> void:
+	_settings_path = Settings.save_path
+	_extra = Settings._extra.duplicate(true)
+	_fit_mode = DisplayFit.get_fit_mode()
+	_saved_mode_applied = DisplayFit._saved_mode_applied
+	Settings.save_path = TEST_PATH
+
+
+func teardown() -> void:
+	Settings._extra = _extra
+	Settings.save_path = _settings_path
+	DisplayFit.apply_fit_mode(_fit_mode)
+	DisplayFit._saved_mode_applied = _saved_mode_applied
+	for path in [TEST_PATH, TEST_PATH + ".tmp"]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
 
 func test_logical_viewport_stays_1280() -> void:
 	eq(DisplayFit.VIEW_W, 1280)
