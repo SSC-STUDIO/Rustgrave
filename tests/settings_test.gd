@@ -293,6 +293,10 @@ func test_show_tab_moves_focus_into_the_new_page() -> void:
 ## 改键后，设置页的键帽和操作说明的键位列都要立刻跟着换 —— 不经重开界面，
 ## 玩家不会看到"设置里写成 Q、操作说明还写着空格"的两套说法。
 func test_rebinding_refreshes_every_key_label() -> void:
+	var previous_device := KeyLabels.device()
+	# A preceding controller action may leave pad prompts active. Exercise the
+	# real keyboard capture, which also selects keyboard prompts for both views.
+	KeyLabels.set_device(KeyLabels.DEVICE_GAMEPAD)
 	var screen := SettingsScreen.new()
 	add_child(screen)
 	await get_tree().process_frame
@@ -307,7 +311,12 @@ func test_rebinding_refreshes_every_key_label() -> void:
 			"settings key page starts on the bound key")
 	eq(controls.key_text(1), KeyLabels.label(&"jump"),
 			"controls panel starts on the bound key")
-	Settings.rebind_action(&"jump", KEY_Q, false)
+	screen.begin_capture(&"jump")
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_Q
+	key.pressed = true
+	ok(screen.handle_capture_event(key), "keyboard rebind is captured from the active pad view")
+	eq(KeyLabels.device(), KeyLabels.DEVICE_KEYBOARD, "keyboard capture switches prompt device")
 	await get_tree().process_frame
 	eq(screen.key_cap_text(&"jump"), "Q", "settings key page refreshes live after a rebind")
 	eq(controls.key_text(1), "Q", "controls panel refreshes live after a rebind")
@@ -317,3 +326,4 @@ func test_rebinding_refreshes_every_key_label() -> void:
 	screen.queue_free()
 	controls.queue_free()
 	await get_tree().process_frame
+	KeyLabels.set_device(previous_device)
