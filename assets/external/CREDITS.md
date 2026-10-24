@@ -265,3 +265,12 @@
   The ordinary gear-shield guard retains its separately credited legacy art.
 - Rights: project-authored source and output, delivered with this repository
   for project use. Authorship manifest records generator, palette and hashes.
+
+## Original Nightmare pixel animation
+- Source/author: project-original pixel clusters and joint poses in
+  `tools/art/gen_original_executioner_nightmare.py --only nightmare`.
+- Output: `assets/characters/original_nightmare/`, 53 transparent frames covering
+  eight actual combat states, including the collapse. No source picture, tracing
+  or legacy horse pixels are read; this replaces NightmareBoss's old horse art.
+- Rights: source and output delivered for project use; the authorship manifest
+  includes palette, dimensions and per-frame hashes. No external source URL.

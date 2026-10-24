@@ -162,12 +162,22 @@ def nightmare(action: str, frame: int, count: int) -> Image.Image:
     im=Image.new('RGBA',(128,96));p=Pixels(im,BONE)
     gallop=action=='gallop'; t=frame*math.tau/count
     bob=round(math.sin(t*2)*(2 if gallop else 1))
+    progress = frame / max(1, count-1)
+    rear = math.sin(progress*math.pi) if action in ('neigh','quake') else 0.0
+    if action == 'windup': bob += 2 + round(progress*2)
+    if action == 'rest': bob += 3
+    if action == 'heat_wave': bob -= 2
     # Back legs in shadow; four independently bent limbs distinguish the gait.
     legs=[(82,65,1),(48,67,-1),(91,65,-1),(39,66,1)]
     for i,(x,y,sgn) in enumerate(legs):
         stride=round(math.sin(t+(i%2)*math.pi)*12) if gallop else (i%2)*3
         knee=(x+stride//2,y+13+bob)
         hoof=(x-stride+sgn*3,94-(max(0,round(math.cos(t+i)*10)) if gallop else 0))
+        if i in (1,3) and rear > 0:
+            knee=(x-8, y+5-round(rear*13))
+            hoof=(x-15,82-round(rear*28))
+        if action == 'windup' and i in (1,3):
+            knee=(x-6,y+12);hoof=(x-10,94)
         p.line([(x,y+bob),knee,hoof],'ink',7)
         p.line([(x,y+bob),knee,hoof],'shade' if i<2 else 'bone',4)
         p.line([(x-1,y+bob), (knee[0]-1,knee[1]),(hoof[0]-1,hoof[1]-3)],'edge' if i>=2 else 'ash')
@@ -228,13 +238,35 @@ def nightmare(action: str, frame: int, count: int) -> Image.Image:
     for i in range(3):
         x=54+(i*17+frame*3)%42;y=42-(frame*3+i*7)%16
         p.rect((x,y,x+1,y+2),'ember')
+    if action in ('neigh','heat_wave'):
+        # Open split jaw and exhaled ember fragments are authored poses.
+        p.poly([(10,39+bob),(17,43+bob),(26,39+bob),(23,47+bob),
+                (16,48+bob),(8,43+bob)],'deep')
+        p.line([(10,43+bob),(18,46+bob),(23,43+bob)],'hot')
+        for j in range(4):
+            ex=7-(frame*3+j*5)%15;ey=39+bob+(j%2)*4
+            if ex>0:p.rect((ex,ey,ex+1,ey+1),'ember')
+    if action == 'quake':
+        for j in range(4):
+            x=27+j*11
+            p.line([(x,91),(x+2,87-(frame+j)%5)],'ember')
+    if action == 'death':
+        # Ceramic plates collapse in place; pin the final remains to hoof level.
+        bbox=im.getbbox();crop=im.crop(bbox)
+        h=max(19,round(crop.height*(1-.72*progress)))
+        crop=crop.resize((crop.width,h),Image.Resampling.NEAREST)
+        im=Image.new('RGBA',(128,96));im.alpha_composite(crop,(bbox[0],95-h))
+        d=ImageDraw.Draw(im)
+        for j in range(round(progress*6)):
+            x=23+j*15;d.rectangle((x,93-j%3,x+4,94-j%3),fill=BONE['bone'])
     return im
 
 
 SPECS = {
     'executioner': ('original_executioner', executioner,
                     {'idle':6,'idle2':4,'summon':6,'attack':8,'skill':6,'death':8}),
-    'nightmare': ('original_nightmare', nightmare, {'idle':8,'gallop':8}),
+    'nightmare': ('original_nightmare', nightmare,
+                  {'idle':8,'gallop':8,'windup':5,'rest':6,'neigh':6,'quake':6,'heat_wave':6,'death':8}),
 }
 
 
