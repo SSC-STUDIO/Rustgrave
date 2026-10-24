@@ -327,3 +327,112 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 - 视觉审计 Phase B/C（扩章后重拍、Boss 房逐场构图）未全量完成：Phase A 已修 P0；02b/04b 有 before/after；其余扩章段与 7 场 Boss 房列入 `PHASE_B_QUEUE.md` / Phase C，待后续。
 - 外部角色/武器线未合并：契约 §3 + `LoadoutBridge`（feature-detect）+ 奖励位 + 可达性矩阵 + `LoadoutMergeCheck` 已就绪；合并时按契约 SMOKE 1–7 跑门禁。
 - `docs/` 与源码在同一分支；`screenshots/` 全量 gitignore（证据只在本地，路径如上）。
+
+## 2026-10-24 全面改造 v3（标题活景 + 章节机关 + 系统）
+
+代码落在 `feature/overhaul-v3`。清单和未验证项以 `docs/overhaul-v3.md` §5 为准。这里只记结论，不把没跑的项目写成通过。
+
+已接到游戏里的行为：
+
+- 标题用 `TitleWorld` 实时场景；`USE_LIVE_SCENE` 可退回 keyart。余烬竞技场菜单项会调用 `ArenaRun.start()`。有存档时「回看余烬」打开总结页，继续游戏仍直接读档。
+- 第一章东翼四段已在 `level01_east_layout.gd`（东界 3760）。持久化节点名未改。
+- 第二到十章各加了 1–2 个专属机关和至多一只变体敌人（`scripts/levels/chapter_overhaul.gd`）。地面坐标没挪。
+- 设置新增辅助页（默认 100% = 旧平衡）、垂直同步、分辨率轮换、地图热键（M / Select）。死亡 0.4 秒后可按跳跃跳过。
+- 战役输入脚本会等机关的 `safe_window()`，并用辅助选项走第二章之后。
+
+2026-10-24 实测：
+
+- 全量 `tools/run_tests.ps1`：**1396/1396 通过，0 engine errors**（约 473 秒）。
+- 布局测试 151/151。第二到十章的 `LevelSanity`（`chapter_overhaul_test`）通过。
+- 标题活景 12 张：cold / give / keep / snuff × 960×540、1280×720、1920×1080，`screenshots/acceptance/overhaul-v3/title/`。
+
+还不能写成通过：
+
+- 14 章真实输入通关。战役已经通过第一章并走到空钟门口；空钟没被输入机器人打死（见 `docs/overhaul-v3.md` §5）。
+- 每章渲染矩阵、`frame_cost_probe` 标题机位的实跑日志。
+- 真机触屏、手柄实机手感、真人试玩手感、实体显示器性能。
+
+## 本轮升级验收清单
+
+剧情分镜、标题活景、3v3 竞技场。导入、全量套件、截图、走查、帧耗仍是**未运行**。分组测试在 2026-10-24 的联调里跑过一次（Godot 4.7.1，0 engine errors）：`title_` 71/71，`chapter_text` 23/23，`journal` 19/19，`storyboard` 20/20，`modal` 5/5，`story_flow` 19/19，`arena_hud_test` 10/10。`arena_` 整组在修完记分条和开战可见性之后没有再整包重跑，只重跑了 `arena_hud_test`。全量 `tools/run_tests.ps1` 没有跑。
+
+**2026-10-25 更新**：导入已跑（含 assets/story 的 7 张 jpg）。全量套件 **1405/1405 通过，0 engine errors**（`screenshots/acceptance/final-verify/`）。标题活景 12 张（cold/give/keep/snuff × 3 分辨率）已存 `screenshots/acceptance/overhaul-v3/title/`。渲染矩阵已跑（`screenshots/peek/`）。战役输入验收：level01-03 + 空钟通过（`docs/acceptance-2026-10-25.md`）；level04 被第二个齿轮盾卫阻断（bot 战斗技能限制，非游戏 bug）。
+
+Godot 控制台：`C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe`。仓库：`C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave`。
+
+1. **未运行** — 导入（含 `assets/story` 的 7 张 jpg，拷贝命令在 `docs/cinematics.md` 第 6 节）：
+
+   ```powershell
+   & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --headless --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --import
+   ```
+
+2. **未运行** — 全量测试。发现方式是 `tests/run_tests.gd` 只扫 `res://tests` 顶层的 `*_test.gd`（不递归，`tests/probes/` 不进套件），没有手写清单。`tools/test_manifest_server.js` 只是更新服务的 HTTP 夹具。
+
+   ```powershell
+   powershell -File tools\run_tests.ps1
+   ```
+
+   默认超时 180 秒。竞技场 / 标题组若超时，把 `-TimeoutSeconds` 加大。通过标记：`OK — N/N passed; 0 engine errors`。
+
+3. **未运行** — 分组（`-CaseFilter` 是路径子串）：
+
+   ```powershell
+   powershell -File tools\run_tests.ps1 -CaseFilter storyboard -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter arena_ -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter title_ -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter journal -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter chapter_text -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter opening -TimeoutSeconds 300
+   powershell -File tools\run_tests.ps1 -CaseFilter modal -TimeoutSeconds 300
+   ```
+
+4. **未运行** — 标题活景截图。窗口模式（`--headless` 会退出码 2），窗口摆在屏外。`-Variants`：`cold,act1,act2,act3,act4,mid,give,keep,snuff`。`-Sizes`：`960x540,1280x720,1920x1080`。`-Shots`：`boot,idle,focus,all`（默认 `idle,focus`）。可选 `-Skin`、`-Bare`。输出默认 `screenshots/acceptance/overhaul-v3/title`。场景 `scenes/tools/TitlePeek.tscn`，脚本 `tools/title_peek.gd`。日志里认 `^TITLE_PEEK`。
+
+   ```powershell
+   powershell -File tools\run_title_peek.ps1 -Variants "cold,act1,act2,act3,act4,mid,give,keep,snuff" -Shots "idle,focus"
+   ```
+
+5. **未运行** — UI 夹具截图。没有 `tools/ui_peek.ps1`（脚本头里的那行是过时说明）。窗口模式，自用一次性存档，不是验收门。`--only` 取 `title,hud,menus,cine`。
+
+   ```powershell
+   & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --windowed --resolution 1920x1080 res://scenes/tools/UiPeek.tscn -- --out=res://screenshots/ui_peek --size=1920x1080 --level=level01 --only=title,hud,menus,cine
+   ```
+
+6. **未运行** — 切片实拍（标题 → 开场 → 第 1 章 → 战斗 → Boss → 第 2 章）。窗口在桌面上，不是屏外。`-Ending` 仍是脚本里的 `rekindle` 或 `snuff`（旧通关路线名，不是结局 id `give`/`keep`）。默认 600 秒量级的长跑，见脚本内超时。
+
+   ```powershell
+   powershell -File tools\run_slice_shots.ps1 -Ending snuff -Window 1280x720
+   powershell -File tools\run_slice_shots.ps1 -Ending rekindle -Window 1280x720
+   ```
+
+7. **未运行** — 剧情渲染夹具（章节卡、章间、开场拍、暂停前情）。窗口模式，屏外；headless 退出码 2。自用临时档。输出 `res://screenshots/acceptance/story`（写不进仓库则 `user://story_acceptance`）。场景 `scenes/tools/StoryAcceptance.tscn`。
+
+   ```powershell
+   & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --windowed --position -12000,-12000 --resolution 1280x720 --rendering-method gl_compatibility res://scenes/tools/StoryAcceptance.tscn
+   ```
+
+8. **未运行** — 开场过场实拍。窗口模式，headless 退出码 2。输出 `res://screenshots/acceptance/cinematics`。可选 `--write-movie file.avi --fixed-fps 30`。场景 `scenes/tools/CinematicAcceptance.tscn`。
+
+   ```powershell
+   & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --windowed --position -12000,-12000 --resolution 1280x720 --rendering-method gl_compatibility res://scenes/tools/CinematicAcceptance.tscn
+   ```
+
+9. **未运行** — 战役走查。`scenes/tools/CampaignWalkthrough.tscn` 继承 `tools/input_walkthrough.gd`。不加 `--resume` 走父类新游戏（标题 → 第 1–2 章）；加 `--resume` 从标题继续。父类认 `--ending=rekindle` 或 `--ending=snuff`。机器人打不过空钟，14 章全程仍不能靠它证明。
+
+   ```powershell
+   & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --windowed --resolution 1280x720 res://scenes/tools/CampaignWalkthrough.tscn -- --ending=snuff
+   ```
+
+10. **未运行** — 帧耗探针（证据，不是门）。窗口模式。`--level` 换关。输出 `res://screenshots/peek/frame_cost`。场景 `scenes/tools/FrameCostProbe.tscn`。
+
+    ```powershell
+    & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --windowed --resolution 1920x1080 res://scenes/tools/FrameCostProbe.tscn -- --level=level08
+    ```
+
+人工验收（同样未做）：
+
+- 新游戏：序章分镜、开场、章间、三条结局（还火 give / 守炉 keep / 熄火 snuff）。序章人物页的「守炉人」不点哈伦的名。
+- 标题活景：冷启动、各幕存档、三种结局变体；菜单聚焦与活景联动；档案与「竞」芯片显示「胜 N 场」（没有记录时是 0，且芯片不亮）。
+- 暂停菜单「故事」页能回放分镜；标题「回看余烬」同一条回放。回放层 24，盖在暂停 20–22 之上；播完遮罩不残留。
+- 竞技场一整局：大厅 → 倒计时 → 对局 → 结算 → 再来一局 / 返回标题。大厅、倒计时、结算打不开暂停。对局中暂停的「重开」「退出」先把 `get_tree().paused` 放开再走。死亡只显示复活倒计时，不弹战役死亡幕，也不教「回余烬巢」。
+- 插图：按第 6 节拷进 `assets/story/` 并导入后，序章与三结局用上 jpg；文件缺失时退回实时拼镜，不留空画面。

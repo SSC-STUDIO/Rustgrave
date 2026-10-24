@@ -80,6 +80,7 @@ OK — 1405/1405 passed; 0 engine errors
 | level03 锈城街巷 | ✅ 完整通过 | 死城支路、齿轮盾卫、出口 |
 | level04 圣殿中庭 | ⚠️ 部分通过 | 进入并探索，但卡在第二个齿轮盾卫（见已知问题） |
 | level05-10 | ❌ 未到达 | 被 level04 阻断 |
+| 熄灭结局（level01 短线） | ✅ 通过 | 结局分镜需按确认推进（已修） |
 
 ### 死亡次数
 战役路线共 1 次死亡（在 level01 炉厅竞技场，属正常难度）。
@@ -102,7 +103,13 @@ OK — 1405/1405 passed; 0 engine errors
 
 **缓解**：后续章节的布局/敌人/机关由 `LevelSanity` 静态检查和 `chapter_overhaul_test` 覆盖。真实输入验收需要人工或更强的 bot。
 
-### 3. 测试隔离 flake
+### 3. 结局分镜需要手动推进
+
+**现象**：熄灭/复燃结局的分镜（storyboard）每帧面板需要按一次确认才推进（skip_all_on_accept=false），bot 不点就永远停在第一格。
+
+**修复**：walkthrough 在结局期间每 30 帧按一次 ui_accept。
+
+### 4. 测试隔离 flake
 
 **现象**：`equipment_multi_input_navigation_test` 在全量套件中偶发失败（mouse hover 状态泄漏），隔离运行 5/5 通过。
 
@@ -111,6 +118,7 @@ OK — 1405/1405 passed; 0 engine errors
 ## 提交记录
 
 ```
+6ebe802 fix(walkthrough): press accept to advance ending storyboards
 8f31804 feat(campaign): gear-shield parry, hazard dash, breakable detection, drop corridor
 eecb943 fix(campaign): break destructible slabs blocking the path
 f3c4ed9 fix(campaign): beat HollowBell with jump attacks, fix post-boss door return
