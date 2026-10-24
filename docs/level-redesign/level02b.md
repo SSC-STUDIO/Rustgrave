@@ -7,7 +7,7 @@
 | 分段 | X 范围 | 高度层级 (Y) | 核心体验与机制 |
 | :--- | :--- | :--- | :--- |
 | **① 水闸广场** | `0..1120` | `288 / 320 / 352` | 起点点亮首座余烬巢 `EmberNestSluice (176)`、阅读 `SteleSluice (300)`；在平地 `FloorSluice (384..464)` 经历**首处闸口涌流安全教学位 `SurgeTeach`**（前后各 `>64px` 无毒无怪安全平地，观察 `0.6s` 水纹预警与周期推力）；跨过小渠 `SluiceCanal (560..720)` 后，在绞盘石高台 `CapstanStep (800, 288)` 踩下压板开启 `SluiceGateDoor (1008, 256)`（**遭遇战 1**），抵达第二座余烬巢 `EmberNestBridge (1088)`。 |
-| **② 双层运渣大渠** | `1120..2064` | `120 / 272 / 288 / 320 / 352` | `944px` 宽的主运渣渠。西桥头石 `HaulStoneW (1120, 288)` 上设有**双水位切换阀板 `DrainValvePlate (1144, 288)`**：<br>· **高水位态（默认）**：走上层悬索吊台桥（`HaulStoneMid` + `LiftHaulWest/East`，`y=272`），迎战高空飞魔、幽魂与双向闸口涌流 `SurgeCanalWest/East`；<br>· **低水位态（踩阀泄水）**：`CanalWaterController` 将 `SlagCanalPool` 液面降至 `y=350` 并削弱涌流推力，露出下层渠床石墩（`CanalPierW/Mid/E`，`y=320`）与渠底通路（`y=352`，**遭遇战 2**）。上下两路均无需钩锁即可通关。 |
+| **② 双层运渣大渠** | `1120..2064` | `120 / 272 / 288 / 320 / 352` | `944px` 宽的主运渣渠。西桥头石 `HaulStoneW (1152, 288)` 上设有**双水位切换阀板 `DrainValvePlate (1176, 288)`**：<br>· **高水位态（默认）**：走上层悬索吊台桥（`HaulStoneMid` + `LiftHaulWest/East`，`y=272`），迎战高空飞魔、幽魂与双向闸口涌流 `SurgeCanalWest/East`；<br>· **低水位态（踩阀泄水）**：`CanalWaterController` 将 `SlagCanalPool` 液面降至 `y=350` 并削弱涌流推力，露出下层渠床石墩（`CanalPierW/Mid/E`，`y=320`）与渠底通路（`y=352`，**遭遇战 2**）。上下两路均无需钩锁即可通关。 |
 | **③ 抽水井与捷径** | `2064..2940` | `136 / 168 / 200 / 296 / 320` | 登岸即达第三座余烬巢 `EmberNestConduit (2084)`。主地面东端立有单向捷径门 `PumpShortcutDoor (2744, 256)`（初始关闭）；首次探索需穿过抽水井底层遭遇战（**遭遇战 3** 与 `SurgePumpWell` 涌流），乘竖吊台 `PumpLift (2500, 296 -> 152)` 登上 `PumpCatwalk (2448, 136)`，再沿 `PumpOverlookE (2600, 168)` → `PumpStepE (2696, 200)` 越过捷径门落回东侧，踩下 `PumpShortcutPlate (2784, 320)` 永久打通地面捷径，直抵第四座余烬巢 `EmberNestPump (2890)`。 |
 | **④ 排水闸井竞技场** | `2940..3540` | `288 / 320` | `600px` 宽的绞盘守渠人（`CapstanWarden`）竞技场，两侧设避水石台 `ArenaPerchWest (2984, 288)` 与 `ArenaPerchEast (3440, 288)`，配合 `ArenaDrainage` 二阶段自动泄水机制；击败 Boss 后开启出口 `Exit (3592, 320)` 前往 `level03`。 |
 
@@ -21,7 +21,7 @@
      - `SlagCanalPool` 液面位于 `y = 336.0`（高度 `32px`），涌流 `SurgeCanalWest/East` 保持 `100%` 推力（`±72 px/s`）。
      - 推荐路线为上层悬索桥（`HaulStoneW -> HaulStoneMid -> LiftHaulWest -> HaulStoneE -> LiftHaulEast -> FloorWell`），风险来自空中敌人与横渡吊台上的脉冲水推。
   2. **`water_state == "low"`（泄水态）**：
-     - 踩下 `DrainValvePlate (1144, 288)` 后，`SlagCanalPool` 液面退落至 `y = 350.0`（高度缩至 `16px`、透明度降低），涌流推力衰减至 `65%`，下层石墩 `CanalPierW (1384, 320)`、`CanalPierMid (1552, 320)`、`CanalPierE (1840, 320)` 高亮显露。
+     - 踩下 `DrainValvePlate (1176, 288)` 后，`SlagCanalPool` 液面退落至 `y = 350.0`（高度缩至 `16px`、透明度降低），涌流推力衰减至 `65%`，下层石墩 `CanalPierW (1384, 320)`、`CanalPierMid (1552, 320)`、`CanalPierE (1840, 320)` 高亮显露。
      - 玩家可沿下层渠床石墩快速突进，正面对抗渠墩上的散射喷吐者 `SpitterCanal`。
 
 ---
@@ -80,3 +80,7 @@
 本章布局与脱困回归13/13、全章Sanity13/13、守渠人10/10，0engine errors。输入检查input-20261024-181916-476由前段正常存档恢复，零死亡击败守渠人并通过出口进入03；此为恢复调试，尚不代表14章新游戏通关。
 
 截图：screenshots/acceptance/overhaul-v3/level02b-recovery/720p-final和1080p-final，640/1248/2084/2600/3260两档共10张已逐张检查。渲染夹具停放骑士、免伤并结束入场演出，仅证明画面与地形。最终全量仍待整合。
+
+BasicAbilities 新游戏又暴露了大渠西岸的净空问题：原 HaulStoneW 紧贴 x=1120 的岸口，底面 y=304 会把渠底骑士的脚点限制在 y≈330，无法跳回 y=320 的岸面。合法存档恢复回放 `input-20261024-203124-710` 复现 30 次重试耗尽，停在 `(1127.075,351.9996)`；新增真实单跳物理夹具也在同点失败。现将桥头石内移至 x=1152，阀板与装饰同步至 x=1176，保留 32px 宽的爬岸净空；没有改动角色状态或导航参数。新夹具不授予额外跳跃、钩锁或无敌，修复后本章布局与脱困回归 15/15、0 引擎错误，证据在 `screenshots/acceptance/overhaul-v3/basic-drain/{baseline,fixed}`。
+
+修复后从标题新开、无钩锁/二段跳的 BasicAbilities 普通输入回放 `input-20261024-203404-266` 已踩阀、抵达东岸余烬巢、击败守渠人并从出口进入第三章；本章没有新增死亡。该回放使用公开辅助选项与 headless fixed-fps 加速，不能替代真人操作或真实帧耗结论。

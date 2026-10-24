@@ -129,7 +129,7 @@ func test_haul_bridge_dual_water_routes_and_shortcut_on_foot() -> void:
 		eq(east.travel, Vector2(240.0, 0.0), "east lift finishes the crossing")
 	# 上层悬索桥路线 + 下层渠床石墩路线 + 抽水井上层捷径阶梯，全部可无钩锁到达。
 	var stations: Array = [
-		["HaulStoneW", Vector2(1144, 288)],
+		["HaulStoneW", Vector2(1176, 288)],
 		["HaulStoneMid", Vector2(1232, 272)],
 		["WestLiftStart", Vector2(1352, 272)],
 		["WestLiftEnd", Vector2(1616, 272)],
