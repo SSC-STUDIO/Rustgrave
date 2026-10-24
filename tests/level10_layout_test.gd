@@ -1,401 +1,451 @@
 extends TestCase
-## Level10 "炉心深处" (终关): the slag crossing stays single hops, the arena is one
-## flat run with nothing but the two end perches, both checkpoints stand before
-## the rust gate, and the exit is the ending door (no next scene, boss flag).
-
+## Dry recovery, a one-way return, three nests, hook vigil and phase-linked pulses.
 const LAYOUT := preload("res://scripts/levels/chapters/level10_layout.gd")
-const JUMP_RISE_MAX := 32.0
-const JUMP_GAP_MAX := 72.0
+const BOSS_TITLE := "锈 墓 梦 魇 · 无 主 之 马"
 
 
 func setup() -> void:
-	SaveData.flags.clear()
+	SaveData.delete_save()
+	SaveData.pending_spawn = Vector2.INF
+	Director.abort()
+	Director._set_lock(false)
+	_release_input()
 
 
 func teardown() -> void:
-	SaveData.flags.clear()
+	_release_input()
+	Director.abort()
+	Director._set_lock(false)
+	SaveData.delete_save()
+	SaveData.pending_spawn = Vector2.INF
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 
 
-func _host() -> Node2D:
+func _release_input() -> void:
+	for action in ["jump", "move_left", "move_right", "dash"]:
+		Input.action_release(action)
+
+
+func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level10_ForgeCore"
 	host.scene_file_path = GameContext.LEVELS["level10"]
 	host.add_to_group("game_world")
 	add_child(host)
+	var layout := LAYOUT.new() as ChapterLayout
+	add_child(layout)
+	layout.build(host)
 	return host
-
-
-func _build() -> Node2D:
-	var host := _host()
-	var level := LAYOUT.new() as ChapterLayout
-	add_child(level)
-	level.build(host)
-	return host
-
-func test_arena_checkpoint_and_boss_room_exclude_corridor_pursuers() -> void:
-	var host := _build()
-	var player := await spawn_player(host, Vector2(LAYOUT.NEST_ARENA_X, 300))
-	await flush(360)
-	eq(player.health.current, player.health.max_hp, "boss checkpoint is safe while resting")
-	player.position = Vector2(1600, 320)
-	await flush(90)
-	player.position = Vector2(LAYOUT.ARENA_X0 + 160.0, 288)
-	await flush(420)
-	for enemy in host.get_node("Enemies").get_children():
-		if enemy.name == "Nightmare": continue
-		ok(enemy.position.x <= LAYOUT.CORRIDOR_ENEMY_MAX_X,
-				"corridor pursuer stays outside the boss arena")
-
-
-func _solids(host: Node2D) -> Array[SolidPlatform]:
-	var out: Array[SolidPlatform] = []
-	for child in host.get_node("Platforms").get_children():
-		if child is SolidPlatform:
-			out.append(child as SolidPlatform)
-	return out
 
 
 func _rects(host: Node2D) -> Array[Rect2]:
-	var rects: Array[Rect2] = []
-	for p in _solids(host):
-		rects.append(Rect2(p.position, p.size))
-	return rects
+	var out: Array[Rect2] = []
+	for node in host.get_node("Platforms").get_children():
+		if node is SolidPlatform:
+			out.append(Rect2(node.position, node.size))
+	return out
 
 
 func _standing_on(rects: Array[Rect2], feet: Vector2, slack: float = 0.5) -> bool:
-	for r in rects:
-		if feet.x >= r.position.x - 0.01 and feet.x <= r.end.x + 0.01 and absf(feet.y - r.position.y) <= slack:
+	for rect in rects:
+		if feet.x >= rect.position.x and feet.x <= rect.end.x and absf(feet.y - rect.position.y) <= slack:
 			return true
 	return false
 
 
-func _right(p: SolidPlatform) -> float:
-	return p.position.x + p.size.x
+func _pulses(host: Node2D) -> Array:
+	return [host.get_node("Props/CorePulse1"), host.get_node("Props/CorePulse2"), host.get_node("Props/CorePulse3")]
 
 
-func _overlaps_arena(x0: float, x1: float) -> bool:
-	return x1 > LAYOUT.ARENA_X0 and x0 < LAYOUT.ARENA_X1
+func _isolate(host: Node2D) -> void:
+	for enemy in host.get_node("Enemies").get_children():
+		enemy.set_physics_process(false)
+		if enemy.name != "Nightmare":
+			enemy.queue_free()
+	for prop in host.get_node("Props").get_children():
+		if prop is CyclicHazard:
+			prop.set_physics_process(false)
+	Director.abort()
 
 
-func test_metadata_is_the_final_chapter() -> void:
-	var level := LAYOUT.new() as ChapterLayout
+func test_metadata_and_original_inscriptions() -> void:
+	var layout := LAYOUT.new() as ChapterLayout
+	add_child(layout)
+	eq(layout.level_id(), "level10")
+	eq(layout.title(), ChapterText.title_of("level10"))
+	eq(layout.theme(), "forge_core")
+	eq(layout.east_limit(), 4160)
+	eq(layout.camera_top(), -128)
+	eq(layout.entry_spawn(), LAYOUT.ENTRY_SPAWN)
+	ok(layout.indoors())
+	eq(GameContext.next_level_id("level10"), "")
+	var host := _build()
+	for id in ["SteleNightmare", "SteleCompact", "SteleVigil"]:
+		var stele := host.get_node("Props/" + id) as LoreStele
+		var text := ChapterText.stele_of("level10", id)
+		eq(stele.lore_title, text.title)
+		eq(stele.lore_text, text.text)
+		ok(_standing_on(_rects(host), LevelSanity.feet_of(stele)))
+	ok(host.get_node("IndoorZone") is AtmosphereZone)
+	ok(host.get_node("ParallaxBackdrop") is CanvasLayer)
+
+
+func test_main_route_has_dry_recovery_and_only_single_hops() -> void:
+	var host := _build()
+	for row in LAYOUT.FLOORS:
+		var platform := host.get_node("Platforms/" + String(row[0])) as SolidPlatform
+		eq(platform.position, Vector2(float(row[1]), float(row[3])))
+		almost(platform.size.x, float(row[2]) - float(row[1]))
+	for index in range(1, LAYOUT.FLOORS.size()):
+		var before: Array = LAYOUT.FLOORS[index - 1]
+		var after: Array = LAYOUT.FLOORS[index]
+		almost(float(before[2]), float(after[1]), 0.01, "continuous dry recovery floor")
+		ok(float(before[3]) - float(after[3]) <= 32.0, "no recovery climb exceeds one jump")
+	for pos in [Vector2(800, 352), Vector2(960, 320), Vector2(1024, 288), Vector2(1760, 352), Vector2(1936, 320)]:
+		ok(_standing_on(_rects(host), pos), "fixed recovery foothold %s" % pos)
+	ok(host.get_node_or_null("Props/SlagPool") == null, "timed jets replace permanent liquid damage")
+	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, Vector2(LAYOUT.EXIT_X, 320), false))
+	var gate := host.get_node("Props/ArenaGate") as RustyGate
+	ok(gate != null and not gate._melted, "original heat-forge gate remains closed")
+
+
+func test_first_jets_have_safe_waiting_and_recovery_space() -> void:
+	var host := _build()
+	var first := host.get_node("Props/SlagTeachWest") as CyclicHazard
+	var second := host.get_node("Props/SlagTeachEast") as CyclicHazard
+	for hazard in [first, second]:
+		ok(hazard.telegraph_time >= 0.8 and hazard.rest_time + hazard.telegraph_time >= 1.2)
+		almost(hazard.hit_rect().size.x, 24.0)
+		almost(hazard.hit_rect().size.y, 56.0)
+	ok(first.hit_rect().position.x - 416.0 >= 48.0, "fixed landing before first nozzle")
+	ok(752.0 - second.hit_rect().end.x >= 48.0, "fixed landing after last nozzle")
+	var player := await spawn_player(host, Vector2(400, 268))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "first warning can be read for six seconds")
+	player.position = Vector2(720, 328)
+	player.velocity = Vector2.ZERO
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "post-nozzle recovery is safe for six seconds")
+
+
+func test_three_grounded_nests_and_boss_gate_distance() -> void:
+	var host := _build()
+	var positions: Array[Vector2] = []
+	for id in ["EmberNestGate", "EmberNestCooling", "EmberNestArena"]:
+		var nest := host.get_node("Props/" + id) as EmberNest
+		var feet := nest.position + Vector2(6, 14)
+		ok(_standing_on(_rects(host), feet))
+		positions.append(feet)
+	almost(positions[1].x - positions[0].x, 992.0)
+	almost(positions[2].x - positions[1].x, 1008.0)
+	ok(LAYOUT.ARENA_X0 - positions[2].x <= 80.0)
+	var arena := host.get_node("Arenas/NightmareArena") as BossArena
+	ok(arena.checkpoint_report().ok)
+	var gate := host.get_node("Props/ArenaGate") as RustyGate
+	ok(gate.position.x - positions[2].x <= 80.0)
+	ok(_standing_on(_rects(host), gate.position + Vector2(8, 64)))
+
+
+func _rest_at(feet: Vector2) -> void:
+	var host := _build()
+	var player := await spawn_player(host, feet - Vector2(0, 24))
+	await flush(360)
+	eq(player.health.current, player.health.max_hp, "six seconds of real enemy AI at nest %s" % feet)
+	ok(player.is_on_floor())
+
+
+func test_entry_checkpoint_is_safe_for_six_seconds() -> void:
+	await _rest_at(Vector2(176, 288))
+
+
+func test_cooling_checkpoint_is_safe_for_six_seconds() -> void:
+	await _rest_at(Vector2(1168, 288))
+
+
+func test_boss_checkpoint_is_safe_for_six_seconds() -> void:
+	await _rest_at(Vector2(LAYOUT.NEST_ARENA_X, 320))
+
+
+func test_encounters_stay_out_of_the_boss_room() -> void:
+	var host := _build()
+	for row in LAYOUT.ENEMIES:
+		var enemy := host.get_node("Enemies/" + String(row[0])) as Node2D
+		eq(enemy.position, row[2])
+		ok(String(row[1]) in ["ghost", "fire_skull"])
+		ok(not LevelSanity.inside_solid(_rects(host), enemy.position), "%s begins in open air" % row[0])
+		ok(enemy.position.x < LAYOUT.ARENA_X0)
+	var player := await spawn_player(host, Vector2(1760, 328))
+	await flush(60)
+	player.position = Vector2(2400, 296)
+	Director.abort()
+	await flush(360)
+	for enemy in host.get_node("Enemies").get_children():
+		if enemy.name != "Nightmare":
+			ok(enemy.position.x <= LAYOUT.CORRIDOR_ENEMY_MAX_X, "pursuer stays outside the arena")
+
+
+func test_return_gallery_has_east_stairs_and_one_way_west_drop() -> void:
+	var host := _build()
+	var sequence := ["ReturnStairLow", "ReturnStairMid", "ReturnStairHigh", "ReturnE", "ReturnD", "ReturnC", "ReturnB", "ReturnEnd"]
+	for index in range(1, sequence.size()):
+		var from := host.get_node("Platforms/" + sequence[index - 1]) as SolidPlatform
+		var to := host.get_node("Platforms/" + sequence[index]) as SolidPlatform
+		ok(from.position.y - to.position.y <= 32.0)
+		ok(from.position.x - (to.position.x + to.size.x) <= 32.0)
+	var end := host.get_node("Platforms/ReturnEnd") as SolidPlatform
+	var floor_ := host.get_node("Platforms/FloorHallA") as SolidPlatform
+	ok(floor_.position.y - end.position.y > LevelSanity.JUMP_RISE_MAX, "west drop cannot be reversed by a basic jump")
+	ok(_standing_on(_rects(host), Vector2(1136, 288)))
+	ok(LevelSanity.is_reachable(host, Vector2(1952, 320), Vector2(1136, 224), false))
+
+
+func test_ring_has_upper_route_four_seats_and_clear_charge_lane() -> void:
+	var host := _build()
+	var floor_ := host.get_node("Platforms/ArenaFloor") as SolidPlatform
+	almost(floor_.position.x, LAYOUT.ARENA_X0)
+	almost(floor_.position.y, 320.0)
+	for row in LAYOUT.STEPS:
+		if String(row[0]).contains("Gallery"):
+			var platform := host.get_node("Platforms/" + String(row[0])) as SolidPlatform
+			ok(320.0 - (platform.position.y + platform.size.y) >= 80.0, "Nightmare body clears upper route")
+	for index in LAYOUT.PILLARS.size():
+		var seat := host.get_node("Platforms/PillarSeat%d" % (index + 1)) as SolidPlatform
+		almost(seat.position.y, 192.0)
+		almost(seat.size.x, 64.0)
+		ok(_standing_on(_rects(host), seat.position + Vector2(32, 32)))
+		ok(LevelSanity.is_reachable(host, Vector2(2304, 320), seat.position + Vector2(32, 0), false))
+	var dais := host.get_node("Platforms/CoreDais") as SolidPlatform
+	eq(Rect2(dais.position, dais.size), LAYOUT.CORE_DAIS)
+	ok(LevelSanity.is_reachable(host, Vector2(3888, 320), Vector2(2464, 224), false))
+	var boss := host.get_node("Enemies/Nightmare") as Node2D
+	eq(boss.scale, Vector2.ONE)
+	eq(boss.position, LAYOUT.BOSS_POS)
+	var body := boss.get_node("CollisionShape2D") as CollisionShape2D
+	eq((body.shape as RectangleShape2D).size, Vector2(48, 28))
+
+
+func test_vigil_branch_is_hook_only_and_grants_real_equipment() -> void:
+	var host := _build()
+	var deck := host.get_node("Platforms/VigilDeck") as SolidPlatform
+	var hook := host.get_node("Hooks/HookVigil") as HookAnchor
+	var stele := host.get_node("Props/SteleVigil") as LoreStele
+	var reward := host.get_node("Props/RewardVigil") as EquipmentPickup
+	ok(hook.position.y < deck.position.y)
+	ok(deck.position.y - hook.position.y <= LevelSanity.HOOK_LAND_BELOW)
+	ok(stele.lore_text.contains("送剑") and stele.lore_text.contains("守火"))
+	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LAYOUT.VIGIL_REWARD_FEET, false))
+	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LAYOUT.VIGIL_REWARD_FEET, true))
+	ok(EquipmentCatalog.has_id(reward.reward_ref))
+	eq(reward.reward_name, EquipmentCatalog.for_id(reward.reward_ref).display_name)
+	_isolate(host)
+	var player := await spawn_player(host, Vector2(288, 136))
+	reward.interact(player)
+	await flush(2)
+	ok(not is_instance_valid(reward))
+	var received := false
+	for item in player.equipment_inventory.bag + player.equipment_inventory.get_equipped_items():
+		if item != null and String(item.id) == "iron_carapace":
+			received = true
+	ok(received, "actual inventory receives the vigil reward")
+
+
+func test_pulses_wait_for_encounter_and_only_match_its_phase_events() -> void:
+	var host := _build()
+	_isolate(host)
+	var pulses := _pulses(host)
+	for pulse in pulses:
+		pulse.tick(20.0)
+		ok(not pulse.enabled and not pulse._armed)
+		ok(is_inf(pulse.seconds_until_active()))
+	GameEvents.boss_phase_changed.emit(BOSS_TITLE, 3)
+	eq(pulses[1].phase_id, 0)
+	var arena := host.get_node("Arenas/NightmareArena") as BossArena
+	arena.activate()
+	for index in pulses.size():
+		eq(pulses[index].enabled, index == 1)
+	GameEvents.boss_phase_changed.emit("other boss", 3)
+	eq(pulses[1].phase_id, 1)
+	GameEvents.boss_phase_changed.emit(BOSS_TITLE, 2)
+	for pulse in pulses:
+		eq(pulse.phase_id, 2)
+		ok(pulse.enabled)
+		almost(pulse.rest_time, 3.0)
+		ok(pulse.seconds_until_active() >= 3.9)
+	ok(pulses[0].seconds_until_active() < pulses[1].seconds_until_active())
+	ok(pulses[1].seconds_until_active() < pulses[2].seconds_until_active())
+
+
+func test_real_boss_damage_drives_faster_phases_and_full_warning() -> void:
+	var host := _build()
+	_isolate(host)
+	var arena := host.get_node("Arenas/NightmareArena") as BossArena
+	var boss = host.get_node("Enemies/Nightmare")
+	arena.activate()
+	var pulses := _pulses(host)
+	boss.health.take_damage(6)
+	Director.abort()
+	for pulse in pulses:
+		eq(pulse.phase_id, 2)
+		pulse.tick(pulse.seconds_until_active() + 0.2)
+		ok(pulse._armed)
+	# The fixture freezes Boss AI; advance its real transition timer explicitly.
+	boss._tick_phase_transition(1.21)
+	ok(await wait_until(func() -> bool: return not boss.health.is_invincible(), 240))
+	boss.health.take_damage(5)
+	Director.abort()
+	for pulse in pulses:
+		eq(pulse.phase_id, 3)
+		almost(pulse.rest_time, 2.0)
+		almost(pulse.telegraph_time, 0.8)
+		eq(pulse.state(), CyclicHazard.State.REST)
+		ok(not pulse._armed)
+		pulse.tick(pulse.start_delay + pulse.rest_time + 0.01)
+		ok(pulse.is_warning() and not pulse._armed)
+		pulse.tick(0.78)
+		ok(pulse.is_warning() and not pulse._armed, "complete telegraph after reconfiguration")
+		pulse.tick(0.02)
+		ok(pulse.is_active() and pulse._armed)
+
+
+func test_floor_front_really_hurts() -> void:
+	var host := _build()
+	_isolate(host)
+	var player := await spawn_player(host, Vector2(3128, 296))
+	var pulse = _pulses(host)[1]
+	pulse.configure_phase(1)
+	var hp := player.health.current
+	pulse.tick(pulse.seconds_until_active() + pulse.active_time * 0.5)
+	await flush(8)
+	eq(player.health.current, hp - 1, "real Hitbox/Hurtbox floor damage")
+
+
+func test_basic_jump_evades_the_same_front() -> void:
+	var host := _build()
+	_isolate(host)
+	var player := await spawn_player(host, Vector2(3128, 296))
+	var hp := player.health.current
+	Input.action_press("jump")
+	await flush(7)
+	Input.action_release("jump")
+	ok(player.position.y < 304.0)
+	var pulse = _pulses(host)[1]
+	pulse.configure_phase(1)
+	pulse.tick(pulse.seconds_until_active() + pulse.active_time * 0.5)
+	await flush(8)
+	eq(player.health.current, hp, "same front misses airborne knight")
+
+
+func test_pillar_top_evades_wave_without_timing() -> void:
+	var host := _build()
+	_isolate(host)
+	var player := await spawn_player(host, Vector2(2880, 168))
+	var hp := player.health.current
+	var pulse = _pulses(host)[0]
+	pulse.configure_phase(2)
+	pulse.tick(pulse.seconds_until_active() + pulse.active_time * (112.0 / 144.0))
+	await flush(8)
+	ok(player.is_on_floor())
+	almost(player.position.y, 192.0, 1.0)
+	eq(player.health.current, hp)
+
+
+func test_cinematic_freezes_delay_and_disarms_active_front() -> void:
+	var host := _build()
+	_isolate(host)
+	var pulse = _pulses(host)[2]
+	pulse.configure_phase(3)
+	var delay: float = pulse.start_delay
+	Director._set_lock(true)
+	pulse.tick(1.0)
+	almost(pulse.start_delay, delay)
+	Director._set_lock(false)
+	pulse.tick(pulse.seconds_until_active() + 0.2)
+	ok(pulse._armed)
+	var clock_: float = pulse.clock()
+	Director._set_lock(true)
+	pulse.tick(1.0)
+	almost(pulse.clock(), clock_)
+	ok(not pulse._hitbox.monitoring)
+	Director._set_lock(false)
+	pulse.tick(0.01)
+	ok(pulse._hitbox.monitoring)
+
+
+func test_death_stops_pulses_and_dead_reload_omits_them() -> void:
+	var host := _build()
+	_isolate(host)
+	var arena := host.get_node("Arenas/NightmareArena") as BossArena
+	arena.activate()
+	for pulse in _pulses(host):
+		pulse.configure_phase(3)
+		pulse.tick(pulse.seconds_until_active() + 0.2)
+		ok(pulse._armed)
+	var boss = host.get_node("Enemies/Nightmare")
+	boss.health.take_damage(99)
+	for pulse in _pulses(host):
+		ok(not pulse.enabled and not pulse._armed)
+		pulse.tick(20.0)
+		ok(not pulse._armed)
+	ok(arena.cleared and SaveData.has_flag("nightmare_dead"))
+	await flush(2)
+	var reloaded := _build()
+	ok(reloaded.get_node_or_null("Enemies/Nightmare") == null)
+	ok(reloaded.get_node_or_null("Arenas/NightmareArena") == null)
+	ok(reloaded.get_node_or_null("Props/CorePulse1") == null)
+	ok(not (reloaded.get_node("Props/Exit") as LevelExit).is_locked())
+
+
+func test_original_ending_door_and_fractured_altars_have_support() -> void:
+	var host := _build()
+	var exit := host.get_node("Props/Exit") as LevelExit
+	eq(exit.target_scene, "")
+	eq(exit.requires_flag, "nightmare_dead")
+	eq(exit.flag_id, "game_complete")
+	eq(exit.door_label, ChapterText.exit_label_of("level10"))
+	ok(exit.ending_choice and exit.is_locked())
+	eq(exit.give_captions, ChapterText.ending_lines_of("give"))
+	eq(exit.keep_captions, ChapterText.ending_lines_of("keep"))
+	ok(_standing_on(_rects(host), exit.position))
+	ok(exit.position.x > LAYOUT.ARENA_X1 and exit.position.x <= LAYOUT.EAST_LIMIT - 80)
+	for id in ["CoreAltar", "ForgeAltar"]:
+		var altar := host.get_node("Decor/" + id) as Node2D
+		ok(altar.is_in_group("grounded"))
+		ok(_standing_on(_rects(host), altar.get_meta("feet")))
+		ok(altar.get_child_count() >= 8)
+
+
+func test_keep_ending_persists_and_returns_to_title() -> void:
+	SaveData.mark_flag("nightmare_dead")
+	var level := (load(GameContext.LEVELS["level10"]) as PackedScene).instantiate() as Node2D
 	add_child(level)
-	eq(level.level_id(), "level10")
-	eq(level.title(), "锈墓・拾肆 — 炉心深处")
-	ok(level.wake_line() != "", "the forge core has an opening line")
-	eq(level.theme(), "forge_core")
-	ok(level.indoors(), "the forge core is indoors")
-	eq(level.east_limit(), 3200)
-	eq(GameContext.next_level_id("level10"), "", "nothing comes after level10")
-	eq(level.entry_spawn(), LAYOUT.ENTRY_SPAWN)
-	eq(level.default_spawn(), level.entry_spawn())
+	await flush(2)
+	Director.abort()
+	for enemy in level.get_node("Enemies").get_children():
+		enemy.set_physics_process(false)
+	var player := get_tree().get_first_node_in_group("player") as Player
+	var exit := level.get_node("Props/Exit") as LevelExit
+	exit.interact(player)
+	exit.confirm_ending(&"keep")
+	await flush(1)
+	Director.abort()
+	await flush(3)
+	ok(SaveData.load_game())
+	ok(SaveData.has_flag("game_complete") and SaveData.has_flag("nightmare_dead"))
+	eq(SaveData.ending, "keep")
+	ok(await wait_until(func() -> bool:
+		return not Director.is_fading() and Director.last_fade_target == "res://scenes/ui/TitleScreen.tscn"
+	), "original keeping-fire captions return to title")
 
 
-func test_slag_crossing_is_single_hops() -> void:
+func test_room_support_and_sanity_are_clean() -> void:
 	var host := _build()
-	var rects := _rects(host)
-	# bank -> three floating stones -> far bank, all in one-jump reach
-	var chain := [Vector2(LAYOUT.SLAG_X0, 320.0)]
-	for s in LAYOUT.SLAG_STONES:
-		chain.append(s[1] as Vector2)
-	chain.append(Vector2(LAYOUT.SLAG_X1, 320.0))
-	for i in range(1, chain.size()):
-		var a: Vector2 = chain[i - 1]
-		var b: Vector2 = chain[i]
-		var rise := a.y - b.y
-		ok(rise <= JUMP_RISE_MAX + 0.01, "hop %s -> %s rises %.0f <= 32" % [a, b, rise])
-		var prev_w: float = 0.0
-		if i >= 2:
-			prev_w = float(LAYOUT.SLAG_STONES[i - 2][2])
-		var gap := b.x - (a.x + prev_w)
-		ok(gap <= JUMP_GAP_MAX + 0.01, "gap %s -> %s is %.0f <= 72" % [a, b, gap])
-	for s in LAYOUT.SLAG_STONES:
-		var stone := host.get_node_or_null("Platforms/" + String(s[0])) as SolidPlatform
-		ok(stone != null, "%s exists" % s[0])
-		if stone != null:
-			eq(stone.skin, "basalt_float", "%s is a forge stepping stone" % s[0])
-			eq(stone.tone, LAYOUT.STONE_TONE, "%s wears the brighter footing tone" % s[0])
-	# the pit floor is one hop below the banks so a fall is survivable
-	var bed := host.get_node_or_null("Platforms/SlagBed") as SolidPlatform
-	ok(bed != null, "slag bed exists")
-	if bed != null:
-		ok(bed.position.y - 320.0 <= JUMP_RISE_MAX, "climbing out of the slag is one hop")
-		almost(bed.position.x, LAYOUT.SLAG_X0, 0.01)
-		almost(_right(bed), LAYOUT.SLAG_X1, 0.01)
-		eq(bed.tone, LAYOUT.TONE, "the bed is tinted like the rest of the forge")
-	var pool := host.get_node_or_null("Props/SlagPool") as ToxinPool
-	ok(pool != null, "slag pool exists")
-	if pool != null and bed != null:
-		var surface := pool.surface_rect()
-		almost(surface.position.x, LAYOUT.SLAG_X0, 0.01)
-		almost(surface.end.x, LAYOUT.SLAG_X1, 0.01)
-		ok(bed.position.y >= surface.position.y and bed.position.y <= surface.end.y + 16.0, "pool lies on its bed")
-		ok(pool.tint.r > pool.tint.b, "slag is orange-red, not the undercroft's green")
-	ok(_standing_on(rects, Vector2(LAYOUT.SLAG_X0 - 1.0, 320.0)), "west bank is floor")
-	ok(_standing_on(rects, Vector2(LAYOUT.SLAG_X1 + 1.0, 320.0)), "east bank is floor")
-	# ①b 加长回廊的第二道渣河：和第一道同一条单跳链 + 可爬出的坑底 + 液面在坑里。
-	var chain2 := [Vector2(LAYOUT.SLAG2_X0, 320.0)]
-	for s in LAYOUT.SLAG2_STONES:
-		chain2.append(s[1] as Vector2)
-	chain2.append(Vector2(LAYOUT.SLAG2_X1, 320.0))
-	for i in range(1, chain2.size()):
-		var a2: Vector2 = chain2[i - 1]
-		var b2: Vector2 = chain2[i]
-		var rise2 := a2.y - b2.y
-		ok(rise2 <= JUMP_RISE_MAX + 0.01, "second slag hop %s -> %s rises %.0f <= 32" % [a2, b2, rise2])
-		var prev_w2: float = 0.0
-		if i >= 2:
-			prev_w2 = float(LAYOUT.SLAG2_STONES[i - 2][2])
-		var gap2 := b2.x - (a2.x + prev_w2)
-		ok(gap2 <= JUMP_GAP_MAX + 0.01, "second slag gap %.0f <= 72" % gap2)
-	var bed2 := host.get_node_or_null("Platforms/Slag2Bed") as SolidPlatform
-	ok(bed2 != null, "second slag bed exists")
-	if bed2 != null:
-		ok(bed2.position.y - 320.0 <= JUMP_RISE_MAX, "climbing out of the second slag river is one hop")
-		eq(bed2.tone, LAYOUT.TONE)
-	var pool2 := host.get_node_or_null("Props/Slag2Pool") as ToxinPool
-	ok(pool2 != null, "second slag pool exists")
-	if pool2 != null and bed2 != null:
-		var surface2 := pool2.surface_rect()
-		ok(bed2.position.y >= surface2.position.y and bed2.position.y <= surface2.end.y + 16.0,
-				"second pool lies on its bed")
-
-
-func test_arena_is_one_flat_run_with_only_end_perches() -> void:
-	var host := _build()
-	var floor_covers_arena := false
-	for p in _solids(host):
-		if absf(p.position.y - 320.0) <= 0.01 and p.position.x <= LAYOUT.ARENA_X0 and _right(p) >= LAYOUT.ARENA_X1:
-			floor_covers_arena = true
-	ok(floor_covers_arena, "one floor platform spans the whole arena 1740..2940 at y=320")
-	var perches := 0
-	for p in _solids(host):
-		var n := String(p.name)
-		if n == "Ceiling" or n == "WallLeft" or n == "WallRight":
-			continue
-		if not _overlaps_arena(p.position.x, _right(p)):
-			continue
-		if absf(p.position.y - 320.0) <= 0.01:
-			continue
-		ok(p.position.y < 320.0, "%s inside the arena is not a pit" % n)
-		ok(n == "PerchWest" or n == "PerchEast", "%s is the only kind of raised solid allowed in the arena" % n)
-		eq(p.size, LAYOUT.PERCH_SIZE, "%s is a 48x32 block" % n)
-		almost(p.position.y, 288.0, 0.01, "%s stands 32px above the floor" % n)
-		var near_end := p.position.x - LAYOUT.ARENA_X0 <= 100.0 or LAYOUT.ARENA_X1 - _right(p) <= 100.0
-		ok(near_end, "%s hugs an arena end" % n)
-		perches += 1
-	eq(perches, 2, "exactly two perches, one per end")
-	for child in host.get_node("Platforms").get_children():
-		ok(not child is MovingPlatform, "no lifts in the boss room (%s)" % child.name)
-	for child in host.get_node("Props").get_children():
-		if child is ToxinPool:
-			var r := (child as ToxinPool).surface_rect()
-			ok(not _overlaps_arena(r.position.x, r.end.x), "%s stays out of the arena" % child.name)
-	# Background columns or forge beams never imply an extra landing surface.
-	var support_textures := [load(ChapterLayout.DECOR["column"]), load(ChapterLayout.DECOR["beam"])]
+	var ceiling := host.get_node("Platforms/Ceiling") as SolidPlatform
+	almost(ceiling.position.y, LAYOUT.CEILING_Y)
+	almost(ceiling.size.x, LAYOUT.EAST_LIMIT)
 	for node in host.get_node("Decor").get_children():
-		if not node.is_in_group("grounded"):
-			continue
-		var feet: Vector2 = node.get_meta("feet")
-		if feet.x > LAYOUT.ARENA_X0 + 48.0 and feet.x < LAYOUT.ARENA_X1 - 48.0:
-			ok(node is Sprite2D and (node as Sprite2D).texture in support_textures,
-					"grounded decor at %.0f inside the arena is a background support" % feet.x)
-	ok(LAYOUT.BOSS_POS.x > LAYOUT.ARENA_X0 + 200.0 and LAYOUT.BOSS_POS.x < LAYOUT.ARENA_X1 - 200.0, "the Nightmare waits well inside the arena")
-	almost(LAYOUT.BOSS_POS.y, 320.0, 0.01, "the Nightmare stands on the arena floor")
-
-
-func test_checkpoints_stand_before_the_gate() -> void:
-	var host := _build()
-	var rects := _rects(host)
-	var props := host.get_node("Props")
-	var nest_gate := props.get_node_or_null("EmberNestGate") as EmberNest
-	var nest_arena := props.get_node_or_null("EmberNestArena") as EmberNest
-	ok(nest_gate != null and nest_arena != null, "two checkpoints")
-	if nest_gate == null or nest_arena == null:
-		return
-	ok(_standing_on(rects, nest_gate.position + Vector2(6, 14)), "entry nest stands on FloorEntry")
-	ok(_standing_on(rects, nest_arena.position + Vector2(6, 14)), "arena nest stands on FloorHall")
-	var gate := props.get_node_or_null("ArenaGate") as RustyGate
-	ok(gate != null, "the rust gate is the arena door")
-	if gate == null:
-		return
-	ok(nest_arena.position.x < gate.position.x, "the pre-boss nest comes before the rust gate")
-	ok(nest_arena.position.x > LAYOUT.SLAG2_X1, "the pre-boss nest is past both slag rivers")
-	ok(gate.position.x - nest_arena.position.x <= 80.0,
-			"the pre-boss nest is <=80px from the arena gate (%.0f)" % (gate.position.x - nest_arena.position.x))
-	ok(LAYOUT.ARENA_X0 - nest_arena.position.x <= 80.0,
-			"the pre-boss nest is <=80px from the arena edge (BossArena contract)")
-	ok(_standing_on(rects, gate.position + Vector2(8, 64)), "gate foot meets the floor")
-	ok(gate.position.x + 16.0 <= LAYOUT.ARENA_X0, "the gate closes the arena off from the west")
-	ok(nest_gate.position.x < LAYOUT.SLAG_X0, "the entry nest sits before the slag river")
-
-
-func test_exit_is_the_ending_door() -> void:
-	var host := _build()
-	var rects := _rects(host)
-	var exit := host.get_node_or_null("Props/Exit") as LevelExit
-	ok(exit != null, "the forge core has an exit door")
-	if exit == null:
-		return
-	eq(exit.target_scene, "", "the ending door leads nowhere but the title")
-	eq(exit.requires_flag, "nightmare_dead", "the door waits for the Nightmare's death")
-	eq(exit.flag_id, "game_complete", "walking through completes the game")
-	eq(exit.door_label, "炉心门")
-	eq(exit.locked_prompt, "梦魇还在喘。门不开。")
-	ok(exit.ending_choice, "the forge door asks instead of walking through")
-	eq(exit.give_captions.size(), 3, "giving the sword has three lines")
-	eq(exit.keep_captions.size(), 3, "keeping the fire has three lines")
-	ok(String(exit.give_captions[exit.give_captions.size() - 1]).contains("完"), "giving the sword closes the book")
-	ok(String(exit.keep_captions[exit.keep_captions.size() - 1]).contains("完"), "keeping the fire closes the book")
-	ok(exit.is_locked(), "locked while the Nightmare lives")
-	SaveData.mark_flag("nightmare_dead")
-	ok(not exit.is_locked(), "opens once the Nightmare is dead")
-	ok(_standing_on(rects, exit.position), "exit door stands on FloorHall")
-	ok(exit.position.x > LAYOUT.ARENA_X1, "the door is past the arena")
-	ok(exit.position.x <= LAYOUT.EAST_LIMIT - 80.0, "the door keeps clear of the east wall")
-	# 统一 boss() 装配：Nightmare 与 BossArena 一起生成，竞技场边界对齐常量。
-	var nightmare := host.get_node_or_null("Enemies/Nightmare") as Node2D
-	var arena := host.get_node_or_null("Arenas/NightmareArena") as BossArena
-	ok(nightmare != null and arena != null, "boss() assembles the Nightmare and its arena")
-	if arena != null:
-		almost(arena.arena_left, LAYOUT.ARENA_X0, 0.01)
-		almost(arena.arena_right, LAYOUT.ARENA_X1, 0.01)
-		eq(arena.boss, nightmare, "the arena is bound to the Nightmare")
-		ok(arena.checkpoint_report().ok, "BossArena checkpoint report passes for level10")
-	var altar := host.get_node_or_null("Decor/ForgeAltar") as Node2D
-	ok(altar != null, "the forge altar is placed")
-	if altar != null:
-		ok(altar.is_in_group("grounded") and altar.has_meta("feet"), "the altar is checked for footing like any prop")
-		var feet: Vector2 = altar.get_meta("feet")
-		eq(feet, LAYOUT.ALTAR_FEET)
-		ok(_standing_on(rects, feet), "the altar stands on FloorHall")
-		ok(absf(feet.x - exit.position.x) < 160.0, "the forge altar stands beside the ending door")
-		ok(feet.x > LAYOUT.ARENA_X1 - 64.0, "the altar belongs to the ending, not the arena")
-		var altar_tex := load(ChapterLayout.DECOR["altar"]) as Texture2D
-		var strips := 0
-		var crown_broken := false
-		for strip in altar.get_children():
-			if strip is Sprite2D and (strip as Sprite2D).texture == altar_tex:
-				strips += 1
-				if (strip as Sprite2D).position.y > 0.0:
-					crown_broken = true
-		ok(strips >= 8, "the altar plate is sliced into ruin strips (%d)" % strips)
-		ok(crown_broken, "the altar's crown crumbles instead of a ruler edge")
-
-
-func test_enemies_sit_where_they_are_placed() -> void:
-	var host := _build()
-	var rects := _rects(host)
-	var enemies := host.get_node("Enemies")
-	var expected := 0
-	for e in LAYOUT.ENEMIES:
-		var path: String = ChapterLayout.ENEMY_SCENES.get(String(e[1]), "")
-		var available := path != "" and ResourceLoader.exists(path)
-		var enemy := enemies.get_node_or_null(String(e[0])) as Node2D
-		if not available:
-			ok(enemy == null, "%s is skipped while its scene is missing" % e[0])
-			continue
-		expected += 1
-		ok(enemy != null, "%s spawned" % e[0])
-		if enemy == null:
-			continue
-		eq(enemy.position, e[2] as Vector2, "%s sits at its authored point" % e[0])
-		if enemy is GhostEnemy:
-			ok(not _standing_on(rects, enemy.position, 8.0), "%s floats free of the floor" % e[0])
-		elif String(e[1]) == "fire_skull":
-			ok(not LevelSanity.inside_solid(rects, enemy.position), "%s hovers in open air" % e[0])
-		else:
-			ok(_standing_on(rects, enemy.position, 4.0), "%s stands on a platform" % e[0])
-	eq(enemies.get_child_count(), expected, "every available enemy is placed, nothing else")
-	# the boss and the entry-corridor fights do not share a room
-	for e in LAYOUT.ENEMIES:
-		var pos: Vector2 = e[2]
-		if String(e[1]) == "nightmare_boss":
-			ok(pos.x > LAYOUT.ARENA_X0 and pos.x < LAYOUT.ARENA_X1, "the boss is inside the arena")
-		else:
-			ok(pos.x < LAYOUT.ARENA_X0, "%s stays out of the boss arena" % e[0])
-
-
-func test_slain_nightmare_does_not_respawn_and_ending_stays_open() -> void:
-	SaveData.mark_flag("nightmare_dead")
-	var host := _build()
-	ok(host.get_node_or_null("Enemies/Nightmare") == null)
-	ok(host.get_node_or_null("Arenas/NightmareArena") == null, "no boss -> no arena")
-	ok(not (host.get_node("Props/Exit") as LevelExit).is_locked())
-
-
-## 入口回廊上方的守夜台：本章支路。主路线跳不上去，钩锁从巢旁地面拉上去；
-## 台上碑文把门后的两个选择先讲清楚（世界信息 / 选择），且整个支路在竞技场之外。
-func test_vigil_deck_is_an_optional_ending_lore_branch() -> void:
-	var host := _build()
-	var deck := host.get_node_or_null("Platforms/VigilDeck") as SolidPlatform
-	var anchor := host.get_node_or_null("Hooks/HookVigil") as HookAnchor
-	var stele := host.get_node_or_null("Props/SteleVigil") as LoreStele
-	ok(deck != null and anchor != null and stele != null, "vigil deck, anchor and stele exist")
-	if deck == null or anchor == null or stele == null:
-		return
-	ok(deck.position.x < LAYOUT.ARENA_X0, "the branch stays out of the boss arena")
-	ok(anchor.position.y < deck.position.y, "anchor hangs above the deck")
-	ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "deck is a tether drop under the anchor")
-	ok(_standing_on(_rects(host), LevelSanity.feet_of(stele), 0.5), "stele stands on the vigil deck")
-	ok(String(stele.lore_title).begins_with("炉心铭"), "vigil stele belongs to the forge-core inscriptions")
-	ok(String(stele.lore_text).contains("送剑") and String(stele.lore_text).contains("守火"),
-			"it names the two choices behind the door")
-	var feet := LevelSanity.feet_of(stele)
-	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),
-			"the main route cannot read the vigil stele")
-	ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, true),
-			"the hookshot reaches the vigil stele")
-
-
-func test_room_is_sealed_and_reads_as_a_forge() -> void:
-	var host := _build()
-	var platforms := host.get_node("Platforms")
-	var ceiling := platforms.get_node_or_null("Ceiling") as SolidPlatform
-	ok(ceiling != null, "the forge core is roofed")
-	if ceiling != null:
-		almost(ceiling.position.y, LAYOUT.CEILING_Y, 0.01)
-		almost(ceiling.size.x, float(LAYOUT.EAST_LIMIT), 0.01, "roof spans the whole level")
-	var wall_r := platforms.get_node_or_null("WallRight") as SolidPlatform
-	ok(wall_r != null and absf(wall_r.position.x - float(LAYOUT.EAST_LIMIT)) <= 0.01, "east wall at the camera limit")
-	for p in _solids(host):
-		ok(p.position != Vector2.ZERO or String(p.name) == "FloorEntry", "%s keeps its position" % p.name)
-		ok(_right(p) <= float(LAYOUT.EAST_LIMIT) + 16.0, "%s stays inside the east limit" % p.name)
-		if String(p.name) != "SlagBed" and String(p.name) != "Slag2Bed":
-			ok(p.position.y <= 320.0, "%s is not walkable ground below the floor line" % p.name)
-		var footing := String(p.name).begins_with("SlagStone") or String(p.name).begins_with("Slag2Stone") \
-				or String(p.name).begins_with("Perch") or String(p.name) == "VigilDeck"
-		eq(p.tone, LAYOUT.STONE_TONE if footing else LAYOUT.TONE, "%s is pressed into amber" % p.name)
-		ok(p.tone.r > p.tone.g and p.tone.g > p.tone.b, "%s tone is warm (r > g > b)" % p.name)
-	var mood := host.get_node_or_null("MoodTint") as CanvasModulate
-	ok(mood != null)
-	if mood != null:
-		ok(mood.color.r > mood.color.b, "forge mood is amber, not the undercroft's teal")
-	ok(host.get_node_or_null("IndoorZone") is AtmosphereZone, "whole level is an indoor zone")
-	ok(host.get_node_or_null("Waymarks/Sign_炉心") != null, "entry sign says 炉心")
-	ok(host.get_node_or_null("ParallaxBackdrop") is CanvasLayer, "themed backdrop built")
-	var props := host.get_node("Props")
-	var steles := 0
-	for child in props.get_children():
-		if child is LoreStele:
-			steles += 1
-			ok(String((child as LoreStele).lore_title).begins_with("炉心铭"), "%s is a forge-core inscription" % child.name)
-	eq(steles, 3, "three inscriptions: two on the road, one on the vigil deck")
-	var vigil := props.get_node_or_null("SteleVigil") as LoreStele
-	ok(vigil != null, "the optional vigil deck carries a stele")
-	# torches every screen, none missing from the arena; grounded decor never floats
-	var decor := host.get_node("Decor")
-	var torches := 0
-	var arena_torches := 0
-	for node in decor.get_children():
-		if node is TorchLight:
-			torches += 1
-			if node.position.x > LAYOUT.ARENA_X0 and node.position.x < LAYOUT.ARENA_X1:
-				arena_torches += 1
-	ok(torches >= 6, "enough wall torches (%d)" % torches)
-	ok(arena_torches >= 3, "the arena is lit by wall torches (%d)" % arena_torches)
+		if node.is_in_group("grounded") and node.has_meta("feet"):
+			ok(_standing_on(_rects(host), node.get_meta("feet"), 4.0), "%s has support" % node.name)
 	var problems := LevelSanity.check(host)
-	for p in problems:
-		ok(false, p)
-	ok(problems.is_empty(), "LevelSanity clean on the bare host (%d problems)" % problems.size())
+	for problem in problems:
+		ok(false, problem)
+	ok(problems.is_empty())

@@ -8,7 +8,7 @@ flowchart LR
     B --> C[渡口遭遇 / 冷却巢1168 / y288]
     C --> D[碑廊遭遇 / 第二组喷口]
     D --> E[低空火骷髅双头遭遇 / 下层y352]
-    E --> F[东阶 / 梦魇前巢2160 / y320]
+    E --> F[东阶 / 梦魇前巢2176 / y320]
     E --> G[高架单向回廊y224]
     G --> C
     A -. 钩锁 .-> H[守夜台y160 / 原守碑 / 可选奖励与幽魂]
@@ -20,11 +20,11 @@ flowchart LR
 
 | x范围 | 几何与机制 | 遭遇、巢与捷径 |
 | --- | --- | --- |
-| 0–416 | 入口台y288，原SteleNightmare与炉心路牌；HookVigil把守夜台移至y160，原SteleVigil文字不变，增加奖励。 | 原EmberNestGate176/288，支路幽魂只在高处唤醒，不能干扰巢。 |
+| 0–416 | 入口台y288，原SteleNightmare与炉心路牌；HookVigil把守夜台移至y160，原SteleVigil文字不变，增加生铁甲壳奖励。 | 原EmberNestGate176/288，支路幽魂只在高处唤醒，不能干扰巢。 |
 | 416–992 | 槽底y352；两个向上渣喷口528/656，预警≥0.8s、错相，前后固定读招区。928起32px回收阶梯。 | 第一场渡口：幽魂+单头低空火骷髅，教学落脚区保持六秒安全。 |
 | 992–1472 | 冷却台y288，第二组喷口与碑廊；向东32px下降。 | 新EmberNestCooling1168/288；第二场围绕高低台的幽魂/火骷髅，距巢在唤醒圈外。 |
 | 1472–1968 | 下层y352的低空双头廊，东侧32px阶梯返回y320；上层单向回廊y224经东阶可达，西端落到冷却巢，不能反跳。 | 第三场为联动警戒的两只火骷髅与一只幽魂；不新增heavy_guard或改共享敌人变体表。 |
-| 1968–2240 | 门前厅y320；原SteleCompact、原ArenaGate2224/256。 | 原EmberNestArena2160/320，三巢依次相隔992px，Boss入口2240距巢80px。 |
+| 1968–2240 | 门前厅y320；原SteleCompact、原ArenaGate2224/256。 | 原EmberNestArena2176/320，三巢依次相隔992/1008px，Boss入口2240距巢64px（节点原点含14px高度差仍≤80）。 |
 | 2240–3968 | 下层y320连续冲锋道；两侧32px阶梯接上层y224外环，分段走道互相一跳可达；四座64px宽立柱台y192；中央炉台y192。上层底面不低于y240，下层至少80px净空。 | Nightmare在3504/320起步。三处贴地shock脉冲中心2768/3056/3344、宽288、高16，可基本跳跃或爬上环道规避。两侧阶梯不占中央冲锋直线；上层给绕行路线。 |
 | 3968–4160 | 原ForgeAltar与4080炉心门，东墙留80px。 | 原nightmare_dead门锁、give/keep字幕、confirm_ending、game_complete/ending保存与回标题流程全部保留。 |
 
@@ -34,4 +34,4 @@ flowchart LR
 
 验收：level10_layout更新支撑/主路/回收/三巢六秒AI/首喷口安全/环道/奖励/单向回廊/真实脉冲跳跃与高台规避/阶段事件重排与收刀/死亡重载/两结局持久化；nightmare_boss、filtered level_sanity、route_audit、chapter_progression、routing/weather/art/prop/support/parallax。五点600/1168/1744/2752/3504各1280×720与1920×1080，另拍Boss全景，逐图记录尺寸/SHA。独立分支不跑full，交主分支权威全量；正常输入整章通关、真人/实体手柄手感不由截图或几何测试代替。
 
-当前状态：设计蓝图，实施与验收待完成。
+当前状态：章节实现已完成；level10_layout 21/21、filtered level_sanity 13/13、nightmare_boss 10/10、cyclic_hazard 10/10、route_audit 2/2、chapter_progression 5/5、level_routing 6/6、level_weather 6/6、chapter_art_audit 4/4均零引擎错误。prop_fit 7/7、chapter_support 2/2、parallax_backdrop 8/8同样零引擎错误。双分辨率截图待渲染窗口释放后验收；本分支未跑full，完整战役由主分支权威验收。
