@@ -61,11 +61,26 @@ func test_every_chapter_exit_saves_the_next_arrival_and_keeps_heat_forge() -> vo
 		eq(_player().health.current, _player().health.max_hp)
 		ok(_player()._resolve_lit_nest() == null, "earlier chapter checkpoint is not a respawn here")
 
-func test_each_chapter_restores_its_checkpoint_and_open_mechanisms() -> void:
-	var order := GameContext.LEVEL_ORDER
-	for i in range(order.find("level03"), order.size()):
+## Richer chapters now build the scene three times for this contract. Keep the
+## same assertions, but split by chapter group under the runner's 30s watchdog.
+## Together these slices still cover every chapter from level03 through level10.
+func test_early_chapters_restore_checkpoints_and_open_mechanisms() -> void:
+	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(
+			GameContext.LEVEL_ORDER.find("level03"), GameContext.LEVEL_ORDER.find("level06")))
+
+
+func test_middle_chapters_restore_checkpoints_and_open_mechanisms() -> void:
+	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(
+			GameContext.LEVEL_ORDER.find("level06"), GameContext.LEVEL_ORDER.find("level09")))
+
+
+func test_final_chapters_restore_checkpoints_and_open_mechanisms() -> void:
+	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(GameContext.LEVEL_ORDER.find("level09")))
+
+
+func _assert_checkpoint_restores(ids: Array) -> void:
+	for id in ids:
 		SaveData.delete_save()
-		var id := order[i]
 		var level := await _load_level(id)
 		var player := _player()
 		player.inventory.add_to_pouch(AbilityCatalog.kiln_core())
