@@ -199,7 +199,9 @@ func _link(a: Dictionary, b: Dictionary) -> bool:
 		var dir := 1.0 if br.get_center().x >= ar.get_center().x else -1.0
 		var col := ar.end.x if dir > 0.0 else ar.position.x
 		for r in LevelSanity.solid_rects(_world()):
-			if r.end.x <= ar.position.x or r.position.x >= ar.end.x: continue
+			# 接触边界的实体也算阻挡：屋檐的左墙贴在上层右缘（x 相同）时，
+			# 格挡的是下落走廊的入口，不是体相交。
+			if r.end.x < ar.position.x or r.position.x > ar.end.x: continue
 			if r.position.y < br.position.y - 1.0 and r.end.y > ar.position.y - 26.0:
 				if absf(r.position.y - ar.position.y) < 1.0: continue   # 上层自身
 				# A：缝隙侧邻实体（接缝或独立柱）且其底面在上层顶之上
@@ -295,6 +297,7 @@ func _navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 
 func _flat(x: float, y: float, fight: bool = true) -> bool:
 	if not fight: _release()
+	var _dbg_last := ""
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
@@ -314,6 +317,15 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 			if enemy is EnemyBase and not enemy._dead and enemy.has_method("is_risen") and enemy.is_risen():
 				var dx: float = enemy.position.x - p.position.x
 				if absf(dx) < 70 and dx * (x - p.position.x) > 0 and absf(enemy.position.y - p.position.y) < 35: skeleton_ahead = true
+		# 可破坏物（裂石板等）挡路时打碎：玩家撞墙 = 前方有可破坏的实心。
+		var breakable_ahead := false
+		if p.is_on_wall():
+			for node in _world().get_node("Props").get_children():
+				if node is BreakableTerrain and not node.is_destroyed():
+					var bdx: float = node.position.x + node.size.x * 0.5 - p.position.x
+					if absf(bdx) < 48.0 and absf(node.position.y + node.size.y - p.position.y) < 40:
+						breakable_ahead = true
+						break
 		if fight or spitter_close or absf(x - p.position.x) > 96:
 			_combat(absf(x - p.position.x) > 96)
 		else:
@@ -322,7 +334,13 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 		for gate in _world().get_node("Props").get_children():
 			if gate is RustyGate and LevelSanity.feet_of(gate).distance_to(p.position) < 42:
 				_set_action(&"interact", i % 30 == 0)
-		_set_action(&"jump", (p.is_on_wall() or skeleton_ahead) and i % 36 < 24)
+		if breakable_ahead:
+			_set_action(&"attack", i % 24 < 4)
+		_set_action(&"jump", (p.is_on_wall() and not breakable_ahead or skeleton_ahead) and i % 36 < 24)
+		if _step.begins_with("campaign_to_(3828") and i % 30 == 0:
+			print("[FLAT] i=%d p=(%.1f,%.1f) vx=(%.1f,%.1f) wall=%s commit=%s dashcd=%.2f tgt=%.1f rise=%.0f" % [
+				i, p.position.x, p.position.y, p.velocity.x, p.velocity.y, p.is_on_wall(),
+				p.controller._commit_lock, p.controller._dash_cd, x, y - p.position.y])
 		await _frames(1)
 	_release()
 	return false
@@ -420,7 +438,13 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 		return false
 	var right := br.get_center().x >= ar.get_center().x
 	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
-	var launch := clampf(br.position.x - 8 if right else br.end.x + 8, ar.position.x + 8, ar.end.x - 8)
+	# 垂落重叠（br 在 ar 正下方）：从 ar 朝 br 中心那一侧的边沿落下去，
+	# 而不是走向 br 的西缘——那会把自己卡在 ar 自己的体下面。
+	var launch := 0.0
+	if br.position.y > ar.position.y and br.position.x < ar.end.x and br.end.x > ar.position.x:
+		launch = (ar.end.x - 8.0) if right else (ar.position.x + 8.0)
+	else:
+		launch = clampf(br.position.x - 8 if right else br.end.x + 8, ar.position.x + 8, ar.end.x - 8)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
@@ -437,7 +461,10 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 		_move(1 if right else -1)
 		for i in 90:
 			if _player() == null or _player().health.current <= 0: return false
+			# 撞上目标台的侧墙就提前起跳：上升段的助跑不需要走到 launch 点，
+			# 墙本身就是起跳点（roof→ridge 这类 32px 上升，墙会挡住最后几像素）。
 			if (right and _player().position.x >= launch) or (not right and _player().position.x <= launch): break
+			if _player().is_on_wall() and br.position.y < ar.position.y: break
 			await _frames(1)
 	elif a.lift == null:
 		if not await _flat(launch, ar.position.y, false): return false
@@ -452,8 +479,13 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 			_combat(false, true)
 			if absf(_player().position.x - launch) > 5: _steer(launch)
 			await _frames(1)
-	_release()
-	await _frames(2)
+	# 助跑后不要 _release()：跳跃前的松手会把冲刺速度清零，
+	# 零间隙上升（roof→ridge）需要冲刺动量才能越过脊顶。
+	if gap <= 4 and br.position.y < ar.position.y:
+		pass  # 保持移动键按下，让跳跃带冲刺速度
+	else:
+		_release()
+		await _frames(2)
 	if gap > 24:
 		while _player() != null and _player().controller._dash_cd > 0:
 			await _frames(1)
