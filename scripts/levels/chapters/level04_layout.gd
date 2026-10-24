@@ -1,290 +1,187 @@
 extends ChapterLayout
-## 锈墓・肆 — 圣殿中庭：炉约的圣殿。吊灯还亮着，石像鬼在数进来的人。
-##
-## 结构（地面 y=320，一跳 ≤32px 高、≤72px 跨；室内，冷紫石板）：
-##   ① 前厅      0–544     出生、余烬巢、碑文「圣殿铭」、路牌「圣殿」
-##   ② 洗礼池    544–864   毒池上的三块浮石；幽魂守着落点
-##   ③ 唱诗台    864–1360  两级石阶 → 唱诗台（压板）；闸门锁在中殿地面；幽魂在台上，碎铁犬在台下
-##   ④ 齿盾卫走廊 1360–1856 第一只齿盾卫守窄路；走廊尽头是讲坛，喷吐者站在上面
-##   ⑤ 廊桥      1856–2336 六跳悬空石链，下方毒池；第四块石上有中段余烬巢
-##   ⑥ 祭坛区    2336–3008 第二余烬巢、碑文「炉约」、祭坛、第二只齿盾卫、锈门（热锻）、工坊暗门
-##   ⑦ 侧廊      3008–3600 祭坛后的侧廊：唱诗席高台（可选支路，奖励位）与廊柱、
-##                         壁龛；侧廊尽头补一个余烬巢，出口回程不再从祭坛重走
-##   ⑧ 后殿      3600–4200 第三只齿盾卫守门，圣殿后门（出口）→ level04b
-##   可选：祭坛上方拱顶下有钩锁锚点 + 高台，台上悬着一枚余烬核；
-##         高台东端还有一块碑文（世界信息），让支路不只是多一枚核。
+## 鸣钟环廊：下层绕柱，上层唱诗楼；断顶桥下是可回行的干沟。
 
+const BELL_VISUAL := preload("res://scripts/levels/chapters/cathedral_bell.gd")
 const EAST_LIMIT := 4200
 const CAMERA_TOP := -96
 const CEILING_Y := -32.0
 const ENTRY_SPAWN := Vector2(96, 300)
-
-## 圣殿石板压成冷紫；浮石略亮一点，和地面拉开。
 const STONE_TONE := Color(0.9, 0.88, 1.0)
 const FLOAT_TONE := Color(0.94, 0.92, 1.0)
-## 壁炬墙板是墓园紫石，压冷一点融进殿墙；藤蔓当成落灰的帷幔。
 const TORCH_TINT := Color(0.8, 0.82, 1.0)
 const VINE_TINT := Color(0.62, 0.62, 0.8, 0.85)
-## Phase 3: the spec's orange coolant (GDD: 橙色腐液) instead of acid green. The cold slate
-## nave makes orange the most readable hazard colour; the tint stays neutral and the sludge
-## art is ramp-mapped onto orange (ToxinPool.set_sludge_ramp).
-const TOXIN_TINT := Color.WHITE
-const TOXIN_RAMP := [Color("#1a0702"), Color("#5a1d06"), Color("#a8410c"), Color("#e8761c"), Color("#ffc067")]
-const TOXIN_VAPOR := Color(1.7, 0.62, 0.3)
 
-## [name, x0, x1, cap_left, cap_right]
+## [name, x0, x1, top] — the lower cloister changes level at the open vault.
 const FLOORS: Array = [
-	["FloorA", 0.0, 544.0, false, true],
-	["FloorB", 864.0, 1360.0, true, true],
-	["FloorC", 1360.0, 1856.0, true, true],
-	["FloorD", 2336.0, 3008.0, true, true],
-	["FloorE", 3008.0, 4200.0, true, false],
+	["FloorA", 0.0, 1088.0, 320.0],
+	["FloorB", 1088.0, 1888.0, 320.0],
+	["NaveDryBed", 1888.0, 2464.0, 352.0],
+	["FloorD", 2464.0, 3296.0, 320.0],
+	["FloorE", 3296.0, 4200.0, 320.0],
 ]
-## [name, x0, x1] —— 坑底 352，液面 336..368，两侧一跳（32）爬出。
-const PITS: Array = [
-	["Font", 544.0, 864.0],
-	["Nave", 1856.0, 2336.0],
-]
-## 悬空浮石 [name, pos, width]（16 厚，floating 皮肤）。
+## Thin galleries leave the lower circuit open.
 const STEPS: Array = [
-	["StoneF1", Vector2(592, 288), 48.0],
-	["StoneF2", Vector2(688, 264), 48.0],
-	["StoneF3", Vector2(784, 288), 48.0],
-	["BridgeB1", Vector2(1904, 288), 48.0],
-	["BridgeB2", Vector2(2000, 264), 48.0],
-	["BridgeB3", Vector2(2088, 240), 64.0],
-	["BridgeB4", Vector2(2200, 264), 48.0],
-	["BridgeB5", Vector2(2272, 288), 48.0],
-	["VaultLedge", Vector2(2432, 152), 96.0],
+	["ChoirStep1", Vector2(640, 288), 48.0],
+	["ChoirStep2", Vector2(712, 256), 48.0],
+	["ChoirLoft", Vector2(784, 224), 224.0],
+	["ChoirRecoveryUpper", Vector2(1032, 256), 48.0],
+	["ChoirRecoveryStep", Vector2(1104, 288), 48.0],
+	["GalleryReturn", Vector2(400, 192), 384.0],
+	["GalleryWest", Vector2(1008, 192), 432.0],
+	["GalleryEast", Vector2(1496, 192), 440.0],
+	["BridgeB1", Vector2(1936, 288), 48.0],
+	["BridgeB2", Vector2(1984, 256), 144.0],
+	["BridgeB3", Vector2(2128, 256), 240.0],
+	["BridgeB4", Vector2(2368, 288), 64.0],
+	["VaultLedge", Vector2(2400, 104), 144.0],
+	["SideStep1", Vector2(2528, 288), 48.0],
+	["SideStep2", Vector2(2600, 256), 48.0],
+	["SideStep3", Vector2(2672, 224), 48.0],
+	["SideLoft", Vector2(2744, 192), 288.0],
 ]
-## 实心石台 [name, pos, size]（stone 皮肤）：唱诗台的两级台阶与台面、讲坛与它的台阶。
-## 64 高的台面拆成两块 32 高的叠石：LevelSanity 会把整块 64 高的实心读成
-## 压在地面上的墙（没有净空），拆开后每一级都只是一步台阶。
-const BLOCKS: Array = [
-	["ChoirStep1", Vector2(976, 288), Vector2(48, 32)],
-	["ChoirStep2Base", Vector2(1056, 288), Vector2(48, 32)],
-	["ChoirStep2", Vector2(1056, 256), Vector2(48, 32)],
-	["ChoirRecoveryStep", Vector2(1104, 288), Vector2(32, 32)],
-	["ChoirLoft", Vector2(1136, 224), Vector2(160, 32)],
-	["PulpitStep", Vector2(1728, 288), Vector2(48, 32)],
-	["PulpitBase", Vector2(1776, 288), Vector2(64, 32)],
-	["Pulpit", Vector2(1776, 256), Vector2(64, 32)],
-	## ⑦ 侧廊唱诗席：三级台阶上到侧廊高台（可选支路，台上有奖励位）。
-	["SideStep1", Vector2(3248, 288), Vector2(48, 32)],
-	["SideStep2Base", Vector2(3320, 288), Vector2(48, 32)],
-	["SideStep2", Vector2(3320, 256), Vector2(48, 32)],
-	["SideLoft", Vector2(3376, 224), Vector2(176, 32)],
+## Low column plinths are physical refuges: the floor wave is only 16px high.
+const COVERS: Array = [
+	["FontColumnWest", Vector2(448, 288), 64.0],
+	["FontNicheEast", Vector2(592, 288), 48.0],
+	["NaveColumnWest", Vector2(1432, 288), 64.0],
+	["NaveNicheEast", Vector2(1624, 288), 64.0],
+	["ChoirColumn", Vector2(2808, 160), 48.0],
+	["ApseColumnWest", Vector2(3488, 288), 64.0],
+	["ApseNicheEast", Vector2(3680, 288), 64.0],
 ]
-## 台阶链（平台名），测试逐段验证一跳可达。
-const FONT_CHAIN: Array = ["FloorA", "StoneF1", "StoneF2", "StoneF3", "FloorB"]
-const CHOIR_CHAIN: Array = ["FloorB", "ChoirStep1", "ChoirStep2", "ChoirLoft"]
-const PULPIT_CHAIN: Array = ["FloorC", "PulpitStep", "Pulpit"]
-const BRIDGE_CHAIN: Array = ["FloorC", "BridgeB1", "BridgeB2", "BridgeB3", "BridgeB4", "BridgeB5", "FloorD"]
-
+const CHOIR_CHAIN := ["FloorA", "ChoirStep1", "ChoirStep2", "ChoirLoft"]
+const CHOIR_RETURN_CHAIN := ["FloorB", "ChoirRecoveryStep", "ChoirRecoveryUpper", "ChoirLoft"]
+const GALLERY_CHAIN := ["ChoirLoft", "GalleryWest", "GalleryEast", "BridgeB2", "BridgeB3"]
+const BRIDGE_CHAIN := ["FloorB", "BridgeB1", "BridgeB2", "BridgeB3", "BridgeB4", "FloorD"]
+const SIDE_CHAIN := ["FloorD", "SideStep1", "SideStep2", "SideStep3", "SideLoft"]
 const NEST_NAVE_X := 176.0
-const NEST_ALTAR_X := 2384.0
-## 廊桥第四块浮石上的小巢：桥中段唯一一处落在喷吐者 380px 射程外的平面。
-## 死在中段的人从 2224 重来，而不是走回 176。
-const NEST_BRIDGE_X := 2224.0
-const NEST_BRIDGE_Y := 264.0
-## 阶段 2 路线审计：中庭两巢相距 2208px（三屏半，含压板门与齿盾卫）。唱诗门后补一个巢，
-## 死在桥上或齿盾卫前不必从洗礼池重走。门在 1328，齿盾卫 1 巡逻 1624–1704。
-const NEST_CHOIR_X := 1392.0
-## ⑦ 侧廊巢：扩章后出口在 3984，最后一段回程 1600px，侧廊口补一口余火。
-const NEST_CLOISTER_X := 3560.0
-const STELE_A_POS := Vector2(248, 320)
-const STELE_B_POS := Vector2(2496, 320)
-## 压板在唱诗台面上（脚点 y=224）；闸门立在中殿地面，门顶 256、门底 320。
-const PLATE_FEET := Vector2(1168, 224)
-const DOOR_POS := Vector2(1328, 256)
-const GATE_POS := Vector2(2800, 256)
-## 拱顶锚点：从祭坛区地面（起跳面 320-48）到锚点 176px，落到 VaultLedge（152）在锚点下方 56px。
-const HOOK_POS := Vector2(2416, 96)
-const PICKUP_POS := Vector2(2480, 136)
-## 支路碑文：拱顶高台东端，和余烬核错开。只有钩锁能读，是本章的支路奖励。
-## 它说的是「灯照不到的地方」——炉约的代价被谁收走了。
-const STELE_VAULT_POS := Vector2(2504, 152)
-## ⑦ 侧廊唱诗席支路的奖励位：EquipmentPickup 的 Fill 底边在节点 +7px，落在 224 台面。
-const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
-const REWARD_POS := Vector2(3464, 217)
-const REWARD_KIND := "equipment"
-const REWARD_REF := "bone_charm"
-const EXIT_X := 3984.0
-const WAYMARKS: Array = [[Vector2(300, 320), "圣殿"], [Vector2(2440, 320), "祭坛"], [Vector2(3640, 320), "侧廊"]]
-
-## [name, kind, pos, overrides]
-## 齿盾卫的巡逻范围收窄：一只离唱诗台/闸门西侧 ≥300（否则隔着门朝台上放弹），
-## 一只离第二个巢 ≥300（点巢的人不该挨弹）。
+const NEST_CHOIR_X := 1184.0
+const NEST_BRIDGE_X := 2160.0
+const NEST_BRIDGE_Y := 256.0
+const NEST_ALTAR_X := 3104.0
+const NEST_CLOISTER_X := 3904.0
+const PLATE_FEET := Vector2(912, 224)
+const DOOR_POS := Vector2(1072, 256)
+const GATE_POS := Vector2(3328, 256)
+const HOOK_POS := Vector2(2448, 48)
+const PICKUP_POS := Vector2(2448, 88)
+const STELE_VAULT_POS := Vector2(2512, 104)
+const REWARD_POS := Vector2(2976, 185)
+const EXIT_X := 4048.0
+## Three staged encounters; the first bell's teaching area has no enemies.
 const ENEMIES: Array = [
-	["Ghost1", "ghost", Vector2(944, 232), {}],
-	["Scrapper1", "scrapper", Vector2(1216, 320), {"patrol_range": 48.0}],
-	["Ghost2", "ghost", Vector2(1208, 176), {}],
-	["GearShield1", "gear_shield", Vector2(1664, 320), {"patrol_range": 40.0}],
-	["Spitter1", "spitter", Vector2(1808, 256), {}],
-	["GearShield2", "gear_shield", Vector2(2736, 320), {"patrol_range": 16.0}],
-	## ⑦⑧ 侧廊 / 后殿：幽魂在唱诗席上方、碎铁犬守后殿出口、第三只齿盾卫守侧廊窄路。
-	["Ghost3", "ghost", Vector2(3140, 232), {}],
-	["GearShield3", "gear_shield", Vector2(3700, 320), {"patrol_range": 16.0}],
-	["Scrapper2", "scrapper", Vector2(3860, 320), {"patrol_range": 16.0}],
+	["Ghost1", "ghost", Vector2(824, 176), {"wake_range": 120.0, "lose_range": 260.0}],
+	["Scrapper1", "scrapper", Vector2(880, 320), {"patrol_range": 16.0, "aggro_range": 180.0, "alert_radius": 112.0}],
+	["GearShield1", "gear_shield", Vector2(1560, 320), {"variant": &"heavy_guard", "patrol_range": 16.0, "aggro_range": 220.0, "lose_range": 300.0}],
+	["Ghost2", "ghost", Vector2(1584, 144), {"wake_range": 120.0, "lose_range": 260.0}],
+	["Spitter1", "spitter", Vector2(1808, 192), {"aggro_range": 280.0, "lose_range": 320.0}],
+	["Ghost3", "ghost", Vector2(2784, 128), {"wake_range": 112.0, "lose_range": 240.0}],
+	["GearShield2", "gear_shield", Vector2(3576, 320), {"variant": &"heavy_guard", "patrol_range": 16.0, "aggro_range": 220.0, "lose_range": 280.0}],
+	["Scrapper2", "scrapper", Vector2(3768, 320), {"patrol_range": 8.0, "aggro_range": 96.0, "lose_range": 120.0}],
 ]
-
-## 壁炬 x（64px 墙板以 x 为中心，板底贴地面）。
-## 880 的左缘在 848，洗礼池铺到 864，有一截悬在毒液上。896 起整块落在 FloorB。
-const TORCHES: Array = [352.0, 896.0, 1544.0, 2768.0, 3104.0, 3408.0, 3720.0, 4056.0]
-## 接地装饰 [key, feet]。墙板都是背景层，避开浮石落点正上方。
+const BELLS: Array = [
+	["FontResonance", Vector2(544, 320), 208.0, 0.0],
+	["NaveResonance", Vector2(1560, 320), 220.0, 0.35],
+	["ChoirResonance", Vector2(2840, 192), 192.0, 0.6],
+	["ApseResonance", Vector2(3600, 320), 220.0, 0.15],
+]
+const TORCHES: Array = [320.0, 1248.0, 1728.0, 2576.0, 3184.0, 3408.0, 3840.0, 4120.0]
 const PROPS: Array = [
-	["window", Vector2(72, 320)],
-	["gargoyle", Vector2(424, 320)],
-	["balustrade", Vector2(504, 320)],
-	# 壁炬 896 的墙板铺到 928。柱心再往西，128px 的骷髅柱会吞掉火把。
-	["skull_column", Vector2(1008, 320)],
-	["column", Vector2(1176, 320)],
-	["balustrade", Vector2(1256, 224)],
-	["window", Vector2(1440, 320)],
-	["skull_column", Vector2(1752, 320)],
-	["balustrade", Vector2(2560, 320)],
-	["altar", Vector2(2672, 320)],
-	["gargoyle", Vector2(2868, 320)],
-	## ⑦⑧ 侧廊 / 后殿：廊柱、石栏、壁龛和侧廊尽头的祭坛。
-	["column", Vector2(3144, 320)],
-	["balustrade", Vector2(3216, 320)],
-	["balustrade", Vector2(3376, 224)],
-	["gargoyle", Vector2(3504, 320)],
-	["window", Vector2(3592, 320)],
-	["balustrade", Vector2(3664, 320)],
-	["skull_column", Vector2(3776, 320)],
-	["altar", Vector2(3880, 320)],
+	["window", Vector2(72, 320)], ["gargoyle", Vector2(352, 320)],
+	["column", Vector2(480, 288)], ["balustrade", Vector2(600, 192)],
+	["balustrade", Vector2(976, 224)], ["window", Vector2(1312, 320)],
+	["column", Vector2(1464, 288)], ["balustrade", Vector2(1648, 192)],
+	["window", Vector2(1840, 192)], ["balustrade", Vector2(2072, 256)],
+	["gargoyle", Vector2(2304, 256)], ["altar", Vector2(2480, 320)],
+	["balustrade", Vector2(2784, 192)], ["column", Vector2(2832, 160)],
+	["window", Vector2(3008, 320)], ["altar", Vector2(3248, 320)],
+	["column", Vector2(3520, 288)], ["gargoyle", Vector2(3712, 288)],
+	["window", Vector2(3976, 320)],
 ]
 const VINES: Array = [248.0, 656.0, 1096.0, 1320.0, 1600.0, 2040.0, 2280.0, 2600.0, 3104.0, 3424.0, 3744.0]
 
 
-func level_id() -> String:
-	return "level04"
+func level_id() -> String: return "level04"
+func title() -> String: return ChapterText.title_of(level_id())
+func wake_line() -> String: return ChapterText.wake_of(level_id())
+func entry_spawn() -> Vector2: return ENTRY_SPAWN
+func east_limit() -> int: return EAST_LIMIT
+func camera_top() -> int: return CAMERA_TOP
+func theme() -> String: return "cathedral"
+func motes() -> String: return "candle"
 
 
-func title() -> String:
-	return ChapterText.title_of(level_id())
-
-
-func wake_line() -> String:
-	return ChapterText.wake_of(level_id())
-
-
-## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
-func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
-	var entry := ChapterText.stele_of(level_id(), node_name)
-	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
-
-
-func entry_spawn() -> Vector2:
-	return ENTRY_SPAWN
-
-
-func east_limit() -> int:
-	return EAST_LIMIT
-
-
-func camera_top() -> int:
-	return CAMERA_TOP
-
-
-func theme() -> String:
-	return "cathedral"
-
-
-func motes() -> String:
-	return "candle"
-
-
-## 圣殿有顶：天上是什么只在破顶的天窗那一片算数，整关的天气就压在薄雾/晴之间。
 func weather_recipe() -> Dictionary:
-	return {
-		"allowed": [WorldClock.Weather.HAZE, WorldClock.Weather.CLEAR],
-		"hold": Vector2(320.0, 520.0),
-		"intensity": Vector2(0.4, 0.8),
-	}
+	return {"allowed": [WorldClock.Weather.HAZE, WorldClock.Weather.CLEAR],
+		"hold": Vector2(320.0, 520.0), "intensity": Vector2(0.4, 0.8)}
 
 
-## ⑤ 廊桥（1856–2336）：拱顶在这里塌了，是整座圣殿唯一淋得到雨的地方。
-## 站上桥面，室内感就地让位给雨；走回走廊或祭坛区，又是干燥的室内。
 func weather_regions() -> Array:
-	return [
-		{"name": "BrokenVault", "rect": Rect2(1856, -32, 480, 432),
-			"weather": WorldClock.Weather.RAIN, "intensity": 0.85, "outdoor": true},
-	]
+	return [{"name": "BrokenVault", "rect": Rect2(1856, -32, 480, 432),
+		"weather": WorldClock.Weather.RAIN, "intensity": 0.85, "outdoor": true}]
 
 
 func build(host: Node2D) -> void:
-	_build_terrain(host)
-	_build_props(host)
-	_build_enemies(host)
-	_build_decor(host)
-	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
-			ChapterText.exit_captions_of(level_id()), "level04_done",
-			GameContext.next_level_id(level_id()))
-	finish(host)
-
-
-func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
-		floor_strip(host, f[0], f[1], f[2], "nave", f[3], f[4], FLOOR_Y, STONE_TONE)
-	for p in PITS:
-		var pool := toxin_pit(host, p[0], p[1], p[2], 32.0, "nave", TOXIN_TINT)
-		if pool != null:
-			pool.set_sludge_ramp(TOXIN_RAMP, TOXIN_VAPOR)
+		floor_strip(host, f[0], f[1], f[2], "nave", true, true, f[3], STONE_TONE)
 	for s in STEPS:
 		step(host, s[0], s[1], s[2], "nave_float", FLOAT_TONE)
-	for b in BLOCKS:
-		platform(host, b[0], b[1], b[2], "nave", true, true, STONE_TONE)
-	enclose(host, "nave", CEILING_Y, -1.0, 0.0, STONE_TONE)
+	for c in COVERS:
+		platform(host, c[0], c[1], Vector2(c[2], 32), "nave", true, true, STONE_TONE)
+	enclose(host, "nave", CEILING_Y, 1856.0, 480.0, STONE_TONE)
+	_build_props(host)
+	_build_bells(host)
+	for e in ENEMIES:
+		enemy(host, e[0], e[1], e[2], e[3])
+	for x in TORCHES:
+		torch(host, x, FLOOR_Y, TORCH_TINT)
+	for p in PROPS:
+		prop(host, p[0], p[1])
+	for x in VINES:
+		hanging(host, "vine", Vector2(x, 0), VINE_TINT)
+	exit_door(host, EXIT_X, ChapterText.exit_label_of(level_id()),
+		ChapterText.exit_captions_of(level_id()), "level04_done", GameContext.next_level_id(level_id()))
+	finish(host)
 
 
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestNave", NEST_NAVE_X)
+	nest(host, "EmberNestChoir", NEST_CHOIR_X)
 	nest(host, "EmberNestBridge", NEST_BRIDGE_X, NEST_BRIDGE_Y)
 	nest(host, "EmberNestAltar", NEST_ALTAR_X)
-	nest(host, "EmberNestChoir", NEST_CHOIR_X)
 	nest(host, "EmberNestCloister", NEST_CLOISTER_X)
-	_stele(host, "SteleCompact", STELE_A_POS)
-	_stele(host, "StelePrice", STELE_B_POS)
+	_stele(host, "SteleCompact", Vector2(248, 320))
+	_stele(host, "StelePrice", Vector2(3056, 320))
 	plate_door(host, "Choir", PLATE_FEET, DOOR_POS)
 	rusty_gate(host, "RustyGate", GATE_POS)
 	hook(host, "Hook_Vault", HOOK_POS)
 	pickup(host, "EmberCoreVault", PICKUP_POS, &"ember_core")
 	_stele(host, "SteleVault", STELE_VAULT_POS)
-	_reward(host)
-	for w in WAYMARKS:
-		waymark(host, w[0], String(w[1]))
-
-
-## ⑦ 侧廊唱诗席支路的奖励位：EquipmentPickup 走 LoadoutBridge（roster 缺失回退
-## 「一点余温」，不死锁）；位置在高台上，Fill 底边（节点 +7px）贴 224 台面。
-func _reward(host: Node2D) -> Node:
-	if not ResourceLoader.exists(REWARD_SCENE):
-		return null
-	var scene := load(REWARD_SCENE) as PackedScene
-	if scene == null:
-		return null
-	var pick := scene.instantiate()
+	# Preserve the v2 reward path and its Fill-based foot point.
+	var pick := load("res://scenes/interactables/EquipmentPickup.tscn").instantiate() as EquipmentPickup
 	pick.name = "RewardChoir"
 	pick.position = REWARD_POS
-	pick.set("reward_kind", REWARD_KIND)
-	pick.set("reward_ref", REWARD_REF)
-	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
-	pick.set("reward_name", item.display_name if item != null else "")
+	pick.reward_kind = "equipment"
+	pick.reward_ref = "bone_charm"
+	var item := EquipmentCatalog.for_id(&"bone_charm")
+	pick.reward_name = item.display_name if item != null else ""
 	group(host, "Pickups").add_child(pick)
-	return pick
+	waymark(host, Vector2(304, 320), "圣殿")
+	waymark(host, Vector2(1120, 192), "回巢")
+	waymark(host, Vector2(2960, 320), "祭坛")
+	waymark(host, Vector2(3944, 320), "侧廊")
 
 
-func _build_enemies(host: Node2D) -> void:
-	for e in ENEMIES:
-		enemy(host, String(e[0]), String(e[1]), e[2], e[3])
+func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
+	var entry := ChapterText.stele_of(level_id(), node_name)
+	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
-func _build_decor(host: Node2D) -> void:
-	for x in TORCHES:
-		torch(host, x, FLOOR_Y, TORCH_TINT)
-	for p in PROPS:
-		prop(host, String(p[0]), p[1])
-	for x in VINES:
-		hanging(host, "vine", Vector2(x, 0.0), VINE_TINT)
+func _build_bells(host: Node2D) -> void:
+	for b in BELLS:
+		var wave := cyclic(host, b[0], b[1], "shock", {"thick": b[2], "phase": b[3]})
+		var bell := BELL_VISUAL.new() as Node2D
+		bell.name = String(b[0]) + "Bell"
+		bell.set("wave", wave)
+		bell.position = b[1]
+		group(host, "Decor").add_child(bell)

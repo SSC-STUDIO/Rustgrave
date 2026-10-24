@@ -44,4 +44,12 @@
 - LevelSanity 无问题；route_audit、chapter_progression、level_routing、level_weather、chapter_art_audit、prop_fit、chapter_support、parallax_backdrop。
 - 5 机位 x=320 / 960 / 1760 / 2720 / 3720，各以 1280×720 与 1920×1080 渲染并逐张检查。
 
-验收记录在实现后补充，截图为停放机位，不能当作正常输入通关证明。
+## 已完成验收（2026-10-24）
+
+最终布局保留 4200px 边界、五个旧巢与原出口。实心地面改成前厅 / 下廊 / 352px 干沟 / 祭坛 / 后殿；192px 的双段巡礼廊、224px 唱诗台与 104px 钩锁拱顶形成三个可辨识的高度。干沟两端桥面分别留出 48px / 32px 开口，真实玩家可向两边单跳爬回主路；不是只依赖静态可达模型。
+
+最终测试使用 `tools/run_tests.ps1 -CaseFilter <名称> -TimeoutSeconds 240 -ArtifactsDir <绝对路径>`；level_sanity 另设 `RUSTGRAVE_LEVEL_FILTER=level04`。结果：layout **11/11**、sanity **13/13**、route_audit **2/2**、chapter_progression **3/3**、level_routing **6/6**、level_weather **6/6**、chapter_art_audit **4/4**、prop_fit **7/7**、chapter_support **2/2**、parallax_backdrop **8/8**，共 **62/62**，全部 0 engine errors。layout 包含唱诗台东侧真实跳回、干沟两端脱困、钟波伤害对照、起跳与柱座免伤、六秒唱诗巢 AI 安全与 v2 稳定路径回归。
+
+截图位 x=320 / 960 / 1760 / **2160** / 2720 / 3720，增加桥心机位后共 **6×2=12 张 PNG**。两档均已逐张检查：`screenshots/acceptance/overhaul-v3/level04/1280x720/` 与 `1920x1080/`；文件名为 `live_<x>_level04_lit_active.png`。图检修正了下层吊钟被上层廊面遮住的问题。日志在同级 `tests/<过滤器>/`。
+
+未在本分支运行全量套件（由整合分支统一运行）；机位截图证明渲染构图，物理回归证明上述局部交互，均不冒充完整正常输入战役通关。没有改共享运行时代码、故事注册表或其他章节。
