@@ -241,6 +241,29 @@ func test_finale_bed_riser_has_real_single_jump_headroom_under_the_return_stair(
 	driver._release()
 
 
+func test_slag_return_lift_walks_off_its_clear_edge_onto_the_lower_floor() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "FoundryShelf", Vector2(1904,128),496.0)
+	layout.step(host, "QuenchFloor", Vector2(2400,320),448.0)
+	var lift := layout.lift(host, "ReturnLift",Vector2(2400,128),Vector2(0,-64),8.0,64.0,0.0,0.0)
+	var player := await spawn_player(host,Vector2(2432,104))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(2614,320)
+	var from := {"r":Rect2(2400,128,64,16),"lift":lift}
+	var to := _segment(Rect2(2400,320,448,16))
+	ok(driver._nv_link(from,to),"real lift has a clear east walk-off")
+	ok(await driver._nv_cross(from,to),"normal input leaves the live lift instead of jumping in place")
+	almost(player.position.y,320.0,1.0)
+	ok(player.position.x > 2464.0)
+	ok(not player.controller.extra_jumps_unlocked)
+	almost(lift.period,8.0,0.001,"navigation never freezes the live lift")
+	driver._release()
+
+
 func test_closed_pressure_gate_uses_the_upper_route_until_it_is_open() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()

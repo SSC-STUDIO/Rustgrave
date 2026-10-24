@@ -365,3 +365,7 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 - 视觉审计 Phase B/C（扩章后重拍、Boss 房逐场构图）未全量完成：Phase A 已修 P0；02b/04b 有 before/after；其余扩章段与 7 场 Boss 房列入 `PHASE_B_QUEUE.md` / Phase C，待后续。
 - 外部角色/武器线未合并：契约 §3 + `LoadoutBridge`（feature-detect）+ 奖励位 + 可达性矩阵 + `LoadoutMergeCheck` 已就绪；合并时按契约 SMOKE 1–7 跑门禁。
 - `docs/` 与源码在同一分支；`screenshots/` 全量 gitignore（证据只在本地，路径如上）。
+
+### 2026-10-24：熔渣回巢升降台下落
+
+连续新游戏Basic战役 `input-20261024-215829-600` 在level08高台与ReturnLift的交接处失败，保留该轮失败报告。导航原先只对固定台执行“走出整个人体再刹车”的重叠下落规则；升降台被遗漏后，角色会原地跳跃。现将规则用于真实运动升降台，并读取它的当前高度。`overhaul-v3/return-lift-fix/tests/` 17/17、0引擎错误，新增用例使用实际宽度/位置/8秒运动周期，正常方向输入落到低层地面，不冻结平台或改角色坐标。完整战役必须重新运行。

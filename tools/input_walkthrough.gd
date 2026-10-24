@@ -776,7 +776,7 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
 	if not LevelSanity._can_hop(at, bt): return false
 	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
-	if a.lift == null and b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
+	if b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
 		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
 			return false
 	var x0 := minf(ar.end.x, br.end.x)
@@ -1052,7 +1052,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
 	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
 	var drop_landing := NAN
-	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and a.lift == null and b.lift == null:
+	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and b.lift == null:
 		right = _nv_goal.x >= ar.get_center().x if _nv_goal.is_finite() else right
 		if not _nv_drop_side_clear(ar, br, right): right = not right
 		if not _nv_drop_side_clear(ar, br, right): return false
@@ -1105,13 +1105,14 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			r.position = b.lift.position
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
 		if not is_nan(drop_landing): landing = drop_landing
-		if not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - ar.position.y) < 8.0:
+		var departure_y: float = a.lift.position.y if a.lift != null and is_instance_valid(a.lift) else ar.position.y
+		if not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - departure_y) < 8.0:
 			# Leave the whole 14px body past the ledge before braking. Steering to
 			# a point only 8px beyond it can stop 2px short and remain supported.
 			_move(1.0 if right else -1.0)
 		else:
 			_nv_steer(landing)
-		_set_action(&"jump", i < 24 and not deep_drop and not (gap < 4 and br.position.y > ar.position.y))
+		_set_action(&"jump", i < 24 and not deep_drop and is_nan(drop_landing) and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
 		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
 				or (ar.position.y - br.position.y > 24.0 and gap > 24.0) \
