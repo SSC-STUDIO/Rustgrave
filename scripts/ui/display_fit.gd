@@ -158,7 +158,7 @@ static func apply_resolution(res: Vector2i, win: Window = null, persist: bool = 
 		Settings.set_value(&"fullscreen", false)
 	if DisplayServer.get_name() == "headless":
 		return
-	if is_fullscreen():
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_size(res)
 	var screen_idx := DisplayServer.window_get_current_screen()

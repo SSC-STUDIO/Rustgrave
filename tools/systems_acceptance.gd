@@ -7,6 +7,7 @@ const Catalog := preload("res://scripts/data/trial_catalog.gd")
 const Errors := preload("res://tests/error_collector.gd")
 var _errors
 var _shots: Array[String] = []
+var _display_probe: Dictionary = {}
 
 
 func _ready() -> void:
@@ -16,7 +17,13 @@ func _ready() -> void:
 	_errors = Errors.new()
 	OS.add_logger(_errors)
 	var win := get_tree().root
-	win.mode = Window.MODE_WINDOWED
+	win.mode = Window.MODE_MAXIMIZED
+	await _frames(2)
+	DisplayFit.apply_resolution(Vector2i(1280, 720), win, false)
+	await _frames(2)
+	_display_probe = {"window_mode": DisplayServer.window_get_mode(), "size": str(win.size)}
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED or win.size != Vector2i(1280, 720):
+		push_error("Requested resolution did not leave maximized mode at 1280x720")
 	win.borderless = true
 	win.position = Vector2i(-12000, -12000)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -49,7 +56,7 @@ func _ready() -> void:
 		await _capture("ember-recap-%dx%d" % [size.x, size.y])
 		title._recap.visible = false
 	var report := {"purpose": "Rendered UI fixtures; no hardware or campaign completion claim", "shots": _shots,
-		"display_server": DisplayServer.get_name(), "gpu": RenderingServer.get_video_adapter_name(), "errors": _errors.errors()}
+		"resolution_probe": _display_probe, "display_server": DisplayServer.get_name(), "gpu": RenderingServer.get_video_adapter_name(), "errors": _errors.errors()}
 	var out := FileAccess.open(OUT + "/report.json", FileAccess.WRITE)
 	out.store_string(JSON.stringify(report, "  "))
 	out.close()

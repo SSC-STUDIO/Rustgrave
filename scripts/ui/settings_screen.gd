@@ -31,7 +31,6 @@ const ROW_WIDTH := 700.0
 ## 两列键位在 900px 卡片里：2×380 + 24 = 784，仍小于 832 的内容宽。
 ## 旧值 480 时网格 984px，会从花边卡两侧各挤出 76px。
 const KEY_COLUMN_WIDTH := 380.0
-const PAGE_HEIGHT := 308.0
 const TICK_INTERVAL := 0.045
 
 const BUS_NAMES := {
@@ -132,7 +131,7 @@ func _build() -> void:
 
 	var host := Control.new()
 	host.name = "Pages"
-	host.custom_minimum_size = Vector2(0.0, PAGE_HEIGHT)
+	host.custom_minimum_size = Vector2.ZERO
 	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(host)

@@ -24,6 +24,8 @@ func teardown() -> void:
 	SaveData.flags = _flags
 	SaveData.ending = _ending
 	SaveData.save_path = _path
+	if FileAccess.file_exists("user://recap_test_save.cfg"):
+		DirAccess.remove_absolute("user://recap_test_save.cfg")
 	Director.abort()
 
 
@@ -36,6 +38,12 @@ func test_summary_and_selected_rematch_preserve_campaign_state() -> void:
 	ok("试炼" in recap.summary_text())
 	ok("竞技场" in recap.summary_text())
 	var before := SaveData.flags.duplicate()
+	var cfg := ConfigFile.new()
+	cfg.set_value("story", "ending", "give")
+	cfg.set_value("story", "flags", Array(before))
+	cfg.set_value("sentinel", "foreign_v2_data", {"keep": 17})
+	cfg.save(SaveData.save_path)
+	var bytes_before := FileAccess.get_file_as_bytes(SaveData.save_path)
 	ok(recap.start_selected_rematch(), "summary enters the selected Boss practice")
 	eq(TrialRun.stage_count(), 1, "one selected Boss, not the full rush or survival arena")
 	eq(TrialRun.stage()["boss_kind"], "executioner")
@@ -45,7 +53,7 @@ func test_summary_and_selected_rematch_preserve_campaign_state() -> void:
 	SaveData.mark_flag("practice_leak")
 	SaveData.persist_story()
 	eq(SaveData.flags, before)
-	ok(not FileAccess.file_exists(SaveData.save_path))
+	eq(FileAccess.get_file_as_bytes(SaveData.save_path), bytes_before, "existing campaign bytes remain unchanged")
 	TrialRun.abandon()
 	ok(SaveData.has_flag("boss_dead"), "ending practice restores campaign reads")
 
