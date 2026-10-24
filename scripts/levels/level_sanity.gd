@@ -138,6 +138,8 @@ static func top_segments(host: Node) -> Array[TopSeg]:
 				kind = "collapsing"
 			elif p is ConveyorBelt:
 				kind = "conveyor"
+			elif p is CandleBridge:
+				kind = "candle"
 			segs.append(TopSeg.new(p.global_position.x, p.global_position.x + p.size.x, p.global_position.y, String(p.name), kind))
 		elif node is MovingPlatform:
 			var m := node as MovingPlatform
@@ -639,8 +641,8 @@ static func _check_hazards(host: Node, tops: Array[TopSeg], problems: Array[Stri
 		if airborne:
 			continue
 		var seg2 := standing_on(tops, enemy.global_position, ENEMY_FOOT_SLACK, ENEMY_FOOT_SLACK)
-		if seg2 != null and seg2.kind == "collapsing":
-			problems.append("%s (%s) stands on collapsing platform %s" % [node.name, _cls(node), seg2.owner_name])
+		if seg2 != null and (seg2.kind == "collapsing" or seg2.kind == "candle"):
+			problems.append("%s (%s) stands on %s platform %s" % [node.name, _cls(node), seg2.kind, seg2.owner_name])
 	for hz in found:
 		var kind := String(hz.get_meta("hazard_kind", ""))
 		var zone := Rect2()
@@ -670,6 +672,17 @@ static func _check_hazards(host: Node, tops: Array[TopSeg], problems: Array[Stri
 				zone = f.zone_rect()
 				if absf(f.push.x) > ForceZone.MAX_PUSH + 0.001:
 					problems.append("force zone %s pushes %.0f px/s (> %.0f)" % [hz.name, f.push.x, ForceZone.MAX_PUSH])
+			"candle":
+				var cb := hz as CandleBridge
+				var cpos := cb.candle_global_position()
+				for prop in rest_props:
+					if not (prop is EmberNest):
+						continue
+					var nfeet := feet_of(prop)
+					var nat := (prop as Node2D).global_position
+					if cpos.distance_to(nat) < HAZARD_CLEARANCE or (nfeet != Vector2.INF and cpos.distance_to(nfeet) < HAZARD_CLEARANCE):
+						problems.append("candle %s stands within %.0fpx of %s — keep candles %.0fpx clear of ember nests" % [cb.name, cpos.distance_to(nfeet if nfeet != Vector2.INF else nat), prop.name, HAZARD_CLEARANCE])
+				continue
 			_:
 				continue
 		for prop in rest_props:
