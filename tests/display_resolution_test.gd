@@ -33,19 +33,20 @@ func test_aspect_ratio_detection_math() -> void:
 
 
 func test_fit_modes_behavior() -> void:
+	var previous := DisplayFit.get_fit_mode()
 	DisplayFit.apply_fit_mode(DisplayFit.FitMode.ADAPTIVE)
-	eq(int(DisplayFit.get_fit_mode()), int(DisplayFit.FitMode.INTEGER))
-	ok("整数" in DisplayFit.fit_mode_label(), "legacy adaptive request uses pixel presentation")
+	eq(int(DisplayFit.get_fit_mode()), int(DisplayFit.FitMode.ADAPTIVE))
+	ok("自适应" in DisplayFit.fit_mode_label(), "label matches adaptive presentation")
 
 	DisplayFit.apply_fit_mode(DisplayFit.FitMode.EXPAND)
-	eq(int(DisplayFit.get_fit_mode()), int(DisplayFit.FitMode.INTEGER))
-	ok("整数" in DisplayFit.fit_mode_label(), "legacy expand request keeps authored framing")
+	eq(int(DisplayFit.get_fit_mode()), int(DisplayFit.FitMode.EXPAND))
+	ok("扩展" in DisplayFit.fit_mode_label(), "label matches expanded presentation")
 
 	DisplayFit.apply_fit_mode(DisplayFit.FitMode.INTEGER)
 	eq(int(DisplayFit.get_fit_mode()), int(DisplayFit.FitMode.INTEGER))
 	ok("整数" in DisplayFit.fit_mode_label(), "label matches integer")
 
-	DisplayFit.apply_fit_mode(DisplayFit.FitMode.ADAPTIVE)
+	DisplayFit.apply_fit_mode(previous)
 
 
 func test_hud_anchors_and_bounds() -> void:
