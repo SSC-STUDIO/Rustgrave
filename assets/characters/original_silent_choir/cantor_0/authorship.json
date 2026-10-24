@@ -1,0 +1,141 @@
+{
+  "generator": "tools/gen_original_choir_warden.py",
+  "external_inputs": [],
+  "method": "project-original integer pixel contours and joint poses",
+  "actions": {
+    "idle": 4,
+    "sing": 4
+  },
+  "palette": {
+    "ink": "#211b36",
+    "deep": "#34213f",
+    "dark": "#4b2d57",
+    "purple": "#67416f",
+    "mid": "#85618c",
+    "light": "#a98aaa",
+    "waxdark": "#b6adac",
+    "wax": "#d9d3c9",
+    "white": "#f0e9d4",
+    "pale": "#fff3d3",
+    "brassdark": "#6f563f",
+    "brass": "#ad8a56",
+    "gold": "#d3b77b",
+    "flame": "#efbc72",
+    "core": "#fff0b0",
+    "void": "#141a2b"
+  },
+  "frames": [
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/idle/idle_0.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        6,
+        4,
+        35,
+        60
+      ],
+      "pixel_sha256": "56c37ef35dfcf84b567db6b11fc5b34ddf88ff09a34e5c918845216b363f0b76"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/idle/idle_1.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        6,
+        4,
+        35,
+        59
+      ],
+      "pixel_sha256": "d031b9d1ac0f63700675cebe1301476b2c28a7f452c194259f0c134ff33dbd3b"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/idle/idle_2.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        6,
+        4,
+        35,
+        60
+      ],
+      "pixel_sha256": "607fda6e19bc21c3d2fcdaf72255698fcd62c0b182bd28f056989563b2d5bdb6"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/idle/idle_3.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        6,
+        6,
+        35,
+        61
+      ],
+      "pixel_sha256": "198f907d464ca9d7b456a1c00770c417e6de2675777705e46e4feba6efa93bfd"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/sing/sing_0.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        4,
+        4,
+        37,
+        60
+      ],
+      "pixel_sha256": "b1f53949545f80edb0a4060a93c50301b90c0fd7e49ebbc40f3bdf1bcbe44de0"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/sing/sing_1.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        3,
+        5,
+        38,
+        60
+      ],
+      "pixel_sha256": "772caa01fa64a316628ab2b9cf7d469ec8dcee4b0414938541c1daa10b0ae753"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/sing/sing_2.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        4,
+        4,
+        37,
+        60
+      ],
+      "pixel_sha256": "f147f69c525c34b47a9abbcc1b72b4865a4f3073cc20fefe875f8bd4da75b035"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cantor_0/sing/sing_3.png",
+      "size": [
+        40,
+        64
+      ],
+      "bbox": [
+        3,
+        5,
+        38,
+        60
+      ],
+      "pixel_sha256": "4874b778d9d0f6ae05f4b148c20937fde64a620b77997fac05907b941351b32f"
+    }
+  ]
+}

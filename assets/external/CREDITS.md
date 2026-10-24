@@ -282,3 +282,12 @@
   diving armor, horizontal winch and chain anchor. Replaces the guard recolor.
 - Source and output delivered for project use. `authorship.json` records
   the palette and individual frame pixel hashes.
+
+## Original Silent Choir pixel animation
+- Source: project-original contour and articulated poses in
+  `tools/gen_original_choir_warden.py`, without source image inputs.
+- `assets/characters/original_silent_choir/`: 38 conductor frames and
+  24 frames for three individually drawn cantor masks. Replaces all reused
+  ghost sprites, including singing, broken and death poses.
+- Source and output supplied for project use; no external URL. Manifests
+  record the palette, dimensions and exact frame pixel hashes.

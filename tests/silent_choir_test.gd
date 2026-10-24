@@ -79,7 +79,7 @@ func test_kit_is_valid_and_covers_the_choir_kit() -> void:
 	await flush(2)
 
 
-func test_three_shells_and_one_double_scale_conductor() -> void:
+func test_three_shells_and_one_original_native_scale_conductor() -> void:
 	var arena := Node2D.new()
 	add_child(arena)
 	build_floor(arena)
@@ -87,9 +87,9 @@ func test_three_shells_and_one_double_scale_conductor() -> void:
 	eq(boss.shells().size(), 3, "three choir shells")
 	ok(boss.is_airborne(), "the choir floats (LevelSanity treats it as airborne)")
 	var anim := boss.get_node_or_null("Visual/BodySprite") as FrameAnimSprite
-	ok(anim != null, "the conductor wears the ghost frame animation")
+	ok(anim != null, "the conductor wears its original organ mask animation")
 	if anim != null:
-		eq(anim.scale, Vector2(2, 2), "conductor is drawn at an integer 2x scale")
+		eq(anim.scale, Vector2.ONE, "the full-size original drawing uses native pixels")
 		ok(anim.position.y < 0.0, "conductor floats above the floor line")
 	var hurt := boss.hurtbox.get_node("CollisionShape2D") as CollisionShape2D
 	var rect := hurt.shape as RectangleShape2D
@@ -98,7 +98,7 @@ func test_three_shells_and_one_double_scale_conductor() -> void:
 			"the conductor's hurtbox reaches the floor so the sword can hit it")
 	for shell in boss.shells():
 		var sprite := (shell as Node).get_child(0) as Sprite2D
-		ok(sprite != null and sprite.texture != null, "each shell has a ghost sprite")
+		ok(sprite != null and sprite.texture != null, "each shell has its own cantor sprite")
 		ok(sprite != null and sprite.modulate.r >= 1.0, "shells carry the warm candle hue")
 	arena.queue_free()
 	await flush(2)
