@@ -145,4 +145,19 @@
 ### 诊断与截图工具
 
 - **几何探针**：`scenes/tools/TitleMetrics.tscn`（`tools/title_metrics.gd`），headless 打印所有区块矩形、重叠检查与多分辨率边界检查。
-- **多分辨率/多变体截图工具**：`scenes/tools/TitlePeek.tscn`（`tools/title_peek.gd` + `tools/run_title_peek.ps1`），窗口模式抓取 `960×540`、`1280×720`、`1920×1080` 下 `cold / act1..act4 / give / keep / snuff` 各变体的开屏帧、空闲态与菜单聚焦态截图，输出至 `screenshots/acceptance/overhaul-v3/title/`。
+- **多分辨率/多变体截图工具**：`scenes/tools/TitlePeek.tscn`（`tools/title_peek.gd` + `tools/run_title_peek.ps1`），窗口模式抓取 `960×540`、`1280×720`、`1920×1080` 下 `cold / act1..act4 / give / keep / snuff` 各变体的开屏帧、空闲态与菜单聚焦态。`-Keyart` 走与 `USE_LIVE_SCENE=false` 相同的实例回退路径；`-Bare` 隐藏 UI；`-ShadowPair` 冻结时间并成对抓取阴影开/关效果。
+  - 每张图等待窗口与渲染缓冲连续 3 帧达到目标尺寸，PNG 文件名与 JSON 记录模式、实际尺寸、灯数/亮灯数/遮挡体/骑士姿态；静态模式记录 `has_live_viewport=false`。
+  - wrapper 使用隔离存档/设置和离屏窗口，启动后恢复调用进程的 `APPDATA` 与更新检查环境变量。
+- **渲染与 CPU 监测**：`scenes/tools/FrameCostProbe.tscn`（`tools/frame_cost_probe.gd` + `tools/run_frame_cost_probe.ps1`），支持 `-Level title -Variant cold|give|keep|snuff`、`-Keyart` 及章节 `-Level level08 -Active`。章节使用实际入口相机，固定无敌玩家，`-Active` 保留敌人子树运行；默认关闭敌人子树。
+  - 验证实际分辨率，关闭进程 VSync/帧率上限，预热 2 秒，默认采样 4 秒 `RenderingServer.frame_post_draw` 回调的单调时钟间隔；采样期间不读回纹理，结束后保存 PNG。
+  - JSON 分别输出回调间隔 mean/p50/p95/max、回调数/秒、`TIME_PROCESS` 与 `TIME_PHYSICS_PROCESS` 均值、draw calls、实际可处理节点类直方图和原始间隔样本；不再把两个 CPU monitor 相加命名为帧耗时。
+  - 离屏回调频率不是实体显示器呈现 FPS；没有 GPU timer 或逐脚本归因。固定入口/静止玩家不能证明全程移动、战斗或最坏场景性能，其他任务的并行 headless 工作也可能影响结果。
+
+```powershell
+./tools/run_title_peek.ps1 -Variants 'cold,give,keep,snuff' -Sizes '960x540,1280x720,1920x1080' -Shots idle -OutDir screenshots/acceptance/overhaul-v3/title-perf/live
+./tools/run_title_peek.ps1 -Variants 'cold,give,keep,snuff' -Sizes '960x540,1280x720,1920x1080' -Shots idle -Keyart -OutDir screenshots/acceptance/overhaul-v3/title-perf/keyart
+./tools/run_frame_cost_probe.ps1 -Level title -Variant keep -Win 1920x1080
+./tools/run_frame_cost_probe.ps1 -Level level08 -Active -Win 1920x1080
+```
+
+本轮实跑矩阵、硬件、测试与限制见 [`title-perf-acceptance.md`](./title-perf-acceptance.md)。

@@ -25,6 +25,9 @@ var _shots: PackedStringArray = ["idle", "focus"]
 var _bare := false
 var _skin := ""
 var _count := 0
+var _keyart := false
+var _shadow_pair := false
+var _current: TitleScreen
 
 
 func _ready() -> void:
@@ -49,6 +52,10 @@ func _ready() -> void:
 			_skin = arg.trim_prefix("--skin=")
 		elif arg == "--bare":
 			_bare = true
+		elif arg == "--keyart":
+			_keyart = true
+		elif arg == "--shadow-pair":
+			_shadow_pair = true
 	if _shots.has("all"):
 		_shots = ["boot", "idle", "focus"]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
@@ -60,8 +67,8 @@ func _ready() -> void:
 	Settings.load_settings()
 	Engine.max_fps = 60
 	for size in _sizes:
-		win.size = size
-		await _frames(4)
+		if not await _settle_window(size):
+			return
 		for variant in _variants:
 			await _variant(variant, size)
 	print("TITLE_PEEK shots=", _count)
@@ -74,12 +81,49 @@ func _frames(n: int) -> void:
 
 
 func _shot(variant: String, tag: String, size: Vector2i) -> void:
+	if not await _settle_window(size):
+		return
 	await RenderingServer.frame_post_draw
 	var image := get_tree().root.get_texture().get_image()
-	var path := "%s/%s_%s_%dx%d.png" % [_out, variant, tag, size.x, size.y]
+	var mode := "keyart" if _keyart else "live"
+	var path := "%s/%s_%s_%s_%dx%d.png" % [_out, mode, variant, tag, size.x, size.y]
 	var err := image.save_png(path)
+	var world := _current.world()
+	var record := {"mode": mode, "variant": variant, "tag": tag,
+		"actual_width": image.get_width(), "actual_height": image.get_height(),
+		"window": str(get_tree().root.size), "png": path,
+		"has_live_viewport": _current.get_node_or_null("WorldViewport") != null}
+	if world != null:
+		record["fixtures"] = world.lantern_count()
+		record["lit_fixtures"] = world.lit_lanterns()
+		record["point_lights"] = world.light_count()
+		record["occluders"] = world.find_children("*", "LightOccluder2D", true, false).size()
+		record["knight_pose"] = world.knight_sprite().current() if world.knight_sprite() != null else "absent"
+	var file := FileAccess.open(path.trim_suffix(".png") + ".json", FileAccess.WRITE)
+	file.store_string(JSON.stringify(record, "\t"))
 	_count += 1
-	print("TITLE_PEEK ", variant, " ", tag, " ", size, " saved=", err == OK)
+	print("TITLE_PEEK ", mode, " ", variant, " ", tag, " ", image.get_size(), " saved=", err == OK)
+	if err != OK:
+		push_error("title_peek could not save " + path)
+		get_tree().quit(1)
+
+
+func _settle_window(wanted: Vector2i) -> bool:
+	var win := get_tree().root
+	var stable := 0
+	for frame in 120:
+		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
+			win.mode = Window.MODE_WINDOWED
+			win.size = wanted
+			win.position = Vector2i(-12000, -12000)
+			stable = 0
+		await RenderingServer.frame_post_draw
+		stable = stable + 1 if win.get_texture().get_image().get_size() == wanted and win.size == wanted else 0
+		if stable >= 3:
+			return true
+	push_error("title_peek render size did not settle at " + str(wanted))
+	get_tree().quit(1)
+	return false
 
 
 ## Writes the save that makes the title show `variant` (or none for 'cold').
@@ -116,6 +160,8 @@ func _write_save(variant: String) -> void:
 func _variant(variant: String, size: Vector2i) -> void:
 	_write_save(variant)
 	var title := TITLE.instantiate() as TitleScreen
+	_current = title
+	title.live_scene_enabled = not _keyart
 	add_child(title)
 	if _bare:
 		_hide_ui(title)
@@ -126,6 +172,19 @@ func _variant(variant: String, size: Vector2i) -> void:
 	await get_tree().create_timer(3.6 if not _shots.has("boot") else 1.2).timeout
 	if _shots.has("idle"):
 		await _shot(variant, "idle", size)
+	if _shadow_pair and title.world() != null:
+		Engine.time_scale = 0.0
+		await _shot(variant, "shadows_on", size)
+		var changed: Array[PointLight2D] = []
+		for node in title.world().find_children("*", "PointLight2D", true, false):
+			var light := node as PointLight2D
+			if light.shadow_enabled:
+				changed.append(light)
+				light.shadow_enabled = false
+		await _shot(variant, "shadows_off", size)
+		for light in changed:
+			light.shadow_enabled = true
+		Engine.time_scale = 1.0
 	if _shots.has("focus"):
 		var menu := title.get_node("Menu") as MenuList
 		var ids := menu.item_ids()
