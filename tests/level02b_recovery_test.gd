@@ -95,6 +95,10 @@ func test_east_overlook_descends_past_the_closed_shortcut_gate() -> void:
 	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
 	ok(not route.is_empty())
 	if route.is_empty(): return
+	var uses_step := false
+	for edge in route:
+		uses_step = uses_step or edge.r.position == Vector2(2696, 200)
+	ok(uses_step, "descent visits the real intermediate step above the closed gate")
 	for i in range(1, route.size()):
 		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
 		ok(crossed, "east descent edge %d; feet=%s" % [i, player.position])

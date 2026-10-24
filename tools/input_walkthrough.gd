@@ -783,6 +783,11 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
 		for r in (_nv_solids() if solids.is_empty() else solids):
+			# A lower stair in the gap catches a descending body before the
+			# distant floor. Visit that landing instead of claiming a direct drop.
+			if br.position.y > ar.position.y + 8.0 and r.position.y > ar.position.y + 0.5 \
+					and r.position.y < br.position.y - 0.5 and r.position.x < x1 and r.end.x > x0:
+				return false
 			# Walk over an actual connecting floor before climbing its stair.
 			# Skipping that floor invents a gap and an unnecessary airborne dash,
 			# which can overshoot a narrow landing after a conveyor run-up.
