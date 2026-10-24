@@ -119,6 +119,102 @@ func test_gamepad_rebind_swaps_persists_and_resets() -> void:
 	eq(Settings.pad_for(&"attack"), default_attack, "恢复默认后 attack 回到 X")
 
 
+func test_secondary_trigger_rebind_swaps_only_the_conflicting_token() -> void:
+	var rt := _pad_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	var lt := _pad_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)
+	var a := _pad_button(JOY_BUTTON_A)
+	var rb := _pad_button(JOY_BUTTON_RIGHT_SHOULDER)
+	eq(Settings.pad_owner(Settings.encode_pad_event(rt)), &"dash", "RT 次级绑定也有所属动作")
+	_assert_only_pad_action(rt, &"dash")
+
+	# 改 dash 的主绑定必须保留 RT；随后只把被 jump 占用的 RT 换成旧 A。
+	eq(Settings.rebind_pad_action(&"dash", lt, false), &"skill_2")
+	_assert_only_pad_action(rt, &"dash")
+	eq(Settings.rebind_pad_action(&"jump", rt), &"dash", "占用次级扳机也执行交换")
+	_assert_only_pad_action(rt, &"jump")
+	_assert_only_pad_action(lt, &"dash")
+	_assert_only_pad_action(a, &"dash")
+	_assert_only_pad_action(rb, &"skill_2")
+	eq(Settings.pad_for(&"dash"), Settings.encode_pad_event(lt), "dash 的其他主绑定保留")
+
+	Settings.load_settings()
+	_assert_only_pad_action(rt, &"jump")
+	_assert_only_pad_action(lt, &"dash")
+	_assert_only_pad_action(a, &"dash")
+	_assert_only_pad_action(rb, &"skill_2")
+
+	Settings.reset_keys()
+	Settings.load_settings()
+	_assert_only_pad_action(rt, &"dash")
+	_assert_only_pad_action(rb, &"dash")
+	_assert_only_pad_action(a, &"jump")
+	_assert_only_pad_action(lt, &"skill_2")
+
+
+func test_secondary_dpad_rebind_preserves_stick_and_persists() -> void:
+	var left := _pad_button(JOY_BUTTON_DPAD_LEFT)
+	var stick := _pad_axis(JOY_AXIS_LEFT_X, -1.0)
+	var a := _pad_button(JOY_BUTTON_A)
+	eq(Settings.rebind_pad_action(&"jump", left), &"move_left")
+	_assert_only_pad_action(left, &"jump")
+	_assert_only_pad_action(stick, &"move_left")
+	_assert_only_pad_action(a, &"move_left")
+	almost(InputMap.action_get_deadzone(&"move_left"), 0.2, 0.001, "保留移动轴死区")
+
+	Settings.load_settings()
+	_assert_only_pad_action(left, &"jump")
+	_assert_only_pad_action(stick, &"move_left")
+	_assert_only_pad_action(a, &"move_left")
+
+	Settings.reset_keys()
+	Settings.load_settings()
+	_assert_only_pad_action(left, &"move_left")
+	_assert_only_pad_action(stick, &"move_left")
+	_assert_only_pad_action(a, &"jump")
+
+
+func test_legacy_primary_pad_settings_remove_default_secondary_conflict() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", Settings.VERSION)
+	cfg.set_value("gamepad", "jump", "axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT)
+	eq(cfg.save(TEST_PATH), OK)
+	ok(Settings.load_settings(), "旧版单 token 配置仍可读取")
+	var rt := _pad_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	var rb := _pad_button(JOY_BUTTON_RIGHT_SHOULDER)
+	_assert_only_pad_action(rt, &"jump")
+	_assert_only_pad_action(rb, &"dash")
+	ok(Settings.save_settings(), "升级为完整绑定列表后可保存")
+	Settings.load_settings()
+	_assert_only_pad_action(rt, &"jump")
+	_assert_only_pad_action(rb, &"dash")
+	Settings.reset_keys()
+	Settings.load_settings()
+	_assert_only_pad_action(rt, &"dash")
+	_assert_only_pad_action(_pad_button(JOY_BUTTON_A), &"jump")
+
+
+func _pad_button(button: JoyButton) -> InputEventJoypadButton:
+	var event := InputEventJoypadButton.new()
+	event.button_index = button
+	event.pressed = true
+	return event
+
+
+func _pad_axis(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
+	var event := InputEventJoypadMotion.new()
+	event.axis = axis
+	event.axis_value = value
+	return event
+
+
+func _assert_only_pad_action(event: InputEvent, expected: StringName) -> void:
+	var actions: Array[StringName] = []
+	for action in Settings.REBINDABLE:
+		if event.is_action_pressed(action):
+			actions.append(action)
+	eq(actions, [expected], "%s 只触发 %s，实际为 %s" % [Settings.encode_pad_event(event), expected, actions])
+
+
 func test_settings_screen_captures_gamepad_button_and_axis() -> void:
 	var screen := SettingsScreen.new()
 	add_child(screen)
