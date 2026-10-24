@@ -3,6 +3,9 @@ extends Object
 ## 键位文案的唯一出口：界面里任何一处"按 X"都从 Settings 取，改键后自动跟随。
 ## 提示模板里用 {action} 占位，例如 "按 {socket_1} / {socket_2} 镶核"。
 
+const DEVICE_KEYBOARD := &"keyboard"
+const DEVICE_GAMEPAD := &"gamepad"
+
 ## 玩家可见的动作名（设置 → 键位、操作说明共用）。
 const ACTION_NAMES := {
 	&"move_left": "向左移动",
@@ -16,6 +19,7 @@ const ACTION_NAMES := {
 	&"hookshot": "钩锁",
 	&"skill_1": "主动技能 1",
 	&"skill_2": "主动技能 2",
+	&"map": "地图",
 }
 
 ## OS.get_keycode_string 给的是英文名，这里把常见的几个换成界面里已经在用的写法。
@@ -34,14 +38,106 @@ const PRETTY := {
 	"Alt": "Alt",
 }
 
+const PAD_BUTTON_NAMES := {
+	JOY_BUTTON_A: "A",
+	JOY_BUTTON_B: "B",
+	JOY_BUTTON_X: "X",
+	JOY_BUTTON_Y: "Y",
+	JOY_BUTTON_BACK: "Select",
+	JOY_BUTTON_GUIDE: "Guide",
+	JOY_BUTTON_START: "Start",
+	JOY_BUTTON_LEFT_STICK: "LS",
+	JOY_BUTTON_RIGHT_STICK: "RS",
+	JOY_BUTTON_LEFT_SHOULDER: "LB",
+	JOY_BUTTON_RIGHT_SHOULDER: "RB",
+	JOY_BUTTON_DPAD_UP: "十字上",
+	JOY_BUTTON_DPAD_DOWN: "十字下",
+	JOY_BUTTON_DPAD_LEFT: "十字左",
+	JOY_BUTTON_DPAD_RIGHT: "十字右",
+}
+
+static var _device: StringName = DEVICE_KEYBOARD
+
+
+static func device() -> StringName:
+	return _device
+
+
+static func is_gamepad() -> bool:
+	return _device == DEVICE_GAMEPAD
+
+
+static func set_device(dev: StringName) -> void:
+	var next := DEVICE_GAMEPAD if dev == DEVICE_GAMEPAD else DEVICE_KEYBOARD
+	if _device == next:
+		return
+	_device = next
+	if is_instance_valid(Settings):
+		Settings.changed.emit(&"keys")
+
+
+static func notify_input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton:
+		if (event as InputEventJoypadButton).pressed:
+			set_device(DEVICE_GAMEPAD)
+	elif event is InputEventJoypadMotion:
+		if absf((event as InputEventJoypadMotion).axis_value) >= 0.35:
+			set_device(DEVICE_GAMEPAD)
+	elif event is InputEventKey:
+		var k := event as InputEventKey
+		if k.pressed and not k.echo:
+			set_device(DEVICE_KEYBOARD)
+	elif event is InputEventMouseButton:
+		if (event as InputEventMouseButton).pressed:
+			set_device(DEVICE_KEYBOARD)
+
 
 static func pretty(raw: String) -> String:
 	return String(PRETTY.get(raw, raw))
 
 
-## 当前绑定在 action 上的首个键盘键（Settings 说了算）。
+static func pad_token_label(token: String) -> String:
+	if token.is_empty():
+		return "—"
+	if token.begins_with("btn:"):
+		var idx := int(token.substr(4))
+		return String(PAD_BUTTON_NAMES.get(idx, "手柄%d" % idx))
+	if token.begins_with("axis:"):
+		var parts := token.split(":")
+		if parts.size() >= 3:
+			var axis := int(parts[1])
+			var dir := int(parts[2])
+			match axis:
+				JOY_AXIS_LEFT_X:
+					return "左摇杆左" if dir < 0 else "左摇杆右"
+				JOY_AXIS_LEFT_Y:
+					return "左摇杆上" if dir < 0 else "左摇杆下"
+				JOY_AXIS_RIGHT_X:
+					return "右摇杆左" if dir < 0 else "右摇杆右"
+				JOY_AXIS_RIGHT_Y:
+					return "右摇杆上" if dir < 0 else "右摇杆下"
+				JOY_AXIS_TRIGGER_LEFT:
+					return "LT"
+				JOY_AXIS_TRIGGER_RIGHT:
+					return "RT"
+				_:
+					return "轴%d%s" % [axis, "-" if dir < 0 else "+"]
+	return token
+
+
+## 当前激活设备（键鼠 / 手柄）下绑定在 action 上的首个按键（Settings 说了算）。
 static func label(action: StringName) -> String:
+	if _device == DEVICE_GAMEPAD:
+		return Settings.pad_label(action)
 	return pretty(Settings.key_label(action))
+
+
+static func keyboard_label(action: StringName) -> String:
+	return pretty(Settings.key_label(action))
+
+
+static func gamepad_label(action: StringName) -> String:
+	return Settings.pad_label(action)
 
 
 static func action_name(action: StringName) -> String:
@@ -54,7 +150,7 @@ static func extra_keys(action: StringName) -> Array[String]:
 	var out: Array[String] = []
 	if not InputMap.has_action(action):
 		return out
-	var first := label(action)
+	var first := keyboard_label(action)
 	var skipped_first := false
 	for event in InputMap.action_get_events(action):
 		if not event is InputEventKey:

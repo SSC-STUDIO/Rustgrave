@@ -15,13 +15,15 @@ const VERSION := 1
 const VOLUME_BUSES: Array[StringName] = [&"Master", &"Music", &"Sfx", &"Ambience"]
 const DEFAULT_VOLUME := {&"Master": 100.0, &"Music": 80.0, &"Sfx": 100.0, &"Ambience": 100.0}
 ## Actions the options screen lets the player rebind. Only the first keyboard key
-## of each action is replaced; arrow keys, mouse buttons and touch stay as shipped.
+## and first gamepad input of each action are replaced; arrow keys, mouse buttons and touch stay as shipped.
 const REBINDABLE: Array[StringName] = [
 	&"move_left", &"move_right", &"jump", &"dash", &"attack", &"interact",
-	&"socket_1", &"socket_2", &"hookshot", &"skill_1", &"skill_2",
+	&"socket_1", &"socket_2", &"hookshot", &"skill_1", &"skill_2", &"map",
 ]
 ## Keys that may never be bound (menu / system).
 const RESERVED_KEYS: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]
+const RESERVED_PAD_BUTTONS: Array[int] = [JOY_BUTTON_START, JOY_BUTTON_GUIDE]
+const MOVE_AXIS_DEADZONE := 0.2
 ## Slider drags would otherwise rewrite the file dozens of times per second.
 const SAVE_DELAY := 0.4
 
@@ -35,6 +37,8 @@ var flash_scale: float = 1.0
 var _volume: Dictionary = {}
 var _key_overrides: Dictionary = {}
 var _default_keys: Dictionary = {}
+var _pad_overrides: Dictionary = {}
+var _default_pads: Dictionary = {}
 var _extra: Dictionary = {}
 var _loaded := false
 var _save_pending := false
@@ -44,6 +48,10 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_capture_default_keys()
 	load_settings()
+
+
+func _input(event: InputEvent) -> void:
+	KeyLabels.notify_input(event)
 
 
 ## Read the file (missing / corrupt / foreign version all fall back to defaults)
@@ -64,6 +72,11 @@ func load_settings() -> bool:
 				var code := int(cfg.get_value("keys", String(action), 0))
 				if code > 0 and not RESERVED_KEYS.has(code):
 					_key_overrides[action] = code
+		if cfg.has_section("gamepad"):
+			for action in REBINDABLE:
+				var token := String(cfg.get_value("gamepad", String(action), ""))
+				if _is_valid_pad_token(token):
+					_pad_overrides[action] = token
 		if cfg.has_section("extra"):
 			for key in cfg.get_section_keys("extra"):
 				_extra[StringName(key)] = cfg.get_value("extra", key)
@@ -99,6 +112,8 @@ func save_settings() -> bool:
 	cfg.set_value("comfort", "flash", flash_scale)
 	for action in _key_overrides:
 		cfg.set_value("keys", String(action), int(_key_overrides[action]))
+	for action in _pad_overrides:
+		cfg.set_value("gamepad", String(action), String(_pad_overrides[action]))
 	for key in _extra:
 		cfg.set_value("extra", String(key), _extra[key])
 	var tmp := save_path + ".tmp"
@@ -117,6 +132,11 @@ func apply_all() -> void:
 		_apply_volume(bus)
 	for action in REBINDABLE:
 		_apply_key(action, key_for(action))
+		_apply_pad(action, pad_for(action))
+	if InputMap.has_action(&"move_left"):
+		InputMap.action_set_deadzone(&"move_left", MOVE_AXIS_DEADZONE)
+	if InputMap.has_action(&"move_right"):
+		InputMap.action_set_deadzone(&"move_right", MOVE_AXIS_DEADZONE)
 
 
 # --- volume -----------------------------------------------------------------
@@ -212,10 +232,98 @@ func rebind_action(action: StringName, physical: int, persist: bool = true) -> S
 	return other
 
 
+# --- gamepad bindings -------------------------------------------------------
+
+func pad_for(action: StringName) -> String:
+	if _pad_overrides.has(action):
+		return String(_pad_overrides[action])
+	return String(_default_pads.get(action, ""))
+
+
+func default_pad_for(action: StringName) -> String:
+	return String(_default_pads.get(action, ""))
+
+
+func pad_label(action: StringName) -> String:
+	return KeyLabels.pad_token_label(pad_for(action))
+
+
+func pad_owner(token: String, except: StringName = &"") -> StringName:
+	for action in REBINDABLE:
+		if action != except and pad_for(action) == token:
+			return action
+	return &""
+
+
+static func encode_pad_event(event: InputEvent) -> String:
+	if event is InputEventJoypadButton:
+		var btn := event as InputEventJoypadButton
+		return "btn:%d" % int(btn.button_index)
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if absf(motion.axis_value) < 0.2:
+			return ""
+		var dir := 1 if motion.axis_value >= 0.0 else -1
+		return "axis:%d:%d" % [int(motion.axis), dir]
+	return ""
+
+
+static func decode_pad_token(token: String) -> InputEvent:
+	if token.begins_with("btn:"):
+		var ev := InputEventJoypadButton.new()
+		ev.button_index = int(token.substr(4)) as JoyButton
+		ev.pressed = true
+		return ev
+	if token.begins_with("axis:"):
+		var parts := token.split(":")
+		if parts.size() >= 3:
+			var ev := InputEventJoypadMotion.new()
+			ev.axis = int(parts[1]) as JoyAxis
+			ev.axis_value = -1.0 if int(parts[2]) < 0 else 1.0
+			return ev
+	return null
+
+
+func _is_valid_pad_token(token: String) -> bool:
+	if token.begins_with("btn:"):
+		var btn_idx := int(token.substr(4))
+		return btn_idx >= 0 and not RESERVED_PAD_BUTTONS.has(btn_idx)
+	if token.begins_with("axis:"):
+		var parts := token.split(":")
+		if parts.size() >= 3:
+			var axis := int(parts[1])
+			var dir := int(parts[2])
+			return axis >= 0 and (dir == -1 or dir == 1)
+	return false
+
+
+func rebind_pad_action(action: StringName, binding: Variant, persist: bool = true) -> StringName:
+	var token := ""
+	if binding is InputEvent:
+		token = encode_pad_event(binding as InputEvent)
+	elif typeof(binding) == TYPE_INT:
+		token = "btn:%d" % int(binding)
+	elif typeof(binding) == TYPE_STRING or typeof(binding) == TYPE_STRING_NAME:
+		token = String(binding)
+	if not REBINDABLE.has(action) or not _is_valid_pad_token(token):
+		return &"reserved"
+	var old := pad_for(action)
+	var other := pad_owner(token, action)
+	_set_pad_override(action, token)
+	if other != &"" and not old.is_empty():
+		_set_pad_override(other, old)
+	if persist:
+		save_settings()
+	changed.emit(&"keys")
+	return other
+
+
 func reset_keys(persist: bool = true) -> void:
 	_key_overrides.clear()
+	_pad_overrides.clear()
 	for action in REBINDABLE:
 		_apply_key(action, default_key_for(action))
+		_apply_pad(action, default_pad_for(action))
 	if persist:
 		save_settings()
 	changed.emit(&"keys")
@@ -229,15 +337,27 @@ func _set_override(action: StringName, physical: int) -> void:
 	_apply_key(action, physical)
 
 
+func _set_pad_override(action: StringName, token: String) -> void:
+	if token == default_pad_for(action):
+		_pad_overrides.erase(action)
+	else:
+		_pad_overrides[action] = token
+	_apply_pad(action, token)
+
+
 func _capture_default_keys() -> void:
 	_default_keys.clear()
+	_default_pads.clear()
 	for action in REBINDABLE:
 		if not InputMap.has_action(action):
 			continue
 		for event in InputMap.action_get_events(action):
-			if event is InputEventKey:
+			if not _default_keys.has(action) and event is InputEventKey:
 				_default_keys[action] = int((event as InputEventKey).physical_keycode)
-				break
+			elif not _default_pads.has(action) and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
+				var tok := encode_pad_event(event)
+				if not tok.is_empty():
+					_default_pads[action] = tok
 
 
 ## Replace the first keyboard event of `action` in the live InputMap.
@@ -255,6 +375,28 @@ func _apply_key(action: StringName, physical: int) -> void:
 			rebuilt.append(event)
 	if not replaced:
 		rebuilt.append(_key_event(physical))
+	InputMap.action_erase_events(action)
+	for event in rebuilt:
+		InputMap.action_add_event(action, event)
+
+
+func _apply_pad(action: StringName, token: String) -> void:
+	if token.is_empty() or not InputMap.has_action(action):
+		return
+	var pad_ev := decode_pad_token(token)
+	if pad_ev == null:
+		return
+	var events := InputMap.action_get_events(action)
+	var replaced := false
+	var rebuilt: Array[InputEvent] = []
+	for event in events:
+		if not replaced and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
+			rebuilt.append(pad_ev)
+			replaced = true
+		else:
+			rebuilt.append(event)
+	if not replaced:
+		rebuilt.append(pad_ev)
 	InputMap.action_erase_events(action)
 	for event in rebuilt:
 		InputMap.action_add_event(action, event)
@@ -287,4 +429,5 @@ func _reset_values() -> void:
 	shake_scale = 1.0
 	flash_scale = 1.0
 	_key_overrides.clear()
+	_pad_overrides.clear()
 	_extra.clear()
