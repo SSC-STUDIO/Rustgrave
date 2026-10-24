@@ -191,28 +191,18 @@ func _link(a: Dictionary, b: Dictionary) -> bool:
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	elif br.position.y > ar.position.y:
-		# 零间隙下落：玩家的 26px 身高需要在边柱外侧有下落走廊。以下三种情况
-		# 会被台面底/屋檐/上层压扁，剪成 dead-end，让路由绕行而不是在墙角空转 30 次：
-		#  A 相邻下落（上层接缝）：缝隙另一侧有实体且底面在上层顶之上
-		#  B 左缘下落：上层右缘柱外（dir>0）／左缘柱外（dir<0）竖向范围内有实体
-		#  C 垂落重叠（上层外缘正对下层）：下落走廊被下层自身上游侧挡住
+		# 零间隙下落：玩家的 26px 身高需要在边柱外侧有下落走廊。走廊取
+		# 玩家宽度（±7px），走廊内有实体就剪掉这条边，让路由绕行。
 		var dir := 1.0 if br.get_center().x >= ar.get_center().x else -1.0
 		var col := ar.end.x if dir > 0.0 else ar.position.x
 		for r in LevelSanity.solid_rects(_world()):
-			# 接触边界的实体也算阻挡：屋檐的左墙贴在上层右缘（x 相同）时，
-			# 格挡的是下落走廊的入口，不是体相交。
 			if r.end.x < ar.position.x or r.position.x > ar.end.x: continue
 			if r.position.y < br.position.y - 1.0 and r.end.y > ar.position.y - 26.0:
 				if absf(r.position.y - ar.position.y) < 1.0: continue   # 上层自身
-				# A：缝隙侧邻实体（接缝或独立柱）且其底面在上层顶之上
-				var adjacent := (dir > 0.0 and absf(r.position.x - ar.end.x) < 2.0) 						or (dir < 0.0 and absf(r.end.x - ar.position.x) < 2.0)
-				# B：竖向落在上层外缘柱那一侧 7px 窗内
-				var outer := (dir > 0.0 and r.position.x >= col and r.position.x < col + 7.0) 						or (dir < 0.0 and r.end.x > col - 7.0 and r.end.x <= col)
-				# C：垂落重叠——实体在上层外缘柱另一侧 8px 窗内
-				var overlap := (dir > 0.0 and r.end.x > col and r.end.x <= col + 8.0) 						or (dir < 0.0 and r.position.x >= col - 8.0 and r.position.x < col)
-				if adjacent or outer or overlap:
+				var corridor_left := col - 7.0
+				var corridor_right := col + 7.0
+				if r.end.x > corridor_left and r.position.x < corridor_right:
 					return false
-
 	return true
 
 func _path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
@@ -281,27 +271,16 @@ func _navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 		if _player() != null and _player().health.current > 0 and _plate_open_at(feet): return true
 		# 逐段打印跨段失败位置：campaign_to_ 只报终点，看不出是哪一段反复失败。
 		print("[NAV RETRY] target=%s at=%s attempt=%d" % [feet, _player().position if _player() else Vector2.INF, attempt])
-		var route2 := _path(_segments(), feet)
-		if route2.size() > 1:
-			var seg_a := route2[0] as Dictionary
-			var seg_b := route2[1] as Dictionary
-			print("[NAV SEG] a=%s b=%s" % [
-				"%s@%.0f..%.0f,%.0f" % [seg_a.get("name", seg_a.get("lift", "")), seg_a.r.position.x, seg_a.r.end.x, seg_a.r.position.y],
-				"%s@%.0f..%.0f,%.0f" % [seg_b.get("name", seg_b.get("lift", "")), seg_b.r.position.x, seg_b.r.end.x, seg_b.r.position.y]])
-		for other in _segments():
-			var name_2 := String(other.get("name", ""))
-			if not name_2.is_empty() and (name_2.contains("Dead") or name_2.contains("Terrace") or name_2.contains("Stair")):
-				print("[NAV SEG] avail %s @%.0f..%.0f y%.0f" % [name_2, other.r.position.x, other.r.end.x, other.r.position.y])
 	_fail("navigation exhausted retries to " + str(feet))
 	return false
 
-func _flat(x: float, y: float, fight: bool = true) -> bool:
+func _flat(x: float, y: float, fight: bool = true, speed_tolerance: float = 12.0) -> bool:
 	if not fight: _release()
 	var _dbg_last := ""
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
-		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < 12:
+		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < speed_tolerance:
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
@@ -309,6 +288,16 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 			_release()
 			await _frames(1)
 			continue
+		# 安全窗内冲刺过机关带：步行太慢会被下一波打中。
+		var near_hazard := false
+		for node in LevelSanity.hazards(_world()):
+			if node is CyclicHazard:
+				var zone := (node as CyclicHazard).hit_rect().grow(12.0)
+				if zone.has_point(p.position) or zone.has_point(p.position + Vector2(signf(x - p.position.x) * 40.0, 0)):
+					near_hazard = true
+					break
+		if near_hazard and p.controller._dash_cd <= 0.0 and p.is_on_floor():
+			_set_action(&"dash", true)
 		_steer(x)
 		var spitter_close := false
 		var skeleton_ahead := false
@@ -326,6 +315,21 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 					if absf(bdx) < 48.0 and absf(node.position.y + node.size.y - p.position.y) < 40:
 						breakable_ahead = true
 						break
+		# 盾卫挡路时不交战：冲刺+跳越过它（它的弹丸有预警，冲刺 i-frames 免击退）。
+		# 交战只会被弹丸推回原位——它是障碍不是敌人。
+		var has_guard := false
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is GearShieldEnemy and not e._dead and absf(e.position.x - p.position.x) < 80:
+				has_guard = true
+				break
+		if has_guard:
+			_steer(x)
+			# 盾卫是障碍不是敌人：冲刺穿过（i-frames 免弹丸击退）。
+			# 它的弹丸是唯一能推回玩家的东西，冲刺让击退失效。
+			_set_action(&"dash", p.controller._dash_cd <= 0.0)
+			_set_action(&"jump", p.is_on_wall() and i % 36 < 24)
+			await _frames(1)
+			continue
 		if fight or spitter_close or absf(x - p.position.x) > 96:
 			_combat(absf(x - p.position.x) > 96)
 		else:
@@ -337,10 +341,6 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 		if breakable_ahead:
 			_set_action(&"attack", i % 24 < 4)
 		_set_action(&"jump", (p.is_on_wall() and not breakable_ahead or skeleton_ahead) and i % 36 < 24)
-		if _step.begins_with("campaign_to_(3828") and i % 30 == 0:
-			print("[FLAT] i=%d p=(%.1f,%.1f) vx=(%.1f,%.1f) wall=%s commit=%s dashcd=%.2f tgt=%.1f rise=%.0f" % [
-				i, p.position.x, p.position.y, p.velocity.x, p.velocity.y, p.is_on_wall(),
-				p.controller._commit_lock, p.controller._dash_cd, x, y - p.position.y])
 		await _frames(1)
 	_release()
 	return false
@@ -392,7 +392,9 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 	var threat: EnemyBase
 	var distance := 64.0
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if not e is EnemyBase or e._dead or absf(e.position.y - p.position.y) > 40: continue
+		# 屋脊上的幽魂在街面上方 44px（268 vs 224），40px 阈值会漏掉它。
+		# 幽魂/飞行敌人可以跨层攻击，放宽到 64px。
+		if not e is EnemyBase or e._dead or absf(e.position.y - p.position.y) > 64: continue
 		if e.has_method("is_risen") and not e.is_risen(): continue
 		if e is GhostEnemy and not e.is_tangible(): continue
 		var dx: float = absf(e.position.x - p.position.x)
@@ -412,14 +414,47 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			if threat.has_method("is_risen") and not hold_ground: attack = false
 			dash = allow_dash and distance < 38 and _fight_tick % 6 == 0
 		elif allow_dash and not threat is SpitterEnemy:
-			var behind := threat.position.x + 28 - p.position.x
-			_move(signf(behind) if absf(behind) > 6 else (-1.0 if p.controller.facing != -1 else 0.0))
-			attack = distance < 38 and p.controller.facing == -1 and _fight_tick % 24 == 0
-			dash = p.position.x < threat.position.x and distance < 42 and _fight_tick % 6 == 0
+			# 齿轮盾卫：正面无敌、靠弹反破盾。保持 40-80px 中距离，
+			# 让弹丸飞够挥砍前摇的时间；贴身只会让弹丸在前摇里就打到脸。
+			if threat is GearShieldEnemy:
+				# 盾卫是路径障碍而不是战斗目标：冲刺穿过（i-frames 免击退），
+				# 不穿就永远被弹丸的击退推回原位。allow_dash 的路径限制在这里
+				# 不适用——盾卫挡的恰恰是「最后几步」。
+				_move(side)
+				dash = p.controller._dash_cd <= 0.0 and distance < 60.0
+				var staggered: bool = threat.get("_state") != null and int(threat.get("_state")) == 3
+				if staggered and distance < 44.0:
+					var atk_side := side if side != 0.0 else float(p.controller.facing)
+					attack = p.controller.facing == atk_side and _fight_tick % 16 == 0
+			else:
+				var behind := threat.position.x + 28 - p.position.x
+				_move(signf(behind) if absf(behind) > 6 else (-1.0 if p.controller.facing != -1 else 0.0))
+				attack = distance < 38 and p.controller.facing == -1 and _fight_tick % 24 == 0
+				dash = p.position.x < threat.position.x and distance < 42 and _fight_tick % 6 == 0
 		else:
 			var hold_distance := 30
 			_move(side if distance > hold_distance or p.controller.facing != side else 0.0)
 			attack = distance < 48 and p.controller.facing == side and _fight_tick % 20 == 0
+	# 弹反瞄准：敌方弹丸接近时按飞行时间提前出刀，让判定帧接住弹丸。
+	# 齿轮盾卫这类「正面无敌、靠弹反破盾」的敌人必须走这条路。
+	if not attack:
+
+		for effect in GameContext.world_effects(p).get_children():
+			var bolt := effect as Projectile
+			if bolt == null or bolt.team != &"enemy": continue
+			var to_bolt: Vector2 = bolt.global_position - p.global_position
+			# 只接横向飞来的弹丸（纵差不大的）。
+			if absf(to_bolt.y) > 40.0: continue
+			var approach := -signf(bolt.velocity.x) * to_bolt.x
+			if approach <= 0.0: continue  # 弹丸在远离
+			var speed := absf(bolt.velocity.x)
+			if speed < 1.0: continue
+			# 弹丸到达时间落在挥砍判定窗（0.18–0.30s）内才出刀。
+			# 盾卫弹速 145px/s：26-43px 距离的弹丸到达时判定帧正好开着。
+			var eta := approach / speed
+			if eta < 0.32 and eta > 0.16:
+				attack = true
+				break
 	_set_action(&"attack", attack)
 	_set_action(&"dash", dash)
 
@@ -467,7 +502,20 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 			if _player().is_on_wall() and br.position.y < ar.position.y: break
 			await _frames(1)
 	elif a.lift == null:
-		if not await _flat(launch, ar.position.y, false): return false
+		if br.position.y > ar.position.y:
+			# 下落不需要精确停在 launch：直接走过边沿即可。
+			# 精确停车在重惯性下会振荡过冲，永远达不到 |vx|<12 的停车条件。
+			# 只走到边沿附近就松手，让惯性把人带下去。
+			var edge := ar.end.x - 4.0 if right else ar.position.x + 4.0
+			for _i in 300:
+				if _player() == null or _player().health.current <= 0: return false
+				if not _player().is_on_floor(): break
+				if absf(_player().position.x - edge) < 6.0: break
+				_move(1.0 if right else -1.0)
+				_combat(true)  # 走向边沿的路上也要打：盾卫/碎铁犬会拦在走廊里。
+				await _frames(1)
+		else:
+			if not await _flat(launch, ar.position.y, false): return false
 		_release()
 		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
 	if b.lift != null:
