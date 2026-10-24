@@ -1035,7 +1035,8 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			_nv_steer(landing)
 		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
-		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40)
+		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
+				or (ar.position.y - br.position.y > 24.0 and gap > 24.0)
 		_set_action(&"dash", i == dash_frame and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()

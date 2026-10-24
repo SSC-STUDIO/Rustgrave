@@ -31,6 +31,8 @@
   走下台缘时身体完全离开支撑面后再刹车。`bot-navigation/targeted-r3/` 的真实玩家物理夹具
   **3/3、15 条断言、0 engine errors**，验证窄柱下落、绕开头顶障碍、改走上层台后落回下层；
   这些是局部输入回归，完整战役仍待跑完。
+- 32px 上升、36px 缺口的跳跃改用已开放的基础冲刺，不再套用同高跳跃的冲刺阈值；
+  `bot-navigation/high-gap/` 的局部真实输入回归 **4/4、18 条断言、0 engine errors**，未解锁额外跳跃。
 - 渲染工具也改为寻找真实固定台面，并检查整个人体净空；不再固定 y320。
   `peek-support/targeted-final/` **3/3、0 engine errors**；真实第四章 x1760 的渲染图
   `peek-support/render/live_1760_level04_lit_active.png` 已查看，骑士脚点为 (1640,288)，站在掩体台顶。

@@ -92,3 +92,22 @@ func test_route_uses_the_upper_catwalk_when_the_only_downward_edge_is_blocked() 
 	ok(player.position.x > 1344.0)
 	ok(player.is_on_floor())
 	driver._release()
+
+
+func test_high_gap_uses_the_available_basic_dash() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Launch", Vector2(1908, 288), 32.0)
+	layout.step(host, "Gallery", Vector2(1976, 256), 160.0)
+	layout.step(host, "CatchFloor", Vector2(1960, 352), 400.0)
+	var player := await spawn_player(host, Vector2(1920, 264))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(2040, 256)
+	ok(await driver._nv_cross(_segment(Rect2(1908, 288, 32, 16)),
+			_segment(Rect2(1976, 256, 160, 16))), "single jump and normal dash reach the high gallery")
+	almost(player.position.y, 256.0, 1.0)
+	ok(not player.controller.extra_jumps_unlocked, "fixture never unlocks double jump")
+	driver._release()
