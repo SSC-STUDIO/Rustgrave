@@ -1019,8 +1019,15 @@ func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
 
 func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
 	var landing := from.end.x + 8.0 if right else from.position.x - 8.0
-	return landing >= to.position.x + 7.0 and landing <= to.end.x - 7.0 \
-			and not _nv_edge_blocked(from, right)
+	if landing < to.position.x + 7.0 or landing > to.end.x - 7.0 or _nv_edge_blocked(from, right):
+		return false
+	# A stair under the departure ledge catches the knight before the claimed
+	# lower floor. Route through that real landing instead of retrying forever.
+	var descent := Rect2(landing - 7.0, from.position.y, 14.0, to.position.y - from.position.y)
+	for solid in _nv_solids():
+		if solid.position.y > from.position.y + 0.5 and solid.position.y < to.position.y - 0.5 \
+				and solid.grow(-0.5).intersects(descent): return false
+	return true
 
 
 func _nv_cross(a: Dictionary, b: Dictionary) -> bool:

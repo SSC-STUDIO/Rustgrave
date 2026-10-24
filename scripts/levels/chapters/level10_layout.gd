@@ -59,7 +59,8 @@ const STEPS: Array = [
 	["RingGalleryInnerWest", Vector2(2768, 224), 288.0],
 	["RingGalleryInnerEast", Vector2(3120, 224), 288.0],
 	["RingGalleryEast", Vector2(3472, 224), 288.0],
-	["RingStairEastMid", Vector2(3760, 256), 64.0],
+	# Leave the lower stair's west jump arc clear after the boss is gone.
+	["RingStairEastMid", Vector2(3760, 256), 32.0],
 	["RingStairEastLow", Vector2(3824, 288), 64.0],
 ]
 const PILLARS: Array = [Vector2(2544, 192), Vector2(2848, 192), Vector2(3264, 192), Vector2(3568, 192)]

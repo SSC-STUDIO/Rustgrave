@@ -85,6 +85,10 @@ func _after_undercroft() -> bool:
 			var is_gate := node is RustyGate
 			if is_exit and id == "level10":
 				if not await _nightmare(): return false
+				# Nightmare acceptance performs death reload and title Continue.
+				# Every node from the pre-fight world has been freed by that point.
+				node = _world().get_node_or_null("Props/" + goal.name)
+				if not _require(node is LevelExit, "final exit rebound after Continue"): return false
 			var feet: Vector2 = goal.feet
 			if is_gate: feet.x -= 28
 			if is_exit: feet.x -= 12
@@ -511,6 +515,9 @@ func _nightmare() -> bool:
 	for i in 18000:
 		if SaveData.has_flag("nightmare_dead"):
 			_release()
+			if phases.is_empty():
+				_record("nightmare_persisted_absence")
+				return _require(_world().get_node_or_null("Enemies/Nightmare") == null, "saved Nightmare stays absent")
 			await _frames(90)
 			await _settle_fade()
 			_record("nightmare_slain")

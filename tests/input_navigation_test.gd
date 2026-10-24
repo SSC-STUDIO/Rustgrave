@@ -241,6 +241,57 @@ func test_finale_bed_riser_has_real_single_jump_headroom_under_the_return_stair(
 	driver._release()
 
 
+func test_finale_east_stair_has_headroom_on_the_post_boss_exit_route() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	var spec: Array=[]
+	for step in preload("res://scripts/levels/chapters/level10_layout.gd").STEPS:
+		if step[0] == "RingStairEastMid": spec=step
+	ok(not spec.is_empty())
+	if spec.is_empty(): return
+	layout.step(host,"ArenaFloor",Vector2(2352,320),1472.0)
+	layout.step(host,"EastMid",spec[1],spec[2])
+	layout.step(host,"EastLow",Vector2(3824,288),64.0)
+	var player := await spawn_player(host,Vector2(3776,296))
+	var driver := DRIVER.new()
+	driver.world=host
+	add_child(driver)
+	driver._nv_goal=Vector2(3850,288)
+	ok(await driver._nv_cross(_segment(Rect2(2352,320,1472,16)),
+			_segment(Rect2(3824,288,64,16))),"single jump clears the authored east stair canopy")
+	almost(player.position.y,288.0,1.0)
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()
+
+
+func test_finale_gallery_does_not_claim_a_drop_through_the_stair_below_it() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host,"Floor",Vector2(2352,320),1472.0)
+	layout.step(host,"MidStair",Vector2(2352,256),64.0)
+	layout.step(host,"Gallery",Vector2(2416,224),288.0)
+	layout.step(host,"Pillar",Vector2(2544,192),64.0)
+	var player := await spawn_player(host,Vector2(2432,200))
+	var driver := DRIVER.new()
+	driver.world=host
+	add_child(driver)
+	driver._nv_goal=Vector2(2800,320)
+	ok(not driver._nv_drop_side_clear(Rect2(2416,224,128,16),Rect2(2352,320,1472,16),false),
+			"west stair catches the body before the claimed lower floor")
+	var route := driver._nv_path(driver._nv_segments(),driver._nv_goal)
+	ok(not route.is_empty(),"real stair/pillar route exists")
+	for i in range(1,route.size()):
+		var crossed: bool=await driver._nv_cross(route[i-1],route[i])
+		ok(crossed,"normal input follows actual landing %d" % i)
+		if not crossed:
+			driver._release()
+			return
+	almost(player.position.y,320.0,1.0)
+	driver._release()
+
+
 func test_slag_return_lift_walks_off_its_clear_edge_onto_the_lower_floor() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()
