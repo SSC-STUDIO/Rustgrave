@@ -35,3 +35,11 @@ func stop() -> void:
 	_enter(State.REST)
 	_set_armed(false)
 	queue_redraw()
+
+
+func seconds_until_active() -> float:
+	return super.seconds_until_active() if ignited else INF
+
+
+func safe_window(duration: float = 0.0) -> bool:
+	return not ignited or super.safe_window(duration)
