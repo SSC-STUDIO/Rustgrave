@@ -79,6 +79,28 @@ func test_counterflow_belt_positioning_uses_normal_direction_input() -> void:
 	driver._release()
 
 
+func test_deep_gap_descent_does_not_jump_back_onto_the_overlapping_gallery() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "GalleryWest", Vector2(1008, 192), 432.0)
+	layout.step(host, "GalleryEast", Vector2(1496, 192), 440.0)
+	layout.step(host, "LowerChoir", Vector2(1152, 320), 280.0)
+	var player := await spawn_player(host, Vector2(1559, 168))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(1190, 320)
+	var crossed: bool = await driver._nv_cross(_segment(Rect2(1496, 192, 440, 16)),
+			_segment(Rect2(1152, 320, 280, 16)))
+	ok(crossed, "normal input drops through the 56px gallery opening; feet=%s" % player.position)
+	ok(player.is_on_floor(), "knight lands on the lower choir floor")
+	almost(player.position.y, 320.0, 1.0)
+	ok(not player.controller.extra_jumps_unlocked)
+	ok(player.health.current > 0)
+	driver._release()
+
+
 func test_runup_flanks_a_live_shield_guard_on_fixed_ground() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()

@@ -67,3 +67,11 @@
 四张位于本地忽略目录 `screenshots/acceptance/overhaul-v3/level04-stair-fix/1280x720/`、`1920x1080/`，文件名为 `live_720_level04_lit_active.png`、`live_960_level04_lit_active.png`。`manifest.json` 记录实际PNG尺寸与SHA256，并核对两份`capture.log`均各保存两张、0个引擎错误。夹具先等待实际窗口纹理尺寸稳定，再按真实固定台面与完整身体净空停放骑士；`capture_level04.gd`、`CaptureLevel04.tscn`、`run_capture.ps1`仅保留在该忽略目录，未改共享捕获工具或游戏代码。
 
 本次只补构图证据，未再跑局部物理、全量套件或完整普通输入战役；上节的压板开门与西向回程12/12由整合分支已有输入回归证明，不能由本次停放机位截图推断。最终全量、有敌人战役、真人手感与实体手柄仍由整合验收分别记录。
+
+## BasicAbilities 唱诗回廊下降回归（2026-10-24）
+
+从标题开始的普通输入回放 `input-20261024-203404-266` 已通过02b与03，但 ChoirPlate 后前往下层余烬巢时，驱动反复从 GalleryEast 跳回 GalleryWest，30次重试停在 y=192。真实三层台面夹具复现该失败：目的地是 y=320，起跳却让骑士再次落上途经的 y=192 廊面。修正只涉及输入策略：对落差至少64px的固定台面下降边先走下缺口，等26px身体完全低于16px廊面后再横向冲刺，保留普通跳跃与冲刺规则，不改变角色、台面或能力。
+
+`tests/input_navigation_test.gd` 新增该56px廊间缺口下降的真实物理回归；其余压板绕行、传送带制动、完整身体走下边缘和基本上跳仍通过，定向10/10、0引擎错误，证据在 `screenshots/acceptance/overhaul-v3/basic-choir/{baseline,fixed-clearance}`。场景和构图未变，本次没有替换既有双分辨率截图。
+
+修复后从标题新开的 BasicAbilities 战役 `input-20261024-204256-811` 已到达下层 `EmberNestChoir (1191.4,319.9253)`，继续经过桥、祭坛与回廊巢，从本章出口进入04b；本章没有新增死亡。此为公开辅助选项下的 headless fixed-fps 普通输入验收，完整14章结果另行记录。

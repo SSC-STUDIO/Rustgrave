@@ -1039,6 +1039,10 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		return false
 	var right := br.get_center().x >= ar.get_center().x
 	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	# A deep lower landing needs a drop through the opening. Jumping first
+	# catches the neighboring upper gallery and repeats the same route forever.
+	var deep_drop := gap > 0.0 and br.position.y - ar.position.y >= 64.0 \
+			and a.lift == null and b.lift == null
 	# 缺口大的上跳（升 ≥16、横跨 ≥24）贴着台缘起跳：真实单跳够距只有 ~40px。
 	var margin := 3.0 if (gap >= 20.0 and br.position.y < ar.position.y - 8.0) else 8.0
 	# At a contiguous 32px riser, jumping against the lip catches the body on
@@ -1091,6 +1095,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	if gap > 24:
 		while _player() != null and _player().controller._dash_cd > 0:
 			await _frames(1)
+	var drop_dashed := false
 	for i in 180:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
@@ -1106,12 +1111,19 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			_move(1.0 if right else -1.0)
 		else:
 			_nv_steer(landing)
-		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
+		_set_action(&"jump", i < 24 and not deep_drop and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
 		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
 				or (ar.position.y - br.position.y > 24.0 and gap > 24.0) \
+				or (deep_drop and gap > 24.0) \
 				or (a.lift != null and gap > 32.0)
-		_set_action(&"dash", i == dash_frame and needs_dash)
+		var dash_now := i == dash_frame
+		if deep_drop:
+			# Cross under the neighboring 16px gallery only after the whole
+			# 26px knight clears its underside; an early dash hits its side.
+			dash_now = not drop_dashed and p.position.y >= ar.position.y + 44.0
+			if dash_now and needs_dash: drop_dashed = true
+		_set_action(&"dash", dash_now and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()
 			return true
