@@ -15,7 +15,42 @@ func teardown() -> void:
 		Input.action_release(action)
 
 
-func test_boss_approach_uses_the_belfry_instead_of_jumping_into_its_underside() -> void:
+func test_entry_prefers_the_broad_recoverable_floor_over_narrow_uphill_stones() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var layout := Level02Layout.new()
+	add_child(layout)
+	layout.build(host)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	for hazard in LevelSanity.hazards(host):
+		hazard.queue_free()
+	for prop in host.get_node("Props").get_children():
+		if prop is ToxinPool: prop.queue_free()
+	await flush(2)
+	var player := await spawn_player(host, Vector2(176, 296))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(1020, 264)
+	var segments := driver._nv_segments()
+	for segment in segments: segment.wet = false # campaign's documented level02 toxin policy
+	var route := driver._nv_path(segments, driver._nv_goal)
+	ok(not route.is_empty())
+	if route.is_empty(): return
+	ok(route[1].r.position == Vector2(448, 352), "same hop count favors the broad recoverable floor")
+	for i in range(1, route.size()):
+		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+		ok(crossed, "entry floor route edge %d; feet=%s" % [i, player.position])
+		if not crossed:
+			driver._release()
+			return
+	ok(await driver._nv_flat(1020, 264, false))
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()
+
+
+func test_boss_approach_clears_the_belfry_and_intact_cache_with_basic_inputs() -> void:
 	var host := Node2D.new()
 	add_child(host)
 	var layout := Level02Layout.new()
@@ -35,13 +70,9 @@ func test_boss_approach_uses_the_belfry_instead_of_jumping_into_its_underside() 
 	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
 	ok(not route.is_empty(), "real arena terrain has an input route to the boss")
 	if route.is_empty(): return
-	var uses_belfry := false
-	for edge in route:
-		uses_belfry = uses_belfry or edge.r.position == Vector2(3200, 256)
-	ok(uses_belfry, "route climbs the east belfry before descending past its overhang")
-	ok(not driver._nv_link({"r": Rect2(3168, 320, 104, 16), "lift": null},
+	ok(driver._nv_link({"r": Rect2(3168, 320, 104, 16), "lift": null},
 			{"r": Rect2(3272, 288, 64, 16), "lift": null}),
-			"walkable underpass is not a jump launch through the belfry ceiling")
+			"the real lip has space for a vertical single jump after the low ceiling")
 	# The full navigator replans after a jump catches a different real landing.
 	# Exercise that production behavior rather than requiring a perfect hop.
 	ok(await driver._nv_navigate(driver._nv_goal, false), "normal input and live replanning reach the boss approach")

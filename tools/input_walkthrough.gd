@@ -809,15 +809,6 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	if b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
 		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
 			return false
-	if a.lift == null and gap < 4.0 and ar.position.y - br.position.y > 24.0:
-		# The contiguous-riser controller launches 24px before its face. A
-		# walkable underpass may still have a ceiling across that upward path.
-		var right := br.get_center().x >= ar.get_center().x
-		var launch := ar.end.x - 24.0 if right else ar.position.x + 24.0
-		var rise := Rect2(launch - 7.0, br.position.y - 26.0, 14.0,
-				ar.position.y - br.position.y)
-		for solid in (_nv_solids() if solids.is_empty() else solids):
-			if solid.grow(-0.5).intersects(rise): return false
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
@@ -839,6 +830,17 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	return true
 
 
+func _nv_route_cost(a: Dictionary, b: Dictionary) -> float:
+	var ar: Rect2 = a.r
+	var br: Rect2 = b.r
+	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	# Equal hop counts must not prefer a narrow uphill dash over the broad
+	# recoverable floor underneath it. Keep physical effort in the route cost.
+	return 10.0 + (200.0 if b.wet else 0.0) + gap / 16.0 \
+			+ maxf(0.0, ar.position.y - br.position.y) / 16.0 \
+			+ 24.0 / maxf(24.0, br.size.x)
+
+
 func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 	# No physics advances during graph search; use one live obstacle snapshot.
 	var solids := _nv_solids()
@@ -852,7 +854,7 @@ func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 		var at: int = queue.pop_front()
 		if at == goal: break
 		for i in segments.size():
-			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
+			var cost: float = costs[at] + _nv_route_cost(segments[at], segments[i])
 			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i], solids):
 				parents[i] = at
 				costs[i] = cost
@@ -1110,6 +1112,15 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	# its vertical face. Start earlier so the feet clear it before moving across.
 	if gap < 4.0 and ar.position.y - br.position.y > 24.0: margin = 24.0
 	var launch := clampf(br.position.x - margin if right else br.end.x + margin, ar.position.x + margin, ar.end.x - margin)
+	var vertical_riser := false
+	if a.lift == null and gap < 4.0 and ar.position.y - br.position.y > 24.0:
+		var rise := Rect2(launch - 7.0, br.position.y - 26.0, 14.0, ar.position.y - br.position.y)
+		for solid in _nv_solids():
+			if solid.grow(-0.5).intersects(rise): vertical_riser = true
+		if vertical_riser:
+			# Stand just outside the step after leaving the low ceiling. Jump
+			# straight up, then use the normal air dash once the feet clear it.
+			launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
 	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
 	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
 	var drop_landing := NAN
@@ -1129,7 +1140,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
 			await _frames(1)
 	# 空中加速度只有 270px/s²：站着起跳 0.4s 只飘 ~22px。任何有缺口的跳都要助跑（和玩家一样）。
-	if (gap > 0 or ar.position.y - br.position.y > 24.0) and a.lift == null:
+	if (gap > 0 or ar.position.y - br.position.y > 24.0) and a.lift == null and not vertical_riser:
 		var run_start := ar.end.x - 36 if right else ar.position.x + 36
 		run_start = clampf(run_start, ar.position.x + 4.0, ar.end.x - 4.0)
 		if not await _nv_flat(run_start, ar.position.y, false): return false
@@ -1144,6 +1155,16 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		if not await _nv_flat(launch, ar.position.y, false): return false
 		_release()
 		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
+	if vertical_riser:
+		# The flat-walk steering deadband is wider than the last pixel of
+		# ceiling clearance. Settle against the actual riser face by input.
+		_move(1.0 if right else -1.0)
+		for i in 90:
+			if _player() == null or _player().health.current <= 0: return false
+			if (right and _player().position.x >= ar.end.x - 7.2) \
+					or (not right and _player().position.x <= ar.position.x + 7.2): break
+			await _frames(1)
+		_release()
 	if b.lift != null:
 		_release()
 		for i in 1200:
@@ -1159,6 +1180,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		while _player() != null and _player().controller._dash_cd > 0:
 			await _frames(1)
 	var drop_dashed := false
+	var riser_dashed := false
 	for i in 180:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
@@ -1169,7 +1191,9 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
 		if not is_nan(drop_landing): landing = drop_landing
 		var departure_y: float = a.lift.position.y if a.lift != null and is_instance_valid(a.lift) else ar.position.y
-		if not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - departure_y) < 8.0:
+		if vertical_riser and not riser_dashed:
+			_move(0.0)
+		elif not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - departure_y) < 8.0:
 			# Leave the whole 14px body past the ledge before braking. Steering to
 			# a point only 8px beyond it can stop 2px short and remain supported.
 			_move(1.0 if right else -1.0)
@@ -1187,6 +1211,12 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			# 26px knight clears its underside; an early dash hits its side.
 			dash_now = not drop_dashed and p.position.y >= ar.position.y + 44.0
 			if dash_now and needs_dash: drop_dashed = true
+		if vertical_riser:
+			needs_dash = true
+			dash_now = not riser_dashed and p.position.y <= br.position.y - 2.0
+			if dash_now:
+				_move(1.0 if right else -1.0)
+				riser_dashed = true
 		_set_action(&"dash", dash_now and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()

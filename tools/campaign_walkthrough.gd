@@ -220,7 +220,7 @@ func _path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 		var at: int = queue.pop_front()
 		if at == goal: break
 		for i in segments.size():
-			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
+			var cost: float = costs[at] + _nv_route_cost(segments[at], segments[i])
 			if (not costs.has(i) or cost < costs[i]) and _link(segments[at], segments[i], solids):
 				parents[i] = at
 				costs[i] = cost
