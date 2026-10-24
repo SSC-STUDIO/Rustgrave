@@ -46,6 +46,8 @@
 
 各定向用例均为零引擎错误。日志与 summary.json 位于 `screenshots/acceptance/overhaul-v3/level06/tests-*`，最终章节与体检使用 `tests-chapter-final` / `tests-sanity-final`。统一命令是 `tools/run_tests.ps1 -CaseFilter <用例> -TimeoutSeconds 240 -ArtifactsDir <绝对路径>`，体检另外设置 `RUSTGRAVE_LEVEL_FILTER=level06`。
 
-六机位 1280×720 的最终 PNG 在 `screenshots/acceptance/overhaul-v3/level06/render-final/`，x400/1008/1536/2112/2800/3568 均逐张检查，Windows OpenGL / RTX4060 Laptop，日志零引擎错误。首轮陵顶与背墙之间16px空隙已改成32px实心石屋顶，最终图确认闭合。屋顶回巢口和东端保留有意的单向开口；所有展示均为停放机位，不能证明正常输入通关或真人手感。
+六个对应机位 x400/1008/1536/2112/2800/3568 已完成 1280×720 和 1920×1080 两档，共12张最终 PNG。720p 位于 `screenshots/acceptance/overhaul-v3/level06/render-final/`，1080p 位于 `screenshots/acceptance/overhaul-v3/level06/render-1080-final/`，两组均逐张检查：HUD和提示完整，角色脚点、泥石和树顶奖励可辨，陵顶与内廊无意外穿插，出口/存档点没有新增遮挡。两档均为 Windows OpenGL / RTX4060 Laptop，日志零引擎错误，满足至少5机位×2分辨率的截图门。
+
+首轮陵顶与背墙之间16px空隙已改成32px实心石屋顶，720p与1080p最终图均确认闭合。屋顶回巢口和东端保留有意的单向开口；所有展示均为停放机位，不能证明正常输入通关或真人手感。1080p复现命令为 `tools/run_peek_live.ps1 -Level level06 -OutDir screenshots/acceptance/overhaul-v3/level06/render-1080-final -Spots '400,1008,1536,2112,2800,3568' -Hold 2 -Lit -Active -Win 1920x1080`。
 
 没有修改共享脚本。局部室内区按本章 `CRYPT_RECT` 显式定位；装备奖励节点上移7px，使图像底边贴合树石，避免埋入支撑。四个旧巢及门/碑/核的持久化键保持，新增雨巢和树顶奖励。集成全量测试由主工作区统一执行。
