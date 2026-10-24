@@ -65,12 +65,14 @@ func _after_undercroft() -> bool:
 			var feet: Vector2 = goal.feet
 			if is_gate: feet.x -= 28
 			if is_exit: feet.x -= 12
+			# Fight from the entrance side. Trying to reach the locked exit first
+			# routes the knight through a live boss and can strand navigation.
+			if is_exit and node is LevelExit:
+				if not await _clear_gate_boss(node as LevelExit): return false
+				node = _world().get_node_or_null("Props/" + goal.name)
+				if node == null: return false
 			if not await _navigate(feet): return false
 			if is_exit and id == "level10": _skip_captions = false
-			if is_exit and node is LevelExit:
-				# 章节出口可能被 Boss 死亡旗标锁着（hollow_bell_dead 等）：
-				# 验收驱动要像玩家一样真打，而不是撞锁门。
-				if not await _clear_gate_boss(node as LevelExit): return false
 			if not is_plate:
 				await _tap(&"interact")
 				await _frames(12)
@@ -136,7 +138,7 @@ func _title_continue() -> void:
 
 func _segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	var solids := LevelSanity.solid_rects(_world())
+	var solids := _nv_solids()
 	for top in LevelSanity.top_segments(_world()):
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := _world().get_node_or_null("Platforms/" + name_) as MovingPlatform
@@ -355,6 +357,7 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 		return true
 	_step = "campaign_boss_" + flag
 	print("[BOSS GATE] fighting %s for flag %s" % [boss.name, flag])
+	var boss_label := String(boss.name)
 	# 只给一次有界尝试：验收驱动不会为一场 Boss 无限重试（Boss 战正确性由
 	# tests/<boss>_test.gd 与 tools/boss_fixture.gd 覆盖）。
 	for i in 5400:
@@ -362,27 +365,48 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 			_release()
 			await _frames(60)
 			await _settle_fade()
-			_record(boss.name + "_slain")
+			_record(boss_label + "_slain")
 			return true
 		var p := _player()
 		if p == null: return false
-		if p.health.current <= 0:
+		if p.health.current <= 0 or not GameContext.gameplay_input_enabled():
 			# 死了：等余烬巢复活再试（正常输入，不跳过战斗）。
 			_release()
 			for _wait in 600:
 				await _frames(1)
-				if _player() != null and _player().health.current > 0: break
+				if _player() != null and _player().health.current > 0 and GameContext.gameplay_input_enabled(): break
 			continue
-		if not is_instance_valid(boss) or boss._dead:
+		# Death replaces the whole level, including the boss. Read the current
+		# actor every iteration instead of retaining a freed pre-death reference.
+		boss = _gate_boss()
+		if boss == null:
 			await _frames(30)
 			continue
 		var feet: Vector2 = LevelSanity.feet_of(boss)
 		var dx: float = boss.position.x - p.position.x
 		var gap := absf(dx)
+		if gap > 240.0 or absf(p.position.y - feet.y) > 48.0:
+			var side := signf(dx) if absf(dx) > 1.0 else 1.0
+			if not await _navigate(Vector2(boss.position.x - 120.0 * side, feet.y)): return false
+			_step = "campaign_boss_" + flag
+			continue
+		if flag == "hollow_bell_dead":
+			# The suspended hammer is above a ground swing. Jump into it with
+			# normal attack inputs; successful weak hits create the real opening.
+			_steer(boss.position.x - 28.0 * (1.0 if dx >= 0.0 else -1.0))
+			if gap < 60.0:
+				_move(signf(dx) if p.controller.facing != signf(dx) else 0.0)
+			_set_action(&"jump", gap < 60.0 and i % 42 < 24)
+			_set_action(&"attack", gap < 60.0 and i % 18 == 0)
+			_set_action(&"dash", false)
+			if i % 300 == 0:
+				print("[BOSS GATE] %s hp=%d player=%s hp=%d" % [boss.name, boss.health.current, p.position, p.health.current])
+			await _frames(1)
+			continue
 		# 出招中：拉开距离、必要时跳/冲躲判定；收招/空闲才贴身输出。
 		var busy := false
 		if boss.has_method("attack_name"):
-			busy = String(boss.attack_name()) != ""
+			busy = String(boss.attack_name()) != "" and boss.get("_step") != 2
 		if busy:
 			var away := signf(-dx) if absf(dx) > 1.0 else 1.0
 			if gap < 132.0: _move(away)
@@ -391,11 +415,8 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 			_set_action(&"jump", p.is_on_floor() and gap < 110.0 and i % 21 == 0)
 			await _frames(1)
 			continue
-		if gap > 96.0 or absf(p.position.y - feet.y) > 48.0:
-			var side := signf(dx) if absf(dx) > 1.0 else 1.0
-			if not await _navigate(Vector2(boss.position.x - 48.0 * side, feet.y)): return false
-			continue
-		_combat()
+		if gap > 52.0: _steer(boss.position.x - 32.0 * signf(dx))
+		else: _combat(false, true)
 		if i % 300 == 0:
 			print("[BOSS GATE] %s hp=%d player hp=%d" % [boss.name, boss.health.current, p.health.current])
 		await _frames(1)
