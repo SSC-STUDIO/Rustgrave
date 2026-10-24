@@ -47,6 +47,14 @@ const BLOCKS: Array = [
 	["RoofStepMid", Vector2(800, 288), Vector2(64, 32)],
 	["RoofStepHighBase", Vector2(864, 288), Vector2(64, 32)],
 	["RoofStepHigh", Vector2(864, 256), Vector2(64, 32)],
+	# A missed eave jump / Plaza nest reload must still reach the closed gate's plate.
+	# Climb east, then jump back west across the open 64px gap onto RoofC.
+	["RoofReturnLow", Vector2(1328, 288), Vector2(64, 32)],
+	["RoofReturnHighBase", Vector2(1392, 288), Vector2(64, 32)],
+	["RoofReturnHigh", Vector2(1392, 256), Vector2(64, 32)],
+	# Keep the 64px street gate meaningful beside the new return stair.
+	# The brick lintel closes its overhead bypass while leaving the open doorway clear.
+	["GateLintel", Vector2(1488, 160), Vector2(48, 96)],
 	["DeadStepA", Vector2(2928, 288), Vector2(64, 32)],
 ]
 const DEBRIS: Array = [
