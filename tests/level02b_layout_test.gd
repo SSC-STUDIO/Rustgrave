@@ -1,11 +1,13 @@
 extends TestCase
 ## 锈墓・叁 — 运渣水渠（level02b）关卡测试：
-## 章节文本只走 ChapterText、主线（无钩锁）从入口到出口无软锁、毒水渠掉得下去也爬得回、
-## 运渣桥吊台链可达、钩锁支路带碑文 + 奖励位、三张存档点安全、Boss 位留出 600px 平地。
+## 章节文本只走 ChapterText、主线（无钩锁）从入口到出口无软锁、双水位大渠上下两路均可通行、
+## 闸口涌流 ForceZone 符合教学与节拍规范、钩锁支路带碑文 + 奖励位、四张存档点间距 <=1000px 且安全、
+## 抽水井单向捷径回环可用、Boss 竞技场带避水石台与二阶段排水机制。
 
 const LAYOUT := preload("res://scripts/levels/chapters/level02b_layout.gd")
 const CHAPTER_ID := "level02b"
 const BOSS_SCENE := "res://scenes/enemies/CapstanWarden.tscn"
+const CHECKPOINT_GAP_MAX := 1000.0
 
 
 func setup() -> void:
@@ -52,7 +54,7 @@ func test_metadata_and_text_come_from_chapter_text() -> void:
 	layout.free()
 
 
-## 主路线：体检干净，出生 → 出口 / 三个巢 / 压板 全程不借钩锁（allow_hook=false）。
+## 主路线：体检干净，出生 → 出口 / 四个巢 / 压板 全程不借钩锁（allow_hook=false）。
 func test_main_route_completes_without_optional_abilities() -> void:
 	var host := _build()
 	eq(LevelSanity.check(host), [] as Array[String], "LevelSanity clean")
@@ -63,7 +65,7 @@ func test_main_route_completes_without_optional_abilities() -> void:
 	eq(exit_node.spawn, ChapterLayout.entry_spawn_of("level03"))
 	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit_node), false),
 			"exit reachable on foot")
-	for nest_name in ["EmberNestSluice", "EmberNestBridge", "EmberNestPump"]:
+	for nest_name in ["EmberNestSluice", "EmberNestBridge", "EmberNestConduit", "EmberNestPump"]:
 		var nest := host.get_node_or_null("Props/" + nest_name) as EmberNest
 		ok(nest != null, "%s exists" % nest_name)
 		if nest != null:
@@ -100,7 +102,6 @@ func test_slag_canals_can_be_fallen_into_and_climbed_out() -> void:
 			var rect := pool.surface_rect()
 			almost(rect.position.x, float(spec[1]), 0.01)
 			almost(rect.end.x, float(spec[2]), 0.01)
-	# 水闸广场的两块过渠踩石是主路线的一部分。
 	for stone in [["CanalStoneW", 600.0], ["CanalStoneE", 680.0]]:
 		var stone_name := String(stone[0])
 		var node := host.get_node_or_null("Platforms/" + stone_name) as SolidPlatform
@@ -114,8 +115,8 @@ func test_slag_canals_can_be_fallen_into_and_climbed_out() -> void:
 	await flush(1)
 
 
-## 运渣桥：两块桥石 + 两座横渡吊台，链上每一站（含吊台两端）都能无钩锁到达。
-func test_haul_bridge_and_lifts_are_crossing_on_foot() -> void:
+## 双水位大渠（上层悬索桥 + 下层渠墩路线）与抽水井单向捷径回环。
+func test_haul_bridge_dual_water_routes_and_shortcut_on_foot() -> void:
 	var host := _build()
 	var spawn: Vector2 = LAYOUT.ENTRY_SPAWN
 	var west := host.get_node_or_null("Platforms/LiftHaulWest") as MovingPlatform
@@ -126,7 +127,7 @@ func test_haul_bridge_and_lifts_are_crossing_on_foot() -> void:
 		eq(west.travel, Vector2(264.0, 0.0), "west lift crosses the big canal")
 	if east != null:
 		eq(east.travel, Vector2(240.0, 0.0), "east lift finishes the crossing")
-	# 每个落脚点：桥石中心 / 吊台两端，都按「主路线无钩锁」检查。
+	# 上层悬索桥路线 + 下层渠床石墩路线 + 抽水井上层捷径阶梯，全部可无钩锁到达。
 	var stations: Array = [
 		["HaulStoneW", Vector2(1144, 288)],
 		["HaulStoneMid", Vector2(1232, 272)],
@@ -135,12 +136,44 @@ func test_haul_bridge_and_lifts_are_crossing_on_foot() -> void:
 		["HaulStoneE", Vector2(1672, 272)],
 		["EastLiftStart", Vector2(1792, 272)],
 		["EastLiftEnd", Vector2(2032, 272)],
+		["CanalPierW", Vector2(1408, 320)],
+		["CanalPierMid", Vector2(1576, 320)],
+		["CanalPierE", Vector2(1864, 320)],
 		["FloorWellLanding", Vector2(2100, 320)],
+		["PumpCatwalk", Vector2(2496, 136)],
+		["PumpOverlookE", Vector2(2640, 168)],
+		["PumpStepE", Vector2(2728, 200)],
 	]
 	for station in stations:
 		ok(LevelSanity.is_reachable(host, spawn, station[1], false),
 				"%s reachable on foot" % String(station[0]))
-	# 抽水井的竖吊台：可选检修走道，起点在 24px 处（不是主路线的必经）。
+	# 双水位切换阀板与控制器：默认高水位，触发后切换为低水位并降低渠池液面。
+	var valve := host.get_node_or_null("Props/DrainValvePlate") as PressurePlate
+	var ctrl := host.get_node_or_null("Props/CanalWaterController")
+	var pool := host.get_node_or_null("Props/SlagCanalPool") as ToxinPool
+	ok(valve != null and ctrl != null and pool != null, "dual water-level valve and controller exist")
+	if valve != null and ctrl != null and pool != null:
+		eq(String(ctrl.get("water_state")), "high", "canal starts at high water")
+		almost(pool.position.y, 336.0, 0.01)
+		ctrl.call("toggle_water_level")
+		eq(String(ctrl.get("water_state")), "low", "valve switches canal to low water")
+		almost(pool.position.y, 350.0, 0.01, "low water lowers the canal surface")
+		ctrl.call("toggle_water_level")
+		eq(String(ctrl.get("water_state")), "high", "toggling again restores high water")
+	# 抽水井单向捷径：东侧压板打开地面捷径门。
+	var s_plate := host.get_node_or_null("Props/PumpShortcutPlate") as PressurePlate
+	var s_door := host.get_node_or_null("Props/PumpShortcutDoor") as ArenaDoor
+	ok(s_plate != null and s_door != null, "pump-well shortcut plate and door exist")
+	if s_plate != null and s_door != null:
+		ok(s_plate.activated.is_connected(s_door.open_door), "shortcut plate opens shortcut door")
+		ok(s_plate.position.x > s_door.position.x, "shortcut plate sits on the east side of the shortcut door")
+	# 闸口涌流 ForceZone：全部为 water 皮肤、脉冲周期在 4–6s 区间，首处教学涌流在安全平地。
+	for surge_spec in LAYOUT.WATER_SURGES:
+		var z := host.get_node_or_null("Props/" + String(surge_spec[0])) as ForceZone
+		ok(z != null, "water surge %s exists" % surge_spec[0])
+		if z != null:
+			eq(z.skin, "water")
+			ok(z.gust_period >= 4.0 and z.gust_period <= 6.0, "%s gust_period in 4..6s" % surge_spec[0])
 	var pump := host.get_node_or_null("Platforms/PumpLift") as MovingPlatform
 	ok(pump != null, "pump lift exists")
 	if pump != null:
@@ -184,19 +217,26 @@ func test_hook_branch_is_optional_and_rewarded() -> void:
 	await flush(1)
 
 
-## 存档点：三个巢都在敌人仇恨/唤醒圈外，Boss 前那个贴着竞技场入口。
+## 存档点：四个巢间距 <=1000px、都在敌人仇恨/唤醒圈外，Boss 前那个贴着竞技场入口。
 func test_checkpoints_are_safe_and_reach_the_boss_gate() -> void:
 	var host := _build()
 	var sluice := host.get_node("Props/EmberNestSluice") as EmberNest
 	var bridge := host.get_node("Props/EmberNestBridge") as EmberNest
+	var conduit := host.get_node("Props/EmberNestConduit") as EmberNest
 	var pump := host.get_node("Props/EmberNestPump") as EmberNest
-	ok(sluice.global_position.x < bridge.global_position.x, "checkpoints are ordered")
-	ok(bridge.global_position.x < pump.global_position.x, "checkpoints are ordered")
+	var xs := [sluice.global_position.x, bridge.global_position.x, conduit.global_position.x, pump.global_position.x]
+	for i in range(1, xs.size()):
+		ok(xs[i] > xs[i - 1], "checkpoints are ordered")
+		ok(xs[i] - xs[i - 1] <= CHECKPOINT_GAP_MAX,
+				"checkpoint gap %.0f -> %.0f <= 1000px" % [xs[i - 1], xs[i]])
 	ok(absf(LAYOUT.ARENA_LEFT - pump.global_position.x) <= 80.0,
 			"boss checkpoint within 80px of the arena (contract §4.1)")
 	var scrapper := host.get_node("Enemies/Scrapper1") as ScrapperEnemy
 	ok(absf(sluice.global_position.x - scrapper.global_position.x) - scrapper.patrol_range
 			> scrapper.aggro_range, "the plaza scrapper cannot charge the start nest")
+	var scrapper2 := host.get_node("Enemies/Scrapper2") as ScrapperEnemy
+	ok(absf(conduit.global_position.x - scrapper2.global_position.x) - scrapper2.patrol_range
+			> scrapper2.aggro_range, "the conduit nest is outside Scrapper2 aggro range")
 	var spitter := host.get_node("Enemies/Spitter1") as SpitterEnemy
 	ok(absf(pump.global_position.x - spitter.global_position.x) > spitter.aggro_range,
 			"the pump-well spitter is out of range of the boss checkpoint")
@@ -207,17 +247,27 @@ func test_checkpoints_are_safe_and_reach_the_boss_gate() -> void:
 	await flush(1)
 
 
-## Boss 位：600px 连续平地、场地里没有坑/台阶，Boss 在场地中间；场景缺失时框架跳过。
+## Boss 位：600px 连续底板 + 两侧避水石台 + 二阶段排水控制器 ArenaDrainage。
 func test_boss_slot_reserves_a_flat_600px_arena() -> void:
 	ok(LAYOUT.ARENA_RIGHT - LAYOUT.ARENA_LEFT >= 600.0, "arena is at least 600px wide")
 	ok(LAYOUT.BOSS_POS.x > LAYOUT.ARENA_LEFT and LAYOUT.BOSS_POS.x < LAYOUT.ARENA_RIGHT,
 			"boss spawns inside the arena")
 	var host := _build()
+	var perch_names := ["ArenaPerchWest", "ArenaPerchEast"]
 	for seg in LevelSanity.top_segments(host):
 		if seg.x1 <= LAYOUT.ARENA_LEFT or seg.x0 >= LAYOUT.ARENA_RIGHT:
 			continue
-		almost(seg.y, ChapterLayout.FLOOR_Y, 0.01,
-				"arena floor is flat (no ledges inside: %s)" % seg.owner_name)
+		if perch_names.has(seg.owner_name):
+			almost(seg.y, 288.0, 0.01, "arena perch %s sits one hop above the floor" % seg.owner_name)
+		else:
+			almost(seg.y, ChapterLayout.FLOOR_Y, 0.01,
+					"arena floor is flat (%s)" % seg.owner_name)
+	var drainage := host.get_node_or_null("Props/ArenaDrainage")
+	ok(drainage != null, "ArenaDrainage controller is attached to the boss arena")
+	if drainage != null:
+		eq(String(drainage.get("water_state")), "high", "arena starts flooded in phase 1")
+		drainage.call("drain", 2)
+		eq(String(drainage.get("water_state")), "drained", "phase 2 drains the arena water")
 	var props := host.get_node("Props")
 	for child in props.get_children():
 		if child is ToxinPool:
@@ -242,9 +292,6 @@ func test_boss_slot_reserves_a_flat_600px_arena() -> void:
 
 
 ## 视觉 QA Phase A 回归锁：944px 渣渠不能是荧光绿亮带；半空横渡台不能是亮草檐贴片。
-##  · 两个毒池都挂 5 段暗绿 sludge_ramp、tint 已压暗（alpha < 1 也让浮沫退下去）；
-##  · 浮台/桥石用 brick_float 断砖 skin（有侧面/断口，不是 moss_float 的亮草檐）；
-##  · 吊台保留可站立判定，吊索从顶板垂下来（chain_top_y 在顶板底边）。
 func test_canal_surface_and_floating_ledges_read_as_stone() -> void:
 	var host := _build()
 	var props := host.get_node("Props")
@@ -271,13 +318,11 @@ func test_canal_surface_and_floating_ledges_read_as_stone() -> void:
 		if deck == null:
 			continue
 		ok(deck.chain_top_y < 0.0, "%s has visible chains to the ceiling" % deck.name)
-		# 默认 moss_float 板被关掉，换成 brick_float 断砖碴（每 16px 一块）。
 		var visible_planks := 0
 		for child in deck.get_children():
 			if child is Sprite2D and (child as Sprite2D).visible:
 				visible_planks += 1
 		ok(visible_planks >= int(deck.width / 16.0), "%s is re-skinned with broken-stone planks" % deck.name)
-	# 渠面直边被压边件打断：渠口残阶、半沉断管/落石/断石栏、桥石上的断管落石。
 	var keys: Array[String] = []
 	for child in (host.get_node("Decor") as Node2D).get_children():
 		if child is Sprite2D and child.has_meta("prop_key"):
@@ -349,16 +394,6 @@ func test_scene_boots_the_real_layout() -> void:
 	await flush(1)
 
 
-## 渲染夹具（opt-in，只在非 headless 且设了 RUSTGRAVE_RENDER_LEVEL 时执行）。
-## 为什么放在测试跑者里：本分支新增的章间间幕（scripts/levels/chapter_transition.gd）
-## 在 tools/peek_live.gd 的 Director.abort() 之后不会收幕（abort 不发 script_finished），
-## 于是 PeekLive 的每张章节图都被 82% 黑幕 + 布景纹样盖住、量出来只有 ~18% 亮度。
-## 测试跑者里 Director.is_test_runner() 为真 → 间幕 inert，正好能拍到干净的实机画面。
-## 用法（人工取证，常规 headless 下自动 skip、不写文件）：
-##   $env:RUSTGRAVE_RENDER_LEVEL='level02b'; $env:RUSTGRAVE_RENDER_OUT=$env:TEMP+'\rg-render'
-##   godot --path <repo> --windowed --position -12000,-12000 --resolution 1280x720 \
-##     --rendering-method gl_compatibility res://tests/run_tests.tscn -- --case-filter=level02b_layout
-## level04b 用同一个夹具：把 RUSTGRAVE_RENDER_LEVEL 换成 level04b 再跑一次。
 func test_render_key_beats_fixture() -> void:
 	var render_level := OS.get_environment("RUSTGRAVE_RENDER_LEVEL")
 	if render_level == "" or DisplayServer.get_name() == "headless":
@@ -394,7 +429,6 @@ func test_render_key_beats_fixture() -> void:
 	player.set_physics_process(false)
 	player.cutscene_locked = true
 	camera.set_physics_process(false)
-	# 固定成 1280×720 的可见内容（DisplayFit 已经跑过，这里不会再被覆盖）。
 	var root_window := get_window()
 	root_window.size = Vector2i(1280, 720)
 	root_window.position = Vector2i(-12000, -12000)
