@@ -757,6 +757,10 @@ func _nv_link(a: Dictionary, b: Dictionary) -> bool:
 	var at := LevelSanity.TopSeg.new(ar.position.x, ar.end.x, ar.position.y, "a")
 	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
 	if not LevelSanity._can_hop(at, bt): return false
+	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	if a.lift == null and b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
+		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
+			return false
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
@@ -935,10 +939,19 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 
 ## 台面这一端的外侧（身体高度）是不是实心：是墙不是边。
 func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
-	var probe := Vector2(r.end.x + 5.0 if right else r.position.x - 5.0, r.position.y - 12.0)
+	# Test the full knight body. A balcony can clip the head while leaving the
+	# old single waist-height probe clear, so walking off that edge never works.
+	var probe := Rect2(Vector2(r.end.x + 0.5 if right else r.position.x - 14.5,
+			r.position.y - 26.0), Vector2(14.0, 26.0))
 	for s in LevelSanity.solid_rects(_world_root()):
-		if s.grow(-0.5).has_point(probe): return true
+		if s.grow(-0.5).intersects(probe): return true
 	return false
+
+
+func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
+	var landing := from.end.x + 8.0 if right else from.position.x - 8.0
+	return landing >= to.position.x + 7.0 and landing <= to.end.x - 7.0 \
+			and not _nv_edge_blocked(from, right)
 
 
 func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
@@ -964,14 +977,11 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	var drop_landing := NAN
 	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and a.lift == null and b.lift == null:
 		right = _nv_goal.x >= ar.get_center().x if _nv_goal.is_finite() else right
-		if right and br.end.x - ar.end.x < 24.0: right = false
-		if not right and ar.position.x - br.position.x < 24.0: right = true
-		# 台缘外侧立着实心（楼座东头的掩体墩）：那一侧不是边，是墙，换另一侧下去。
-		if right and _nv_edge_blocked(ar, true): right = false
-		elif not right and _nv_edge_blocked(ar, false): right = true
+		if not _nv_drop_side_clear(ar, br, right): right = not right
+		if not _nv_drop_side_clear(ar, br, right): return false
 		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
-		drop_landing = clampf(ar.end.x + 18.0 if right else ar.position.x - 18.0,
-				br.position.x + 4.0, br.end.x - 4.0)
+		drop_landing = clampf(ar.end.x + 8.0 if right else ar.position.x - 8.0,
+				br.position.x + 8.0, br.end.x - 8.0)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
@@ -1017,7 +1027,12 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			r.position = b.lift.position
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
 		if not is_nan(drop_landing): landing = drop_landing
-		_nv_steer(landing)
+		if not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - ar.position.y) < 8.0:
+			# Leave the whole 14px body past the ledge before braking. Steering to
+			# a point only 8px beyond it can stop 2px short and remain supported.
+			_move(1.0 if right else -1.0)
+		else:
+			_nv_steer(landing)
 		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
 		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40)

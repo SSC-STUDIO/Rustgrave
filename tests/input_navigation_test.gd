@@ -1,0 +1,94 @@
+extends TestCase
+
+const DRIVER := preload("res://tests/fixtures/navigation_driver.gd")
+
+
+func setup() -> void:
+	Director.abort()
+	Director._set_lock(false)
+	Input.action_release(&"move_left")
+	Input.action_release(&"move_right")
+	Input.action_release(&"jump")
+	Input.action_release(&"dash")
+	Input.action_release(&"attack")
+
+
+func teardown() -> void:
+	for action in [&"move_left", &"move_right", &"jump", &"dash", &"attack", &"interact"]:
+		Input.action_release(action)
+
+
+func _host() -> Node2D:
+	var host := Node2D.new()
+	var props := Node2D.new()
+	props.name = "Props"
+	host.add_child(props)
+	add_child(host)
+	return host
+
+
+func _segment(rect: Rect2) -> Dictionary:
+	return {"r": rect, "lift": null}
+
+
+func test_walkoff_clears_the_whole_body_before_braking() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Pillar", Vector2(3292, 304), 24.0)
+	layout.step(host, "Stage", Vector2(3316, 336), 208.0)
+	var player := await spawn_player(host, Vector2(3304, 280))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(3460, 336)
+	ok(await driver._nv_cross(_segment(Rect2(3292, 304, 24, 16)),
+			_segment(Rect2(3316, 336, 208, 16))), "input walks off the pillar instead of braking on its last pixel")
+	almost(player.position.y, 336.0, 1.0)
+	ok(player.is_on_floor())
+	driver._release()
+
+
+func test_walkoff_chooses_the_other_edge_when_a_balcony_blocks_the_head() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Ledge", Vector2(944, 264), 96.0)
+	layout.step(host, "Balcony", Vector2(1048, 232), 56.0)
+	layout.step(host, "LowerFloor", Vector2(928, 320), 192.0)
+	var player := await spawn_player(host, Vector2(1000, 240))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(1080, 320)
+	ok(driver._nv_edge_blocked(Rect2(944, 264, 96, 16), true), "overhang clips head even when waist is clear")
+	ok(not driver._nv_edge_blocked(Rect2(944, 264, 96, 16), false))
+	ok(await driver._nv_cross(_segment(Rect2(944, 264, 96, 16)),
+			_segment(Rect2(928, 320, 192, 16))), "production input crossing takes the clear west edge")
+	almost(player.position.y, 320.0, 1.0)
+	ok(player.is_on_floor())
+	driver._release()
+
+
+func test_route_uses_the_upper_catwalk_when_the_only_downward_edge_is_blocked() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Step", Vector2(1200, 288), 40.0)
+	layout.step(host, "Catwalk", Vector2(1248, 256), 96.0)
+	layout.step(host, "LowerFloor", Vector2(1240, 320), 136.0)
+	var player := await spawn_player(host, Vector2(1220, 264))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(1360, 320)
+	ok(not driver._nv_link(_segment(Rect2(1200, 288, 40, 16)),
+			_segment(Rect2(1240, 320, 136, 16))), "graph rejects walking into the low catwalk edge")
+	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
+	ok(not route.is_empty(), "the upper catwalk is a real alternative")
+	for i in range(1, route.size()):
+		ok(await driver._nv_cross(route[i - 1], route[i]), "route edge %d uses real jump/movement input" % i)
+	almost(player.position.y, 320.0, 1.0)
+	ok(player.position.x > 1344.0)
+	ok(player.is_on_floor())
+	driver._release()

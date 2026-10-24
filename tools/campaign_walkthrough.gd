@@ -177,19 +177,7 @@ func _closest(segments: Array[Dictionary], feet: Vector2) -> int:
 	return best
 
 func _link(a: Dictionary, b: Dictionary) -> bool:
-	if a.lift != null and a.lift == b.lift: return true
-	var ar: Rect2 = a.r
-	var br: Rect2 = b.r
-	var at := LevelSanity.TopSeg.new(ar.position.x, ar.end.x, ar.position.y, "a")
-	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
-	if not LevelSanity._can_hop(at, bt): return false
-	var x0 := minf(ar.end.x, br.end.x)
-	var x1 := maxf(ar.position.x, br.position.x)
-	if x1 > x0:
-		for r in LevelSanity.solid_rects(_world()):
-			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
-				return false
-	return true
+	return _nv_link(a, b)
 
 func _path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 	var start := _closest(segments, _player().position)
@@ -243,6 +231,7 @@ func _navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 			if missing_plate != Vector2.INF:
 				if not await _navigate(missing_plate, false): return false
 		_step = "campaign_to_" + str(feet)
+		_nv_goal = feet
 		var route := _path(_segments(), feet)
 		if route.is_empty():
 			_fail("no navigation route to " + str(feet))
@@ -349,77 +338,10 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 	_set_action(&"dash", dash)
 
 func _cross(a: Dictionary, b: Dictionary) -> bool:
-	if _player() == null or _player().health.current <= 0: return false
-	var ar: Rect2 = a.r
-	var br: Rect2 = b.r
-	print("[CROSS] %s -> %s at=%s hp=%d" % [ar, br, _player().position, _player().health.current])
-	if a.lift != null and a.lift == b.lift:
-		_release()
-		for i in 1200:
-			if _player() == null or _player().health.current <= 0 or not is_instance_valid(b.lift): return false
-			_steer(b.lift.position.x + b.lift.width * 0.5)
-			if b.lift.position.distance_to(br.position) < 8: return true
-			await _frames(1)
-		return false
-	var right := br.get_center().x >= ar.get_center().x
-	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
-	var launch := clampf(br.position.x - 8 if right else br.end.x + 8, ar.position.x + 8, ar.end.x - 8)
-	if a.lift != null:
-		for i in 1200:
-			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
-			_steer(launch)
-			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
-			await _frames(1)
-	if (gap >= 48 or (gap > 0 and (gap <= 24 or br.position.y > ar.position.y))) and a.lift == null:
-		var run_start := ar.end.x - 36 if right else ar.position.x + 36
-		if not await _flat(run_start, ar.position.y, false): return false
-		_release()
-		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
-		_move(1 if right else -1)
-		for i in 90:
-			if _player() == null or _player().health.current <= 0: return false
-			if (right and _player().position.x >= launch) or (not right and _player().position.x <= launch): break
-			await _frames(1)
-	elif a.lift == null:
-		if not await _flat(launch, ar.position.y, false): return false
-		_release()
-		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
-	if b.lift != null:
-		_release()
-		for i in 1200:
-			if not is_instance_valid(b.lift) or _player() == null or _player().health.current <= 0: return false
-			if b.lift.position.distance_to(br.position) < 10: break
-			_move(0)
-			_combat(false, true)
-			if absf(_player().position.x - launch) > 5: _steer(launch)
-			await _frames(1)
-	_release()
-	await _frames(2)
-	if gap > 24:
-		while _player() != null and _player().controller._dash_cd > 0:
-			await _frames(1)
-	for i in 180:
-		var p := _player()
-		if p == null or p.health.current <= 0: return false
-		var r: Rect2 = br
-		if b.lift != null:
-			if not is_instance_valid(b.lift): return false
-			r.position = b.lift.position
-		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
-		_steer(landing)
-		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
-		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
-		var needs_dash := gap > (56 if br.position.y > ar.position.y else 24)
-		_set_action(&"dash", i == dash_frame and needs_dash)
-		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
-			_release()
-			return true
-		if i > 35 and p.is_on_floor() and absf(p.position.y - r.position.y) > 9:
-			_release()
-			return false
-		await _frames(1)
-	_release()
-	return false
+	# Use the same controller-aware crossing as chapter one: a lower overlapping
+	# floor is reached by walking off the current ledge, and gaps need a run-up.
+	_nv_vents = LevelSanity.hazards(_world())
+	return await _nv_cross(a, b)
 
 ## 章节出口可能被 Boss 死亡旗标锁着（hollow_bell_dead / capstan_dead / choir_dead /
 ## founder_dead / herald_dead）。验收驱动必须像玩家一样真打：找到本章 Boss（实现
