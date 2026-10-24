@@ -212,6 +212,10 @@ func _run() -> void:
 		return
 	for i in 600:
 		await _frames(1)
+		# 结局分镜每帧面板需要按一次确认才推进（skip_all_on_accept=false）。
+		# 不点就会永远停在第一格的 HOLD 上。
+		if Director.playing and i % 30 == 0:
+			_ui(&"ui_accept")
 		var current := get_tree().current_scene
 		if i % 120 == 0:
 			print("[ENDING] i=%d playing=%s hold=%s fading=%s scene=%s" % [
