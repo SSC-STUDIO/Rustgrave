@@ -619,7 +619,7 @@ func _interrupt_for_poise() -> void:
 
 
 # ---------------------------------------------------------------------------
-# 视觉（程序化像素：没有空钟的帧素材，用色板形状画一座锈钟）
+# 视觉（原创冷青铜裂钟 / 独立钟锤；不参与碰撞或招式计算）
 # ---------------------------------------------------------------------------
 func _build_visual() -> void:
 	if visual == null:
@@ -655,105 +655,69 @@ func _build_glow() -> Sprite2D:
 
 func _update_visuals(delta: float) -> void:
 	if _shell != null and _shell.has_method("animate"):
-		_shell.call("animate", delta, _swing, _enraged, _pulling)
+		_shell.call("animate", delta, _swing, _enraged, _pulling, String(_attack), int(_step), _state == State.STAGGER)
 	if _hammer != null and _hammer.has_method("animate"):
 		var swing := sin(Time.get_ticks_msec() / 1000.0 * 1.2) * 0.06 if _state == State.IDLE else _swing
-		(_hammer as Node2D).position = HAMMER_HOME + Vector2(swing * 70.0, 0.0)
-		(_hammer as Node2D).rotation = swing * 0.8
+		(_hammer as Node2D).position = HAMMER_HOME + Vector2(swing * 4.0, 0.0)
+		(_hammer as Node2D).rotation = swing * 0.18
+		_hammer.call("animate", delta, _enraged, _state == State.STAGGER)
 	if _glow != null:
 		var pulse := 1.0 + 0.08 * sin(Time.get_ticks_msec() / 1000.0 * 2.4)
 		_glow.modulate.a = (0.30 if _enraged else 0.18) * pulse
 
 
-## 钟体：锈铜梯形钟身 + 钟口 + 钟面裂纹（二阶段裂缝透炉火）+ 顶部吊索。
+## 原创悬挂裂钟：逐像素帧由 tools/gen_original_bell_bosses.py 绘制。
+## action/step 来自真实状态机；pin_frame 将前摇/判定/后摇约束在各自两帧。
 class BellShell extends Node2D:
-	const HANG_TOP := -318.0
-	const BELL_TOP := -196.0
-	const BELL_BOTTOM := -78.0
-	const BELL_W := 96.0
-
 	var _hot := false
 	var _t := 0.0
 	var _shake := 0.0
-	var _pulling := false
+	var _frames: FrameAnimSprite
+
+	func _ready() -> void:
+		_frames = FrameAnimSprite.new()
+		_frames.name = "OriginalBellFrames"
+		for prefix in ["", "hot_"]:
+			for action in ["idle", "pendulum", "chain_pull", "bell_drop", "toll_wave", "stagger"]:
+				var key: String = prefix + action
+				_frames.register(key, CharFrames.anim("original_hollow_bell", key), 6.0, true, Vector2(0.0, -168.0))
+		add_child(_frames)
+		_frames.pin_frame("idle", 0)
 
 	func set_hot(hot: bool) -> void:
 		_hot = hot
-		queue_redraw()
-
-	func animate(delta: float, swing: float, hot: bool, pulling: bool) -> void:
-		_t += delta
-		_hot = hot
-		_pulling = pulling
-		_shake = lerpf(_shake, 0.0, minf(1.0, delta * 8.0))
-		if absf(swing) > 0.05:
-			_shake = maxf(_shake, absf(swing) * 3.0)
-		queue_redraw()
+		if _frames != null:
+			_frames.pin_frame(("hot_" if _hot else "") + "idle", 0)
 
 	func shake_by(amount: float) -> void:
 		_shake = maxf(_shake, amount)
 
-	func _draw() -> void:
-		var ox := sin(_t * 34.0) * _shake
-		# 吊索 / 梁：从洞顶垂到钟顶。
-		draw_rect(Rect2(roundf(ox) - 2.0, HANG_TOP, 4.0, BELL_TOP - HANG_TOP), Color(0.22, 0.18, 0.16))
-		draw_rect(Rect2(roundf(ox) - 5.0, HANG_TOP - 6.0, 10.0, 6.0), Color(0.30, 0.24, 0.2))
-		# 钟身：上窄下宽的梯形（整数像素折线）。
-		var top := BELL_TOP
-		var bottom := BELL_BOTTOM
-		var half_top := BELL_W * 0.34
-		var half_bottom := BELL_W * 0.5
-		var shell := PackedVector2Array([
-			Vector2(roundf(ox - half_top), top),
-			Vector2(roundf(ox + half_top), top),
-			Vector2(roundf(ox + half_bottom), bottom - 14.0),
-			Vector2(roundf(ox + half_bottom + 4.0), bottom),
-			Vector2(roundf(ox - half_bottom - 4.0), bottom),
-			Vector2(roundf(ox - half_bottom), bottom - 14.0),
-		])
-		draw_colored_polygon(shell, Color(0.26, 0.21, 0.17))
-		# 高光面（右半）：锈铜的暖高光。
-		var highlight := PackedVector2Array([
-			Vector2(roundf(ox + half_top * 0.25), top + 6.0),
-			Vector2(roundf(ox + half_top), top),
-			Vector2(roundf(ox + half_bottom), bottom - 14.0),
-			Vector2(roundf(ox + half_bottom * 0.35), bottom - 6.0),
-		])
-		draw_colored_polygon(highlight, Color(0.42, 0.30, 0.20))
-		# 钟口厚沿 + 两条装饰箍。
-		draw_rect(Rect2(roundf(ox - half_bottom - 6.0), bottom, BELL_W + 12.0, 8.0),
-				Color(0.34, 0.26, 0.19))
-		draw_rect(Rect2(roundf(ox - half_bottom - 2.0), bottom - 30.0, BELL_W + 4.0, 3.0),
-				Color(0.18, 0.14, 0.12))
-		# 钟面裂纹：二阶段透出炉火（亮橙点线）。
-		var crack := Color(1.0, 0.55, 0.2, 0.9) if _hot else Color(0.16, 0.13, 0.12)
-		var cx := roundf(ox)
-		draw_line(Vector2(cx - 6.0, top + 26.0), Vector2(cx + 2.0, top + 52.0), crack, 2.0)
-		draw_line(Vector2(cx + 2.0, top + 52.0), Vector2(cx - 4.0, top + 74.0), crack, 2.0)
-		draw_line(Vector2(cx - 4.0, top + 74.0), Vector2(cx + 8.0, top + 94.0), crack, 2.0)
-		if _hot:
-			draw_rect(Rect2(cx - 10.0, top + 24.0, 3.0, 3.0), Color(1.0, 0.4, 0.12, 0.8))
-			draw_rect(Rect2(cx + 6.0, top + 90.0, 3.0, 3.0), Color(1.0, 0.4, 0.12, 0.8))
-		# 钟舌：垂在钟口中央，拉拽时绷直。
-		var tongue_len := 40.0 if _pulling else 26.0
-		draw_rect(Rect2(cx - 3.0, bottom + 2.0, 6.0, 6.0), Color(0.20, 0.16, 0.13))
-		draw_line(Vector2(cx, bottom + 6.0), Vector2(cx, bottom + tongue_len), Color(0.20, 0.16, 0.13), 2.0)
+	func animate(delta: float, _swing: float, hot: bool, _pulling: bool, attack: String, step: int, stagger: bool) -> void:
+		_t += delta
+		_hot = hot
+		_shake = move_toward(_shake, 0.0, delta * 8.0)
+		position.x = roundf(sin(_t * 34.0) * minf(_shake, 2.0))
+		var action := "stagger" if stagger else (attack if not attack.is_empty() else "idle")
+		var index := int(_t * 6.0) % 4 if action in ["idle", "stagger"] else clampi(step, 0, 2) * 2 + int(_t * 8.0) % 2
+		_frames.pin_frame(("hot_" if hot else "") + action, index)
 
 
-## 钟锤（弱点）：吊在钟口下方、可摆动的铁锤头。
+## 钟锤独立于钟体，金色同心铆钉位于原 WeakHurtbox 内；不移动弱点判定。
 class BellHammer extends Node2D:
 	var _t := 0.0
+	var _frames: FrameAnimSprite
 
-	func _draw() -> void:
-		# 锤柄从上垂下（本地原点 = 锤头中心）。
-		draw_rect(Rect2(-1.0, -34.0, 2.0, 26.0), Color(0.20, 0.16, 0.13))
-		draw_rect(Rect2(-6.0, -26.0, 12.0, 4.0), Color(0.28, 0.23, 0.19))
-		# 锤头：铁块 + 高光 + 侧面。
-		draw_rect(Rect2(-11.0, -10.0, 22.0, 16.0), Color(0.30, 0.26, 0.23))
-		draw_rect(Rect2(-11.0, -10.0, 22.0, 4.0), Color(0.44, 0.38, 0.32))
-		draw_rect(Rect2(6.0, -10.0, 5.0, 16.0), Color(0.22, 0.18, 0.15))
-		# 弱点记号：暗金点（只有一像素点，不抢戏）。
-		draw_rect(Rect2(-2.0, -4.0, 4.0, 4.0), Color(1.0, 0.78, 0.35, 0.85))
+	func _ready() -> void:
+		_frames = FrameAnimSprite.new()
+		_frames.name = "OriginalClapperFrames"
+		for key in ["hammer", "hot_hammer"]:
+			_frames.register(key, CharFrames.anim("original_hollow_bell", key), 6.0, true, Vector2(0.0, -18.0))
+		add_child(_frames)
+		_frames.pin_frame("hammer", 0)
+
+	func animate(delta: float, hot: bool, stagger: bool) -> void:
+		_t += delta
+		_frames.pin_frame("hot_hammer" if hot or stagger else "hammer", int(_t * 6.0) % 4)
 
 
 # ---------------------------------------------------------------------------
