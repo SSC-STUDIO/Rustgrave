@@ -45,7 +45,8 @@ const STEPS: Array = [
 	["ReturnB", Vector2(2320, 224), 96.0],
 	["ReturnC", Vector2(2448, 224), 96.0],
 	["ReturnD", Vector2(2576, 224), 96.0],
-	["ReturnLaunch", Vector2(2736, 256), 80.0],
+	# The westbound launch must not cover the mandatory VaultStairA jump arc.
+	["ReturnLaunch", Vector2(2688, 256), 64.0],
 	["ArenaSideWest", Vector2(3264, 288), 80.0],
 	["ArenaSideEast", Vector2(3696, 288), 80.0],
 ]
