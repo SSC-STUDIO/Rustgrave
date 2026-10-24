@@ -3,6 +3,7 @@ extends TestCase
 ## solid ground, checkpoints and the exit exist, and the level is indoor-only.
 
 const JUMP_RISE_MAX := 32.0
+const CHECKPOINT_GAP_MAX := 1000.0
 
 
 func setup() -> void:
@@ -52,16 +53,24 @@ func test_step_chains_are_single_jumps() -> void:
 	var chains := [
 		# pit B: floor A lip -> stones -> floor B
 		[Vector2(448, 320), Vector2(496, 288), Vector2(576, 264), Vector2(656, 288), Vector2(720, 320)],
-		# spitter ledge: floor -> step -> ledge
+		# spitter ledge + ring 1 balcony: floor -> step -> ledge -> balcony
 		[Vector2(880, 320), Vector2(880, 288), Vector2(944, 264)],
+		[Vector2(1040, 264), Vector2(1048, 232)],
+		# vault catwalk + shaft overlook: floor C -> step C1 -> catwalk
+		[Vector2(1200, 320), Vector2(1200, 288), Vector2(1248, 256)],
 		# pit C escape: pit floor -> lip -> floor
 		[Vector2(1376, 384), Vector2(1376, 352), Vector2(1376, 320)],
-		# gallery D: floor -> step -> gallery
-		[Vector2(1936, 320), Vector2(1936, 288), Vector2(2000, 256)],
+		# sunken bell vault spiral: floor D -> step D1 -> gallery D; gallery D -> upper bridge D; upper bridge D -> step D2 -> step D3 -> floor E
+		[Vector2(1908, 320), Vector2(1908, 288), Vector2(1976, 256)],
+		[Vector2(2136, 256), Vector2(2144, 224)],
+		[Vector2(2288, 224), Vector2(2296, 256), Vector2(2352, 288), Vector2(2360, 320)],
+		# sunken floor direct climb out to floor E
+		[Vector2(2360, 352), Vector2(2360, 320)],
 		# alcove: lift D at its top -> hop left onto the alcove's right end
 		[Vector2(1856, 224), Vector2(1840, 208)],
-		# E 沉钟回廊: west bank -> two stones -> east bank (满水渠)
-		[Vector2(2480, 320), Vector2(2512, 288), Vector2(2592, 264), Vector2(2600, 320)],
+		# cage arena west & east belfry steps
+		[Vector2(2760, 320), Vector2(2760, 288), Vector2(2840, 256)],
+		[Vector2(3272, 320), Vector2(3272, 288), Vector2(3256, 256)],
 	]
 	for chain in chains:
 		for i in range(1, chain.size()):
@@ -96,7 +105,6 @@ func test_terrain_matches_constants_and_seals_the_room() -> void:
 	ok(Level02Layout.ENTRY_SPAWN.x > Level02Layout.SHAFT_X
 			and Level02Layout.ENTRY_SPAWN.x < Level02Layout.SHAFT_X + Level02Layout.SHAFT_W,
 			"the knight drops through the shaft")
-	# Nothing else spans the floor line under the shaft: the drop lands on FloorA.
 	ok(_standing_on(rects, Vector2(Level02Layout.ENTRY_SPAWN.x, 320.0)), "shaft lands on FloorA")
 
 
@@ -110,7 +118,6 @@ func test_lifts_shuttle_between_their_ends() -> void:
 	almost(lift_c.position_at(0.0).x, Level02Layout.LIFT_C_POS.x, 0.01)
 	almost(lift_c.position_at(lift_c.period * 0.5).x, lift_c.end_position().x, 0.01, "half a period reaches the far end")
 	almost(lift_c.position_at(lift_c.period).x, Level02Layout.LIFT_C_POS.x, 0.01, "a full period returns")
-	# Boarding: the lift's start is one hop above FloorC's edge, its end meets FloorD.
 	ok(Level02Layout.LIFT_C_POS.x >= 1376.0 and Level02Layout.LIFT_C_POS.x <= 1408.0, "lift C boards from FloorC's lip")
 	ok(320.0 - Level02Layout.LIFT_C_POS.y <= JUMP_RISE_MAX, "lift C deck is a single hop up")
 	ok(lift_c.end_position().x + lift_c.width >= 1600.0 - 32.0, "lift C reaches FloorD")
@@ -128,12 +135,19 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var props := host.get_node("Props")
 	var rects := _solids(host)
 	var nest_a := props.get_node_or_null("EmberNestShaft") as EmberNest
+	var nest_v := props.get_node_or_null("EmberNestVault") as EmberNest
 	var nest_b := props.get_node_or_null("EmberNestHall") as EmberNest
 	var nest_c := props.get_node_or_null("EmberNestBell") as EmberNest
-	ok(nest_a != null and nest_b != null and nest_c != null, "three checkpoints")
+	ok(nest_a != null and nest_v != null and nest_b != null and nest_c != null, "four checkpoints")
 	ok(_standing_on(rects, nest_a.position + Vector2(6, 14)), "shaft nest stands on FloorA")
+	ok(_standing_on(rects, nest_v.position + Vector2(6, 14)), "vault nest stands on FloorC")
 	ok(_standing_on(rects, nest_b.position + Vector2(6, 14)), "hall nest stands on FloorD")
 	ok(nest_b.position.x < Level02Layout.GATE_D_POS.x, "hall checkpoint comes before the rust gate")
+	# 四座存档点相邻间距全部 <= 1000px。
+	var xs := [nest_a.position.x, nest_v.position.x, nest_b.position.x, nest_c.position.x]
+	for i in range(1, xs.size()):
+		ok(xs[i] - xs[i - 1] <= CHECKPOINT_GAP_MAX,
+				"checkpoint gap %.0f -> %.0f is <= 1000px" % [xs[i - 1], xs[i]])
 	# Boss 前存档点：门前 2680 / 竞技场左界 2700 —— 巢必须 <=80px。
 	ok(nest_c.position.x < Level02Layout.ARENA_GATE_X, "bell checkpoint comes before the bell gate")
 	ok(absf(nest_c.position.x - Level02Layout.ARENA_GATE_X) <= 80.0,
@@ -157,35 +171,69 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	ok(_standing_on(rects, door.position + Vector2(0, 64)), "door foot meets the floor")
 	var gate := props.get_node_or_null("RustyGate")
 	ok(gate != null, "heat forge gate before the bell hall")
-	for pool_name in ["ToxinPoolB", "ToxinPoolC", "ToxinPoolE"]:
+	for pool_name in ["ToxinPoolB", "ToxinPoolC"]:
 		ok(props.get_node_or_null(pool_name) is ToxinPool, "%s exists" % pool_name)
 	ok(host.get_node_or_null("UndercroftZone") is AtmosphereZone, "whole level is an indoor zone")
 	eq((host.get_node("UndercroftZone") as AtmosphereZone).zone, WorldClock.Zone.INDOORS)
 
 
-## 沉钟回廊（E 段）与空钟厅（F 段）的几何：
-## 渠面躺在坑里、竞技场是 920px 连续平地、出口在场地东侧、关卡宽度到位。
-func test_bell_corridor_and_arena_geometry() -> void:
+## 螺旋下探结构、坠钟走廊、单向捷径、钩锁可选奖励与笼状竞技场几何。
+func test_spiral_descent_hazards_shortcut_and_cage_arena() -> void:
 	var host := _build()
 	var rects := _solids(host)
 	eq(Level02Layout.EAST_LIMIT, 3800, "沉钟地窟扩到 3800 宽")
 	var platforms := host.get_node("Platforms")
-	var corridor_bed := platforms.get_node_or_null("PitFloorCorridor") as SolidPlatform
-	ok(corridor_bed != null and _standing_on(rects, Vector2(2540, 352)), "corridor pit has a climbable bed")
-	ok(_standing_on(rects, Vector2(2480, 320)), "west bank of the corridor pit is floor")
-	ok(_standing_on(rects, Vector2(2600, 320)), "east bank of the corridor pit is floor")
+	var props := host.get_node("Props")
+	# 1) 多层高度差：y=136（梁顶）、y=208/224（上层桥）、y=256（中层廊）、y=320（主地）、y=352（下沉钟堂）。
+	var sunken := platforms.get_node_or_null("FloorSunken") as SolidPlatform
+	ok(sunken != null and _standing_on(rects, Vector2(2160, 352)), "sunken bell vault floor at y=352")
+	# 2) 周期性坠钟机关：首口教学钟前后各有 >=48px 安全平地，E 段改为双口坠钟走廊。
+	for h in Level02Layout.BELL_HAZARDS:
+		var hz := props.get_node_or_null(String(h[0])) as CyclicHazard
+		ok(hz != null, "falling bell %s exists" % h[0])
+		if hz != null:
+			eq(hz.skin, "bell")
+			ok(hz.telegraph_time >= CyclicHazard.MIN_TELEGRAPH, "%s telegraph >= 0.45s" % h[0])
+	var teach := props.get_node("BellTeach") as CyclicHazard
+	ok(_standing_on(rects, teach.position + Vector2(-48, 0)) and _standing_on(rects, teach.position + Vector2(48, 0)),
+			"BellTeach has >=48px flat safe landing before and after")
+	# 3) 单向捷径回环：上层 ShortcutPlate 打开地面 ShortcutDoor，连通 EmberNestHall 与下沉钟堂。
+	var s_plate := props.get_node_or_null("ShortcutPlate") as PressurePlate
+	var s_door := props.get_node_or_null("ShortcutDoor") as ArenaDoor
+	ok(s_plate != null and s_door != null, "shortcut plate and door exist")
+	if s_plate != null and s_door != null:
+		ok(s_plate.activated.is_connected(s_door.open_door), "shortcut plate unlocks the ground shortcut door")
+		ok(s_plate.position.y < s_door.position.y, "shortcut plate sits on the upper bridge above the shortcut door")
+	# 4) 梁顶可选挑战与骨符奖励（仅凭钩锁可达）。
+	var rafter := platforms.get_node_or_null("BellRafter") as SolidPlatform
+	var reward_node := props.get_node_or_null("RewardUndercroft") as EquipmentPickup
+	ok(rafter != null and reward_node != null, "optional rafter and equipment reward exist")
+	if reward_node != null:
+		eq(reward_node.reward_ref, Level02Layout.REWARD_RAFTER_ID)
+		var reward_feet := LevelSanity.feet_of(reward_node)
+		ok(not LevelSanity.is_reachable(host, Level02Layout.ENTRY_SPAWN, reward_feet, false),
+				"rafter reward requires the hookshot")
+		ok(LevelSanity.is_reachable(host, Level02Layout.ENTRY_SPAWN, reward_feet, true),
+				"rafter reward is reachable with the hookshot")
+	# 5) 空钟笼状竞技场：连续底板 + 两侧避钟笼台 + 中央击锤高台。
 	ok(Level02Layout.ARENA_LEFT < Level02Layout.BOSS_POS.x and Level02Layout.BOSS_POS.x < Level02Layout.ARENA_RIGHT)
 	ok(Level02Layout.ARENA_RIGHT - Level02Layout.ARENA_LEFT >= 600.0, "空钟竞技场 >= 600px 宽（契约）")
-	# 竞技场是连续平地：3160–3620 之间 y=320 的顶面没有任何断口。
 	var x := Level02Layout.ARENA_LEFT
 	while x <= Level02Layout.ARENA_RIGHT:
 		ok(_standing_on(rects, Vector2(x, 320.0)), "arena floor is continuous at x=%.0f" % x)
 		x += 80.0
+	for cage_step in ["CageAlcoveWest", "CageBelfryWest", "CageDais", "CageBelfryEast", "CageAlcoveEast"]:
+		ok(platforms.get_node_or_null(cage_step) is SolidPlatform, "arena cage platform %s exists" % cage_step)
 	ok(_standing_on(rects, Level02Layout.BOSS_POS), "boss stands on the arena floor")
 	ok(_standing_on(rects, Level02Layout.EXIT_POS), "exit stands on the arena floor")
 	ok(Level02Layout.EXIT_POS.x < Level02Layout.ARENA_RIGHT, "exit is inside the east end of the arena")
 	ok(host.get_node_or_null("Waymarks/Sign_回廊") != null, "corridor waymark")
 	ok(host.get_node_or_null("Waymarks/Sign_空钟") != null, "bell-hall waymark")
+	# 6) LevelSanity 全量几何与主线无钩锁可达性。
+	var problems := LevelSanity.check(host, Rect2(0, Level02Layout.CAMERA_TOP, Level02Layout.EAST_LIMIT, 480))
+	ok(problems.is_empty(), "LevelSanity clean: %s" % "; ".join(problems))
+	ok(LevelSanity.is_reachable(host, Level02Layout.ENTRY_SPAWN, Level02Layout.EXIT_POS, false),
+			"main route from shaft entry to BellDoor is reachable without hookshot")
 
 
 ## 空钟门是章节出口：站到门前交互会开演、写 undercroft_done、并保存到 level02b。
@@ -200,7 +248,6 @@ func test_bell_door_wiring_plays_captions_and_writes_the_chapter_flag() -> void:
 	ok(player != null, "player spawns for the door beat")
 	ok(exit != null and exit.can_interact(player), "bell door accepts interaction")
 	ok(player is Player, "actor is a Player")
-	# 空钟场景已交付时，钟门先锁到 hollow_bell_dead；测试模拟「空钟已倒」再走门。
 	if exit.is_locked():
 		SaveData.mark_flag(Level02Layout.EXIT_REQUIRES)
 		ok(not exit.is_locked(), "boss flag opens the bell door")
@@ -227,7 +274,6 @@ func test_hollow_bell_room_is_conditional_and_never_softlocks() -> void:
 		eq(host.get_node_or_null("Arenas/HollowBellArena"), null, "no boss scene -> no arena")
 		eq(exit.requires_flag, "", "no boss scene -> exit stays open (never softlock)")
 		return
-	# --- 场景已交付：Boss + 竞技场 + 两处落钟机关 + 死亡门禁。
 	var boss := host.get_node_or_null("Enemies/HollowBell") as Node2D
 	ok(boss != null, "HollowBell spawns in the bell hall")
 	if boss != null:
@@ -259,18 +305,22 @@ func test_enemies_stand_where_they_are_placed() -> void:
 	var enemies := host.get_node("Enemies")
 	var expected := Level02Layout.ENEMIES.size()
 	if ResourceLoader.exists(Level02Layout.HOLLOW_BELL_PATH):
-		expected += 1  # 空钟 Boss 与杂兵同挂 Enemies/，但不在 ENEMIES 表里
+		expected += 1
 	eq(enemies.get_child_count(), expected)
+	var variants_seen := 0
 	for e in Level02Layout.ENEMIES:
 		var enemy := enemies.get_node_or_null(String(e[0])) as Node2D
 		ok(enemy != null, "%s spawned" % e[0])
 		if enemy == null:
 			continue
+		if e.size() >= 4 and String(e[3]) != "":
+			variants_seen += 1
+			eq(String(enemy.get_meta("variant", &"")), String(e[3]), "%s applies variant %s" % [e[0], e[3]])
 		if enemy is GhostEnemy:
 			ok(not _standing_on(rects, enemy.position, 8.0), "%s floats free of the floor" % e[0])
 		else:
 			ok(_standing_on(rects, enemy.position, 4.0), "%s stands on a platform" % e[0])
-
+	ok(variants_seen >= 4, "staged encounters use enemy variants")
 
 
 func test_backdrop_and_mood_are_indoor() -> void:
