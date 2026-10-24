@@ -182,7 +182,7 @@ func test_real_level_scene_activates_the_region_for_the_real_player() -> void:
 		level.free()
 		return
 	WorldClock.set_weather(WorldClock.Weather.HAZE, true)
-	player.global_position = Vector2(2280, 240)
+	player.global_position = region.global_position + Vector2(region.rect.x * 0.5, 128)
 	await flush(8)
 	eq(WorldClock.active_weather_region(), &"GaleGap", "the real player activates the gap")
 	eq(WorldClock.weather_id(), "rain", "and the sky above the gap turns to rain")
@@ -213,7 +213,7 @@ func test_player_standing_in_the_gap_switches_the_weather() -> void:
 	WorldClock.set_weather(WorldClock.Weather.HAZE, true)
 	WorldClock.tick(1.0)
 	eq(WorldClock.weather_id(), "haze", "base weather before entering")
-	var player := await spawn_player(host, Vector2(2280, 240))
+	var player := await spawn_player(host, region.global_position + Vector2(region.rect.x * 0.5, 128))
 	ok(player != null, "a knight exists")
 	await flush(6)
 	eq(WorldClock.active_weather_region(), &"GaleGap", "standing in the gap activates the region")
