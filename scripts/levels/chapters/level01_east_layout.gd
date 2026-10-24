@@ -33,12 +33,21 @@ const NAVE_Y := 352.0
 ## 刽子手的石台顶：比中殿底面高 16px。
 const STAGE_Y := 336.0
 
-## --- ① 前半的上层路（这两块是 .tscn 里 Plat_920_248 / Plat_980_180 的新位置） --------
+## --- ① 前半的上层路：Spitter1 的矮台 → 三块浮石 → 楼座西头 ---------------------------------
+## 单跳的真实水平够距：升 16 约 50px，升 24 约 44px，升 32 约 38px（顶点 37px，越高越短）。
+## LevelSanity 的 72px 是粗模型；这里每一跳都 ≤36px 横跨、升 ≤24（后两跳升 16），不靠冲刺。
+## 前两块是 .tscn 里 Plat_920_248 / Plat_980_180 的新位置，第三块（HighRoadC）由本文件铺。
 const GROUND_RIGHT_END := 1168.0
-const HIGH_ROAD_A_POS := Vector2(928, 256)
-const HIGH_ROAD_B_POS := Vector2(1032, 232)
+const HIGH_ROAD_A_POS := Vector2(900, 264)
+const HIGH_ROAD_B_POS := Vector2(972, 240)
+const HIGH_ROAD_C_POS := Vector2(1044, 224)
+const HIGH_ROAD_W := 48.0
 ## Spitter1 的矮台（Plat_760_184，.tscn）顶 y=288；上层路从它的东端起跳。
 const SPITTER_PERCH_TOP := 288.0
+## 矮台东侧的垫阶（顶 304，16 高）：矮台是 32px 的坎、台下只有 16px，走过头的人从东边落回地面时
+## 单跳 32 爬不回去（身体要先升过台面才能横移）。垫阶把它拆成两个 16px 的台阶，两边都能上。
+const PERCH_STEP_POS := Vector2(864, 304)
+const PERCH_STEP_SIZE := Vector2(32, 16)
 
 ## --- ② 压板偏殿 ----------------------------------------------------------------
 ## 楼座：西头落脚（上层路到这里）、塌陷锈梁、东头压板台 + 高低两处喷吐者。
@@ -63,7 +72,11 @@ const SPITTER3_POS := Vector2(1540, 176)
 ## 楼座喷吐者只盯压板：仇恨圈收到 140px，够不到 160px 外的塌陷梁（第一根梁在安全处教学）。
 const GALLERY_SPITTER_AGGRO := 140.0
 const LANE_SCRAPPER_POS := Vector2(1400, 320)
+## 齿盾卫是 .tscn 里的 GearShield1（从前半挪到巷里守闸门）；第一次见盾卫就是在伏击巷。
 const LANE_SHIELD_POS := Vector2(1568, 320)
+## 前半唯一的碎铁犬（Scrapper1，.tscn）：仇恨圈收到 140px、巡逻 16px，站在矮台垫阶东边，
+## 离第二个余烬巢（1096）的 215px 默认仇恨圈之外。
+const SCRAPPER1_POS := Vector2(930, 320)
 
 ## --- ③ 锻核工坊 / 炉廊 / 余烬阁 ---------------------------------------------------------
 const SCRAP_PILE_POS := Vector2(1744, 302)
@@ -216,6 +229,9 @@ func build(host: Node2D) -> void:
 
 
 func _build_terrain(host: Node2D) -> void:
+	# ① 上层路的第三块浮石（前两块在 .tscn）+ 矮台东侧的垫阶。
+	step(host, "HighRoadC", HIGH_ROAD_C_POS, HIGH_ROAD_W, "floating")
+	platform(host, "PerchStep", PERCH_STEP_POS, PERCH_STEP_SIZE, "ground", false, true)
 	# ② 地穴巷 → 工坊 → 休息龛 → 炉廊 → 锈门，一条连续的石板地（y=320）。
 	floor_strip(host, "CryptFloor", GROUND_RIGHT_END, STAIR_X, "stone", false, false)
 	# 楼座：厚 32 的石板，读作砖石楼板而不是悬浮石。
@@ -271,8 +287,6 @@ func _build_enemies(host: Node2D) -> void:
 	# 伏击巷：装甲碎铁犬（头顶蓝菱形）冲锋，齿盾卫守在闸门前；一只被惊动，另一只同时警觉。
 	_spawn(host, "Scrapper2", "scrapper", LANE_SCRAPPER_POS,
 			{"variant": &"armored_scrapper", "patrol_range": 24.0, "alert_radius": 150.0})
-	_spawn(host, "GearShield2", "gear_shield", LANE_SHIELD_POS,
-			{"aggro_range": 240.0, "patrol_range": 16.0, "alert_radius": 150.0})
 	# 楼座交叉火力：压板东侧一低一高两只（Spitter2 在 .tscn 里，位置见 SPITTER2_POS）。
 	_spawn(host, "Spitter3", "spitter", SPITTER3_POS, {"aggro_range": GALLERY_SPITTER_AGGRO})
 	# 余烬阁的奖励台：一只喷吐者守着梁的另一头。

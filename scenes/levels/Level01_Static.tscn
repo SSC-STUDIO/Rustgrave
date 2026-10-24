@@ -150,14 +150,14 @@ fill = Color(0.627451, 0.321569, 0.176471, 1)
 skin = "floating"
 
 [node name="Plat_920_248" parent="Platforms" unique_id=1426230411 instance=ExtResource("2_plat")]
-position = Vector2(928, 256)
-size = Vector2(72, 16)
+position = Vector2(900, 264)
+size = Vector2(48, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
 [node name="Plat_980_180" parent="Platforms" unique_id=1578425231 instance=ExtResource("2_plat")]
-position = Vector2(1032, 232)
-size = Vector2(72, 16)
+position = Vector2(972, 240)
+size = Vector2(48, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
@@ -202,11 +202,15 @@ position = Vector2(1472, 208)
 aggro_range = 140.0
 
 [node name="Scrapper1" parent="Props" unique_id=1590711696 instance=ExtResource("23_scrapper")]
-position = Vector2(860, 320)
+position = Vector2(930, 320)
+patrol_range = 16.0
+aggro_range = 140.0
 
 [node name="GearShield1" parent="Props" unique_id=1913946978 instance=ExtResource("24_gearshield")]
-position = Vector2(880, 320)
-aggro_range = 190.0
+position = Vector2(1568, 320)
+patrol_range = 16.0
+aggro_range = 240.0
+alert_radius = 150.0
 
 [node name="FlyingDemon1" parent="Props" instance=ExtResource("31_demon")]
 position = Vector2(460, 130)
