@@ -1,90 +1,89 @@
-# 锈墓全面改造 v3（标题活景 + 14 章重做 + 系统升级）
+# 锈墓全面改造 v3：实施与验收清单
 
-> 本页是 v3 改造的唯一清单与验收记录（沿用 `docs/UPGRADE_PLAN.md` 的做法）。
-> 数值/流程细节仍以 `docs/combat-rules.md`、`docs/level_authoring.md`、`docs/art-spec.md` 为准；
-> 改动必须落到玩家能看见、听见、操作到的内容。
+本页记录标题活景、14章重做和系统升级的当前状态。**总验收仍在进行，不能把逐章夹具或恢复调试当成新游戏完整战役。** 章节细节见 `docs/level-redesign/`，规范见 `docs/level_authoring.md`，历次验收见 `docs/acceptance.md`。
 
-## 0. 方向与底线
+## 工作区与不变契约
 
-- **标题**：静态 keyart 换成游戏内实时像素场景（真实骑士精灵 + 背扛巨剑、PointLight2D、多层视差、粒子），
-  随存档进度/结局变化；版式与动效整体重做。`TitleScreen.USE_LIVE_SCENE` 可回退 keyart。
-- **关卡**：14 章全部重排地形/遭遇/路线；每章新增 1–2 个专属机关/危险和少量敌人变体；
-  第一章前半微调、后半重建。**玩家能力不变**（主线仍只需单跳/冲刺/热锻）。
-- **底线**：故事与 14 章顺序、存档 v2 兼容不变；level01 的裸路径持久化节点
-  （`Props/EmberNest`、`Props/EmberNestEast`、`Props/Door`、`Props/RustyGate`、`Props/ForgeHeart`、
-  `Pickups/EmberCore`、`Props/ScrapPile`）不改名。
-- **门禁**：每阶段全量 `tools/run_tests.ps1` + `LevelSanity` + 渲染机位截图通过才进下一阶段；一阶段一提交。
-- **分支**：最初为 `feature/overhaul-v3`（自 `merge/all-branches` 的 `8bfa46f` 基线提交切出）。
-  当前续作在独立 `codex/overhaul-v3-completion`，以整合基线 `8b91f22` 开始；原目录的未提交改动不纳入本次提交。
+当前整合分支为 `codex/overhaul-v3-completion`，工作区 `C:/Users/Administrator/.codex/worktrees/overhaul-v3-completion/Rustgrave`，起点 `8b91f22`。原 OneDrive 工作区的未提交改动不纳入。每个完整功能、修正和验收文档单独提交；截图与日志留在忽略的 `screenshots/` 中，未推送或发布。
 
-## 1. 基线（P0）
+故事及14章顺序保持不变；主线只要求普通单跳、冲刺、热锻，钩锁与额外跳跃属于可选支路。第一章继续使用手摆场景，不登记到 `GameContext.LAYOUTS`；旧 `Props/EmberNest`、`EmberNestEast`、`Door`、`RustyGate`、`ForgeHeart`、`ScrapPile`、`Pickups/EmberCore` 等存档路径保留。新存档实现兼容v2迁移，不能以当前写入版本号推断兼容性。
 
-- 工作区的标题 WIP（`dossier_jag` / `keyart_knight_light` / `title_metrics` / 0.2.0 版本号）已做基线提交 `8bfa46f`；
-  无关的 `artifacts/taihe-cherry/*.pptx` 未纳入。
-- 导入后全量回归：**1182/1182 通过，0 engine errors**（约 305 秒，独立 `%TEMP%` APPDATA）。
-  日志：`screenshots/acceptance/overhaul-v3/baseline/stdout.log`（`screenshots/` 为 gitignore 的本地证据目录）。
+## 阶段状态
 
-## 2. 阶段清单
+| 阶段 | 当前结果 | 证据与剩余边界 |
+| --- | --- | --- |
+| P0 | 完成 | 标题WIP基线 `8bfa46f`，排除无关pptx；当时全量1182/1182 |
+| P1 | 完成实现与全量验证 | 五种机关、布局/体检/提示、敌人变体与脱战群警戒、读档安全、Boss破势；`p1-poise/full-final` 1298/1298、0引擎错误 |
+| P2 | 完成实现与定向渲染 | 活景/回退、版式/动效、14盏可见进度灯、守火坐姿、真实遮挡、竞技场入口；`docs/title-live-scene.md`，标题/性能专项报告 |
+| P3 | 完成重建与定向验收 | 第一章后半偏殿/工坊/长阶/炉厅；新游戏基本能力双路线已通过，见下表 |
+| P4 | 完成三章实现与定向验收 | 02/02b/03蓝图、地形、机关、遭遇、恢复修正和双分辨率机位；全程输入仍在整合验收 |
+| P5 | 完成四章实现与定向验收 | 04/04b/05/06；补唱诗阶梯、地窖东西回路净空和传送带真实速度导航 |
+| P6 | 完成六章实现与定向验收 | 07/07b/08/09/09b/10；补折返次序、斜坡接地、熄灭浇口安全查询、Herald世界区域坐标 |
+| P7 | 完成实现与专项验收 | 手柄、五项辅助、显示、地图、总结与复战、复活、音频、预算；Start与次级绑定冲突另作修正 |
+| P8 | **未完成** | 正在跑无章节过滤的整合全量；仍需新游戏14章正常输入成功、最终证据归档与结项报告 |
 
-- [x] P0 基线与分支
-- [x] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒 + 读档坐标安全 + Boss 连续终结击破势
-- [ ] P2 标题活景（`TitleWorld`）+ 版式与动效重做 + `ID_ARENA` 接线
-- [ ] P3 第一章（前半微调 + 后半重建）
-- [ ] P4 第一幕：level02 / level02b / level03
-- [ ] P5 第二幕：level04 / level04b / level05 / level06
-- [ ] P6 第三四幕：level07 / level07b / level08 / level09 / level09b / level10
-- [ ] P7 系统升级：手柄、辅助选项、显示设置、地图热键、回看余烬总结页、复活 QoL、机关音效、性能预算
-- [ ] P8 总验收：战役 bot（机关感知 + 辅助选项）、14 章输入验收、渲染矩阵、性能探针、文档与最终报告
+并行阶段采用逐章定向门禁，再做整合全量。历史未在每次合入前完成全套的事实保留，不追认成“每阶段全量先通过”。先前 `full-final` 是1405/1406、0引擎错误、`passed=false`，唯一失败为修正前第三章恢复布局；它不是最终通过证据。
 
-## 3. 验收总则
+## 原始要求与实现索引
 
-1. 每个改动要有证据：测试通过 + 实际渲染截图（`tools/run_peek_live.ps1`）或输入验收日志。
-2. 证据归档到 `screenshots/acceptance/overhaul-v3/<阶段>/`；`docs/acceptance.md` 只记路径与结论。
-3. 无法验证的项如实列出：真机触屏、手柄实机手感、真人试玩手感、实体显示器性能。
-4. 新机关的硬规则（`LevelSanity` 拒绝）：预警 ≥0.5s；余烬巢/压板/出口/落脚区无判定；相位在出生时固定；
-   塌陷台不得是巢/压板/出口的唯一支撑；风/涌流区不覆盖余烬巢。
+### P1 机关、敌人、存档与Boss
 
-## 4. 决策与变更记录
+- `scripts/hazards/`：CyclicHazard、CollapsingPlatform、ForceZone、ConveyorBelt、PendulumHazard；每类独立测试。`ChapterLayout` 提供对应装配助手，PlayerController以 `add_environment` 接受环境外力。
+- `LevelSanity` 与 `TraversalModel` 检查危险区、支撑和路径；周期机关预警至少0.5秒，安全物不落在判定区/塌陷台/传送带上。出生相位固定，机器人读取 `safe_window()` 等真实时序。
+- `HazardFx` / `HintService` 提供首遇提示及音效。`EnemyVariants` 负责装甲/疾行碎铁犬、重盾卫、散射喷吐者、爆裂骸骨；EnemyBase处理脱战与群警戒。
+- `SpawnSafety` 接入第一章、第二章及通用章节：不安全读档坐标回退到安全巢或缺省出生点；迁移回归保护旧存档。
+- 七个Boss的实际玩家剑终结击在5秒内累计两次触发破势：收回当前近战/预警，0.8秒恢复、1.6秒免累计。暂停/过场/重置有测试；不改变伤害、阶段、攻击ID和判定形状。`boss_poise` 6/6、111断言；真实场景金色破势图是注入两次伤害的表现夹具。
 
-### 并行推进快照（P2 起）
+### P2 标题
 
-- 主分支 `feature/overhaul-v3` 已含 P0 / P1（提交 `d2bd684`）与通用简报 `docs/overhaul-v3-brief.md`（`124059e`）。
-- 十个并行 worktree 已建好（均自 `124059e` 切出，已拷入 `.godot` 导入缓存并验证能跑测试）：
-  `C:\dev\rg-title`（标题）、`rg-level01`（第一章）、`rg-systems`（P7 系统）、`rg-g1`（02 / 02b）、`rg-g2`（03 / 04）、
-  `rg-g3`（04b / 05）、`rg-g4`（06 / 07）、`rg-g5`（07b / 08）、`rg-g6`（09 / 09b）、`rg-g7`（10）；分支名 `feature/overhaul-v3-<名字>`。
-- 各 agent 的任务书在 `docs/overhaul-v3-agents/<名字>.md`（未提交，随主工作区）。
-- 待办：全量回归复核（P1 修完两处测试写法后只复跑了相关文件）；启动各 agent；逐个合并回 `feature/overhaul-v3`；
-  再做 P8（战役 bot 升级与 14 章输入验收、渲染矩阵、最终文档）。
-- 阻塞记录：本轮后段 Shell 工具被环境 hook（`enforce-agent-api.sh` 返回非法 JSON）拦截，之后的命令（测试 / git / 启动 agent）都等该问题解除后再继续。
+`TitleWorld` 在640×360 SubViewport渲染，经 `Keyart` 兼容节点和像素缩放输出。包含真实骑士/巨剑、视差锻厅、逐帧齿轮、吊灯/链环、8个点光、真实遮挡、光柱和粒子、整像素相机呼吸与鼠标视差。无存档、四幕、送剑、守火、熄灭按真实存档状态构建，14盏灯逐章点亮；守火有独立坐姿。
 
-### P1（机关工具箱 / 敌人 / 存档安全）
+`TitleScreen` 提供白热锻造Logo、四组铁条菜单、14格旅程刻度/Tab档案、墓志打字机和致谢，开场/进关/退出联动炉厅光与音频。`ID_ARENA` 接 `ArenaRun.start()`；保留原Menu/ID/确认/过场接口。`USE_LIVE_SCENE` 可回退keyart。三档分辨率四变体的live/keyart矩阵与阴影/进度补图分别记录；几何指标不能替代看图。
 
-- 五个机关基类（`CyclicHazard` / `CollapsingPlatform` / `ForceZone` / `ConveyorBelt` / `PendulumHazard`）
-  + `HazardFx`（音效键解析、首遇提示、像素绘制助手）落在 `scripts/hazards/`；`ChapterLayout` 增加
-  `cyclic/collapsing/force_zone/conveyor/pendulum` 助手；规则与参数写进 `docs/level_authoring.md` §8。
-- `PlayerController.add_environment(push, drag)` 是唯一外力入口（风 / 涌流 / 泥沼）；没有外力时行为与旧版逐位一致。
-- `LevelSanity` 新增 `_check_hazards`（预警/安全间隔/净空/塌陷台与传送带不得当休息点/外力区不盖巢）与
-  `LevelSanity.hazards(host)`；`TopSeg.kind` 标记塌陷台与传送带。
-- 敌人：`EnemyVariants`（装甲碎铁犬、疾行碎铁犬、重盾卫、散射喷吐者、爆裂骸骨）；`EnemyBase` 增加
-  `variant` / `alert_radius`（群警戒）/ `lose_range`（骸骨脱战回巢），默认全 0，与旧行为一致。
-- `SpawnSafety`：读档 / 重生坐标落进实心或机关判定区时，退到最后点亮的巢 → 任意巢 → 缺省出生点；
-  已接进 `Level01Static` / `Level02Undercroft` / `ChapterLevel`。
-- **Boss 韧性已补齐**：5 秒内两次实际造成伤害的玩家剑终结击触发破势；轻击、重击、火焰/剑波、反射物、
-  格挡和无敌帧不累计。普通连段不会清掉已有累计。七个 Boss 各自撤回当前近战与预警，停止移动并露出金色空当，
-  恢复期 0.8 秒，触发后 1.6 秒免累计；已发射弹体与场地机关仍按原寿命运行。暂停、过场锁、导演冻结时计时停止，
-  重试/死亡清空累计。没有新增伤害倍率，也不改变阶段、缩放或攻击表。
-- 外观检查工具：`tools/hazard_probe.gd`（`scenes/tools/HazardProbe.tscn`）；证据 `screenshots/acceptance/overhaul-v3/p1/`。
-- 全量回归：1237 项，除两处本阶段新增用例的测试写法问题（已修）外全部通过，0 engine errors。
-  （前序用例会泄漏导演过场锁，机关遇锁冻结，所以机关测试在 `setup()` 里归一化 `Director._set_lock(false)`。）
+### P3—P6 章节
 
-### 2026-10-24 续作：Boss 破势验收
+每章蓝图、节点/存档契约、三处遭遇、专属机关、单向回巢、奖励挑战、巢间距、Boss场和首遇测试详见同名文档。机位证据是固定骑士/相机的真实渲染，机关与AI是否运行以各章记录为准。
 
-- `tests/boss_poise_test.gd`：6/6、111 条断言，覆盖七个 Boss 活动判定立即撤回、前摇/预警取消、实际命中路径、
-  格挡/致死优先级、轻击保留累计、过期/冷却、暂停/过场/重置，以及阶段与判定形状不变。
-- 全量 `tools/run_tests.ps1`：**1298/1298 通过，0 engine errors**；
-  `screenshots/acceptance/overhaul-v3/p1-poise/full-final/summary.json` 确认 `completed=true`、`passed=true`。
-- 真实第一章竞技场的渲染夹具 `scenes/tools/BossPoiseAcceptance.tscn`：三张截图已查看，
-  `p1-poise/render/report.json` 确认破势、近战撤回、金色空当与恢复均通过，无引擎错误。
-  夹具会摆放角色并注入两次真实伤害调用，**不能替代正常输入通关**。
-- 整合基线已有标题/第一章、02/02b 地形与手柄默认映射；其余章节与系统仍需按各自门禁完成。
-  阶段清单保留未验收项，不沿用附件中未经证据支持的完成标记。
+| 章节 | 重做内容 | 当前机位证据（相对 `screenshots/acceptance/overhaul-v3/`） |
+| --- | --- | --- |
+| 01 | 前半保留教学；后半压板偏殿、火口工坊、下沉长阶、抬台双炉口竞技场 | `level01/`；`docs/level-redesign/level01.md` |
+| 02 | 螺旋下探、坠钟预警、空钟笼竞技场；下沉大厅基本单跳恢复 | `g1/`、`level02-recovery/` |
+| 02b | 双水位、涌流、抽水井/检修台、绞盘排水场；坑岸与吊台交接净空 | `g1/`、`level02b-recovery/` |
+| 03 | 街面/屋顶环线、塌瓦落物、下沉巷/市场/高庭；门上砖楣保留压板意义 | `level03-resume/`、`level03-recovery/`、`level03-route-fix/` |
+| 04 | 环形唱诗回廊、钟鸣波/壁龛、上下场地；清除末阶头顶回廊 | `level04/`、`level04-stair-fix/` |
+| 04b | 暗室烛光限时阶梯与地窖竞技场；东攀与西返实体输入均通过 | `level04b/`、`level04b-route-fix/` |
+| 05 | 320/224/112三层机械迷宫、传送带、独立蒸汽廊、五吊台 | `level05/` |
+| 06 | 环绕陵墓双路线、带毒锈泥、雾中骸骨和回巢路 | `level06/` |
+| 07 | 竖井、东西侧室、钟舌摆锤、七吊台和单向安全降落 | `level07/` |
+| 07b | 阶梯铸造线、与吊台时钟同步的熔注、真实斜坡钟模场 | `level07b/` |
+| 08 | 三渣河/四喷泉岛、低空火骷髅、上行台/回廊；天空下缘渐隐 | `level08/sky-edge-final/`，20张最终材质图 |
+| 09 | 塔楼辐射支路、阵风道/可恢复坑岸、塔顶奖励 | `level09/` |
+| 09b | 崖壁折返、余烬风、塌桥与落石分离、前哨/Herald场 | `level09b/` |
+| 10 | 上下环殿、柱台/炉台、随Nightmare阶段联动的炉心脉冲 | `level10/`；局部实战见 `nightmare-input-local/` |
+
+上述图组至少包含各章五机位×720p/1080p，特殊竖井/全景另列。更新过的03/04/04b与08补图优先于旧版本。逐图尺寸、脚点、校验和和限制见各章manifest/记录；`evidence-imports.json` 记录外部worktree来源。截图不证明14章连续通关。
+
+### P7 系统
+
+详见 `docs/system-options.md`。设置独立于战役存档，辅助默认均100%；显示支持持久化分辨率/垂直同步/三种缩放。地图M/Back可直开，过场禁开；总结页包含结局、14章/试炼/竞技场记录和指定Boss复战，复战隔离战役写入。死亡确认可跳过等待，HUD提示余烬巢复位。
+
+手柄全局映射、输入设备提示、设置重绑已实现。Start/Esc保留给暂停/子页返回，B仍是技能1；重绑检测主次token并只交换冲突项，持久化、旧配置、恢复默认及真实按键唯一触发有回归。`p7-secondary/` 中gamepad9/9、settings16/16、pause6/6，0引擎错误。
+
+机关新增14个专用提示/判定音效，标题床为24秒循环；生成器与音频数值验证只证明解码/峰值/直流/接缝。系统预算守卫限制每章机关≤32、Light2D≤64、世界节点≤6000；标题≤8点光/250节点。`systems/` 八张双分辨率图覆盖默认/135%字体、显示页、总结页，已检查内容与返回按钮；成绩是展示夹具。
+
+## P8 输入与性能证据
+
+| 范围 | 当前结果 | 限制 |
+| --- | --- | --- |
+| 第一章重燃→第二章、第一章熄灭 | `input-20261024-201053-832/{rekindle,snuff}.json`均PASS；`basic_abilities=true`、`resumed=false`、各1次真实死亡、0引擎错误，辅助均100% | headless固定60Hz加速；不是14章通关 |
+| 01—09b整合调试 | 正常输入已依次越过前13章路线并抵达Herald门前，修复沿途真实净空/时序问题 | 从合法存档恢复的多轮调试，不能拼接宣称一轮通关 |
+| Nightmare局部实战 | 三阶段、击杀、真实熔渣致死、复活、标题Continue及持久化均PASS；headless/rendered各一轮，33/33定向测试 | 开始前摆到竞技场巢并省略入口门，明确是局部夹具；未证明合法战役到达 |
+| 标题与14章性能探针 | CPU监视器和渲染回调分别采样，记录原始样本、窗口/视口/GPU/运行范围及离群值 | 离屏Windows OpenGL回调不等于实体屏幕FPS，不把CPU监视器相加当帧时长 |
+
+权威全量正在 `full-integrated-final/` 执行，必须无 `RUSTGRAVE_LEVEL_FILTER`，终结行为 `OK N/N passed; 0 engine errors` 且summary中 `passed=true`、`completed=true`。完成前不填写通过数。
+
+最终仍需：整合Herald正常输入策略后，从标题新游戏完成14章（`resumed=false`）；基本能力和渲染里程碑检查；最终全量/证据索引更新；关闭P8并给出最终报告。
+
+## 未验证项
+
+真机触屏/刘海、实体手柄手感、真人战斗与路线手感、音频主观混音、实体显示器的呈现/同步与性能均未验证。它们不由自动化、固定机位或数值音频检查替代。本任务不扩展多槽、完整i18n、Boss Director迁移或新玩家招式。
