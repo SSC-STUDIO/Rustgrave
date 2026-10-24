@@ -93,3 +93,22 @@ func test_map_snapshot_collects_the_live_world() -> void:
 	world.queue_free()
 	empty.queue_free()
 	await flush(1)
+
+
+func test_map_hotkey_opens_directly_and_returns_to_play() -> void:
+	Director.abort()
+	GameContext._blocked_through_frame = -1
+	var menu := PauseMenu.new()
+	add_child(menu)
+	await flush(1)
+	var event := InputEventAction.new()
+	event.action = &"map"
+	event.pressed = true
+	menu._unhandled_input(event)
+	ok(menu.map_screen().visible, "dedicated hotkey goes directly to map")
+	ok(get_tree().paused, "map pauses play")
+	menu.map_screen().close()
+	await flush(20)
+	ok(not menu.is_open(), "closing direct map returns to play")
+	ok(not get_tree().paused)
+

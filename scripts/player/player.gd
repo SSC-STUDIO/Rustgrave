@@ -986,6 +986,16 @@ func _try_passive_heal() -> void:
 		Sfx.play(&"pickup", 0.05, -8.0)
 
 
+var _respawn_wait: Timer
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _respawn_wait != null and is_instance_valid(_respawn_wait) and not _respawn_wait.is_stopped() 			and not event.is_echo() and event.is_action_pressed("ui_accept"):
+		_respawn_wait.stop()
+		_respawn_wait.timeout.emit()
+		get_viewport().set_input_as_handled()
+
+
 func _on_died() -> void:
 	Sfx.play(CombatRules.sfx_key(&"death"))
 	if Director.playing:
@@ -994,13 +1004,18 @@ func _on_died() -> void:
 		_anim.play("death")  # 物理停摆后由 _process 继续播完倒地
 	set_physics_process(false)
 	GameEvents.player_died.emit()
-	GameEvents.announcement.emit("余烬熄灭…")
+	if TrialRun.active() or ArenaRun.active():
+		return
+	GameEvents.announcement.emit("余烬熄灭… · 按确认立即重燃")
 	var wait := Timer.new()
+	_respawn_wait = wait
 	wait.one_shot = true
 	wait.wait_time = 1.15
 	add_child(wait)
 	wait.start()
 	await wait.timeout
+	_respawn_wait = null
+	wait.queue_free()
 	if not is_instance_valid(self) or get_tree() == null:
 		return
 	var nest := _resolve_lit_nest()

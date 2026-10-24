@@ -236,7 +236,7 @@ func close() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept"):
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept") or event.is_action_pressed("map"):
 		close()
 		get_viewport().set_input_as_handled()
 
