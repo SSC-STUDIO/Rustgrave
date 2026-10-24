@@ -31,6 +31,7 @@ func test_arrival_from_the_forge_drops_the_knight_into_the_shaft() -> void:
 	eq(WorldClock.zone, WorldClock.Zone.INDOORS, "the undercroft is indoors")
 	ok(SaveData.has_flag("l2_wake"), "first entry plays the level title beat")
 	ok(level.get_node_or_null("Props/EmberNestShaft") != null)
+	ok(level.get_node_or_null("Props/EmberNestVault") != null)
 	ok(level.get_node_or_null("Platforms/LiftC") is MovingPlatform)
 	ok(level.get_node_or_null("Enemies/Ghost1") is GhostEnemy)
 	# Falling: the shaft has no floor until FloorA.
@@ -61,6 +62,18 @@ func test_ledge_plate_opens_the_hall_door() -> void:
 	player.velocity = Vector2.ZERO
 	await flush(12)
 	ok(door.is_open, "standing on the ledge plate opens the door")
+
+
+func test_upper_bridge_shortcut_plate_opens_the_ground_shortcut_door() -> void:
+	var level := await _live_level()
+	var player := get_tree().get_first_node_in_group("player") as Player
+	var s_door := level.get_node("Props/ShortcutDoor") as ArenaDoor
+	var s_plate := level.get_node("Props/ShortcutPlate") as PressurePlate
+	ok(not s_door.is_open, "shortcut door starts shut")
+	player.global_position = s_plate.global_position + Vector2(8, -8)
+	player.velocity = Vector2.ZERO
+	await flush(12)
+	ok(s_door.is_open, "stepping on the upper bridge shortcut plate unlocks the ground shortcut door")
 
 
 func test_rusty_gate_needs_and_takes_heat_forge() -> void:
