@@ -26,7 +26,8 @@ const STEPS: Array = [
 	["ChoirLoft", Vector2(784, 224), 224.0],
 	["ChoirRecoveryUpper", Vector2(1032, 256), 48.0],
 	["ChoirRecoveryStep", Vector2(1104, 288), 48.0],
-	["GalleryReturn", Vector2(400, 192), 384.0],
+	# Leave the final choir-stair jump clear of the return gallery's underside.
+	["GalleryReturn", Vector2(400, 192), 336.0],
 	["GalleryWest", Vector2(1008, 192), 432.0],
 	["GalleryEast", Vector2(1496, 192), 440.0],
 	["BridgeB1", Vector2(1936, 288), 48.0],

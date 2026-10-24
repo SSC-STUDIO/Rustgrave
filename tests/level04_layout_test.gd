@@ -42,6 +42,32 @@ func _still(host: Node2D) -> void:
 		h._set_armed(false)
 
 
+func test_real_inputs_reach_the_choir_plate_and_west_return_gallery() -> void:
+	var host := _build()
+	for e in host.get_node("Enemies").get_children(): e.queue_free()
+	for h in LevelSanity.hazards(host): h.queue_free()
+	await flush(2)
+	var player := await spawn_player(host, Vector2(176, 300))
+	var driver = preload("res://tests/fixtures/navigation_driver.gd").new()
+	driver.world = host
+	add_child(driver)
+	for feet in [LevelSanity.feet_of(host.get_node("Props/ChoirPlate")), Vector2(424, 192)]:
+		driver._nv_goal = feet
+		var route: Array[Dictionary] = driver._nv_path(driver._nv_segments(), feet)
+		ok(not route.is_empty(), "choir stair and return jump retain actual body clearance")
+		if route.is_empty(): return
+		for i in range(1, route.size()):
+			var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+			ok(crossed, "cathedral input edge %d to %s; feet=%s" % [i, feet, player.position])
+			if not crossed:
+				driver._release()
+				return
+		ok(await driver._nv_flat(feet.x, feet.y, false))
+	ok((host.get_node("Props/ChoirDoor") as ArenaDoor).is_open, "real pressure plate signal opens the street gate")
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()
+
+
 func test_metadata_and_persistent_v2_paths_are_preserved() -> void:
 	var host := _build()
 	var layout := L4.new()
