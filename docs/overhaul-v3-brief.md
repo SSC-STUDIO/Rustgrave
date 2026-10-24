@@ -10,9 +10,12 @@
 - **先在你的 worktree 根目录导入一次**（新建 `.godot` 缓存，也会登记新的 `class_name`；新增/改名脚本后要再跑一次）：
   `& "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --headless --path . --import`
 - 跑测试（只在你的 worktree 里；用 `-CaseFilter` 做路径子串过滤，**不要频繁跑全量**，全量约 5–6 分钟）：
-  `& ./tools/run_tests.ps1 -CaseFilter level05 -TimeoutSeconds 240 -ArtifactsDir screenshots/acceptance/overhaul-v3/<你的名字>/tests`
-  结果看 `<ArtifactsDir>/stdout.log` 里的 `[PASS]/[FAIL]` 行与最后的 `OK — N/N passed; 0 engine errors`。
-- 单关几何体检：`$env:RUSTGRAVE_LEVEL_FILTER='level05'; & ./tools/run_tests.ps1 -CaseFilter level_sanity -TimeoutSeconds 240`
+  `$art = Join-Path (Get-Location).Path 'screenshots/acceptance/overhaul-v3/<你的名字>/tests'; & ./tools/run_tests.ps1 -CaseFilter level05 -TimeoutSeconds 240 -ArtifactsDir $art`
+  **`-ArtifactsDir` 必须传绝对路径**（相对路径会按进程启动目录而不是你的 worktree 解析）。
+  结果看 `$art/stdout.log` 里的 `[PASS]/[FAIL]` 行与最后的 `OK — N/N passed; 0 engine errors`；
+  只想看结论可以：`Get-Content "$art/stdout.log" | Select-String '^\[FAIL\]|^     - |^(OK|FAILED) '`。
+  测试会泄漏导演过场锁等全局状态（单跑通过、全量失败的典型原因）：依赖 `Director` 的用例在 `setup()` 里 `Director._set_lock(false)`。
+- 单关几何体检：`$env:RUSTGRAVE_LEVEL_FILTER='level05'; & ./tools/run_tests.ps1 -CaseFilter level_sanity -TimeoutSeconds 240 -ArtifactsDir $art`
 - 渲染看图（窗口模式，机位停放，不是通关）：
   `& ./tools/run_peek_live.ps1 -Level level05 -OutDir screenshots/acceptance/overhaul-v3/<你的名字>/level05 -Spots 320,960,1600,2240 -Hold 2 -Lit -Active -Win 1280x720`
   （`-Spots` 是镜头中心 x，一屏 640 宽；竖向关加 `-CamY`；用 Read 工具逐张打开 PNG 看：悬空、埋地、遮挡、空荡、颜色打架。）
