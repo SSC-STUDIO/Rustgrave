@@ -39,6 +39,27 @@ func test_every_rebindable_action_has_default_gamepad_binding() -> void:
 			ok(ev.is_action_pressed(action), "%s 手柄事件能触发 InputMap 动作" % String(action))
 
 
+func test_start_and_escape_cancel_without_consuming_skill_button() -> void:
+	var start := InputEventJoypadButton.new()
+	start.button_index = JOY_BUTTON_START
+	start.pressed = true
+	ok(start.is_action_pressed(&"ui_cancel"), "真实 Start 事件映射到暂停 / 返回")
+	eq(Settings.rebind_pad_action(&"jump", start, false), &"reserved", "Start 仍不可重绑")
+
+	var escape := InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.physical_keycode = KEY_ESCAPE
+	escape.pressed = true
+	ok(escape.is_action_pressed(&"ui_cancel"), "Esc 仍映射到暂停 / 返回")
+	eq(Settings.rebind_action(&"jump", KEY_ESCAPE, false), &"reserved", "Esc 仍不可重绑")
+
+	var skill := InputEventJoypadButton.new()
+	skill.button_index = JOY_BUTTON_B
+	skill.pressed = true
+	ok(skill.is_action_pressed(&"skill_1"), "B 继续触发技能 1")
+	ok(not skill.is_action_pressed(&"ui_cancel"), "B 不触发暂停 / 返回")
+
+
 func test_move_axis_deadzone_filters_stick_drift() -> void:
 	almost(InputMap.action_get_deadzone(&"move_left"), 0.2, 0.01, "move_left 死区为 0.2")
 	almost(InputMap.action_get_deadzone(&"move_right"), 0.2, 0.01, "move_right 死区为 0.2")
