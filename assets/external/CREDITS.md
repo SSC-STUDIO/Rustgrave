@@ -274,3 +274,11 @@
   or legacy horse pixels are read; this replaces NightmareBoss's old horse art.
 - Rights: source and output delivered for project use; the authorship manifest
   includes palette, dimensions and per-frame hashes. No external source URL.
+
+## Original Capstan Warden pixel animation
+- Project-original contour and articulated pose source:
+  `tools/gen_original_choir_warden.py`; no image inputs or external source URL.
+- `assets/characters/original_capstan_warden/`: 38 native-size pixel frames,
+  diving armor, horizontal winch and chain anchor. Replaces the guard recolor.
+- Source and output delivered for project use. `authorship.json` records
+  the palette and individual frame pixel hashes.
