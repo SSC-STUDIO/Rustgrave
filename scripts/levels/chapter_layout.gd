@@ -529,6 +529,24 @@ func pendulum(host: Node2D, node_name: String, pivot: Vector2, length: float,
 	return swing
 
 
+## 烛光桥（16px 厚悬空踏台，平时无碰撞半透明，靠近或挥砍 candle_pos 处的烛台后实心 lit_time 秒）。
+## pos = 左上角；candle_pos = 烛台脚点（世界坐标）。
+func candle_bridge(host: Node2D, plat_name: String, pos: Vector2, width: float,
+		candle_pos: Vector2, props: Dictionary = {}, skin: String = "nave_float",
+		tone: Color = Color.WHITE) -> CandleBridge:
+	var bridge := CandleBridge.new()
+	bridge.name = plat_name
+	bridge.skin = skin
+	bridge.position = pos
+	bridge.size = Vector2(width, WORLD)
+	bridge.candle_pos = candle_pos
+	bridge.tone = tone
+	for key in props:
+		bridge.set(key, props[key])
+	group(host, "Platforms").add_child(bridge)
+	return bridge
+
+
 ## ---------------------------------------------------------------- decor --
 
 ## 壁炬（墙板 64×192 居中于 pos；y = 台面 - 96 时板底贴台面）。
