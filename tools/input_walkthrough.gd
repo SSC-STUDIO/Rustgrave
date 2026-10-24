@@ -1018,14 +1018,21 @@ func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
 	# old single waist-height probe clear, so walking off that edge never works.
 	var probe := Rect2(Vector2(r.end.x + 0.5 if right else r.position.x - 14.5,
 			r.position.y - 26.0), Vector2(14.0, 26.0))
+	# Adjacent pieces of one continuous floor have no walk-off at their join.
+	# Keep walking through the next segment until a real edge or stair exists.
+	var foot_probe := Vector2(r.end.x + 0.5 if right else r.position.x - 0.5,
+			r.position.y + 0.5)
 	for s in _nv_solids():
 		if s.grow(-0.5).intersects(probe): return true
+		if absf(s.position.y - r.position.y) < 1.0 and s.has_point(foot_probe): return true
 	return false
 
 
 func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
 	var landing := from.end.x + 12.0 if right else from.position.x - 12.0
-	if landing < to.position.x + 11.0 or landing > to.end.x - 11.0 or _nv_edge_blocked(from, right):
+	# A landing may support part of the body at its outer lip; unlike an
+	# intermediate obstacle, its edge does not need the entire descent sweep.
+	if landing < to.position.x + 3.0 or landing > to.end.x - 3.0 or _nv_edge_blocked(from, right):
 		return false
 	# A stair under the departure ledge catches the knight before the claimed
 	# lower floor. Route through that real landing instead of retrying forever.
@@ -1072,8 +1079,10 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		if not _nv_drop_side_clear(ar, br, right): right = not right
 		if not _nv_drop_side_clear(ar, br, right): return false
 		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
+		# Leave room for the steering deadband inside the destination's 3px
+		# success margin, even when only its outer lip supports the landing.
 		drop_landing = clampf(ar.end.x + 12.0 if right else ar.position.x - 12.0,
-				br.position.x + 12.0, br.end.x - 12.0)
+				br.position.x + 6.0, br.end.x - 6.0)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
@@ -1148,6 +1157,10 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			return false
 		await _frames(1)
 	_release()
+	print("[CROSS TIMEOUT] feet=%s velocity=%s floor=%s destination=%s drop_target=%s" % [
+			_player().position if _player() else Vector2.INF,
+			_player().velocity if _player() else Vector2.INF,
+			_player().is_on_floor() if _player() else false, br, drop_landing])
 	return false
 
 

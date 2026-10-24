@@ -135,6 +135,48 @@ func test_walkoff_clears_the_whole_body_before_braking() -> void:
 	driver._release()
 
 
+func test_cathedral_contiguous_bridge_descends_at_the_real_east_stair() -> void:
+	var host := _host()
+	var layout := preload("res://scripts/levels/chapters/level04_layout.gd").new()
+	add_child(layout)
+	layout.build(host)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	for hazard in LevelSanity.hazards(host):
+		hazard.queue_free()
+	await flush(2)
+	var player := await spawn_player(host, Vector2(2168, 232))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(3110, 320)
+	var bridge_west := Rect2(1984, 256, 144, 16)
+	var bridge_east := Rect2(2128, 256, 240, 16)
+	var dry_bed := Rect2(1888, 352, 576, 16)
+	ok(driver._nv_edge_blocked(bridge_west, true), "east join continues onto the next bridge piece")
+	ok(driver._nv_edge_blocked(bridge_east, false), "west join continues onto the previous bridge piece")
+	ok(not driver._nv_link(_segment(bridge_west), _segment(dry_bed)), "neither join invents a drop through the continuous bridge")
+	ok(not driver._nv_link(_segment(bridge_east), _segment(dry_bed)), "east descent must visit the actual intermediate stair")
+	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
+	ok(not route.is_empty(), "actual cathedral geometry has a basic-input exit")
+	if route.is_empty(): return
+	var uses_stair := false
+	for edge in route:
+		uses_stair = uses_stair or edge.r.position == Vector2(2368, 288)
+	ok(uses_stair, "route follows BridgeB4 instead of alternating between bridge pieces")
+	for i in range(1, route.size()):
+		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+		ok(crossed, "cathedral edge %d uses real movement; feet=%s" % [i, player.position])
+		if not crossed:
+			driver._release()
+			return
+	ok(await driver._nv_flat(3110, 320, false))
+	ok(player.is_on_floor() and player.health.current > 0)
+	ok(not player.controller.extra_jumps_unlocked)
+	ok(not player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER))
+	driver._release()
+
+
 func test_walkoff_chooses_the_other_edge_when_a_balcony_blocks_the_head() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()
