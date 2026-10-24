@@ -786,7 +786,8 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 			# A lower stair in the gap catches a descending body before the
 			# distant floor. Visit that landing instead of claiming a direct drop.
 			if br.position.y > ar.position.y + 8.0 and r.position.y > ar.position.y + 0.5 \
-					and r.position.y < br.position.y - 0.5 and r.position.x < x1 and r.end.x > x0:
+					and r.position.y < br.position.y - 0.5 and r.position.x < x1 and r.end.x > x0 \
+					and (r.position.x >= ar.end.x - 0.5 or r.end.x <= ar.position.x + 0.5):
 				return false
 			# Walk over an actual connecting floor before climbing its stair.
 			# Skipping that floor invents a gap and an unnecessary airborne dash,
@@ -1023,12 +1024,14 @@ func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
 
 
 func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
-	var landing := from.end.x + 8.0 if right else from.position.x - 8.0
-	if landing < to.position.x + 7.0 or landing > to.end.x - 7.0 or _nv_edge_blocked(from, right):
+	var landing := from.end.x + 12.0 if right else from.position.x - 12.0
+	if landing < to.position.x + 11.0 or landing > to.end.x - 11.0 or _nv_edge_blocked(from, right):
 		return false
 	# A stair under the departure ledge catches the knight before the claimed
 	# lower floor. Route through that real landing instead of retrying forever.
-	var descent := Rect2(landing - 7.0, from.position.y, 14.0, to.position.y - from.position.y)
+	# Steering/braking can drift four pixels around the landing center. A
+	# nominal 16px shaft beside a floor is too tight for that 14px body sweep.
+	var descent := Rect2(landing - 11.0, from.position.y, 22.0, to.position.y - from.position.y)
 	for solid in _nv_solids():
 		if solid.position.y > from.position.y + 0.5 and solid.position.y < to.position.y - 0.5 \
 				and solid.grow(-0.5).intersects(descent): return false
@@ -1069,8 +1072,8 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		if not _nv_drop_side_clear(ar, br, right): right = not right
 		if not _nv_drop_side_clear(ar, br, right): return false
 		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
-		drop_landing = clampf(ar.end.x + 8.0 if right else ar.position.x - 8.0,
-				br.position.x + 8.0, br.end.x - 8.0)
+		drop_landing = clampf(ar.end.x + 12.0 if right else ar.position.x - 12.0,
+				br.position.x + 12.0, br.end.x - 12.0)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
