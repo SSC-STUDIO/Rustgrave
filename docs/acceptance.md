@@ -1,5 +1,18 @@
 # Rustgrave 验收记录
 
+## 2026-10-24：七位Boss独立原创美术
+
+七位Boss现均读取各自的 `assets/characters/original_*` 素材，共459张透明像素PNG；不再以盾卫、幽魂或旧马匹帧充当Boss主体。设计与可编辑绘制源稿索引见 `docs/original-bosses.md`，权属说明见 `assets/external/CREDITS.md`。
+
+- 刽子手：闭面葬甲、碑盾和裂斧；空钟：双链悬挂裂钟及独立钟舌。
+- 绞盘守渠人：潜水压力甲、水平双绞筒与链锚；无声唱诗班：管风琴指挥及三种独立面具。
+- 铸钟人：四层铸模重甲、背炉和分节锤；炉风先驱：长喙冠、分节钢翼和镜眼尾羽。
+- 梦魇：窑骨骸马、外露炉心和名牌鬃，独立四足步态。
+
+`tools/art/review_original_bosses.py --reproduce` 再次完成459/459帧源稿重绘与逐像素比较，二值透明度、跨Boss零完全相同帧。三份源稿以像素簇和关节绘图，无图片输入、描图或下载角色帧；帧数与哈希是交付完整性检查，不单独作为原创性证明。七套轮廓、装备及动作逐个审阅，实际战斗阶段/前摇/判定/收招/倒地选择对应帧，保留原故事与判定契约。
+
+证据为 `screenshots/acceptance/overhaul-v3/original-bosses/{seven-original-bosses.png,original-assets-review.json}` 及该目录各Boss的渲染/战斗报告。画板按卡片独立放大，不表示游戏内体型；摆位和注入伤害的BossFixture只证明视觉与战斗状态，正常输入通关另列。
+
 ## 2026-10-24 v3 续作：Boss 连续终结击破势
 
 - 独立 `codex/overhaul-v3-completion`，整合基线 `8b91f22`；原 OneDrive 工作区的未提交内容未混入。
@@ -361,7 +374,7 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 - 工具现在能跑完 level01→level02 全流程（含刽子手战、死亡读档、Continue、下地窟、压板/毒坑），在 level02 空钟门前会**识别门禁并进入 Boss 战**；但输入机器人打不过空钟（玩家 7 血 vs Boss 18 血，无弹反/走位技巧），因此 **14 章全程通关仍未被机器人证明**。该门禁链改由测试覆盖：`hollow_bell_test`（死亡写旗标+清场）、`level02_layout_test`（条件门禁）、`chapter_progression_test`（击杀后推门→进入 level02b 并保存到达点）。
 - 真实输入 14 章通关：**未完成**。`scenes/tools/CampaignWalkthrough.tscn` 在本机 headless 跑 >20 分钟无输出（疑似等待游戏输入/标题流程），已中止；真实手柄/键盘人工通关也未做。因此"14 章可从头玩到尾"本轮**没有**正常输入证据，只有逐章 fixture/布局/路由/存储测试与各章渲染证据；这是本轮最大的未验证项。
 - 真机触控/刘海、960×540 与 1920×1080 的试炼菜单实拍（只验证布局数学与控件边界）；真机 Boss 战 HUD 未录。
-- Boss 视觉：新 Boss 主体为程序化像素 + 复用角色帧（CapstanWarden=gear_shield 冷青、SilentChoir=ghost 3 暖壳+2× 指挥、其余程序化），属可读性达标的占位美术；正式美术替换不改判定/测试。
+- Boss视觉（历史状态，已于2026-10-24取代）：当时CapstanWarden复用gear_shield、SilentChoir复用ghost，属于占位美术。当前七位均为独立原创像素帧，见本页“七位Boss独立原创美术”及 `docs/original-bosses.md`；不再将该历史描述用于当前版本。
 - 视觉审计 Phase B/C（扩章后重拍、Boss 房逐场构图）未全量完成：Phase A 已修 P0；02b/04b 有 before/after；其余扩章段与 7 场 Boss 房列入 `PHASE_B_QUEUE.md` / Phase C，待后续。
 - 外部角色/武器线未合并：契约 §3 + `LoadoutBridge`（feature-detect）+ 奖励位 + 可达性矩阵 + `LoadoutMergeCheck` 已就绪；合并时按契约 SMOKE 1–7 跑门禁。
 - `docs/` 与源码在同一分支；`screenshots/` 全量 gitignore（证据只在本地，路径如上）。
