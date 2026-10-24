@@ -714,7 +714,7 @@ func _nv_solids() -> Array[Rect2]:
 	for node in world.find_children("*", "", true, false):
 		if node is ArenaDoor and not node.is_open:
 			solids.append(Rect2(node.global_position, Vector2(16.0, 64.0)))
-		elif node is BreakableTerrain:
+		elif node is BreakableTerrain or node is DestructibleProp:
 			# Optional rubble is still a physical wall until its real chunks break.
 			# Read only the body's direct shapes, excluding the damage Hurtbox.
 			for child in node.get_children():
@@ -724,11 +724,41 @@ func _nv_solids() -> Array[Rect2]:
 	return solids
 
 
+func _nv_tops() -> Array[LevelSanity.TopSeg]:
+	var tops := LevelSanity.top_segments(_world_root())
+	# Decorative caches are real bodies too. Read their live collision tops so
+	# a jump landing on an intact cache can replan from that actual support.
+	for node in _world_root().find_children("*", "", true, false):
+		if not node is DestructibleProp and not node is BreakableTerrain: continue
+		for child in node.get_children():
+			if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
+				var size_: Vector2 = child.shape.size
+				var corner: Vector2 = child.global_position - size_ * 0.5
+				if size_.x >= 24.0:
+					tops.append(LevelSanity.TopSeg.new(corner.x, corner.x + size_.x, corner.y, String(node.name)))
+	return tops
+
+
+func _nv_clear_approach(feet: Vector2, direction: float) -> Vector2:
+	var solids := _nv_solids()
+	var tops := _nv_tops()
+	for offset in range(0, 81, 8):
+		var candidate := feet + Vector2(direction * offset, 0)
+		var body := Rect2(candidate - Vector2(7, 26), Vector2(14, 26))
+		var clear := LevelSanity.standing_on(tops, candidate, 3.0, 3.0) != null
+		for solid in solids:
+			if solid.grow(-0.5).intersects(body):
+				clear = false
+				break
+		if clear: return candidate
+	return feet
+
+
 func _nv_segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var world := _world_root()
 	var solids := _nv_solids()
-	for top in LevelSanity.top_segments(world):
+	for top in _nv_tops():
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := world.get_node_or_null("Platforms/" + name_) as MovingPlatform
 		if lift != null:
@@ -779,6 +809,15 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	if b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
 		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
 			return false
+	if a.lift == null and gap < 4.0 and ar.position.y - br.position.y > 24.0:
+		# The contiguous-riser controller launches 24px before its face. A
+		# walkable underpass may still have a ceiling across that upward path.
+		var right := br.get_center().x >= ar.get_center().x
+		var launch := ar.end.x - 24.0 if right else ar.position.x + 24.0
+		var rise := Rect2(launch - 7.0, br.position.y - 26.0, 14.0,
+				ar.position.y - br.position.y)
+		for solid in (_nv_solids() if solids.is_empty() else solids):
+			if solid.grow(-0.5).intersects(rise): return false
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:

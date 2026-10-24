@@ -166,7 +166,7 @@ func _title_continue() -> void:
 func _segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var solids := _nv_solids()
-	for top in LevelSanity.top_segments(_world()):
+	for top in _nv_tops():
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := _world().get_node_or_null("Platforms/" + name_) as MovingPlatform
 		if lift != null:
@@ -409,7 +409,8 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 		var gap := absf(dx)
 		if gap > 240.0 or absf(p.position.y - feet.y) > 48.0:
 			var side := signf(dx) if absf(dx) > 1.0 else 1.0
-			if not await _navigate(Vector2(boss.position.x - 120.0 * side, feet.y)): return false
+			var approach := _nv_clear_approach(Vector2(boss.position.x - 120.0 * side, feet.y), side)
+			if not await _navigate(approach): return false
 			_step = "campaign_boss_" + flag
 			continue
 		if flag == "hollow_bell_dead":

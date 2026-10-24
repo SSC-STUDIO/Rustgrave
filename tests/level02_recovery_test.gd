@@ -15,6 +15,42 @@ func teardown() -> void:
 		Input.action_release(action)
 
 
+func test_boss_approach_uses_the_belfry_instead_of_jumping_into_its_underside() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var layout := Level02Layout.new()
+	add_child(layout)
+	layout.build(host)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	for hazard in LevelSanity.hazards(host):
+		hazard.queue_free()
+	await flush(2)
+	var player := await spawn_player(host, Vector2(3104, 264))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = driver._nv_clear_approach(Vector2(3340, 320), 1.0)
+	ok(driver._nv_goal.x >= 3376.0, "approach leaves room for the body beside the intact cache")
+	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
+	ok(not route.is_empty(), "real arena terrain has an input route to the boss")
+	if route.is_empty(): return
+	var uses_belfry := false
+	for edge in route:
+		uses_belfry = uses_belfry or edge.r.position == Vector2(3200, 256)
+	ok(uses_belfry, "route climbs the east belfry before descending past its overhang")
+	ok(not driver._nv_link({"r": Rect2(3168, 320, 104, 16), "lift": null},
+			{"r": Rect2(3272, 288, 64, 16), "lift": null}),
+			"walkable underpass is not a jump launch through the belfry ceiling")
+	# The full navigator replans after a jump catches a different real landing.
+	# Exercise that production behavior rather than requiring a perfect hop.
+	ok(await driver._nv_navigate(driver._nv_goal, false), "normal input and live replanning reach the boss approach")
+	ok(is_instance_valid(host.get_node("Props/ArenaCacheEast")), "route keeps the original cache intact")
+	ok(player.is_on_floor() and player.health.current > 0)
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()
+
+
 func test_sunken_hall_has_a_basic_ability_recovery_route_before_shortcut_is_open() -> void:
 	var host := Node2D.new()
 	add_child(host)
