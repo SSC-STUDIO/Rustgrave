@@ -2,8 +2,8 @@ class_name ExecutionerBoss
 extends GearShieldEnemy
 ## 锻炉残室的刽子手。保留正面盾规则；半血后射弹加密并挥斧。
 ##
-## 演出（UPGRADE_PLAN 1D）：本章的高潮不能读成一个杂兵。和齿轮盾卫共用同一套
-## 100×100 帧，但刽子手按整数 2 倍绘制（BOSS_SCALE，脚点仍在节点原点 y=0），
+## 原创像素帧见 tools/art/gen_original_executioner_nightmare.py；不再复用盾卫。
+## 100×100 帧按整数 2 倍绘制（BOSS_SCALE，脚点仍在节点原点 y=0），
 ## 身体 / 受击盒 / 斩击落点随之同比放大 —— 判定关系与读招表不变，画面与判定
 ## 仍然同位同尺寸。身后一团有上限的加法背光把暗剪影从暗背景里剥出来，脚下有
 ## 接地阴影；进场时背光涌一下，二阶段转红热（斧上挂余烬），倒地后熄灭。
@@ -21,7 +21,8 @@ const SLASH_RECOVERY := 0.65
 ## 名号卡自己会把 "·" 前面压成「炉约刽子手」，显示不受影响。
 const BOSS_TITLE := "炉约刽子手 · 铸渣残躯"
 
-## 整数倍剪影（art-spec：精灵只允许整数倍）。同一张帧画 2 倍，Boss 才比盾卫高一头。
+const BOSS_CHAR := "original_executioner"
+## 保留原有整数2倍画幅、身体、受击与挥斧判定契约。
 const BOSS_SCALE := 2
 ## 帧基线：原图脚底距画布底边 16.5px、身体中线在画布 x≈56.5。1x 是 EXEC_POS(6,-34)，
 ## 2x 用 (13,-66) 让画出来的脚正好落在节点原点、身体中线落在 x=0（翻转由 Visual 负责）。
@@ -34,8 +35,8 @@ const BOSS_HURT_SIZE := HURT_SIZE * BOSS_SCALE     # 72×120
 ## 帧素材的主色几乎是纯黑（#0E0C0C），夜色 CanvasModulate 一乘就只剩剪影。
 ## 这里把整只 Body 的 modulate 抬到「暗剪影里仍读得出兜帽 / 甲片 / 斧柄」，
 ## 二阶段再往炉火色偏。数值 < 骑士的明度：Boss 永远比骑士暗，只是不再糊成黑洞。
-const BODY_LIFT := Color(2.45, 2.15, 1.95)
-const BODY_LIFT_HOT := Color(2.65, 1.75, 1.3)
+const BODY_LIFT := Color(1.12, 1.08, 1.03)
+const BODY_LIFT_HOT := Color(1.18, 0.98, 0.84)
 ## 斩击落点框：宽度随斧的画幅放大，仍贴地（底边 -4）、与判定盒同位同尺寸。
 const SLASH_ZONE_OFFSET := Vector2(22.0 * BOSS_SCALE, -18.0)   # (44,-18)
 const SLASH_ZONE_SIZE := Vector2(36.0 * BOSS_SCALE, 28.0)      # 72×28
@@ -139,11 +140,11 @@ func _enemy_ready() -> void:
 	shoot_interval = 2.0
 	aggro_range = 360.0
 	if _anim != null:
-		if CharFrames.available(EXEC_CHAR, "attack"):
-			var frames := CharFrames.anim(EXEC_CHAR, "attack")
+		if CharFrames.available(BOSS_CHAR, "attack"):
+			var frames := CharFrames.anim(BOSS_CHAR, "attack")
 			_anim.register("slash", frames, float(frames.size()) / (SLASH_WINDUP + SLASH_ACTIVE), false, BOSS_EXEC_POS)
-		if CharFrames.available(EXEC_CHAR, "skill"):
-			_anim.register("skill", CharFrames.anim(EXEC_CHAR, "skill"), 10.0, false, BOSS_EXEC_POS)
+		if CharFrames.available(BOSS_CHAR, "skill"):
+			_anim.register("skill", CharFrames.anim(BOSS_CHAR, "skill"), 10.0, false, BOSS_EXEC_POS)
 	_apply_body_lift()
 	_build_presence()
 	_build_boss_framework()
@@ -164,10 +165,10 @@ func _apply_body_lift() -> void:
 		visual.modulate = _body_lift()
 
 
-## 和盾卫同一套帧，但以整数 2 倍绘制；帧基线同步放大（play() 会重置 position）。
+## 原创闭面葬甲、碑盾和裂刃巨斧；基线兼容原有2倍画幅。
 func _build_visual() -> void:
 	_indicator = shield
-	_anim = _build_frame_anim(EXEC_CHAR, [
+	_anim = _build_frame_anim(BOSS_CHAR, [
 		["idle", "", 8.0, true, BOSS_EXEC_POS],
 		["block", "idle2", 8.0, true, BOSS_EXEC_POS],
 		# 蓄力施法 5 帧铺满整个 charge_time，最后一帧正好是释放。
@@ -592,13 +593,17 @@ func _begin_slash() -> void:
 
 
 func _update_anim() -> void:
-	if (_slash_next or _slash_phase == SlashPhase.ACTIVE) and _anim != null and _anim.has_anim("slash"):
-		_anim.play("slash")
-		return
-	if _slash_phase == SlashPhase.RECOVERY and _anim != null:
-		_anim.set_fps("idle", 3.0)
-		_anim.play("idle")
-		return
+	if _anim != null and _anim.has_anim("slash"):
+		# Explicitly align the raised blade, contact and return poses to combat.
+		if _slash_next:
+			_anim.pin_frame("slash", clampi(int((1.0 - _timer / SLASH_WINDUP) * 3.0), 0, 2))
+			return
+		if _slash_phase == SlashPhase.ACTIVE:
+			_anim.pin_frame("slash", 4)
+			return
+		if _slash_phase == SlashPhase.RECOVERY:
+			_anim.pin_frame("slash", 6 if _slash_timer > SLASH_RECOVERY * 0.5 else 7)
+			return
 	super._update_anim()
 
 
@@ -714,7 +719,7 @@ func _on_died() -> void:
 
 
 func _spawn_death_corpse() -> void:
-	var frames := CharFrames.anim(EXEC_CHAR, "death")
+	var frames := CharFrames.anim(BOSS_CHAR, "death")
 	if frames.is_empty():
 		return
 	var host := GameContext.world_effects(self)

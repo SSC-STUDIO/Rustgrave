@@ -255,3 +255,13 @@
   per stem with ffmpeg EBU R128 — beds -19.5 LUFS, hi layers -23.0 LUFS).
   `Music.BOSS_TRACKS_BY_LEVEL` maps level ids to tracks (level-first, then theme).
 - License: part of this project (CC0); no external samples are used.
+
+## Original Executioner pixel animation
+- Author/source: Rustgrave project original integer-pixel drawing, authored in
+  `tools/art/gen_original_executioner_nightmare.py`; no external source URL,
+  no sampled input pictures, tracing or downloaded character sheets.
+- Output: `assets/characters/original_executioner/`, 38 transparent PNG frames
+  for idle, guard, charge, axe, skill and death. Used by ExecutionerBoss only.
+  The ordinary gear-shield guard retains its separately credited legacy art.
+- Rights: project-authored source and output, delivered with this repository
+  for project use. Authorship manifest records generator, palette and hashes.

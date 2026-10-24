@@ -1,0 +1,366 @@
+{
+  "artist": "Original Rustgrave project drawing authored in the accompanying source",
+  "generator": "tools/art/gen_original_executioner_nightmare.py",
+  "inputs": [],
+  "method": "integer pixel clusters; no sampled reference assets; transparent RGBA",
+  "palette": {
+    "ink": "#15151e",
+    "deep": "#252732",
+    "shade": "#3b414b",
+    "steel": "#697578",
+    "edge": "#a5b3ac",
+    "white": "#d2d6be",
+    "rust": "#7c4134",
+    "copper": "#b7734b",
+    "gold": "#dcaa62",
+    "cloth": "#392735",
+    "fold": "#593542",
+    "red": "#923f38",
+    "ember": "#e46f39",
+    "hot": "#ffe0a0"
+  },
+  "frames": [
+    {
+      "action": "idle",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "cdd28f3dacf2f40cacca184934d62f8615c844f8ae3d938cccab16f011147017"
+    },
+    {
+      "action": "idle",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "e91fca5245ea9d6138d905c375011d59a2af9504435cab74412bde1aef0889a5"
+    },
+    {
+      "action": "idle",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "d18a3dfcca7baf85de3e9b35985ce3407821149a63dcd1422043cf10a45ad92b"
+    },
+    {
+      "action": "idle",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "11305d1701bf5832cc2dea4c9ba58525fe25a0c1bf9d096c76674d4a03a0b61b"
+    },
+    {
+      "action": "idle",
+      "frame": 4,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "f741644636c91b293b3235c962dce9f9e5620cee15ce557a8d92a5f6f456d0b7"
+    },
+    {
+      "action": "idle",
+      "frame": 5,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "7f7b4d820ade772fd6283256618ee16d04224e272844f09d6a3de777d2e0ce7f"
+    },
+    {
+      "action": "idle2",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "51f1d3b5919184ad6e58d59cf4263da73ed70b71c3ccb500653b04700eed4628"
+    },
+    {
+      "action": "idle2",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "9e60161513f17db79dc6121535799086c9282bd822b9086a9dcd2539c549ad1f"
+    },
+    {
+      "action": "idle2",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "12af2d6e5940a181a238514bade65c821969c589aac80013cb918f1707dfdbcc"
+    },
+    {
+      "action": "idle2",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "a518c3de37f6e35e9887d55093aded89caa29bf6f6d6873441a89d213495c54e"
+    },
+    {
+      "action": "summon",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "65eefb0a5b6b6bbabe85d3deb03c5cbd6572ec79601d6f9f608c03a4153ab891"
+    },
+    {
+      "action": "summon",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "cc46b0852f5a85a15de71345aff25b80cacbd1269631166dd6be7f2671d23cdd"
+    },
+    {
+      "action": "summon",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "338803ae4732b5cff785800344756d793f1f7d6e3503a0de6558d76e0f472b17"
+    },
+    {
+      "action": "summon",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "ab66ed8d952b05829a963f3943ebb2f1ebb6811dbbaff657b0c7e51698487367"
+    },
+    {
+      "action": "summon",
+      "frame": 4,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "a6aba4568372ff3667f7e21dbf2835aeae996b14f5a4dd1661f2a7abc4bb8c20"
+    },
+    {
+      "action": "summon",
+      "frame": 5,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "88f51f4db2d061a5f40336e76e78cae2bb1c8334d3ee55bcacb3b6d7120bd492"
+    },
+    {
+      "action": "attack",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "af1fa607178751a7b6f42a360ec114f59e2501850862b47f7606f5dca49f34b5"
+    },
+    {
+      "action": "attack",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "81e5d82a726e2e264cd382a99e9b6f4488904168c0dfcbaa0d80fbc48036543a"
+    },
+    {
+      "action": "attack",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "04a0a2724792a3447c79657ce63bc5bb1a83d589a12b99f7acd1a1bdbf53cbef"
+    },
+    {
+      "action": "attack",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "64654708f6d8a41bdd1781ef0ca5ad3d858537595b47a80aca835d716893cc22"
+    },
+    {
+      "action": "attack",
+      "frame": 4,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "cf78a4e5c8e5f14d41e734d8bbb68853d02185002c05c32e44cba3d510741455"
+    },
+    {
+      "action": "attack",
+      "frame": 5,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "4f67ae9b38793f36b993db61489e14bc3dcc86fed8bbd00c3eb0d668113a23df"
+    },
+    {
+      "action": "attack",
+      "frame": 6,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "c6c1efea0d3b854d061abfab4da15920c3e93a9f960a4f13eb3d7cd01c767e28"
+    },
+    {
+      "action": "attack",
+      "frame": 7,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "17bf9b2964e418c32a10a78849b22e303d79e975f8d03ac1d227b70951951fd3"
+    },
+    {
+      "action": "skill",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "65eefb0a5b6b6bbabe85d3deb03c5cbd6572ec79601d6f9f608c03a4153ab891"
+    },
+    {
+      "action": "skill",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "cc46b0852f5a85a15de71345aff25b80cacbd1269631166dd6be7f2671d23cdd"
+    },
+    {
+      "action": "skill",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "338803ae4732b5cff785800344756d793f1f7d6e3503a0de6558d76e0f472b17"
+    },
+    {
+      "action": "skill",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "ab66ed8d952b05829a963f3943ebb2f1ebb6811dbbaff657b0c7e51698487367"
+    },
+    {
+      "action": "skill",
+      "frame": 4,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "a6aba4568372ff3667f7e21dbf2835aeae996b14f5a4dd1661f2a7abc4bb8c20"
+    },
+    {
+      "action": "skill",
+      "frame": 5,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "88f51f4db2d061a5f40336e76e78cae2bb1c8334d3ee55bcacb3b6d7120bd492"
+    },
+    {
+      "action": "death",
+      "frame": 0,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "cdd28f3dacf2f40cacca184934d62f8615c844f8ae3d938cccab16f011147017"
+    },
+    {
+      "action": "death",
+      "frame": 1,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "8eb1ce36531d8007fa6f681a9458783935dd0eae41a03bb473914e36ce3ae1e5"
+    },
+    {
+      "action": "death",
+      "frame": 2,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "08146cc4c8c7775a37a04d25d8282175cda560936e94f875fe0ee94a76681feb"
+    },
+    {
+      "action": "death",
+      "frame": 3,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "9f0df87abd8279e7437a2cde19ecafe0e1b7b9f6ff32eb9b71b5c1ebdb605849"
+    },
+    {
+      "action": "death",
+      "frame": 4,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "105d931c1840274bfcab5fc4c487267098a8a7af369ba38eff7e06ebd1e12cba"
+    },
+    {
+      "action": "death",
+      "frame": 5,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "1b5afb5396a5a6938e0cada46e3d2e40a30def6d7ec2572dc77c32e4aa826827"
+    },
+    {
+      "action": "death",
+      "frame": 6,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "8079cb22c994daee72d2e3bb982b3fb19ed3938005888e67603b3cca06764c52"
+    },
+    {
+      "action": "death",
+      "frame": 7,
+      "size": [
+        100,
+        100
+      ],
+      "sha256": "c5f86ea4ca13357eb003941e677409977baae9d60d5b23adc1e209be36437b3c"
+    }
+  ]
+}
