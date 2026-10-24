@@ -96,6 +96,7 @@ func _ready() -> void:
 	var camera := get_tree().get_first_node_in_group("game_camera") as GameCamera
 	player.set_physics_process(false)
 	player.cutscene_locked = true
+	player.health.invincible = true # Parked render fixture, never an input run.
 	camera.set_physics_process(false)
 	if not active:
 		for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -136,8 +137,19 @@ func _ready() -> void:
 			get_tree().quit(1)
 			return
 		player.global_position = feet
+		GameEvents.interact_prompt.emit("")
 		print("PEEK park ", spot, " feet=", feet, " (camera fixture)")
 		await get_tree().create_timer(hold).timeout
+		# Entering a boss trigger may stage an intro after the initial abort.
+		# Capture the terrain after that presentation, and refresh the prompt
+		# because the parked player does not run its usual physics interaction tick.
+		Director.abort()
+		Director.set_letterbox(false, true)
+		player.cutscene_locked = true
+		camera.global_position = Vector2(x, cam_y)
+		camera.force_update_scroll()
+		var focus := player.sensor.get_focus()
+		GameEvents.interact_prompt.emit(focus.get_prompt(player) if focus != null else "")
 		if layers:
 			# Freeze motion so the two captures differ only where the backdrop shows through.
 			Engine.time_scale = 0.0
