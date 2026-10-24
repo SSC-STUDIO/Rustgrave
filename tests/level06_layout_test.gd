@@ -14,6 +14,7 @@ func setup() -> void:
 func teardown() -> void:
 	SaveData.flags = _flags
 	Director.abort()
+	WorldClock.reset()
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 
 
@@ -193,6 +194,11 @@ func test_grove_and_east_checkpoints_remain_quiet_for_six_seconds() -> void:
 
 
 func test_first_mud_can_be_read_from_either_dry_side_without_an_ambush() -> void:
+	# Isolate the mud lesson from the global, independently toxic rust rain.
+	# A full suite may arrive here with a different outdoor weather profile.
+	WorldClock.reset()
+	WorldClock.set_weather(WorldClock.Weather.CLEAR, true)
+	WorldClock.set_weather_hold(30.0)
 	for x in [304.0, 480.0]:
 		var host := _build()
 		var calls := {"attacks": 0}
@@ -204,6 +210,24 @@ func test_first_mud_can_be_read_from_either_dry_side_without_an_ambush() -> void
 		await flush(360)
 		eq(player.health.current, hp, "first mud wait remains safe at %s" % x)
 		eq(calls.attacks, 0, "first mud wait does not awaken the grave cluster")
-		almost(player.toxin.toxin, toxin, 0.01, "dry wait does not gain toxin")
+		almost(player.toxin.toxin, toxin, 0.01, "clear-weather dry wait does not gain toxin: %.3f -> %.3f" % [toxin, player.toxin.toxin])
 		host.free()
 		await flush(1)
+
+
+func test_rust_rain_still_exposes_the_knight_outside_the_mud() -> void:
+	WorldClock.reset()
+	WorldClock.set_weather(WorldClock.Weather.RUST_RAIN, true)
+	WorldClock.set_weather_hold(30.0)
+	var host := _build()
+	var player := await spawn_player(host, Vector2(304, 300))
+	var mud := host.get_node("Props/MudLesson") as ForceZone
+	ok(not mud.zone_rect().has_point(player.position - Vector2(0, 2)), "knight is on the real dry approach")
+	var toxin: float = player.toxin.toxin
+	var hp := player.health.current
+	await flush(180)
+	ok(player.toxin.toxin > toxin, "ambient rust rain independently adds toxin outside the mud")
+	eq(player.health.current, hp, "reading the lesson does not trigger an enemy attack")
+	host.free()
+	await flush(1)
+	WorldClock.reset()
