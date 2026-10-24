@@ -111,3 +111,21 @@ func test_high_gap_uses_the_available_basic_dash() -> void:
 	almost(player.position.y, 256.0, 1.0)
 	ok(not player.controller.extra_jumps_unlocked, "fixture never unlocks double jump")
 	driver._release()
+
+
+func test_full_height_contiguous_riser_is_jumped_before_touching_the_face() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Launch", Vector2(720, 320), 80.0)
+	layout.step(host, "Riser", Vector2(800, 288), 48.0)
+	var player := await spawn_player(host, Vector2(736, 296))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(824, 288)
+	ok(await driver._nv_cross(_segment(Rect2(720, 320, 80, 16)),
+			_segment(Rect2(800, 288, 48, 16))), "normal input clears a 32px riser without dashing into its wall")
+	almost(player.position.y, 288.0, 1.0)
+	ok(not player.controller.extra_jumps_unlocked)
+	driver._release()

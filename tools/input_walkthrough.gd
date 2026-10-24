@@ -971,6 +971,9 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
 	# 缺口大的上跳（升 ≥16、横跨 ≥24）贴着台缘起跳：真实单跳够距只有 ~40px。
 	var margin := 3.0 if (gap >= 20.0 and br.position.y < ar.position.y - 8.0) else 8.0
+	# At a contiguous 32px riser, jumping against the lip catches the body on
+	# its vertical face. Start earlier so the feet clear it before moving across.
+	if gap < 4.0 and ar.position.y - br.position.y > 24.0: margin = 24.0
 	var launch := clampf(br.position.x - margin if right else br.end.x + margin, ar.position.x + margin, ar.end.x - margin)
 	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
 	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
@@ -989,7 +992,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
 			await _frames(1)
 	# 空中加速度只有 270px/s²：站着起跳 0.4s 只飘 ~22px。任何有缺口的跳都要助跑（和玩家一样）。
-	if gap > 0 and a.lift == null:
+	if (gap > 0 or ar.position.y - br.position.y > 24.0) and a.lift == null:
 		var run_start := ar.end.x - 36 if right else ar.position.x + 36
 		run_start = clampf(run_start, ar.position.x + 4.0, ar.end.x - 4.0)
 		if not await _nv_flat(run_start, ar.position.y, false): return false
