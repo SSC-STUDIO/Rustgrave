@@ -181,9 +181,11 @@ func test_chapter_backdrop_gets_glow_lips_and_pools() -> void:
 	host.queue_free()
 
 
-func test_cathedral_toxin_is_the_specs_orange() -> void:
-	var L4 := load("res://scripts/levels/chapters/level04_layout.gd")
-	var ramp: Array = L4.TOXIN_RAMP
+func test_slag_pool_uses_a_warm_ramp_and_maps_its_visible_sprites() -> void:
+	# The rebuilt cathedral teaches bell waves and has no coolant pool. Keep
+	# the original shader/color contract on an authored slag pool that exists.
+	var L8 := load("res://scripts/levels/chapters/level08_layout.gd")
+	var ramp: Array = L8.SLAG_RAMP
 	eq(ramp.size(), 5)
 	for c in ramp:
 		var col := c as Color
