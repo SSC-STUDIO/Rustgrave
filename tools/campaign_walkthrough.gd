@@ -373,6 +373,8 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 		return true
 	_step = "campaign_boss_" + flag
 	print("[BOSS GATE] fighting %s for flag %s" % [boss.name, flag])
+	if flag == "herald_dead":
+		return await _herald()
 	var boss_label := String(boss.name)
 	# 只给一次有界尝试：验收驱动不会为一场 Boss 无限重试（Boss 战正确性由
 	# tests/<boss>_test.gd 与 tools/boss_fixture.gd 覆盖）。
@@ -437,6 +439,59 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 			print("[BOSS GATE] %s hp=%d player hp=%d" % [boss.name, boss.health.current, p.health.current])
 		await _frames(1)
 	_fail("boss gate not won by the input robot (combat skill limit): " + flag)
+	return false
+
+
+func _herald() -> bool:
+	var phases := {}
+	var prepared_actor := 0
+	for i in 18000:
+		if SaveData.has_flag("herald_dead"):
+			_release()
+			await _frames(60)
+			await _settle_fade()
+			_record("EmberwindHerald_slain")
+			return true
+		var p := _player()
+		if p == null or p.health.current <= 0 or not GameContext.gameplay_input_enabled():
+			_release()
+			await _frames(1)
+			continue
+		if p.get_instance_id() != prepared_actor:
+			# Herald's real origin hovers 150px above its authored floor. Navigate
+			# to a real perch, not to the unwalkable y of that airborne origin.
+			var perch := _world().get_node("Platforms/HeraldEastPerch") as SolidPlatform
+			if not await _navigate(perch.position + Vector2(36, 0)): return false
+			prepared_actor = _player().get_instance_id()
+			p = _player()
+			_record("herald_perch_approach")
+		_step = "herald_combat"
+		var boss := _gate_boss()
+		if boss == null:
+			await _frames(1)
+			continue
+		var phase: int = boss.phase()
+		if not phases.has(phase):
+			_record("herald_phase_%d" % phase)
+			phases[phase] = true
+		var perch := _world().get_node("Platforms/HeraldEastPerch") as SolidPlatform
+		var target := perch.position.x + 36.0
+		var dx := boss.position.x - p.position.x
+		_steer(target)
+		if absf(p.position.x - target) < 4.0:
+			_move(signf(dx) if p.controller.facing != signf(dx) else 0.0)
+		_set_action(&"attack", i % 12 == 0)
+		var dive := String(boss.get("_attack")) == "dive"
+		var dive_step := int(boss.get("_step"))
+		var dive_time := float(boss.get("_timer"))
+		# Jump near the end of the real warning, rather than immediately on
+		# windup (which lands again just as the low pass reaches the knight).
+		_set_action(&"jump", dive and absf(dx) < 190.0 and (dive_step == 1 or (dive_step == 0 and dive_time < 0.12)))
+		_set_action(&"dash", false)
+		if i % 180 == 0:
+			print("[HERALD] player=%s hp=%d boss=%s hp=%d phase=%d attack=%s step=%d dives=%d" % [p.position, p.health.current, boss.position, boss.health.current, phase, boss.get("_attack"), boss.get("_step"), boss.dive_count()])
+		await _frames(1)
+	_fail("Herald fight timed out")
 	return false
 
 
