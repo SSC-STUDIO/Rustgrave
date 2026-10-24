@@ -109,7 +109,8 @@ func _run() -> void:
 		await _frames(90)
 		_shot("00_title")
 		_skip_captions = false
-	_ui(&"ui_accept") # title: new game
+	_ui(&"ui_accept") # title: new game (opens the character select since the loadout screen landed)
+	await _embark_default_origin()
 	if _shots:
 		await _watch_opening()
 	if not await _wait_world():
@@ -147,41 +148,52 @@ func _run() -> void:
 		if not await _wait_world(): return
 		if not _require(_player().inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "spitter tether drop equipped"): return
 		_record("spitter_tether")
-	if not await _walk_to(904.0, false): return
-	if not await _walk_to(1050.0, false): return
+	# --- ① 压板偏殿：上层路 → 楼座 → 塌陷锈梁 → 压板（在楼座上），落回地穴巷 ---
+	# 死了会重载场景：每一步都重新取世界根，不留指向旧场景的引用。
+	var plate := _world_root().get_node("Props/PressurePlate") as Node2D
+	if not await _nv_navigate(LevelSanity.feet_of(plate)): return
 	await _frames(20)
-	var world := GameContext.world_root(_player())
-	if not _require(world.get_node("Props/Door").is_open, "pressure plate opened door"): return
+	if not _require(_world_root().get_node("Props/Door").is_open, "pressure plate opened door"): return
 	_record("pressure_plate")
+	# --- ② 锻核工坊：穿过伏击巷与压板门，废料堆里的窑核 → 嵌核台 ---
 	if not await _collect_kiln(): return
 	_record("kiln_socket")
-	if not await _walk_to(1363.0, false): return
+	# 休息龛的巢（炉廊前的存档点）：点亮它，炉廊里死了回这里。
+	if not await _light_nest("EmberNestForge"): return
+	_record("forge_checkpoint")
+	# 炉廊（三口错相炉口，机关感知）→ 锈门
+	var gate := _world_root().get_node("Props/RustyGate") as Node2D
+	var gate_feet := LevelSanity.feet_of(gate)
+	if not await _nv_navigate(Vector2(gate_feet.x - 28.0, gate_feet.y)): return
 	await _tap(&"interact")
 	await _frames(4)
-	world = GameContext.world_root(_player())
-	if not _require(not is_instance_valid(world.get_node_or_null("Props/RustyGate")), "rust gate melted through E"): return
+	if not _require(not is_instance_valid(_world_root().get_node_or_null("Props/RustyGate")), "rust gate melted through E"): return
 	_record("rust_gate")
-	if not await _walk_to(1430.0, false): return
 	if not _basic_abilities:
+		# 余烬阁（可选，钩锁）：回到炉廊西头的发射点，跳起来甩钩。
+		if not await _nv_navigate(Vector2(Level01EastWing.EMBER_HOOK_POS.x - 82.0, 320.0)): return
 		if not await _grapple_ember(): return
 		_record("grapple_ember")
-	if not await _walk_to(1640.0, false): return
-	if not await _walk_to(1536.0, false): return
+	# --- ③ 中殿长阶 → BossGate 前的巢 ---
+	var nest_feet := LevelSanity.feet_of(_world_root().get_node("Props/EmberNestEast"))
+	if not await _nv_navigate(nest_feet): return
 	# Let contact queries and any introductory lock settle before interacting.
 	for attempt in 4:
 		if SaveData.last_lit_nest().ends_with("EmberNestEast"): break
 		if not await _wait_world(): return
-		if not await _walk_to(1536.0, false): return
+		if not await _nv_navigate(nest_feet): return
 		await _frames(8)
 		print("[CHECKPOINT] attempt=%d player=%s focus=%s" % [attempt, _player().position, _player().sensor.get_focus()])
 		await _tap(&"interact")
 	if not _require(SaveData.last_lit_nest().ends_with("EmberNestEast"), "east checkpoint is reachable"): return
 	_record("east_checkpoint")
-	if not await _walk_to(1885.0, false): return
+	# --- ④ 炉厅竞技场：刽子手在石台上，炉龛喷火口只在战斗里转 ---
+	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return
 	if not await _fight_boss(): return
 	_record("boss_slain")
 	if not await _verify_progress_reload(): return
-	if not await _walk_to(2052.0, false): return
+	var heart_feet := LevelSanity.feet_of(_world_root().get_node("Props/ForgeHeart"))
+	if not await _nv_navigate(Vector2(heart_feet.x, heart_feet.y - 4.0)): return
 	await _tap(&"interact")
 	await _frames(8)
 	if not _require(Director.choice_hold, "real heart choice opened"): return
@@ -212,6 +224,21 @@ func _run() -> void:
 			get_tree().quit(0)
 			return
 	_fail("ending did not return to title")
+
+
+## 「点燃余烬」之后是选人界面：焦点默认在「启程」，再按一次确认键就带默认出身出发
+## （正常输入，和玩家一样）。没有选人界面的旧标题（回退版）直接跳过。
+func _embark_default_origin() -> void:
+	for i in 120:
+		await _frames(1)
+		var title := get_tree().current_scene
+		if title == null or not title.has_method("character_select_screen"):
+			return
+		var select = title.character_select_screen()
+		if select != null and select.is_open():
+			await _frames(6)
+			_ui(&"ui_accept")
+			return
 
 
 ## Watch the opening without skipping it; grab frames at fixed beats. Ends when the
@@ -296,7 +323,12 @@ func _wait_world() -> bool:
 		var player := _player()
 		if player != null and player.health.current > 0 and GameContext.gameplay_input_enabled():
 			return true
-	_fail("world did not become playable")
+	var cur := get_tree().current_scene
+	var plr := _player()
+	_fail("world did not become playable (scene=%s player=%s hp=%s playing=%s locked=%s input=%s)" % [
+			cur.scene_file_path if cur != null else "null", plr != null,
+			plr.health.current if plr != null else -1, Director.playing, Director.is_input_locked(),
+			GameContext.gameplay_input_enabled()])
 	return false
 
 
@@ -326,7 +358,8 @@ func _walk_to(target_x: float, jump: bool) -> bool:
 		_move(signf(dx) if absf(dx) > 3.0 else 0.0)
 		_jump_cd = maxi(0, _jump_cd - 1)
 		_jump_hold = maxi(0, _jump_hold - 1)
-		var need_jump := jump or (target_x > 600.0 and player.global_position.x < 780.0)
+		var need_jump := jump or (target_x > 600.0 and player.global_position.x < 780.0) \
+				or (player.is_on_wall() and player.is_on_floor())
 		if need_jump and player.is_on_floor() and _jump_cd == 0 and absf(dx) > 24.0:
 			_jump_hold = 20
 			_jump_cd = 32
@@ -370,7 +403,8 @@ func _fight_boss() -> bool:
 			continue
 		if player.get_instance_id() != fighter_id:
 			fighter_id = player.get_instance_id()
-			if not await _walk_to(1885.0, false): return false
+			# 死了回 BossGate 前的巢：长阶 + 石台 + 掩体墩都要走回去（不传送，不跳关）。
+			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return false
 			continue
 		var boss: ExecutionerBoss = null
 		for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -386,6 +420,13 @@ func _fight_boss() -> bool:
 		else:
 			_move(-1.0 if player.controller.facing != -1 else 0.0)
 		_set_action(&"dash", player.global_position.x < boss.global_position.x and i % 30 == 0)
+		# 石台边（16px）与掩体墩（32px）挡路时按住跳过去，和玩家一样。
+		_jump_cd = maxi(0, _jump_cd - 1)
+		_jump_hold = maxi(0, _jump_hold - 1)
+		if player.is_on_wall() and player.is_on_floor() and _jump_cd == 0:
+			_jump_hold = 20
+			_jump_cd = 32
+		_set_action(&"jump", _jump_hold > 0)
 		attack_cd = maxi(0, attack_cd - 1)
 		var attack := absf(player.global_position.x - boss.global_position.x) < 38.0 \
 				and player.controller.facing == -1 and attack_cd == 0
@@ -477,11 +518,31 @@ func _collect_kiln() -> bool:
 			await _tap(&"socket_2")
 			if not await _wait_world(): return false
 			continue
-		if not await _walk_to(1220.0, false): return false
+		var scrap := _world_root().get_node_or_null("Props/ScrapPile") as Node2D
+		if scrap == null:
+			_fail("scrap pile is missing")
+			return false
+		if not await _nv_navigate(LevelSanity.feet_of(scrap)): return false
 		await _tap(&"interact")
 		if not await _wait_world(): return false
 	_fail("kiln core could not be collected and socketed")
 	return false
+
+
+## 点亮一个余烬巢（正常输入：走到巢边按 E）。
+func _light_nest(nest_name: String) -> bool:
+	var nest := _world_root().get_node_or_null("Props/" + nest_name) as Node2D
+	if nest == null:
+		_fail("nest %s is missing" % nest_name)
+		return false
+	for attempt in 4:
+		if SaveData.last_lit_nest().ends_with(nest_name):
+			return true
+		if not await _wait_world(): return false
+		if not await _nv_navigate(LevelSanity.feet_of(nest)): return false
+		await _frames(8)
+		await _tap(&"interact")
+	return _require(SaveData.last_lit_nest().ends_with(nest_name), "nest %s lit through E" % nest_name)
 
 
 func _verify_progress_reload() -> bool:
@@ -489,7 +550,10 @@ func _verify_progress_reload() -> bool:
 	var old_id := _player().get_instance_id()
 	# Walk back into the hostile courtyard and allow ordinary enemy damage.
 	# This never calls damage, respawn, load, or any story completion hook.
-	for i in 2400:
+	# 回炉廊，站进最近那口炉口里让「普通机关伤害」把骑士送回巢（不调用 damage / respawn）。
+	var vent := _world_root().get_node_or_null("Props/FlameVent3") as Node2D
+	var vent_x := vent.global_position.x if vent != null else 2464.0
+	for i in 5400:
 		var player := _player()
 		if player != null and player.get_instance_id() != old_id and player.health.current > 0 \
 				and GameContext.gameplay_input_enabled():
@@ -498,12 +562,24 @@ func _verify_progress_reload() -> bool:
 			_record("boss_death_reload_verified")
 			break
 		if player != null and player.health.current > 0 and GameContext.gameplay_input_enabled():
-			_move(-1.0 if player.position.x > 1020.0 else 0.0)
+			var gap := vent_x - player.position.x
+			_move(signf(gap) if absf(gap) > 3.0 else 0.0)
+			# 石台边 / 掩体墩 / 长阶挡路时按住跳（和 _walk_to 同一套保持计数：松键太早跳不过 32px）。
+			_jump_cd = maxi(0, _jump_cd - 1)
+			_jump_hold = maxi(0, _jump_hold - 1)
+			if player.is_on_wall() and player.is_on_floor() and _jump_cd == 0:
+				_jump_hold = 20
+				_jump_cd = 32
+			_set_action(&"jump", _jump_hold > 0)
 		else:
 			_release()
 		await _frames(1)
-		if i == 2399:
-			_fail("enemy damage did not complete a checkpoint reload")
+		if i % 600 == 0:
+			var plr := _player()
+			print("[RELOAD] i=%d player=%s hp=%s vent_x=%.0f" % [i, plr.position if plr != null else Vector2.INF,
+					plr.health.current if plr != null else -1, vent_x])
+		if i == 5399:
+			_fail("hazard damage did not complete a checkpoint reload")
 			return false
 	if not await _pause_return_to_title():
 		_fail("pause menu did not return to title")
@@ -566,7 +642,7 @@ func _find_pause() -> PauseMenu:
 	return null
 
 
-func _check_restored_progress(expected_x: float = 1536.0) -> bool:
+func _check_restored_progress(expected_x: float = Level01EastWing.EMBER_NEST_EAST_POS.x) -> bool:
 	var player := _player()
 	var world := GameContext.world_root(player)
 	return _require(absf(player.position.x - expected_x) < 12.0, "reload preserves east nest checkpoint") \
@@ -591,11 +667,11 @@ func _grapple_ember() -> bool:
 	await _tap(&"hookshot")
 	for i in 300:
 		var player := _player()
-		var dx := 1568.0 - player.position.x
+		var dx := Level01EastWing.EMBER_CORE_POS.x - player.position.x
 		_move(signf(dx) if absf(dx) > 4.0 else 0.0)
 		if i % 30 == 0:
 			print("[HOOK] position=%s active=%s" % [player.position, player.hookshot.is_active()])
-		if player.position.y < 125.0 and player.is_on_floor() and absf(dx) < 18.0:
+		if player.position.y < Level01EastWing.EMBER_LEDGE_POS.y + 13.0 and player.is_on_floor() and absf(dx) < 18.0:
 			_release()
 			await _tap(&"interact")
 			await _frames(15)
@@ -606,6 +682,361 @@ func _grapple_ember() -> bool:
 			return _require(player.inventory.has_ability(AbilityIds.EMBER_STEP), "ember core equipped from real ledge")
 		await _frames(1)
 	_fail("grapple did not reach the ember ledge")
+	return false
+
+
+# --- 几何导航（第一章东半：多层楼座 / 塌陷梁 / 炉口） --------------------------------------
+## 读 LevelSanity 的台面表选落脚点、只发正常输入（不挪人、不开门、不改状态）。
+## 机关感知：走进炉口判定区之前先看 CyclicHazard.safe_window()，等它喷完再过；
+## 塌陷梁只当一块「踩上就走」的踏台，不停留（落下去就重新规划）。
+## 算法与 campaign_walkthrough 的 _navigate 同源（那边服务第 2–10 章），这里用 _nv_ 前缀
+## 自成一套，campaign 子类里的同名方法不会覆盖它。
+var _nv_tick := 0
+## 这次导航的终点：从一块台子落到一整条长地面上时，选朝着终点那一侧的台缘走下去。
+var _nv_goal := Vector2.INF
+## 本关的周期机关（每次导航开头重取一次：死了会重载场景，旧引用作废）。
+var _nv_vents: Array[Node2D] = []
+
+
+func _world_root() -> Node:
+	return GameContext.world_root(_player())
+
+
+func _nv_segments() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var world := _world_root()
+	var solids := LevelSanity.solid_rects(world)
+	for top in LevelSanity.top_segments(world):
+		var name_ := top.owner_name.get_slice("@", 0)
+		var lift := world.get_node_or_null("Platforms/" + name_) as MovingPlatform
+		if lift != null:
+			out.append({"r": Rect2(top.x0, top.y, top.x1 - top.x0, 16), "lift": lift, "end": top.owner_name.ends_with("@end")})
+			continue
+		var spans: Array[Vector2] = [Vector2(top.x0, top.x1)]
+		for r in solids:
+			if r.position.y >= top.y - 3 or r.end.y < top.y - 26: continue
+			var pieces: Array[Vector2] = []
+			for span in spans:
+				if r.position.x >= span.y or r.end.x <= span.x: pieces.append(span)
+				else:
+					if r.position.x - span.x >= 16: pieces.append(Vector2(span.x, r.position.x))
+					if span.y - r.end.x >= 16: pieces.append(Vector2(r.end.x, span.y))
+			spans = pieces
+		for span in spans:
+			if span.y - span.x >= 24: out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
+	for segment in out:
+		segment.wet = false
+		for prop in world.get_node("Props").get_children():
+			if prop is ToxinPool:
+				var pool: Rect2 = prop.surface_rect()
+				var r: Rect2 = segment.r
+				if r.position.y > pool.position.y and r.position.x < pool.end.x and r.end.x > pool.position.x: segment.wet = true
+	return out
+
+
+func _nv_closest(segments: Array[Dictionary], feet: Vector2) -> int:
+	var best := -1
+	var score := INF
+	for i in segments.size():
+		var r: Rect2 = segments[i].r
+		var value := absf(feet.y - r.position.y) * 4 + absf(feet.x - clampf(feet.x, r.position.x, r.end.x))
+		if value < score:
+			score = value
+			best = i
+	return best
+
+
+func _nv_link(a: Dictionary, b: Dictionary) -> bool:
+	if a.lift != null and a.lift == b.lift: return true
+	var ar: Rect2 = a.r
+	var br: Rect2 = b.r
+	var at := LevelSanity.TopSeg.new(ar.position.x, ar.end.x, ar.position.y, "a")
+	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
+	if not LevelSanity._can_hop(at, bt): return false
+	var x0 := minf(ar.end.x, br.end.x)
+	var x1 := maxf(ar.position.x, br.position.x)
+	if x1 > x0:
+		for r in LevelSanity.solid_rects(_world_root()):
+			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
+				return false
+	return true
+
+
+func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
+	var start := _nv_closest(segments, _player().position)
+	var goal := _nv_closest(segments, feet)
+	var parents := {start: -1}
+	var costs := {start: 0.0}
+	var queue: Array[int] = [start]
+	while not queue.is_empty():
+		queue.sort_custom(func(a: int, b: int) -> bool: return costs[a] < costs[b])
+		var at: int = queue.pop_front()
+		if at == goal: break
+		for i in segments.size():
+			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
+			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i]):
+				parents[i] = at
+				costs[i] = cost
+				if not i in queue: queue.append(i)
+	if not parents.has(goal): return []
+	var route: Array[Dictionary] = []
+	while goal >= 0:
+		route.push_front(segments[goal])
+		goal = parents[goal]
+	return route
+
+
+func _nv_plate_open_at(feet: Vector2) -> bool:
+	for plate in _world_root().get_node("Props").get_children():
+		if not plate is PressurePlate or LevelSanity.feet_of(plate).distance_to(feet) > 4: continue
+		for connection in plate.activated.get_connections():
+			var door = connection.callable.get_object()
+			if door is ArenaDoor and door.is_open: return true
+	return false
+
+
+## 走到 feet（脚点）。目标在一扇还关着的压板门后面时，先去踩那块压板（正常输入）。
+func _nv_navigate(feet: Vector2, restore_plates: bool = true) -> bool:
+	_step = "route_to_" + str(feet)
+	_nv_goal = feet
+	for attempt in 30:
+		_release()
+		for i in 180:
+			await _frames(1)
+			if _player() != null and _player().health.current > 0 and _player().is_on_floor() and GameContext.gameplay_input_enabled(): break
+		if _player() == null or _player().health.current <= 0: continue
+		_nv_vents = LevelSanity.hazards(_world_root())
+		if _nv_plate_open_at(feet): return true
+		if restore_plates:
+			var missing_plate := Vector2.INF
+			for plate in _world_root().get_node("Props").get_children():
+				if not plate is PressurePlate or LevelSanity.feet_of(plate).distance_to(feet) < 4: continue
+				var plate_feet := LevelSanity.feet_of(plate)
+				for connection in plate.activated.get_connections():
+					var door = connection.callable.get_object()
+					if door is ArenaDoor and not door.is_open and door.position.x > _player().position.x - 400.0 and door.position.x < feet.x:
+						missing_plate = plate_feet
+			if missing_plate != Vector2.INF:
+				if not await _nv_navigate(missing_plate, false): return false
+		_step = "route_to_" + str(feet)
+		var route := _nv_path(_nv_segments(), feet)
+		if route.is_empty():
+			var segs := _nv_segments()
+			var here := _nv_closest(segs, _player().position)
+			_fail("no navigation route to %s from %s (segment %s)" % [feet, _player().position,
+					segs[here].r if here >= 0 else "none"])
+			return false
+		var traversed := true
+		for i in range(1, route.size()):
+			if not await _nv_cross(route[i - 1], route[i]):
+				traversed = false
+				break
+		if traversed and await _nv_flat(feet.x, feet.y):
+			return true
+		if _player() != null and _player().health.current > 0 and _nv_plate_open_at(feet): return true
+		print("[NAV RETRY] target=%s at=%s attempt=%d" % [feet, _player().position if _player() else Vector2.INF, attempt])
+	_fail("navigation exhausted retries to " + str(feet))
+	return false
+
+
+## 炉口挡路吗：前方 ~40px 内有一口同高度的周期炉口，且现在进去（含穿过判定区的时间）不安全。
+## 已经站在判定区里就不拦（要让人走出去）。
+func _nv_hazard_blocks(p: Player, dir: float) -> bool:
+	if dir == 0.0 or not p.is_on_floor(): return false
+	for hz in _nv_vents:
+		if not is_instance_valid(hz) or not hz is CyclicHazard: continue
+		var c := hz as CyclicHazard
+		var zone := c.hit_rect()
+		if p.global_position.y < zone.position.y - 8.0 or p.global_position.y > zone.end.y + 8.0: continue
+		var px := p.global_position.x
+		if px >= zone.position.x - 7.0 and px <= zone.end.x + 7.0: continue
+		var ahead := (zone.position.x - 7.0 - px) if dir > 0.0 else (px - (zone.end.x + 7.0))
+		if ahead < 0.0 or ahead > 44.0: continue
+		var cross_time := (zone.size.x + 14.0) / 108.0 + 0.3 + ahead / 108.0
+		if not c.safe_window(cross_time): return true
+	return false
+
+
+func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
+	if not fight: _release()
+	for i in 900:
+		var p := _player()
+		if p == null or p.health.current <= 0: return false
+		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < 12:
+			_release()
+			return true
+		if absf(p.position.y - y) > 40: return false
+		if _nv_hazard_blocks(p, signf(x - p.position.x)):
+			_move(0.0)
+			_set_action(&"jump", false)
+			_set_action(&"dash", false)
+			await _frames(1)
+			continue
+		_nv_steer(x)
+		var spitter_close := false
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if enemy is SpitterEnemy and not enemy._dead and absf(enemy.position.y - p.position.y) < 14 and absf(enemy.position.x - p.position.x) < 64: spitter_close = true
+		if fight or spitter_close or absf(x - p.position.x) > 96:
+			_nv_combat(absf(x - p.position.x) > 96)
+		else:
+			_set_action(&"attack", false)
+			_set_action(&"dash", false)
+		for gate in _world_root().get_node("Props").get_children():
+			if gate is RustyGate and LevelSanity.feet_of(gate).distance_to(p.position) < 42:
+				_set_action(&"interact", i % 30 == 0)
+		_set_action(&"jump", p.is_on_wall() and i % 36 < 24)
+		await _frames(1)
+	_release()
+	return false
+
+
+func _nv_steer(x: float) -> void:
+	var p := _player()
+	var dx := x - p.position.x
+	var speed := p.velocity.x
+	var brake := speed * speed / (2.0 * (400.0 if p.is_on_floor() else 270.0) * 1.55)
+	if absf(dx) < 2 and absf(speed) < 10:
+		_move(0)
+	elif signf(dx) == signf(speed) and absf(dx) < brake + 2:
+		_move(0 if p.is_on_floor() and p.controller._land_grip > 0 else -signf(speed))
+	else:
+		_move(signf(dx))
+
+
+func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
+	_nv_tick += 1
+	var p := _player()
+	var melt := false
+	for gate in _world_root().get_node("Props").get_children():
+		if gate is RustyGate and LevelSanity.feet_of(gate).distance_to(p.position) < 42: melt = true
+	_set_action(&"interact", melt and _nv_tick % 30 == 0)
+	var threat: EnemyBase
+	var distance := 64.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e is EnemyBase or e._dead or absf(e.position.y - p.position.y) > 40: continue
+		var dx: float = absf(e.position.x - p.position.x)
+		if dx < distance:
+			distance = dx
+			threat = e
+	var attack := false
+	var dash := false
+	if threat != null:
+		var side := signf(threat.position.x - p.position.x)
+		if threat.has_method("is_airborne") and threat.is_airborne():
+			if hold_ground:
+				_move(side if p.controller.facing != side else 0.0)
+			attack = distance < 48 and p.controller.facing == side and _nv_tick % 20 == 0
+			dash = allow_dash and distance < 38 and _nv_tick % 6 == 0
+		elif allow_dash and not threat is SpitterEnemy:
+			var behind := threat.position.x + 28 - p.position.x
+			_move(signf(behind) if absf(behind) > 6 else (-1.0 if p.controller.facing != -1 else 0.0))
+			attack = distance < 38 and p.controller.facing == -1 and _nv_tick % 24 == 0
+			dash = p.position.x < threat.position.x and distance < 42 and _nv_tick % 6 == 0
+		else:
+			var hold_distance := 30
+			_move(side if distance > hold_distance or p.controller.facing != side else 0.0)
+			attack = distance < 48 and p.controller.facing == side and _nv_tick % 20 == 0
+	_set_action(&"attack", attack)
+	_set_action(&"dash", dash)
+
+
+## 台面这一端的外侧（身体高度）是不是实心：是墙不是边。
+func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
+	var probe := Vector2(r.end.x + 5.0 if right else r.position.x - 5.0, r.position.y - 12.0)
+	for s in LevelSanity.solid_rects(_world_root()):
+		if s.grow(-0.5).has_point(probe): return true
+	return false
+
+
+func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
+	if _player() == null or _player().health.current <= 0: return false
+	var ar: Rect2 = a.r
+	var br: Rect2 = b.r
+	print("[CROSS] %s -> %s at=%s hp=%d" % [ar, br, _player().position, _player().health.current])
+	if a.lift != null and a.lift == b.lift:
+		_release()
+		for i in 1200:
+			if _player() == null or _player().health.current <= 0 or not is_instance_valid(b.lift): return false
+			_nv_steer(b.lift.position.x + b.lift.width * 0.5)
+			if b.lift.position.distance_to(br.position) < 8: return true
+			await _frames(1)
+		return false
+	var right := br.get_center().x >= ar.get_center().x
+	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	# 缺口大的上跳（升 ≥16、横跨 ≥24）贴着台缘起跳：真实单跳够距只有 ~40px。
+	var margin := 3.0 if (gap >= 20.0 and br.position.y < ar.position.y - 8.0) else 8.0
+	var launch := clampf(br.position.x - margin if right else br.end.x + margin, ar.position.x + margin, ar.end.x - margin)
+	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
+	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
+	var drop_landing := NAN
+	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and a.lift == null and b.lift == null:
+		right = _nv_goal.x >= ar.get_center().x if _nv_goal.is_finite() else right
+		if right and br.end.x - ar.end.x < 24.0: right = false
+		if not right and ar.position.x - br.position.x < 24.0: right = true
+		# 台缘外侧立着实心（楼座东头的掩体墩）：那一侧不是边，是墙，换另一侧下去。
+		if right and _nv_edge_blocked(ar, true): right = false
+		elif not right and _nv_edge_blocked(ar, false): right = true
+		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
+		drop_landing = clampf(ar.end.x + 18.0 if right else ar.position.x - 18.0,
+				br.position.x + 4.0, br.end.x - 4.0)
+	if a.lift != null:
+		for i in 1200:
+			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
+			_nv_steer(launch)
+			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
+			await _frames(1)
+	# 空中加速度只有 270px/s²：站着起跳 0.4s 只飘 ~22px。任何有缺口的跳都要助跑（和玩家一样）。
+	if gap > 0 and a.lift == null:
+		var run_start := ar.end.x - 36 if right else ar.position.x + 36
+		run_start = clampf(run_start, ar.position.x + 4.0, ar.end.x - 4.0)
+		if not await _nv_flat(run_start, ar.position.y, false): return false
+		_release()
+		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
+		_move(1 if right else -1)
+		for i in 90:
+			if _player() == null or _player().health.current <= 0: return false
+			if (right and _player().position.x >= launch) or (not right and _player().position.x <= launch): break
+			await _frames(1)
+	elif a.lift == null:
+		if not await _nv_flat(launch, ar.position.y, false): return false
+		_release()
+		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
+	if b.lift != null:
+		_release()
+		for i in 1200:
+			if not is_instance_valid(b.lift) or _player() == null or _player().health.current <= 0: return false
+			if b.lift.position.distance_to(br.position) < 10: break
+			_move(0)
+			_nv_combat(false, true)
+			if absf(_player().position.x - launch) > 5: _nv_steer(launch)
+			await _frames(1)
+	_release()
+	await _frames(2)
+	if gap > 24:
+		while _player() != null and _player().controller._dash_cd > 0:
+			await _frames(1)
+	for i in 180:
+		var p := _player()
+		if p == null or p.health.current <= 0: return false
+		var r: Rect2 = br
+		if b.lift != null:
+			if not is_instance_valid(b.lift): return false
+			r.position = b.lift.position
+		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
+		if not is_nan(drop_landing): landing = drop_landing
+		_nv_steer(landing)
+		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
+		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
+		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40)
+		_set_action(&"dash", i == dash_frame and needs_dash)
+		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
+			_release()
+			return true
+		if i > 35 and p.is_on_floor() and absf(p.position.y - r.position.y) > 9:
+			_release()
+			return false
+		await _frames(1)
+	_release()
 	return false
 
 

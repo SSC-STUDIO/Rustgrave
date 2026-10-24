@@ -35,9 +35,10 @@ const WAYMARKS := [
 	[Vector2(118, 320), "余烬"],
 	# 牌面 35px，左缘 = 脚点 - 17。枯树右缘 264，石块从 330 起。
 	[Vector2(300, 320), "腐液"],
-	[Vector2(980, 320), "压板"],
-	# 牌面 35px。再靠东会盖住决斗台前的碑（碑在 x=1636，宽 28）。
-	[Vector2(1548, 320), "东翼"],
+	# 压板偏殿的门口：上层路（Plat_920_248 → Plat_980_180）从这里头顶过，楼座在东边。
+	[Vector2(1040, 320), "压板"],
+	# 牌面 35px。锈门前最后一站：炉廊的炉口已经在身后，门后是中殿。
+	[Vector2(2536, 320), "东翼"],
 ]
 ## 硬物只在玩法层：scale=1，脚钉 GROUND_TOP，无 WindSway。近景视差条不画碑。
 ## 位置是贴图左缘。路牌牌面是脚点 x-17 起、宽 35。两边不许叠。
@@ -61,11 +62,8 @@ const PLAY_DECOR := [
 	[Level01Env.DECOR_BUSH_S, Vector2(656, 320), 1.0],
 	[Level01Env.DECOR_GRAVE_CROSS, Vector2(700, 320), 1.0],
 	[Level01Env.DECOR_STATUE, Vector2(880, 320), 1.0],
-	[Level01Env.DECOR_STONE_2, Vector2(1020, 320), 1.0],
-	[Level01Env.DECOR_TREE_1_PX, Vector2(1210, 320), 1.0],
-	[Level01Env.DECOR_BUSH_L_62, Vector2(1440, 320), 1.0],
-	[Level01Env.DECOR_STONE_1, Vector2(1496, 320), 1.0],
-	[Level01Env.DECOR_STONE_4, Vector2(1580, 320), 1.0],
+	# 草地到 1168 为止：之后是偏殿的石板地，墓园的树与灌木不再往里长
+	# （偏殿 / 工坊 / 中殿的装饰由 level01_east_layout.gd 摆）。
 ]
 
 const EAST_LIMIT := Level01EastWing.EAST_LIMIT
@@ -301,8 +299,8 @@ func _spawn_steles_and_bastion_decor() -> void:
 	add_child(decor_layer)
 	# 女墙 80×52，底边贴地面。墓园夜空不用 64×192 的壁炬墙板：
 	# 那张贴图几乎是一块平的暗矩形，会挡掉月亮和远山。火在栏杆贴图上。
-	_add_balustrade(decor_layer, Vector2(1130, GROUND_TOP))
-	_add_balustrade(decor_layer, Vector2(1370, GROUND_TOP))
+	_add_balustrade(decor_layer, Vector2(1000, GROUND_TOP))
+	_add_balustrade(decor_layer, Vector2(1236, GROUND_TOP))
 
 
 ## 碑文文本从 ChapterText 取；位置常量留在本文件（几何归关卡，文本归注册表）。

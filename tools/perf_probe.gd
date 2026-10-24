@@ -12,7 +12,7 @@ extends Node
 
 const OUT := "res://screenshots/peek/perf"
 const SPOTS := {
-	"level01": [320.0, 640.0, 1200.0, 1920.0],
+	"level01": [320.0, 640.0, 1200.0, 1750.0, 2350.0, 3250.0],
 	"level02": [240.0, 960.0, 1760.0, 2360.0],
 }
 const DEFAULT_SPOTS: Array[float] = [320.0, 960.0, 1600.0, 2240.0]

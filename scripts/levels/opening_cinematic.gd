@@ -48,13 +48,14 @@ static var LINES: Array[String] = ChapterText.opening_lines()
 
 const KNIGHT_FALLBACK := Vector2(96, 320)
 const NEST_FALLBACK := Vector2(150, 306)
-## 残芯（Level01EastWing 放它的位置）。刽子手站在它前面 (1860, 320)。
-const HEART := Vector2(2064, 292)
+## 残芯（Level01EastWing 放它的位置）。刽子手站在它前面的石台上 (3420, 336)。
+const HEART := Vector2(3664, 324)
 const GROUND_Y := 320.0
 ## 坟与碑的脚点 x。真实关卡从 GraveDecor / 碑取，取不到才用这一份。
 const GRAVE_XS: Array[float] = [210.0, 360.0, 548.0, 596.0, 690.0, 1020.0, 1496.0, 1580.0, 1636.0]
 const PULLBACK_X := 262.0
-const PAN_END_X := 1990.0
+## 走廊现在有 3760px 长：镜头扫到炉厅（相机右界 3760 会把中心夹在 3440），刽子手在中心、残芯在右缘。
+const PAN_END_X := 3440.0
 const PAN_SECONDS := 3.4
 const PULLBACK_SECONDS := 2.1
 ## 第一拍推得更近：趴着的骑士只有 40px 宽，2.0 倍下在 640 视野里太小，
@@ -496,7 +497,7 @@ static func _arrive() -> void:
 		Director.play_fx("shock_ring", gate + Vector2(0.0, -30.0))
 
 
-## 刽子手门前的位置（Level01EastWing 把 BossGate 放在 x=1688，刽子手立在 x=1860）。
+## 刽子手门前的位置（Level01EastWing 把 BossGate 放在 x=3112，刽子手立在石台 x=3420）。
 ## 真实场景里问不到就退回常量；这一下只是冷光，不牵动战斗。
 static func _gate_pos() -> Vector2:
 	if is_instance_valid(_dolly):
@@ -507,7 +508,7 @@ static func _gate_pos() -> Vector2:
 				for child in props.get_children():
 					if child is ExecutionerBoss and (child as Node2D).position.y > 300.0:
 						return (child as Node2D).global_position
-	return Vector2(1860.0, GROUND_Y)
+	return Vector2(3420.0, 336.0)
 
 
 static func _pulse_heart(world: Node) -> void:

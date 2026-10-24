@@ -52,7 +52,7 @@ func _run() -> void:
 
 	
 	player.global_position = Vector2(1880, 320)
-	camera.global_position = Vector2(1860, 220)
+	camera.global_position = Vector2(Level01EastWing.ARENA_CENTER_X, 220)
 	camera.set_physics_process(false)
 	player.cutscene_locked = false
 	player.visual.scale.x = -1.0 # Face left
