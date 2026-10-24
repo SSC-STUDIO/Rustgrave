@@ -6,6 +6,6 @@
 
 真实攻击步骤控制0–1前摇、2–3判定、4–5收招；朝向直接跟随战斗方向。真实钩锁落地使用折翼帧，单独对齐地面，死亡同样播放原创折翼帧。身体、受击、攻击判定和时序不改。
 
-`screenshots/acceptance/overhaul-v3/original-bosses/herald-tests-final/` 为12/12、0引擎错误，覆盖原战斗、世界风区坐标与新帧/真实步骤/钩锁着地。真实level09b BossFixture记录5张图、0引擎错误，已检查一/二阶段画面；原夹具机位偏左，完整轮廓另以专用机位补拍。取景摆位/注入伤害不计作输入通关。
+`screenshots/acceptance/overhaul-v3/original-bosses/herald-tests-death/` 为12/12、0引擎错误，覆盖原战斗、世界风区坐标与新帧/真实步骤/钩锁着地。真实level09b BossFixture记录5张图、0引擎错误，已检查一/二阶段画面。原夹具机位偏左，`scenes/tools/HeraldArtReview.tscn` 另驱动真实姿势选择器和钩锁落地，保存冷/热六动作共12张1280×720完整轮廓图，报告0引擎错误；已查看推风与过热折翼图。证据为 `herald-portraits/{report.json,stdout-complete.log,stderr-complete.log}`。取景摆位/注入状态不计作输入通关。
 
 作者/权利：本项目原创绘制源稿与输出，供项目使用，无外部来源URL。
