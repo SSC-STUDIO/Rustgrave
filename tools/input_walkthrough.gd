@@ -188,7 +188,8 @@ func _run() -> void:
 	if not _require(SaveData.last_lit_nest().ends_with("EmberNestEast"), "east checkpoint is reachable"): return
 	_record("east_checkpoint")
 	# --- ④ 炉厅竞技场：刽子手在石台上，炉龛喷火口只在战斗里转 ---
-	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return
+	# 台心以东被刽子手挡住，导航停在他西侧；开战脚本再冲到东侧挥砍。
+	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 56.0, Level01EastWing.STAGE_Y)): return
 	if not await _fight_boss(): return
 	_record("boss_slain")
 	if not await _verify_progress_reload(): return
@@ -404,7 +405,7 @@ func _fight_boss() -> bool:
 		if player.get_instance_id() != fighter_id:
 			fighter_id = player.get_instance_id()
 			# 死了回 BossGate 前的巢：长阶 + 石台 + 掩体墩都要走回去（不传送，不跳关）。
-			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return false
+			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 56.0, Level01EastWing.STAGE_Y)): return false
 			continue
 		var boss: ExecutionerBoss = null
 		for enemy in get_tree().get_nodes_in_group("enemies"):
