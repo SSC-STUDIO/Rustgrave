@@ -5,6 +5,35 @@ extends "res://tools/input_walkthrough.gd"
 var _fight_tick := 0
 var _final_caption_recorded := false
 
+const GOAL_ORDER := {
+	"level07": ["EmberNestEntry", "BellGatePlate", "EmberNestGallery", "EmberNestSummit", "Exit"],
+	"level09b": ["EmberNestCliff", "EmberNestWind", "EmberNestFold", "EmberNestBridge",
+		"WindGatePlate", "EmberNestOutpost", "EmberNestGate", "Exit"],
+}
+
+
+static func ordered_goals(id: String, goals: Array[Dictionary]) -> Array[Dictionary]:
+	if not GOAL_ORDER.has(id):
+		goals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.feet.x < b.feet.x)
+		return goals
+	var ordered: Array[Dictionary] = []
+	for name_ in GOAL_ORDER[id]:
+		for goal in goals:
+			if goal.name == name_: ordered.append(goal)
+	return ordered
+
+
+static func resume_goal_index(goals: Array[Dictionary], feet: Vector2) -> int:
+	var best := -1
+	var distance := 32.0
+	for i in goals.size():
+		if not String(goals[i].name).begins_with("EmberNest"): continue
+		var gap: float = feet.distance_to(goals[i].feet)
+		if gap < distance:
+			distance = gap
+			best = i
+	return best
+
 func _run() -> void:
 	# Public settings only, in the runner's isolated user directory. No HP grants,
 	# invulnerability, direct enemy damage, gate opening or progress mutation.
@@ -41,18 +70,12 @@ func _after_undercroft() -> bool:
 		for node in _world().get_node("Props").get_children():
 			if node is EmberNest or node is PressurePlate or node is RustyGate or node is LevelExit:
 				goals.append({"name": str(node.name), "feet": LevelSanity.feet_of(node)})
-		goals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.feet.x < b.feet.x)
-		if id == "level07":
-			# 竖井不能按 x 排序：先踩中层压板，再点巢，再上塔顶。脚点读当前节点，
-			# 塔顶巢和出口挪过之后旧的写死坐标会对不准。
-			goals.clear()
-			for goal_name in ["EmberNestEntry", "BellGatePlate", "EmberNestGallery", "EmberNestSummit", "Exit"]:
-				var goal_node := _world().get_node_or_null("Props/" + goal_name)
-				if goal_node != null:
-					goals.append({"name": goal_name, "feet": LevelSanity.feet_of(goal_node)})
-		for goal in goals:
+		goals = ordered_goals(id, goals)
+		var resume_at := resume_goal_index(goals, resume_feet)
+		for goal_index in goals.size():
+			var goal := goals[goal_index]
 			if idx == start and "--resume" in OS.get_cmdline_user_args():
-				if (id == "level07" and goal.feet.y > resume_feet.y + 16) or (id != "level07" and goal.feet.x < resume_feet.x - 24): continue
+				if resume_at >= 0 and goal_index < resume_at: continue
 			var node := _world().get_node_or_null("Props/" + goal.name)
 			if node == null: continue
 			var is_exit := node is LevelExit
@@ -178,10 +201,11 @@ func _closest(segments: Array[Dictionary], feet: Vector2) -> int:
 			best = i
 	return best
 
-func _link(a: Dictionary, b: Dictionary) -> bool:
-	return _nv_link(a, b)
+func _link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
+	return _nv_link(a, b, solids)
 
 func _path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
+	var solids := _nv_solids()
 	var start := _closest(segments, _player().position)
 	var goal := _closest(segments, feet)
 	var parents := {start: -1}
@@ -193,7 +217,7 @@ func _path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 		if at == goal: break
 		for i in segments.size():
 			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
-			if (not costs.has(i) or cost < costs[i]) and _link(segments[at], segments[i]):
+			if (not costs.has(i) or cost < costs[i]) and _link(segments[at], segments[i], solids):
 				parents[i] = at
 				costs[i] = cost
 				if not i in queue: queue.append(i)
@@ -317,6 +341,7 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			threat = e
 	var attack := false
 	var dash := false
+	if _nv_guard_combat(threat, _fight_tick): return
 	if threat != null:
 		var side := signf(threat.position.x - p.position.x)
 		if (threat.has_method("is_airborne") and threat.is_airborne()) or threat.has_method("is_risen") or threat is GhostEnemy:

@@ -31,6 +31,22 @@ func _segment(rect: Rect2) -> Dictionary:
 	return {"r": rect, "lift": null}
 
 
+func test_runup_flanks_a_live_shield_guard_on_fixed_ground() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Floor", Vector2(0, 320), 512.0)
+	var guard := layout.enemy(host, "Guard", "gear_shield", Vector2(200, 320)) as GearShieldEnemy
+	var player := await spawn_player(host, Vector2(144, 300))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	ok(await driver._nv_flat(168, 320, false), "ordinary dash and sword attacks clear the blocked run-up")
+	ok(not is_instance_valid(guard) or guard._dead, "the guard is defeated through its real rear hurtbox")
+	ok(player.health.current > 0)
+	driver._release()
+
+
 func test_walkoff_clears_the_whole_body_before_braking() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()

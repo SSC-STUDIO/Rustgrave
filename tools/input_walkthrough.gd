@@ -768,7 +768,7 @@ func _nv_closest(segments: Array[Dictionary], feet: Vector2) -> int:
 	return best
 
 
-func _nv_link(a: Dictionary, b: Dictionary) -> bool:
+func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	if a.lift != null and a.lift == b.lift: return true
 	var ar: Rect2 = a.r
 	var br: Rect2 = b.r
@@ -782,13 +782,15 @@ func _nv_link(a: Dictionary, b: Dictionary) -> bool:
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
-		for r in _nv_solids():
+		for r in (_nv_solids() if solids.is_empty() else solids):
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	return true
 
 
 func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
+	# No physics advances during graph search; use one live obstacle snapshot.
+	var solids := _nv_solids()
 	var start := _nv_closest(segments, _player().position)
 	var goal := _nv_closest(segments, feet)
 	var parents := {start: -1}
@@ -800,7 +802,7 @@ func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 		if at == goal: break
 		for i in segments.size():
 			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
-			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i]):
+			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i], solids):
 				parents[i] = at
 				costs[i] = cost
 				if not i in queue: queue.append(i)
@@ -943,6 +945,7 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			threat = e
 	var attack := false
 	var dash := false
+	if _nv_guard_combat(threat, _nv_tick): return
 	if threat != null:
 		var side := signf(threat.position.x - p.position.x)
 		if threat.has_method("is_airborne") and threat.is_airborne():
@@ -961,6 +964,28 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			attack = distance < 48 and p.controller.facing == side and _nv_tick % 20 == 0
 	_set_action(&"attack", attack)
 	_set_action(&"dash", dash)
+
+
+## Flank a blocking guard only where its rear has a fixed same-height landing.
+## Run-up positioning must not keep trading frontal swings into an intact shield.
+func _nv_guard_combat(threat: EnemyBase, tick: int) -> bool:
+	if not threat is GearShieldEnemy: return false
+	var p := _player()
+	var facing := float((threat as GearShieldEnemy)._shield_facing)
+	var rear := threat.position.x - facing * 32.0
+	var support := LevelSanity.standing_on(LevelSanity.top_segments(_world_root()),
+			Vector2(rear, threat.position.y))
+	if support == null or support.kind != "" or absf(p.position.y - threat.position.y) > 8: return false
+	var behind := (p.position.x - threat.position.x) * facing < -16.0
+	if not behind:
+		_move(signf(rear - p.position.x))
+		_set_action(&"attack", false)
+		_set_action(&"dash", absf(p.position.x - threat.position.x) < 60 and p.controller._dash_cd <= 0)
+	else:
+		_move(facing if p.controller.facing != facing else 0.0)
+		_set_action(&"attack", tick % 20 == 0)
+		_set_action(&"dash", false)
+	return true
 
 
 ## 台面这一端的外侧（身体高度）是不是实心：是墙不是边。
