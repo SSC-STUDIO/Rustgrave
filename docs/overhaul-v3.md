@@ -45,6 +45,17 @@
 
 ## 4. 决策与变更记录
 
+### 并行推进快照（P2 起）
+
+- 主分支 `feature/overhaul-v3` 已含 P0 / P1（提交 `d2bd684`）与通用简报 `docs/overhaul-v3-brief.md`（`124059e`）。
+- 十个并行 worktree 已建好（均自 `124059e` 切出，已拷入 `.godot` 导入缓存并验证能跑测试）：
+  `C:\dev\rg-title`（标题）、`rg-level01`（第一章）、`rg-systems`（P7 系统）、`rg-g1`（02 / 02b）、`rg-g2`（03 / 04）、
+  `rg-g3`（04b / 05）、`rg-g4`（06 / 07）、`rg-g5`（07b / 08）、`rg-g6`（09 / 09b）、`rg-g7`（10）；分支名 `feature/overhaul-v3-<名字>`。
+- 各 agent 的任务书在 `docs/overhaul-v3-agents/<名字>.md`（未提交，随主工作区）。
+- 待办：全量回归复核（P1 修完两处测试写法后只复跑了相关文件）；启动各 agent；逐个合并回 `feature/overhaul-v3`；
+  再做 P8（战役 bot 升级与 14 章输入验收、渲染矩阵、最终文档）。
+- 阻塞记录：本轮后段 Shell 工具被环境 hook（`enforce-agent-api.sh` 返回非法 JSON）拦截，之后的命令（测试 / git / 启动 agent）都等该问题解除后再继续。
+
 ### P1（机关工具箱 / 敌人 / 存档安全）
 
 - 五个机关基类（`CyclicHazard` / `CollapsingPlatform` / `ForceZone` / `ConveyorBelt` / `PendulumHazard`）
