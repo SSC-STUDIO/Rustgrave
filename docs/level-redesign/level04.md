@@ -59,3 +59,11 @@
 ## 普通输入楼梯净空复验（2026-10-24）
 
 普通输入从前厅巢发现 GalleryReturn 的东端覆盖 ChoirStep2→ChoirLoft 的跳弧。回廊缩至 x400..736，保留48px可冲刺上跳的西向回程。新增生产导航+真实玩家夹具，普通单跳/冲刺先触发 ChoirPlate→ChoirDoor，再跳回 GalleryReturn；章节12/12、0 engine errors通过，记录在 screenshots/acceptance/overhaul-v3/level04/input-stair-final。夹具移除敌人/机关，只证明实体净空；有敌人战役与更新构图由整合验收另记。
+
+## 楼梯净空修正后的补充构图（2026-10-24）
+
+按 `70920d7` 的既有修正复拍：`GalleryReturn` 位于 x400..736/y192、宽336，唱诗台仍从 x784/y224 开始。机位 x720、960，CamY220，各拍1280×720与1920×1080，共四张；已逐张检查原图。x720能同时读到西回廊的短东缘、ChoirStep2和ChoirLoft之间的上跳空间，x960能读到唱诗台、东侧恢复阶与下层门路；廊面端点、台阶落脚和上下层连接均清楚，未见大装饰遮住落脚或骑士埋地/悬空。两档骑士脚点分别是600/288（壁龛柱座）与840/320（下层地面），真实敌人AI及鸣钟机关保持运行。
+
+四张位于本地忽略目录 `screenshots/acceptance/overhaul-v3/level04-stair-fix/1280x720/`、`1920x1080/`，文件名为 `live_720_level04_lit_active.png`、`live_960_level04_lit_active.png`。`manifest.json` 记录实际PNG尺寸与SHA256，并核对两份`capture.log`均各保存两张、0个引擎错误。夹具先等待实际窗口纹理尺寸稳定，再按真实固定台面与完整身体净空停放骑士；`capture_level04.gd`、`CaptureLevel04.tscn`、`run_capture.ps1`仅保留在该忽略目录，未改共享捕获工具或游戏代码。
+
+本次只补构图证据，未再跑局部物理、全量套件或完整普通输入战役；上节的压板开门与西向回程12/12由整合分支已有输入回归证明，不能由本次停放机位截图推断。最终全量、有敌人战役、真人手感与实体手柄仍由整合验收分别记录。
