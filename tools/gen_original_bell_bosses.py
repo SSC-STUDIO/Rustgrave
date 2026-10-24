@@ -7,6 +7,8 @@ Run with the bundled Python: python tools/gen_original_bell_bosses.py --boss hol
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import math
 from pathlib import Path
 
@@ -305,14 +307,169 @@ def generate_bell_founder():
                 save_frame("bell_founder", prefix + "tool_" + action, frame, bell_founder(action, frame, hot, True))
 
 
+def emberwind_herald(action, frame, hot):
+    im = Image.new("RGBA", (192, 144))
+    d = ImageDraw.Draw(im)
+    active = 2 <= frame <= 3 and action not in ("idle", "downed")
+    down = action == "downed"
+    dive = action == "dive"
+    flap = [0, -4, -7, -3, 3, 5][frame % 6]
+    cx, cy = 96, 78 + (14 - frame % 2 if down else 0)
+    metal, mid, edge = "#314b5d", "#5d7e86", "#b0c6bd"
+    gold, ember = "#d59a54", "#ffd48a" if hot else "#dca064"
+    # Peacock-like steel tail: five jointed blades with individual enamel eyes.
+    # A dive streams the tail horizontally; downed feathers fold above the floor.
+    for i in range(5):
+        root = (cx - 4, cy + 12)
+        tx = [11, 25, 44, 61, 74][i]
+        ty = [108, 122, 133, 131, 119][i] + (frame % 2)
+        if dive:
+            ty = 83 + i * 6 + flap // 3
+        if down:
+            tx = 41 + i * 7
+            ty = 98 + i % 2 * 5
+        poly(d, [root, (tx + 8, ty - 8), (tx, ty + 4), (tx - 5, ty - 2),
+                 (tx + 2, ty - 12)], "#28414d", width=1)
+        d.line((root, (tx + 1, ty - 3)), fill=mid)
+        d.line((tx + 1, ty - 3, tx, ty + 2), fill=edge)
+        # Insets are steel/enamel lens fittings, not organic bird spots.
+        d.ellipse((tx - 4, ty - 12, tx + 8, ty - 2), fill="#6e6950", outline=gold)
+        d.ellipse((tx - 1, ty - 10, tx + 5, ty - 4), fill="#1a424c", outline="#81a99d")
+        d.point((tx + 2, ty - 7), fill=ember if hot else "#d3c891")
+        for j in range(1, 4):
+            sx = int(root[0] + (tx + 1 - root[0]) * j / 4)
+            sy = int(root[1] + (ty - 3 - root[1]) * j / 4)
+            d.line((sx - 3, sy - 2, sx + 2, sy), fill="#87978a")
+    # Wings are ribbed metal fans, not arms, capes or a humanoid shoulder rig.
+    for side in (-1, 1):
+        span = 1.0
+        lift = flap
+        if dive:
+            span = 0.55 if active else 0.74
+            lift = 9 if active else -8
+        elif down:
+            span, lift = 0.42, 13
+        elif action == "wind_push":
+            span = 1.04 if active else 0.84
+            lift = -15 if active else -6
+        elif action == "updraft":
+            span = 0.86 if active else 0.70
+            lift = -22 if active else -13
+        elif action == "feather_blades":
+            span = 1.02 if active else 0.91
+            lift = -3 if active else -14
+        root = (cx + side * 10, cy - 10)
+        elbow = (cx + side * int(43 * span), cy - 32 + lift)
+        wrist = (cx + side * int(82 * span), cy - 20 + lift)
+        poly(d, [root, elbow, wrist, (wrist[0] - side * 5, wrist[1] + 8),
+                 (cx + side * 39, cy - 10), (cx + side * 10, cy + 1)], metal, width=2)
+        d.line((root, elbow, wrist), fill=edge, width=2)
+        d.line((cx + side * 16, cy - 9, elbow[0], elbow[1] + 5), fill=gold)
+        # Eight individually faceted primary blades on each wing.
+        for i in range(8):
+            bx = cx + side * int((23 + i * 8) * span)
+            by = cy - 24 + lift + i * 2
+            tipx = bx + side * int((10 + i * 0.6) * span)
+            tipy = by + 20 + (i % 3) * 3
+            if dive and active:
+                tipy = by + 13
+            if down:
+                tipy = min(108, by + 15)
+            poly(d, [(bx, by), (bx + side * 6, by - 1), (tipx, tipy - 3),
+                     (tipx - side * 2, tipy + 2), (bx - side * 2, by + 9)],
+                 mid if i % 2 else metal)
+            d.line((bx + side * 2, by + 2, tipx - side * 1, tipy - 2), fill=edge)
+            d.line((bx + side * 4, by + 5, tipx + side * 1, tipy - 4), fill="#243b4d")
+            rivet(d, bx + side * 2, by + 5, "#dfbf79", "#293b49")
+            if hot and i % 2 == frame % 2:
+                d.line((tipx - side * 2, tipy - 3, tipx - side * 2, tipy), fill="#ffca7c")
+        # Open gear rosettes and a diagonal actuator distinguish the mechanical bird.
+        ex, ey = elbow
+        d.ellipse((ex - 5, ey - 5, ex + 5, ey + 5), fill="#223844", outline=gold)
+        d.ellipse((ex - 2, ey - 2, ex + 2, ey + 2), fill=mid, outline=edge)
+        d.line((cx + side * 12, cy - 6, ex - side * 3, ey + 4), fill="#d3b67b", width=2)
+        if hot:
+            # Phase two physically splits an upper vane to vent the furnace.
+            d.line((cx + side * 19, cy - 17, ex, ey - 7, wrist[0] - side * 4, wrist[1] - 5), fill="#e8b96b")
+    # Central hanging lantern hull: the original hurtbox remains around this core.
+    poly(d, [(cx - 13, cy - 10), (cx + 10, cy - 13), (cx + 18, cy + 1),
+             (cx + 13, cy + 24), (cx + 4, cy + 31), (cx - 12, cy + 25),
+             (cx - 18, cy + 6)], "#203543", width=2)
+    poly(d, [(cx - 10, cy - 5), (cx + 8, cy - 8), (cx + 12, cy + 3),
+             (cx + 8, cy + 20), (cx - 2, cy + 25), (cx - 11, cy + 17)], "#754c31", gold)
+    # Pixel flame and individual lantern bars, a bright vulnerable focal point.
+    poly(d, [(cx - 6, cy + 17), (cx - 7, cy + 6), (cx - 2, cy - 2),
+             (cx + 1, cy + 8), (cx + 6, cy + 1), (cx + 8, cy + 14),
+             (cx + 1, cy + 22)], ember, None)
+    d.line((cx, cy + 8, cx + 3, cy + 16, cx - 1, cy + 19), fill="#ffecc1", width=2)
+    for bx in (-10, -4, 4, 10):
+        d.line((cx + bx, cy - 7, cx + bx - 1, cy + 21), fill="#31434b", width=2)
+        d.point((cx + bx, cy - 6), fill=edge)
+    d.line((cx - 12, cy - 8, cx + 9, cy - 10), fill=edge, width=2)
+    d.line((cx - 9, cy + 24, cx + 5, cy + 27, cx + 11, cy + 22), fill=gold, width=2)
+    # Canted mechanical neck and sharp beak crown, explicitly avian and nonhuman.
+    necky = 5 if down else 0
+    poly(d, [(cx + 3, cy - 10), (cx + 7, cy - 28 + necky), (cx + 16, cy - 35 + necky),
+             (cx + 26, cy - 31 + necky), (cx + 21, cy - 17 + necky), (cx + 14, cy - 7)], metal)
+    d.line((cx + 7, cy - 13, cx + 12, cy - 26 + necky, cx + 19, cy - 29 + necky), fill=edge, width=2)
+    hy = cy - 36 + necky
+    poly(d, [(cx + 13, hy), (cx + 24, hy - 7), (cx + 32, hy - 4),
+             (cx + 48, hy + 3), (cx + 28, hy + 7), (cx + 18, hy + 6)], mid, width=2)
+    poly(d, [(cx + 30, hy - 2), (cx + 48, hy + 3), (cx + 30, hy + 3)], gold)
+    d.line((cx + 18, hy - 1, cx + 29, hy - 1), fill="#0d222f", width=3)
+    d.line((cx + 22, hy - 2, cx + 25, hy - 2), fill="#fff1bd")
+    # Three swept crown fins with two inset rivets; no humanoid helmet silhouette.
+    for i in range(3):
+        x = cx + 13 + i * 5
+        poly(d, [(x, hy - 1), (x - 5 - i * 2, hy - 19 - i * 2),
+                 (x + 3, hy - 12), (x + 4, hy)], metal, gold if hot else edge)
+        d.point((x, hy - 7), fill=gold)
+    # Folded talons are split hooks, never human feet.
+    for side in (-1, 1):
+        x = cx + side * 10
+        y = min(109, cy + 26)
+        d.line((x, y - 2, x + side * 7, y + 3, x + side * 10, y - 2), fill=edge, width=2)
+    if hot:
+        d.line((cx - 14, cy + 1, cx - 18, cy + 9, cx - 13, cy + 18), fill="#ffbe69", width=2)
+    return im
+
+
+def generate_emberwind_herald():
+    actions = {"idle": 6, "dive": 6, "wind_push": 6, "feather_blades": 6,
+               "updraft": 6, "downed": 4}
+    for hot in (False, True):
+        prefix = "hot_" if hot else ""
+        for action, count in actions.items():
+            for frame in range(count):
+                save_frame("emberwind_herald", prefix + action, frame, emberwind_herald(action, frame, hot))
+    folder = BASE / "original_emberwind_herald"
+    manifest = {
+        "author": "Rustgrave project original integer-pixel drawing",
+        "source": "tools/gen_original_bell_bosses.py:emberwind_herald",
+        "external_inputs": [],
+        "design": "mechanical avian iron kite; segmented steel wings, five lens-tail blades, beak crown and lantern hull",
+        "size": [192, 144],
+        "frames": {},
+    }
+    palette = set()
+    for path in sorted(folder.glob("*/*.png")):
+        with Image.open(path) as frame:
+            manifest["frames"][path.relative_to(folder).as_posix()] = hashlib.sha256(frame.tobytes()).hexdigest()
+            palette.update(pixel for pixel in frame.getdata() if pixel[3])
+    manifest["palette"] = sorted("#%02x%02x%02x" % pixel[:3] for pixel in palette)
+    (folder / "authorship.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--boss", choices=["hollow_bell", "bell_founder", "all"], default="all")
+    parser.add_argument("--boss", choices=["hollow_bell", "bell_founder", "emberwind_herald", "all"], default="all")
     args = parser.parse_args()
     if args.boss in ("hollow_bell", "all"):
         generate_hollow_bell()
     if args.boss in ("bell_founder", "all"):
         generate_bell_founder()
+    if args.boss in ("emberwind_herald", "all"):
+        generate_emberwind_herald()
     print("Drew original boss pixel frames from shapes; no source images read.")
 
 

@@ -278,7 +278,7 @@
 ## Original Capstan Warden pixel animation
 - Project-original contour and articulated pose source:
   `tools/gen_original_choir_warden.py`; no image inputs or external source URL.
-- `assets/characters/original_capstan_warden/`: 38 native-size pixel frames,
+- `assets/characters/original_capstan_warden/`: 40 native-size pixel frames,
   diving armor, horizontal winch and chain anchor. Replaces the guard recolor.
 - Source and output delivered for project use. `authorship.json` records
   the palette and individual frame pixel hashes.
@@ -286,8 +286,18 @@
 ## Original Silent Choir pixel animation
 - Source: project-original contour and articulated poses in
   `tools/gen_original_choir_warden.py`, without source image inputs.
-- `assets/characters/original_silent_choir/`: 38 conductor frames and
+- `assets/characters/original_silent_choir/`: 36 conductor frames and
   24 frames for three individually drawn cantor masks. Replaces all reused
   ghost sprites, including singing, broken and death poses.
 - Source and output supplied for project use; no external URL. Manifests
   record the palette, dimensions and exact frame pixel hashes.
+
+## Original Emberwind Herald pixel animation
+- Source: `tools/gen_original_bell_bosses.py`, project-authored integer-pixel
+  drawing without image inputs, tracing or external source URLs.
+- `assets/characters/original_emberwind_herald/`: 68 native-size transparent
+  frames for a mechanical bird with segmented wings, lens-tail blades,
+  beak crown and lantern chest. All four attacks and the real down window
+  select separate cold/hot poses, including the death fold.
+- Source and output delivered for project use. Authorship manifest records
+  palette, dimensions and exact pixel hashes.
