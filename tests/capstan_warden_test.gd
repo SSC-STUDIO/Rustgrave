@@ -234,6 +234,25 @@ func test_bounds_and_clamp_keep_the_fight_in_the_arena() -> void:
 	await flush(2)
 
 
+func test_warden_holds_position_until_the_knight_enters_the_arena() -> void:
+	var built := await _arena_host()
+	var host: Node2D = built[0]
+	var boss := built[1] as CapstanWardenBoss
+	boss.arena_left = 120.0
+	boss.arena_right = 520.0
+	var player := await spawn_player(host, Vector2(80, -24))
+	player.health.invincible = true
+	await flush(360)
+	ok(not boss.is_announced(), "nearby knight outside the arena does not start the fight")
+	almost(boss.position.x, 320.0, 1.0, "unannounced warden does not walk towards the approach")
+	almost(player.position.x, 80.0, 1.0, "waiting outside is not pulled into the arena")
+	player.position = Vector2(140, 0)
+	await flush(3)
+	ok(boss.is_announced(), "entering the real bounds starts the normal fight")
+	host.queue_free()
+	await flush(2)
+
+
 func test_death_emits_slain_sets_flag_and_clears_arena() -> void:
 	var built := await _arena_host()
 	var host: Node2D = built[0]

@@ -570,8 +570,14 @@ func _tick_state(delta: float) -> void:
 	if not _announced:
 		# 走进竞技场就开战（没有独立闸门触发器；和梦魇同一条靠近唤醒逻辑）。
 		var near := knight()
-		if near != null and global_position.distance_to(near.global_position) <= WAKE_RANGE:
+		var bounds := boss_arena_bounds()
+		if near != null and near.global_position.x >= bounds.x and near.global_position.x <= bounds.y \
+				and global_position.distance_to(near.global_position) <= WAKE_RANGE:
 			announce()
+		else:
+			# Do not creep towards the approach/checkpoint before the fight.
+			# Announcing from there activates BossArena's player clamp remotely.
+			velocity.x = 0.0
 	if _break_left > 0.0:
 		_break_left = maxf(0.0, _break_left - delta)
 		velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
@@ -591,6 +597,9 @@ func _tick_state(delta: float) -> void:
 	if _drive != Drive.NONE:
 		velocity.x = move_toward(velocity.x, 0.0, 500.0 * delta)
 		_tick_drive(delta)
+		return
+	if not _announced:
+		velocity.x = 0.0
 		return
 	# 两招之间缓慢靠近骑士（竞技场 clamp 由 BossArena 负责）。
 	var player := knight()
