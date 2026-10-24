@@ -33,6 +33,7 @@ const SKIN_HINTS := {"wind": &"wind", "water": &"surge", "mud": &"mud", "ember":
 @export var hint_id: StringName = &""
 @export var auto_hint: bool = true
 
+var _audio_left := 0.0
 var _t := 0.0
 var _vt := 0.0
 var _bodies: Array[Node2D] = []
@@ -146,6 +147,10 @@ func tick(delta: float) -> void:
 	_t += delta
 	_vt += delta
 	var factor := gust_factor(_t)
+	_audio_left = maxf(0.0, _audio_left - delta)
+	if skin in ["wind", "ember"] and factor > 0.2 and _audio_left <= 0.0 and _on_screen:
+		HazardFx.play("wind", "fire", global_position, -13.0)
+		_audio_left = 1.5
 	for body in _bodies.duplicate():
 		if not is_instance_valid(body):
 			_bodies.erase(body)

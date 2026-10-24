@@ -672,6 +672,62 @@ def gear_clank(rng):
 # --- registry ---------------------------------------------------------------
 
 # name -> (function, peak dBFS, variants, extra finish kwargs)
+# Dedicated hazard cues: pressure release, stone failure, gust and bronze motion.
+def hazard_steam(rng):
+    dur = 1.05
+    t = tt(nn(dur))
+    x = bpn(white(len(t), rng), 900, 9500) * np.sin(np.pi * t / dur) ** 0.45
+    x *= 0.7 + 0.3 * np.sin(TAU * 23 * t)
+    add(x, thump(rng, 170, 70, decay=0.12), gain=0.25)
+    return x
+
+
+def hazard_flame(rng):
+    return roar(1.2, rng, mid_gain=0.8, hiss_gain=0.18, crackle_rate=34, crackle_gain=0.7).mean(axis=0) * window(nn(1.2), 0.025, 0.5)
+
+
+def hazard_slag(rng):
+    x = np.zeros(nn(1.25))
+    add(x, thump(rng, 130, 45, decay=0.28), gain=1.1)
+    add(x, whoosh(rng, 0.8, 250, 1200, 400), t=0.08, gain=0.6)
+    add(x, grit(rng, 0.9, 25, 500, 4200, 0.035), t=0.15, gain=0.7)
+    return x
+
+
+def hazard_bell(rng):
+    x = ring(118, [1, 2.71, 4.05, 5.78], [1, 0.7, 0.4, 0.15], [1.1, 0.8, 0.6, 0.3], 2.0, 0.008)
+    add(x, thump(rng, 180, 48, decay=0.2), gain=0.8)
+    add(x, crack(rng, 0.12, 1200, 5600), gain=0.4)
+    return x
+
+
+def hazard_collapse(rng):
+    x = np.zeros(nn(1.0))
+    add(x, thump(rng, 105, 42, decay=0.2), gain=0.9)
+    add(x, grit(rng, 0.85, 38, 280, 3600, 0.04), t=0.06, gain=0.8)
+    return x
+
+
+def hazard_pendulum(rng):
+    x = whoosh(rng, 0.7, 200, 1800, 220, peak_at=0.52)
+    add(x, ring(270, [1, 1.73, 3.41], [1, 0.35, 0.2], [0.25, 0.16, 0.1], 0.5), t=0.12, gain=0.25)
+    return x
+
+
+def hazard_wind(rng):
+    return wind(1.5, rng, [(160, 720), (800, 2200)], gusts=1, widths=(0.5, 0.7), depth=0.8).mean(axis=0) * np.sin(np.pi * tt(nn(1.5)) / 1.5) ** 0.5
+
+
+def hazard_pressure_warn(rng):
+    return bpn(white(nn(0.5), rng), 1600, 5400) * window(nn(0.5), 0.035, 0.16)
+
+
+def hazard_metal_warn(rng):
+    x = ring(395, [1, 1.46, 2.8], [1, 0.5, 0.2], [0.22, 0.18, 0.1], 0.65, 0.007)
+    add(x, grit(rng, 0.45, 7, 900, 4300), gain=0.3)
+    return x
+
+
 SOUNDS = {
     "step_stone": (step_stone, -6.0, 3, {"hp_hz": 50.0}),
     "step_dirt": (step_dirt, -8.0, 3, {"hp_hz": 45.0}),
@@ -719,6 +775,20 @@ SOUNDS = {
     "drip": (drip, -12.0, 3, {"hp_hz": 200.0, "fade": 0.1}),
     "gear_creak": (gear_creak, -14.0, 2, {"hp_hz": 200.0, "fade": 0.1}),
 }
+
+
+SOUNDS.update({
+    "hazard_steam": (hazard_steam, -8.0, 1, {}),
+    "hazard_flame": (hazard_flame, -7.0, 1, {}),
+    "hazard_slag": (hazard_slag, -6.0, 1, {}),
+    "hazard_bell": (hazard_bell, -6.0, 1, {}),
+    "hazard_shock": (forge_pulse, -8.0, 1, {}),
+    "hazard_collapse": (hazard_collapse, -7.0, 1, {}),
+    "hazard_pendulum": (hazard_pendulum, -10.0, 1, {}),
+    "hazard_wind": (hazard_wind, -13.0, 1, {}),
+    **{f"hazard_{kind}_warn": (hazard_pressure_warn if kind in ("steam", "flame", "slag") else hazard_metal_warn,
+                                  -13.0, 1, {}) for kind in ("steam", "flame", "slag", "bell", "shock", "collapse")},
+})
 
 
 def variant_name(name: str, i: int, count: int) -> str:
@@ -786,7 +856,14 @@ def bed_core(rng):
     return x, -26.0, 5500.0
 
 
-BEDS = {"bed_wind": bed_wind, "bed_hall": bed_hall, "bed_forge": bed_forge, "bed_workshop": bed_workshop,
+def bed_title(rng):
+    # Quiet furnace pressure under a cavernous iron hall, with no rhythmic beat.
+    x = drone(BED_LOOP, [36, 54], rng, voices=3, cents=5.0, partial_count=5, lfo_depth=0.35)
+    mix_in(x, roar(BED_LOOP, rng, mid_gain=0.45, hiss_gain=0.035, crackle_rate=4.0, crackle_gain=0.14), -13.0)
+    return x, -30.0, 4200.0
+
+
+BEDS = {"bed_title": bed_title, "bed_wind": bed_wind, "bed_hall": bed_hall, "bed_forge": bed_forge, "bed_workshop": bed_workshop,
         "bed_core": bed_core}
 
 

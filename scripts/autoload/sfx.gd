@@ -36,6 +36,20 @@ const DEFAULT_MIN_INTERVAL := 0.03
 ## key -> sound (see assets/external/CREDITS.md for sources). Keys with several takes list
 ## them in VARIANTS (the first take is the entry here).
 const LIBRARY := {
+	&"hazard_steam": "res://assets/audio/sfx/hazard_steam.wav",
+	&"hazard_flame": "res://assets/audio/sfx/hazard_flame.wav",
+	&"hazard_slag": "res://assets/audio/sfx/hazard_slag.wav",
+	&"hazard_bell": "res://assets/audio/sfx/hazard_bell.wav",
+	&"hazard_shock": "res://assets/audio/sfx/hazard_shock.wav",
+	&"hazard_collapse": "res://assets/audio/sfx/hazard_collapse.wav",
+	&"hazard_pendulum": "res://assets/audio/sfx/hazard_pendulum.wav",
+	&"hazard_wind": "res://assets/audio/sfx/hazard_wind.wav",
+	&"hazard_steam_warn": "res://assets/audio/sfx/hazard_steam_warn.wav",
+	&"hazard_flame_warn": "res://assets/audio/sfx/hazard_flame_warn.wav",
+	&"hazard_slag_warn": "res://assets/audio/sfx/hazard_slag_warn.wav",
+	&"hazard_bell_warn": "res://assets/audio/sfx/hazard_bell_warn.wav",
+	&"hazard_shock_warn": "res://assets/audio/sfx/hazard_shock_warn.wav",
+	&"hazard_collapse_warn": "res://assets/audio/sfx/hazard_collapse_warn.wav",
 	&"swing": "res://assets/audio/sfx/swing_a.wav",
 	&"hit_flesh": "res://assets/kenney_clean/audio/hit_flesh.ogg",
 	&"hurt": "res://assets/audio/sfx/hurt.wav",
@@ -129,6 +143,20 @@ const TRIM_DB := {
 ## At the cap the oldest voice of the key is stolen (the newest hit is always the one heard),
 ## unless the repeat interval has not elapsed, in which case the new one is dropped.
 const VOICE_RULES := {
+	&"hazard_steam": Vector2(2, 0.18),
+	&"hazard_flame": Vector2(2, 0.18),
+	&"hazard_slag": Vector2(2, 0.18),
+	&"hazard_bell": Vector2(2, 0.18),
+	&"hazard_shock": Vector2(2, 0.18),
+	&"hazard_collapse": Vector2(2, 0.18),
+	&"hazard_pendulum": Vector2(2, 0.18),
+	&"hazard_wind": Vector2(2, 0.18),
+	&"hazard_steam_warn": Vector2(2, 0.18),
+	&"hazard_flame_warn": Vector2(2, 0.18),
+	&"hazard_slag_warn": Vector2(2, 0.18),
+	&"hazard_bell_warn": Vector2(2, 0.18),
+	&"hazard_shock_warn": Vector2(2, 0.18),
+	&"hazard_collapse_warn": Vector2(2, 0.18),
 	&"step": Vector2(2, 0.16), &"step_stone": Vector2(2, 0.16), &"step_dirt": Vector2(2, 0.16),
 	&"step_metal": Vector2(2, 0.16), &"step_wet": Vector2(2, 0.16), &"step_sludge": Vector2(2, 0.16),
 	&"swing": Vector2(2, 0.07), &"swing_heavy": Vector2(2, 0.1),
@@ -161,6 +189,7 @@ const PRIORITY := {
 
 ## Looping beds. Weather + drone are driven by WorldClock; the bed_* loops by the Music theme.
 const AMBIENCE := {
+	&"bed_title": "res://assets/audio/ambience/bed_title.ogg",
 	&"rain": "res://assets/audio/ambience/rain.wav",
 	&"rust_rain": "res://assets/audio/ambience/rust_rain.wav",
 	&"cemetery": "res://assets/audio/ambience/cemetery_drone.wav",
@@ -172,9 +201,10 @@ const AMBIENCE := {
 	&"bed_core": "res://assets/audio/ambience/bed_core.ogg",
 }
 
-const BED_KEYS: Array[StringName] = [&"bed_wind", &"bed_hall", &"bed_forge", &"bed_workshop", &"bed_core"]
+const BED_KEYS: Array[StringName] = [&"bed_title", &"bed_wind", &"bed_hall", &"bed_forge", &"bed_workshop", &"bed_core"]
 
 const AMBIENCE_LEVEL := {
+	&"bed_title": 0.48,
 	&"rain": 0.28,
 	&"rust_rain": 0.28,
 	&"cemetery": 0.28,
@@ -190,6 +220,7 @@ const AMBIENCE_LEVEL := {
 ## Music theme -> { bed key: 0..1 target }. Themes not listed (title, graveyard) keep only
 ## the WorldClock weather and cemetery drone.
 const THEME_BEDS := {
+	&"title": {&"bed_title": 1.0},
 	&"undercroft": {&"bed_hall": 1.0},
 	&"town": {&"bed_wind": 0.7},
 	&"cathedral": {&"bed_hall": 1.0},
@@ -384,6 +415,13 @@ func set_theme_bed(theme: StringName) -> void:
 	_event_t.clear()
 	for e in events:
 		_event_t.append(randf_range(float(e[1]) * 0.3, float(e[2]) * 0.6))
+
+
+func set_title_bed(enabled: bool) -> void:
+	if enabled:
+		_bed_target[&"bed_title"] = 1.0
+	else:
+		_bed_target.erase(&"bed_title")
 
 
 func bed_theme() -> StringName:

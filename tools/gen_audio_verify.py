@@ -760,9 +760,10 @@ def print_balance(sfx: dict, music: dict, rows: list[dict], lufs_targets: dict[s
                   f" ({min(calm_vals) - max(weather):.1f}..{max(calm_vals) - min(weather):.1f} dB under"
                   f" calm music)")
         peaks = sorted(v for _, v in voice_peaks)
-        print(f"    sfx        effective one-shot peaks {peaks[0]:.1f}..{peaks[-1]:.1f} dBFS"
-              f" (median {np.median(peaks):.1f}); footsteps subtract STRIDE.dB, cutscene cues pass"
-              f" their own -3..-17 dB")
+        if peaks:
+            print(f"    sfx        effective one-shot peaks {peaks[0]:.1f}..{peaks[-1]:.1f} dBFS"
+                  f" (median {np.median(peaks):.1f}); footsteps subtract STRIDE.dB, cutscene cues pass"
+                  f" their own -3..-17 dB")
         if stinger_lufs:
             print(f"    stingers   {min(stinger_lufs):.1f}..{max(stinger_lufs):.1f} LUFS ="
                   f" {min(stinger_lufs) - max(calm_vals):+.1f}..{max(stinger_lufs) - min(calm_vals):+.1f} dB"
@@ -821,6 +822,9 @@ def main() -> None:
         asked.setdefault(key, set()).add(f"STEP_KEYS[{surf}]")
     for group in sfx["variants"]:
         asked.setdefault(group, set()).add("VARIANTS")
+    hazard_fx = (SCRIPTS / "hazards" / "hazard_fx.gd").read_text(encoding="utf-8")
+    for key in re.findall(r'&"(hazard_[a-z_]+)"', hazard_fx):
+        asked.setdefault(key, set()).add("HazardFx.SFX")
     silent = {k: fallback[k] for k in asked
               if k not in sfx["library"] and k in fallback and fallback[k] in sfx["library"]}
     unresolved = [k for k in asked if k not in sfx["library"] and k not in silent]

@@ -1346,6 +1346,7 @@ func look() -> Dictionary:
 
 
 func _exit_tree() -> void:
+	Sfx.set_title_bed(false)
 	if UpdateService.checked.is_connected(_on_update_checked):
 		UpdateService.checked.disconnect(_on_update_checked)
 	var tree := get_tree()
