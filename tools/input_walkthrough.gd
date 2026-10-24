@@ -714,6 +714,13 @@ func _nv_solids() -> Array[Rect2]:
 	for node in world.find_children("*", "", true, false):
 		if node is ArenaDoor and not node.is_open:
 			solids.append(Rect2(node.global_position, Vector2(16.0, 64.0)))
+		elif node is BreakableTerrain:
+			# Optional rubble is still a physical wall until its real chunks break.
+			# Read only the body's direct shapes, excluding the damage Hurtbox.
+			for child in node.get_children():
+				if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
+					var size_: Vector2 = child.shape.size
+					solids.append(Rect2(child.global_position - size_ * 0.5, size_))
 	return solids
 
 
