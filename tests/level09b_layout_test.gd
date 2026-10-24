@@ -1,5 +1,6 @@
 extends TestCase
 const LAYOUT := preload("res://scripts/levels/chapters/level09b_layout.gd")
+const TRIAL_CATALOG := preload("res://scripts/data/trial_catalog.gd")
 var _flags: PackedStringArray
 var _consumed: PackedStringArray
 var _layout: ChapterLayout
@@ -275,6 +276,49 @@ func test_herald_starts_after_crossing_the_actual_arena_threshold() -> void:
 	await flush(12)
 	ok(boss.is_physics_processing())
 	ok(boss.call("is_announced"), "original boss AI starts inside its arena")
+
+
+func test_herald_kill_survives_disk_reload_and_leaves_the_exit_unlocked() -> void:
+	var original_path := SaveData.save_path
+	SaveData.save_path = "user://level09b_herald_persistence_test.cfg"
+	SaveData.delete_save()
+	var host := _build()
+	var player := await spawn_player(host, Vector2(LAYOUT.NEST_GATE_X, 300))
+	var nest := host.get_node("Props/EmberNestGate") as EmberNest
+	nest.interact(player)
+	ok(SaveData.has_save(), "real nest writes the checkpoint")
+	var boss = host.get_node("Enemies/EmberwindHerald")
+	boss.health.take_damage(999, player) # Unit-only kill; input fixture fights normally.
+	await flush(3)
+	ok(SaveData.has_flag("herald_dead"))
+	host.free()
+	await flush(1)
+	SaveData.flags.clear()
+	ok(SaveData.load_game(), "reloads the real story write from disk")
+	ok(SaveData.has_flag("herald_dead"))
+	host = _build()
+	ok(host.get_node_or_null("Enemies/EmberwindHerald") == null, "disk flag prevents Herald resurrection")
+	ok(host.get_node_or_null("Arenas/EmberwindHeraldArena") == null, "cleared Boss hazards are not rebuilt")
+	ok(host.get_node_or_null("Props/HeraldApproach") == null)
+	ok(not (host.get_node("Props/Exit") as LevelExit).is_locked(), "saved kill leaves the real exit open")
+	SaveData.delete_save()
+	SaveData.save_path = original_path
+
+
+func test_herald_can_still_spawn_for_its_unlocked_boss_rush_rematch() -> void:
+	var original_pending := GameContext.pending_world_path
+	SaveData.mark_flag("trial_unlocked")
+	SaveData.mark_flag("herald_dead")
+	TrialRun.set_scene_requester(func(_path: String) -> void: pass)
+	ok(TrialRun.start(TRIAL_CATALOG.Track.BOSS_RUSH, "emberwind_herald"))
+	ok(TrialRun.forces_boss_spawn())
+	var host := _build()
+	ok(host.get_node_or_null("Enemies/EmberwindHerald") != null, "trial gets its real rematch Boss")
+	ok(host.get_node_or_null("Arenas/EmberwindHeraldArena") != null)
+	TrialRun.abandon()
+	TrialRun.clear_scene_requester()
+	GameContext.pending_world_path = original_pending
+	ok(SaveData.flags.has("herald_dead"), "trial preserves the stored campaign kill")
 
 
 func _quiet(rows: Array) -> void:

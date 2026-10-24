@@ -297,6 +297,8 @@ func _tick_bridge_rockfall() -> void:
 ## Boss 位：统一入口。场景缺失时完全不搭竞技场；交付后自动出现，并补上
 ## 契约 §4.1 要求的两个可读场地机关（炉风先驱：落石 + 炉口火柱）。
 func _build_boss(host: Node2D) -> void:
+	if not TrialRun.forces_boss_spawn() and SaveData.has_flag("herald_dead"):
+		return
 	var b := boss(host, BOSS_NAME, BOSS_KIND, BOSS_POS, ARENA_LEFT, ARENA_RIGHT)
 	if b == null:
 		return
