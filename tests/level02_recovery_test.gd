@@ -61,7 +61,7 @@ func test_boss_approach_clears_the_belfry_and_intact_cache_with_basic_inputs() -
 	for hazard in LevelSanity.hazards(host):
 		hazard.queue_free()
 	await flush(2)
-	var player := await spawn_player(host, Vector2(3104, 264))
+	var player := await spawn_player(host, Vector2(2632, 296))
 	var driver := DRIVER.new()
 	driver.world = host
 	add_child(driver)
@@ -76,6 +76,7 @@ func test_boss_approach_clears_the_belfry_and_intact_cache_with_basic_inputs() -
 	# The full navigator replans after a jump catches a different real landing.
 	# Exercise that production behavior rather than requiring a perfect hop.
 	ok(await driver._nv_navigate(driver._nv_goal, false), "normal input and live replanning reach the boss approach")
+	ok(is_instance_valid(host.get_node("Props/ArenaCacheWest")), "route keeps the narrow west urn intact")
 	ok(is_instance_valid(host.get_node("Props/ArenaCacheEast")), "route keeps the original cache intact")
 	ok(player.is_on_floor() and player.health.current > 0)
 	ok(not player.controller.extra_jumps_unlocked)

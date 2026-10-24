@@ -183,7 +183,8 @@ func _segments() -> Array[Dictionary]:
 					if span.y - r.end.x >= 16: pieces.append(Vector2(r.end.x, span.y))
 			spans = pieces
 		for span in spans:
-			if span.y - span.x >= 24: out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
+			if span.y - span.x >= (16 if top.kind == "prop" else 24):
+				out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
 	for segment in out:
 		segment.wet = false
 		if GameContext.level_id_of(_player()) == "level02": continue

@@ -734,8 +734,8 @@ func _nv_tops() -> Array[LevelSanity.TopSeg]:
 			if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
 				var size_: Vector2 = child.shape.size
 				var corner: Vector2 = child.global_position - size_ * 0.5
-				if size_.x >= 24.0:
-					tops.append(LevelSanity.TopSeg.new(corner.x, corner.x + size_.x, corner.y, String(node.name)))
+				if size_.x >= 16.0:
+					tops.append(LevelSanity.TopSeg.new(corner.x, corner.x + size_.x, corner.y, String(node.name), "prop"))
 	return tops
 
 
@@ -775,7 +775,8 @@ func _nv_segments() -> Array[Dictionary]:
 					if span.y - r.end.x >= 16: pieces.append(Vector2(r.end.x, span.y))
 			spans = pieces
 		for span in spans:
-			if span.y - span.x >= 24: out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
+			if span.y - span.x >= (16 if top.kind == "prop" else 24):
+				out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
 	for segment in out:
 		segment.wet = false
 		for prop in world.get_node("Props").get_children():
