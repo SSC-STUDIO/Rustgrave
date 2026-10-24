@@ -24,7 +24,7 @@ flowchart LR
 | --- | --- | --- |
 | x0–416 | 前厅 y320，原入口和街巢；烛台 x384。 | 第一块烛桥前是固定落脚。 |
 | x416–1024 | 下层 y352；烛桥 x448/y304 后接固定教学台 x544/y304，续燃烛台 x600 点亮后续 y272、240 台阶，最后到固定 ChoirLoft/y208 与原名压板。 | 第一组：下层骸骨、东口短射程喷吐者、暗室幽魂；教学等待台不在这组的唤醒范围。桥熄灭落回 y352，可向西单跳返回烛台。 |
-| x1024–1472 | 骨室巢 x1168；x1328 烛火循环先单独读招；原名街闸 x1456。 | 烛火前后均有至少48px固定安全落脚，远离巢、碑、门与敌人。 |
+| x1024–1472 | 骨室巢 x1168；x1328 烛火循环先单独读招；原名街闸 x1456配固定门楣224。 | 烛火前后均有至少48px固定安全落脚，远离巢、碑、门与敌人。门顶与门楣间隙16px，无法单跳绕过；踩板后下方80px净空可通行。 |
 | x1472–2080 | 下层 y352；固定上台288、烛桥256、固定骨台224；东侧石阶320→288→256。 | 第二组：爆裂骸骨守低巷，幽魂遮上路，盾卫守东阶；下层能向两端退出，爆裂有退路。 |
 | x2080–2752 | 地窖巢 x2160；原账本楼座 y136 为钩锁支路。第三暗室下层352，两块临时烛桥288构成快路。 | 第三组：低巷骸骨与东阶喷吐者；可选楼座幽魂守原装备奖励。烛桥失败落到下层固定地面，东西两端都有回程阶。 |
 | x2752–3216 | 主路320→288→256→320；高廊从东端回到巢上方 y224，末端落回地窖巢，96px不能逆爬。唱诗巢3152距离Boss门64px。 | 原 SteleYir 与两字路牌放在固定主路。四巢相邻992px。 |
@@ -35,4 +35,10 @@ flowchart LR
 
 持久化旧名保留：EmberNestAnte/Bone/Choir、ReliquaryGatePlate/Door、SteleChoir/Yir/Ledger、HookLedger、Pickups/RewardLedger、SilentChoir、Exit；新增EmberNestVault和章节局部入场触发器。共享运行时不改；旧art-audit中04b的纯平竞技场断言改成连续回收地面、可达侧台及机关避让检查，02b断言保持。
 
-验收：level04b_layout、silent_choir、candle_bridge、按章LevelSanity；route_audit、chapter_progression、level_routing、level_weather、chapter_art_audit、prop_fit、chapter_support、parallax_backdrop。真实AI检查四巢与两种首遇；实际玩家跌落与回收；压板接线；竞技场入场/清场；五机位×1280×720与1920×1080逐张看图，另拍Boss全景。全量时段与主agent协调，最终记录实际结果。截图与几何检查不等同于正常输入整章通关、真人手感或实体手柄验证。
+2026-10-24实测（Godot4.7.1，独立APPDATA）：`tools/run_tests.ps1 -CaseFilter <下列名称> -ArtifactsDir <绝对路径>`：level04b_layout **16/16**、silent_choir **9/9**、candle_bridge **3/3**、route_audit **2/2**、chapter_progression **3/3**、level_routing **6/6**、level_weather **6/6**、chapter_art_audit **4/4**、prop_fit **7/7**、chapter_support **2/2**、parallax_backdrop **8/8**全部通过，均为0引擎错误。`RUSTGRAVE_LEVEL_FILTER=level04b`下的level_sanity **13/13**通过；route_audit报告本关四巢、最大间距992px。
+
+真实Player与AI测试包括：九块桥点燃后可站、熄灭后落到实际固定地面并可循固定路回到烛台；四巢各等候6秒不受伤、不唤醒攻击；第一处烛桥的两座固定烛台与第一处烛火两侧等候区各等候6秒安全；闭门单跳不能绕过、踩固定压板后实际向右走过门；Boss巢前不启动、入场接管原AI、死亡后原choir_dead旗标解锁竞技场和出口。装备支路仍只能借钩锁进入。
+
+证据根目录：`screenshots/acceptance/overhaul-v3/level04b/`（gitignore，本地保留）。最终测试日志是`tests-layout-final`、`tests-level_sanity`及其余`tests-<名称>-final`；五机位600/1152/1728/2496/3520各拍1280×720与1920×1080，另拍两种尺寸的介绍结束后Boss全景，**共12张逐张检查**。固定落脚与下层石路清楚，烛桥剪影和烛台暖池分出暗室节奏，场地608px及两侧龛完整可见。`render-review.json`记录每张尺寸、SHA256和检查结论。渲染临时使用主分支工具修复abfd624中的PeekLive接地逻辑，两个工具文件未纳入本章提交。
+
+本分支未重复跑全量：与主agent协调后，由其在04b/05与系统修复合入后运行最终集成全量，**此门待主分支确认**。截图与几何检查不等同于正常输入整章通关、真人手感或实体手柄验证。Godot导入产生的素材`.import`及音频资源重写保持未暂存。
