@@ -9,7 +9,7 @@ extends CanvasLayer
 ## 操作：
 ##   · 键鼠 / 手柄 / 触屏全部走 Godot 原生焦点：↑↓ 换行，←→ 调滑条（在标签行上换页），
 ##     Enter / 点击确认，Esc 返回；悬停即选中。所有可点元素 ≥ UiKit.TOUCH_MIN (52) 高。
-##   · 改键：选中一行 → "按下新按键…"，下一个键盘键就是新键；Esc 取消；
+##   · 改键：选中一行 → "按下新按键…"，下一个键盘键或手柄按键就是新键；Esc 取消；
 ##     与别的动作冲突会互换并提示；Esc / 回车保留。PageUp / PageDown（手柄肩键）换页。
 ##   · 从暂停菜单打开时不会取消暂停：本层只管自己的显示，树的暂停状态不碰。
 
@@ -259,9 +259,9 @@ func _build_keys_page(host: Control) -> Control:
 	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", 24)
-	grid.add_theme_constant_override("v_separation", 6)
+	grid.add_theme_constant_override("v_separation", 4)
 	page.add_child(grid)
-	# 左列 5 行、右列 4 行，先按列填：Godot 的 GridContainer 逐行放，所以交错排。
+	# 左列、右列，先按列填：Godot 的 GridContainer 逐行放，所以交错排。
 	var actions: Array[StringName] = Settings.REBINDABLE
 	var left_count := int(ceil(actions.size() / 2.0))
 	for i in left_count:
@@ -272,7 +272,7 @@ func _build_keys_page(host: Control) -> Control:
 			var spacer := Control.new()
 			spacer.custom_minimum_size = Vector2(KEY_COLUMN_WIDTH, 0.0)
 			grid.add_child(spacer)
-	var note := UiKit.label("方向键、K、鼠标与触控保持原样 · 键位按物理位置记录",
+	var note := UiKit.label("支持键盘与手柄按键/轴改键 · 方向键、K、鼠标与触控保持原样",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	page.add_child(note)
 	return page
@@ -672,25 +672,43 @@ func _cancel_capture() -> void:
 	_notice.text = ""
 
 
-## 抓键入口：返回 true 表示这个事件被改键流程吃掉了。测试可以直接喂 InputEventKey。
+## 抓键入口：返回 true 表示这个事件被改键流程吃掉了。测试可以直接喂 InputEventKey / 手柄按键或轴。
 func handle_capture_event(event: InputEvent) -> bool:
 	if _capturing == &"":
 		return false
-	if event.is_action_pressed(&"ui_cancel"):
+	if event is InputEventKey and event.is_action_pressed(&"ui_cancel"):
 		_cancel_capture()
 		return true
-	if not (event is InputEventKey):
-		return false
-	var key := event as InputEventKey
-	if not key.pressed or key.echo:
-		# 抓键期间键盘的松开 / 连发也不能漏给界面（空格会触发按钮）。
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if not key.pressed or key.echo:
+			# 抓键期间键盘的松开 / 连发也不能漏给界面（空格会触发按钮）。
+			return true
+		var physical := int(key.physical_keycode)
+		if physical == 0:
+			# 只带 keycode 的事件（合成输入）：QWERTY 下两者同值。
+			physical = int(key.keycode)
+		KeyLabels.set_device(KeyLabels.DEVICE_KEYBOARD)
+		finish_capture(physical)
 		return true
-	var physical := int(key.physical_keycode)
-	if physical == 0:
-		# 只带 keycode 的事件（合成输入）：QWERTY 下两者同值。
-		physical = int(key.keycode)
-	finish_capture(physical)
-	return true
+	if event is InputEventJoypadButton:
+		var btn := event as InputEventJoypadButton
+		if not btn.pressed:
+			return true
+		if btn.button_index == JOY_BUTTON_START:
+			_cancel_capture()
+			return true
+		KeyLabels.set_device(KeyLabels.DEVICE_GAMEPAD)
+		finish_pad_capture(Settings.encode_pad_event(btn))
+		return true
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if absf(motion.axis_value) < 0.6:
+			return false
+		KeyLabels.set_device(KeyLabels.DEVICE_GAMEPAD)
+		finish_pad_capture(Settings.encode_pad_event(motion))
+		return true
+	return false
 
 
 func finish_capture(physical: int) -> void:
@@ -703,6 +721,23 @@ func finish_capture(physical: int) -> void:
 	var key_name := KeyLabels.label(action)
 	if result == &"reserved":
 		_say("这个键不能用（Esc 与 回车 留给菜单）")
+	elif result == &"":
+		_say("「%s」已改为 %s" % [KeyLabels.action_name(action), key_name])
+	else:
+		_say("「%s」与「%s」的按键已互换" % [KeyLabels.action_name(action),
+				KeyLabels.action_name(result)])
+
+
+func finish_pad_capture(token: String) -> void:
+	var action := _capturing
+	if action == &"":
+		return
+	var result := Settings.rebind_pad_action(action, token)
+	_capturing = &""
+	_sync_keys()
+	var key_name := KeyLabels.label(action)
+	if result == &"reserved":
+		_say("这个按键不能用（Start 留给菜单）")
 	elif result == &"":
 		_say("「%s」已改为 %s" % [KeyLabels.action_name(action), key_name])
 	else:
