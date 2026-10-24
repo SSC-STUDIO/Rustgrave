@@ -451,11 +451,9 @@ func _gate_boss() -> EnemyBase:
 
 
 func _nightmare() -> bool:
-	if not await _navigate(Vector2(1668, 320)): return false
-	_step = "nightmare_combat"
-	var first_phase_recorded := false
-	var phase_recorded := false
-	for i in 14400:
+	var phases := {}
+	var prepared_actor := 0
+	for i in 18000:
 		if SaveData.has_flag("nightmare_dead"):
 			_release()
 			await _frames(90)
@@ -469,55 +467,113 @@ func _nightmare() -> bool:
 			_release()
 			await _frames(1)
 			continue
+		if p.get_instance_id() != prepared_actor:
+			# Read the authored ring, not the previous finale's x1668/x1190.
+			# Crossing above the horse uses the same ordinary jumps as the route.
+			for name_ in ["RingGalleryWest", "RingGalleryInnerWest", "RingGalleryInnerEast", "RingGalleryEast", "RingStairEastMid", "RingStairEastLow"]:
+				var feet := _nightmare_ring_feet(name_)
+				if not _require(feet.is_finite(), "authored Nightmare ring span exists: " + name_): return false
+				if not await _navigate(feet): return false
+			prepared_actor = _player().get_instance_id()
+			_record("nightmare_ring_approach")
+			p = _player()
+		_step = "nightmare_combat"
 		var boss = _world().get_node_or_null("Enemies/Nightmare")
 		if boss == null: return false
-		if p.position.x < 1100:
-			if not await _navigate(Vector2(1668, 320)): return false
-			continue
-		if not first_phase_recorded and not boss.is_enraged() and absf(boss.position.x - p.position.x) < 160:
-			_record("nightmare_phase_one")
-			first_phase_recorded = true
-		if boss.is_enraged() and not phase_recorded:
-			_record("nightmare_phase_two")
-			phase_recorded = true
+		var phase: int = boss.phase()
+		if not phases.has(phase):
+			_record({1: "nightmare_phase_one", 2: "nightmare_phase_two", 3: "nightmare_phase_three"}[phase])
+			phases[phase] = true
+		var perch := _world().get_node("Platforms/RingStairEastLow") as SolidPlatform
+		var target := perch.position.x + 20.0
 		var dx: float = boss.position.x - p.position.x
-		var nearby_enemy := absf(dx) < 72
-		for e in _world().get_node("Enemies").get_children():
-			if e is EnemyBase and not e._dead and e.position.distance_to(p.position) < 72:
-				nearby_enemy = true
-		var target: float = 1190
-		if p.position.x > 1202 or p.position.x < 1164 or p.position.y > 290:
-			_steer(target)
-		else:
-			var side := signf(dx) if absf(dx) > 6 else float(p.controller.facing)
-			_move(side if p.controller.facing != side else 0.0)
-		_set_action(&"attack", nearby_enemy and p.position.y < 300 and i % 18 == 0)
-		_set_action(&"dash", absf(dx) < 92 and boss.state() == boss.State.CHARGE and p.position.y > 300 and p.position.x > 1280 and p.controller._dash_cd <= 0)
-		_set_action(&"jump", p.position.x < 1280 and p.position.y > 290 and i % 36 < 24)
-		if i % 300 == 0: print("[NIGHTMARE] player=%s hp=%d boss=%s hp=%d" % [p.position, p.health.current, boss.position, boss.health.current])
+		_steer(target)
+		if absf(p.position.x - target) < 4.0:
+			_move(signf(dx) if p.controller.facing != signf(dx) else 0.0)
+		var nearby := absf(dx) < 72.0
+		for enemy in _world().get_node("Enemies").get_children():
+			if enemy is EnemyBase and not enemy._dead and enemy.position.distance_to(p.position) < 72.0:
+				nearby = true
+		_set_action(&"attack", nearby and i % 12 == 0)
+		_set_action(&"jump", p.position.y > perch.position.y + 6.0 and i % 36 < 24)
+		_set_action(&"dash", false)
+		if i % 180 == 0:
+			print("[NIGHTMARE] player=%s hp=%d boss=%s hp=%d phase=%d state=%d" % [p.position, p.health.current, boss.position, boss.health.current, phase, boss.state()])
 		await _frames(1)
 	_fail("nightmare fight timed out")
 	return false
 
+
+func _nightmare_ring_feet(platform_name: String, rightmost: bool = true) -> Vector2:
+	# Pillar seats and the altar dais sit on the gallery. Select the platform's
+	# actual clear span, rather than targeting a buried nominal origin + 20px.
+	# Use the far span in the travel direction to keep the route above the horse.
+	var target := Vector2.INF
+	for segment in _segments():
+		if String(segment.get("name", "")) == platform_name:
+			var rect: Rect2 = segment.r
+			var candidate := Vector2(rect.position.x + minf(20.0, rect.size.x * 0.5), rect.position.y)
+			if not target.is_finite() or (candidate.x > target.x if rightmost else candidate.x < target.x):
+				target = candidate
+	return target
+
+
 func _nightmare_death_reload() -> bool:
 	_step = "nightmare_death_reload"
 	var actor_id := _player().get_instance_id()
-	# Return to the slag via ordinary movement and allow enemy/toxin damage.
-	for i in 3600:
+	var hazard := _world().get_node("Props/SlagHallEast") as CyclicHazard
+	var destination := hazard.global_position
+	# A real cyclic slag jet remains after the encounter. Walk back through the
+	# authored floor, stand in its active hitbox, and let normal damage kill us.
+	# Keep the return on the ring until its west stair. The generic shortest
+	# route can otherwise select a drop beside the east stair's solid soffit.
+	for name_ in ["RingGalleryEast", "RingGalleryInnerEast", "RingGalleryInnerWest", "RingGalleryWest", "RingStairWestMid", "RingStairWestLow"]:
+		var feet := _nightmare_ring_feet(name_, false)
+		if not _require(feet.is_finite(), "authored Nightmare return span exists: " + name_): return false
+		if not await _navigate(feet): return false
+	var return_feet := _nightmare_ring_feet("ReturnE")
+	if not _require(return_feet.is_finite(), "authored slag return balcony exists"): return false
+	if not await _navigate(return_feet): return false
+	_step = "nightmare_death_reload"
+	if not _require(_player().get_instance_id() == actor_id, "survived return to the slag balcony"): return false
+	var return_platform := _world().get_node("Platforms/ReturnE") as SolidPlatform
+	var drop_x := return_platform.position.x - 16.0
+	var cause := {"hazard_hits": 0, "fatal_hazard": false, "last_source": ""}
+	var observe_hit := func(attacker: Node, victim: Node, _amount: int) -> void:
+		if not is_instance_valid(victim) or victim.get_instance_id() != actor_id: return
+		var source := attacker.get_parent() if is_instance_valid(attacker) else null
+		var is_hazard := source is CyclicHazard and String(source.name) == "SlagHallEast"
+		cause.last_source = str(source.get_path()) if source != null else "unknown"
+		if is_hazard: cause.hazard_hits += 1
+		if (victim as Player).health.current <= 0: cause.fatal_hazard = is_hazard
+	GameEvents.hit.connect(observe_hit)
+	var deaths_before := _deaths
+	for i in 7200:
 		var p := _player()
 		if p != null and p.get_instance_id() != actor_id and p.health.current > 0 and GameContext.gameplay_input_enabled():
 			_release()
+			GameEvents.hit.disconnect(observe_hit)
+			if not _require(_deaths > deaths_before and cause.fatal_hazard, "death was caused by a real cyclic hazard: " + JSON.stringify(cause)): return false
 			if not _require(SaveData.has_flag("nightmare_dead") and _world().get_node_or_null("Enemies/Nightmare") == null, "Nightmare remains absent after death"): return false
 			await _settle_fade()
 			_record("nightmare_death_reload_verified")
+			_records.back()["death_cause"] = cause
 			return true
 		if p != null and p.health.current > 0 and GameContext.gameplay_input_enabled():
-			_move(-1.0 if p.position.x > 620 else 0.0)
+			# The return balcony roofs over the slag. Drop through its real gap,
+			# then walk beneath it to the jet instead of waiting safely overhead.
+			_steer(drop_x if p.position.y < destination.y - 40.0 else destination.x)
+			# Nearby corridor enemies still run normally. Clear their real bodies
+			# with the sword so the required fatal hit can come from the slag.
+			_combat(false, true)
 			_set_action(&"jump", p.is_on_wall() and i % 36 < 24)
 		else:
 			_release()
+		if i % 180 == 0 and p != null:
+			print("[NIGHTMARE DEATH] player=%s hp=%d hazard=%s" % [p.position, p.health.current, destination])
 		await _frames(1)
-	_fail("could not verify normal death after Nightmare")
+	GameEvents.hit.disconnect(observe_hit)
+	_fail("could not verify normal hazard death after Nightmare")
 	return false
 
 func _record(name_: String) -> void:
