@@ -45,23 +45,30 @@ func test_level03_has_destructible_props_on_the_street() -> void:
 	await flush(1)
 
 
-func test_breakable_slab_gates_the_dead_roof_reward() -> void:
+func test_breakable_slab_opens_the_west_approach_to_the_dead_roof_reward() -> void:
 	var level := await _load_level()
 	if level == null:
 		return
 	var slab := level.find_child("RubbleRoofB", true, false) as BreakableTerrain
 	ok(slab != null, "RubbleRoofB 已放置")
 	if slab != null:
-		eq(slab.size, Vector2(64, 64), "裂石板 64x64（2x2 块）")
-		eq(slab.chunk_count(), 4)
-		almost(slab.global_position.y + slab.size.y, 256.0, 0.01,
-				"裂石板底脚坐在 DeadRoofA 台面（256）")
+		ok(slab.size.y > LevelSanity.JUMP_RISE_MAX, "裂石板构成屋檐西口的障碍")
+		var feet := slab.global_position + Vector2(slab.size.x * 0.5, slab.size.y)
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(level), feet) != null,
+				"裂石板底脚坐在固定屋檐台面上")
 		var reward := level.find_child("RewardDeadQuarter", true, false) as Node2D
 		ok(reward != null, "屋脊奖励位存在")
 		if reward != null:
 			ok(reward.global_position.x > slab.global_position.x + slab.size.x,
-					"奖励在裂石板东侧：打碎石板才能过去")
+					"奖励位在裂石板后方的屋脊，西口可以破坏开路")
 		ok(not slab.persist_break, "会话内破坏：重载恢复，不写战役档")
+		for index in slab.chunk_count():
+			slab.damage_chunk(index, slab.chunk_hp)
+		await flush(2)
+		ok(slab.is_destroyed(), "支路的裂板可以清空")
+		if reward != null:
+			ok(LevelSanity.standing_on(LevelSanity.top_segments(level), LevelSanity.feet_of(reward)) != null,
+					"清掉裂板后奖励仍站在固定屋脊上")
 	level.free()
 	await flush(1)
 
