@@ -25,8 +25,8 @@ const DEADLINE_MS := 180000
 const LEVEL_HINTS := {
 	"level01": {
 		"boss": "ExecutionerBoss",
-		"arena": Vector2(1600.0, 2208.0),
-		"intro_trigger": 1688.0,
+		"arena": Vector2(3104.0, 3744.0),
+		"intro_trigger": 3112.0,
 	},
 	"level10": {
 		"boss": "Nightmare",

@@ -35,6 +35,6 @@ func test_probe_level01_blockers() -> void:
 							" step_over=", r2.position.y >= seg.y - LevelSanity.JUMP_RISE_MAX)
 				x2 += 8.0
 	print("PROBE check() ->")
-	for p in LevelSanity.check(level, Rect2(0, -800, 1600, 1200)):
+	for p in LevelSanity.check(level, Rect2(0, -800, Level01EastWing.EAST_LIMIT, 1200)):
 		print("    ", p)
 	level.free()

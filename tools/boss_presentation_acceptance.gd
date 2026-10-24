@@ -91,7 +91,7 @@ func _run() -> void:
 	_player.cutscene_locked = false
 
 	# 1) 通常游玩视角：还没跨门，Boss 未宣布、血条未出现，竞技场灯已亮。
-	_place_player(Vector2(1660, 300))
+	_place_player(Vector2(Level01EastWing.BOSS_GATE_POS.x - 28.0, 330.0))
 	_snap_camera_to_player()
 	await get_tree().create_timer(0.8).timeout
 	await _capture("01-arena-approach")
@@ -105,7 +105,7 @@ func _run() -> void:
 	}
 
 	# 2) 跨门：真实 Area2D 触发 —— 东翼宣布、炉火涌起、名号卡与进场剧本。
-	_place_player(Vector2(1688, 300))
+	_place_player(Vector2(Level01EastWing.BOSS_GATE_POS.x, 330.0))
 	_player.set_physics_process(true)
 	var entered := false
 	for _i in 50:
@@ -136,14 +136,14 @@ func _run() -> void:
 		"knight_locked": _player.cutscene_locked,
 	}
 	# 3) 进场后的竞技场构图（正常游玩视角，1x 与 640×360 原生各一张）。
-	_place_player(Vector2(1740, 300))
+	_place_player(Vector2(Level01EastWing.ARENA_CENTER_X - 130.0, 310.0))
 	_snap_camera_to_player()
 	await get_tree().create_timer(0.8).timeout
 	await _capture("03-arena-composed")
 	await _capture_native("03b-arena-native-640x360")
 
 	# 4) 读招：把骑士放进斧程，让 Boss 自己起手，抓前摇红框与余烬脉冲。
-	_place_player(Vector2(1772, 300))
+	_place_player(Vector2(Level01EastWing.ARENA_CENTER_X - 76.0, 310.0))
 	await _capture_telegraph("04-axe-telegraph")
 
 	# 5) 二阶段：半血相变（炽红竞技场 + 名号卡相数 + 吼叫）。
@@ -186,7 +186,7 @@ func _run() -> void:
 	}
 
 	# 7) 残芯成为可交互目标：站过去让 E 提示自己出来。
-	_place_player(Vector2(2050, 300))
+	_place_player(Vector2(Level01EastWing.HEART_POS.x - 14.0, 330.0))
 	_snap_camera_to_player()
 	# E 提示由骑士自己的物理帧刷新：这一段把骑士的物理打开（位置已摆好，不会再跑）。
 	_player.set_physics_process(true)
