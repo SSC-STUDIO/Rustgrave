@@ -1,23 +1,6 @@
 extends ChapterLayout
-## 锈墓・拾叁 — 炉风崖道 (level09b)：翻过城墙，炉心就在崖下。这一段是城墙外壁的
-## 崖道：上层的风口桥被炉风吹得晃，下层是被风刮下来的灰道。
-##
-## 尺寸 ≥3200×720（竖向+横向混合）。主题用城墙的 ramparts（室外）；结构：
-##   ① 崖道      0–1120    崖顶台地（起点）→ 三段落差踏台 → 风口桥前的狭台
-##   ② 风口桥    1120–1720 浮石跨过风口：风把余烬吹成横的，桥上有周期落石
-##                          （BossArena.HazardNode 的 ROCKFALL，0.55s 预警）；
-##                          桥东压板开「风口闸」，闸后才进得了前哨
-##   ③ 炉门前哨  1760–2120 安全的余烬巢（GaleLee：风被岩壁挡掉大半），碑文
-##   ④ 上攀段    2120–2528 三段踏台爬上风口台（GateDeck），碑「门」
-##   ⑤ 下崖      2528–2680 从风口台跳下崖底灰道
-##   ⑥ Boss 房   2680–3400 炉门前的石台；Boss「炉风先驱」位（缺失时跳过）
-##   出口 3320 → level10（炉门，门下就是炉心）
-##
-## 崖底灰道（FloorLow，整条 y=320）是失足者的兜底，也是下层遭遇的走道：
-## 从崖道或风口桥掉下去不会摔死/锁死，可以沿灰道走回风口台下的落点。
-## 上层还有一条钩锁支路：风口桥正上方的 LeeLedge，只有钩锁上得去（碑文/奖励）。
-##
-## 文本全部来自 ChapterText（story-lead 所有）；这里只放几何与位置常量。
+## 炉风崖道：上层东行顶余烬风，中层西返穿落石，下层东行跨塌桥和前哨。
+## 最后一折降到先驱门前；灰道320继续兜底。故事、Boss本体和存档协议保持。
 
 const ENTRY_SPAWN := Vector2(96, -340)
 const EAST_LIMIT := 3400
@@ -33,44 +16,54 @@ const CHAIN_TINT := Color(0.58, 0.55, 0.54, 0.85)
 
 ## 崖底灰道：整条 y=320，失足兜底 + 下层遭遇走道。
 const FLOOR_LOW := ["FloorLow", 0.0, 3400.0]
-## [name, pos(左上角), width] —— 上层崖道踏台（16 厚，全部浮在灰道上方）
+## 三折：上层向东，中层向西，西折口落到下层再向东。永久薄台不堵低层。
 const STEPS: Array = [
-	["CliffTop", Vector2(0, -320), 400.0],
-	["StepA1", Vector2(432, -288), 48.0],
-	["StepA2", Vector2(512, -256), 48.0],
-	["StepA3", Vector2(592, -224), 48.0],
-	["LedgeB", Vector2(656, -192), 304.0],
-	["StepB1", Vector2(992, -160), 48.0],
-	["StepB2", Vector2(1072, -128), 48.0],
-	["BridgeWest", Vector2(1120, -96), 96.0],
-	["Stone1", Vector2(1264, -96), 48.0],
-	["Stone2", Vector2(1344, -80), 48.0],
-	["Stone3", Vector2(1424, -64), 48.0],
-	["Stone4", Vector2(1504, -48), 48.0],
-	["BridgeEast", Vector2(1552, -32), 168.0],
-	["Climb1", Vector2(2144, -32), 48.0],
-	["Climb2", Vector2(2224, -64), 48.0],
-	["Climb3", Vector2(2304, -96), 48.0],
-	["GateDeck", Vector2(2384, -128), 144.0],
-	["DescentLedge", Vector2(2560, -32), 64.0],
-	# 风口桥正上方的钩锁支路台面（只有钩锁上得来）。
-	["LeeLedge", Vector2(1360, -224), 112.0],
+	["CliffTop", Vector2(0, -320), 1120.0],
+	["EastTurnHigh", Vector2(1120, -256), 64.0],
+	["EastTurnLow", Vector2(1184, -224), 64.0],
+	["BridgeEast", Vector2(1056, -160), 128.0],
+	["BridgeWest", Vector2(480, -160), 528.0],
+	["WestTurnHigh", Vector2(432, -96), 48.0],
+	["WestTurnLow", Vector2(432, -32), 48.0],
+	["LowerWest", Vector2(480, 0), 720.0],
+	["CollapsePier", Vector2(1328, 0), 64.0],
+	["CollapseRecovery", Vector2(1120, 96), 432.0],
+	["CollapseEscape1", Vector2(1488, 64), 32.0],
+	["CollapseEscape2", Vector2(1520, 32), 32.0],
+	["Climb1", Vector2(2152, 64), 96.0],
+	["Climb2", Vector2(2280, 128), 96.0],
+	["GateDeck", Vector2(2408, 192), 128.0],
+	["DescentLedge", Vector2(2568, 256), 64.0],
+	["LeeLedge", Vector2(1328, -320), 160.0],
+	["HeraldWestPerch", Vector2(2800, 288), 96.0],
+	["HeraldEastPerch", Vector2(3232, 288), 64.0],
 ]
 ## [name, pos(左上角), size] —— 前哨平台（厚 32，直接压在灰道上方的岩壁）
-const OUTPOST := ["OutpostDeck", Vector2(1760, 0), Vector2(360, 32)]
-## 风口闸：压板在桥东（BridgeEast 台面），闸门立在前哨入口（前哨台面上）。
-const PLATE_FEET := Vector2(1600, -32)
+const OUTPOST := ["OutpostDeck", Vector2(1552, 0), Vector2(568, 32)]
+## 风口闸：压板和闸门都落在前哨台面，先踩板再进入重盾卫驻地。
+const PLATE_FEET := Vector2(1584, 0)
 const WIND_DOOR_POS := Vector2(1776, -64)
+const RETURN_DROP := Rect2(1008, -160, 48, 160)
+const COLLAPSES: Array = [["CollapseWest", Vector2(1200, 0), 96.0], ["CollapseEast", Vector2(1424, 0), 96.0]]
+const WINDS: Array = [
+	["EmberLesson", Rect2(352, -424, 112, 104), Vector2(72, 0), 4.8],
+	["EmberDescent", Rect2(2184, -32, 192, 192), Vector2(-80, 0), 5.2],
+]
+## 顺序按实际路程：折返后x会减小，不能只按横坐标算复跑距离。
+const NESTS: Array = [["EmberNestCliff", 176.0, -320.0], ["EmberNestWind", 944.0, -320.0],
+	["EmberNestFold", 592.0, -160.0], ["EmberNestBridge", 1088.0, 0.0],
+	["EmberNestOutpost", 1848.0, 0.0], ["EmberNestGate", 2680.0, 320.0]]
 
 const NEST_CLIFF_X := 176.0
 const NEST_OUTPOST_X := 1848.0
 const NEST_GATE_X := 2680.0
 const STELE_ASH_POS := Vector2(240, -320)
 const STELE_HERALD_POS := Vector2(1936, 0)
-const STELE_GATE_POS := Vector2(2416, -128)
-## 钩锁支路：从 Stone2/Stone3 起钩（索距 ≤250），落台在锚点下方 96px。
-const HOOK_LEE_POS := Vector2(1416, -320)
-const REWARD_POS := Vector2(1416, -256)
+const STELE_GATE_POS := Vector2(2440, 192)
+## 钩锁支路：从东折口起钩（索距 ≤250），落台在锚点下方56px；锚体留在镜头内。
+const HOOK_LEE_POS := Vector2(1384, -376)
+const REWARD_POS := Vector2(1368, -344)
+const EQUIPMENT_FEET := Vector2(1440, -320)
 const EXIT_X := 3320.0
 
 ## Boss 位：炉风先驱。场景由 bosses-b 交付，缺失时 boss() 跳过（不报错）。
@@ -81,46 +74,48 @@ const ARENA_LEFT := 2740.0
 const ARENA_RIGHT := 3400.0
 ## 风口桥落石：三个落点轮换，预警 0.55s（契约 §4.1 可读性下限 0.35s）。
 const ROCKFALL_SPOTS: Array = [
-	Vector2(1188, -144),
-	Vector2(1368, -128),
-	Vector2(1608, -80),
+	Vector2(736, -192),
+	Vector2(880, -192),
+	Vector2(1120, -192),
 ]
 const ROCKFALL_PERIOD := 3.2
 
 ## [name, kind, pos, overrides]
 const ENEMIES: Array = [
-	["Spitter1", "spitter", Vector2(780, -192), {}],
-	["FlyingDemon1", "flying_demon", Vector2(1200, -220), {"patrol_range": 72.0}],
-	["FlyingDemon2", "flying_demon", Vector2(1480, -180), {"patrol_range": 72.0}],
-	["Ghost1", "ghost", Vector2(1984, 40), {}],
-	["Scrapper1", "scrapper", Vector2(900, 320), {"patrol_range": 40.0}],
-	["GearShield1", "gear_shield", Vector2(2000, 320), {}],
-	["Skeleton1", "skeleton", Vector2(2440, 320), {}],
-	["Ghost2", "ghost", Vector2(2620, 240), {}],
+	["Spitter1", "spitter", Vector2(672, -320), {"variant": &"scatter_spitter", "aggro_range": 128.0}],
+	["Scrapper1", "scrapper", Vector2(784, -320), {"variant": &"armored_scrapper", "patrol_range": 16.0, "aggro_range": 96.0, "lose_range": 192.0}],
+	["FlyingDemon1", "flying_demon", Vector2(832, -224), {"patrol_range": 16.0, "aggro_range": 80.0, "lose_range": 192.0}],
+	["Ghost1", "ghost", Vector2(1672, -40), {"wake_range": 96.0, "arena_left": 1552.0, "arena_right": 1760.0}],
+	["GearShield1", "gear_shield", Vector2(1648, 0), {"variant": &"heavy_guard", "patrol_range": 16.0, "aggro_range": 112.0, "lose_range": 200.0}],
+	["Skeleton1", "skeleton", Vector2(2384, 320), {"variant": &"exploder_skeleton", "alert_radius": 96.0, "lose_range": 160.0}],
+	["Ghost2", "ghost", Vector2(2464, 272), {"wake_range": 96.0, "arena_left": 2304.0, "arena_right": 2528.0}],
 ]
 ## [key, feet] —— ramparts 白名单：女墙、门洞、风化石、机械残骸、生活残留。
 const PROPS: Array = [
 	["balustrade_wall", Vector2(40, -320)],
 	["rubble_dry", Vector2(300, -320)],
-	["ruin_tower", Vector2(720, -192)],
-	["balustrade", Vector2(1160, -96)],
-	["balustrade", Vector2(1656, -32)],
+	["ruin_tower", Vector2(704, -320)],
+	["balustrade", Vector2(1160, -160)],
+	["balustrade", Vector2(1568, 0)],
 	["door_arch_wall", Vector2(2088, 0)],
 	["rubble_dry", Vector2(520, 320)],
-	["rock_pile", Vector2(1500, 320)],
+	["rock_pile", Vector2(1344, 0)],
 	["life_remains", Vector2(2250, 320)],
-	["broken_machine", Vector2(2360, 320)],
+	["broken_machine", Vector2(2480, 192)],
 	["fence", Vector2(2500, 320)],
 	["warning_plate", Vector2(2620, 320)],
 	["rubble_dry_c", Vector2(2820, 320)],
 	["balustrade_wall", Vector2(3200, 320)],
 ]
 const BUSHES: Array = [
-	[Vector2(920, -192), 1.0],
+	[Vector2(920, -320), 1.0],
 	[Vector2(2144, 320), 1.0],
 ]
 const WAYMARKS: Array = [
 	[Vector2(352, -320), "风口"],
+	[Vector2(1000, -320), "折返"],
+	[Vector2(520, -160), "下崖"],
+	[Vector2(1168, 0), "断桥"],
 	[Vector2(2024, 0), "前哨"],
 	[Vector2(2632, 320), "炉门"],
 ]
@@ -191,7 +186,7 @@ func weather_recipe() -> Dictionary:
 ## 炉门前哨被岩壁挡住大半炉风：只剩慢慢飘的灰（intensity/wind 都压低）。
 func weather_regions() -> Array:
 	return [
-		{"name": "GaleBridge", "rect": Rect2(1120, -240, 600, 560),
+		{"name": "GaleBridge", "rect": Rect2(640, -288, 608, 160),
 			"weather": WorldClock.Weather.RAIN, "intensity": 1.0, "wind_scale": 1.8},
 		{"name": "GaleLee", "rect": Rect2(1760, -96, 360, 432),
 			"intensity": 0.4, "wind_scale": 0.35},
@@ -219,6 +214,8 @@ func _build_terrain(host: Node2D) -> void:
 	floor_strip(host, String(FLOOR_LOW[0]), float(FLOOR_LOW[1]), float(FLOOR_LOW[2]), SKIN, false, false)
 	for s in STEPS:
 		step(host, String(s[0]), s[1], float(s[2]), FLOAT_SKIN, DECK_TINT)
+	for row in COLLAPSES:
+		collapsing(host, row[0], row[1], float(row[2]), FLOAT_SKIN, {"shake_time": 1.4, "respawn_time": 4.0}, DECK_TINT)
 	platform(host, String(OUTPOST[0]), OUTPOST[1], OUTPOST[2], SKIN, true, true)
 	walls(host, SKIN, CAMERA_TOP)
 
@@ -226,18 +223,20 @@ func _build_terrain(host: Node2D) -> void:
 func _build_mechanics(host: Node2D) -> void:
 	plate_door(host, "WindGate", PLATE_FEET, WIND_DOOR_POS)
 	hook(host, "HookLee", HOOK_LEE_POS)
+	for row in WINDS:
+		force_zone(host, row[0], row[1], "ember", row[2], {"gust_period": float(row[3]), "gust_duty": 0.5, "phase": 0.5})
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 
 
 func _build_props(host: Node2D) -> void:
-	nest(host, "EmberNestCliff", NEST_CLIFF_X, -320.0)
-	nest(host, "EmberNestOutpost", NEST_OUTPOST_X, 0.0)
-	nest(host, "EmberNestGate", NEST_GATE_X)
+	for row in NESTS:
+		nest(host, row[0], float(row[1]), float(row[2]))
 	_stele(host, "SteleAsh", STELE_ASH_POS)
 	_stele(host, "SteleHerald", STELE_HERALD_POS)
 	_stele(host, "SteleGate", STELE_GATE_POS)
 	pickup(host, "CoreReward", REWARD_POS, &"ember_core")
+	reward(host, "RewardLee", EQUIPMENT_FEET - Vector2(0, 7), "equipment", "bone_charm")
 
 
 func _build_enemies(host: Node2D) -> void:
@@ -254,8 +253,8 @@ func _build_decor(host: Node2D) -> void:
 	for bush in BUSHES:
 		foliage(host, "bush_s", bush[0], float(bush[1]), false, DRY_BUSH)
 	# 风口台与灰道边垂下的旧铁链（挂在风口台沿下方，不接地）。
-	for x in [1216.0, 1696.0]:
-		hanging(host, "chain", Vector2(x, -96.0), CHAIN_TINT)
+	for point in [Vector2(736, -144), Vector2(1120, -144), Vector2(1328, 16)]:
+		hanging(host, "chain", point, CHAIN_TINT)
 
 
 ## 风口桥落石：独立的 BossArena 机关架（不激活、不锁门、不夹相机），
@@ -264,8 +263,8 @@ func _build_decor(host: Node2D) -> void:
 func _build_bridge_rockfall(host: Node2D) -> void:
 	_rock_rig = BossArena.new()
 	_rock_rig.name = "BridgeRockfallRig"
-	_rock_rig.arena_left = 1100.0
-	_rock_rig.arena_right = 1740.0
+	_rock_rig.arena_left = 640.0
+	_rock_rig.arena_right = 1248.0
 	_rock_rig.arena_top = -400.0
 	_rock_rig.arena_bottom = 400.0
 	_rock_rig.floor_y = FLOOR_Y
@@ -304,6 +303,24 @@ func _build_boss(host: Node2D) -> void:
 	var arena := boss_arena(host, BOSS_NAME)
 	if arena == null:
 		return
+	# 420px自动唤醒本来会覆盖门前巢；本章在跨场门后才交回原Boss物理。
+	# 不改Boss尺寸、攻击、导演或旗标，Area也不夹住玩家。
+	b.set_physics_process(false)
+	var approach := Area2D.new()
+	approach.name = "HeraldApproach"
+	approach.position = Vector2(ARENA_LEFT, -64)
+	approach.collision_layer = 0
+	approach.collision_mask = 2
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(ARENA_RIGHT - ARENA_LEFT, 448)
+	col.position = shape.size * 0.5
+	col.shape = shape
+	approach.add_child(col)
+	approach.body_entered.connect(func(body: Node2D) -> void:
+		if body is Player and is_instance_valid(b):
+			b.set_physics_process(true))
+	group(host, "Props").add_child(approach)
 	var rock: Node2D = arena.make_hazard(BossArena.HazardKind.ROCKFALL, Vector2(2860, 168),
 			{"name": "HeraldRockfall", "telegraph": 0.6, "active": 0.3, "damage": 1,
 			"size": Vector2(56, 40)})
