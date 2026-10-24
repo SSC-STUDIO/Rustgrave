@@ -1,24 +1,34 @@
 class_name TitleScreen
 extends Control
-## 标题屏：keyart + 字标与插座剑 + 左下菜单架 + 右下墓志 + 底部署名带。
+## 标题屏（v3）：一幅实时点光的像素场景（TitleWorld，640x360 SubViewport）+ 轻量版式。
 ##
-## 版式：字标与副题压在顶部正中（与 keyart 的光柱同轴），菜单改成左下的一列"铁架"：
-## 竖脊串起五格——两格主行动（右端收成箭头）、一道短铆钉横线、两格次行动（右端剪出
-## 燕尾）、一格只剩四只角标的"离开"；墓志挪到右下角和菜单配重。中间留白正好露出
-## keyart 的骑士与光柱：这是旧版居中竖排整块吃掉的那片画面。
+## 场景：余烬骑士背着巨剑站在铁桥上，天窗落下光柱，巨齿轮缓缓转动，几盏吊灯随存档
+## 进度点亮（见 TitleWorld：无存档 / 进行中按幕调色 / 三种结局各一幅）。场景经由原有的
+## `Keyart` TextureRect 显示（同一套像素平滑着色器，和游戏里的世界图一致）。
 ##
-## 菜单由 MenuList 负责键鼠导航（上下键跳过禁用项、回车确认、悬停跟随），
-## 操作说明复用 ControlsPanel（与暂停菜单同一份）。
-## 气氛三件套：keyart 火光呼吸、字标辉光呼吸、上升余烬与飘落灰烬。
-## 异形按钮板由 scripts/ui/menu_plate.gd 用同一套调色板现画：不新增贴图、不改主题。
+## 版式（1280x720 设计空间）：字标居中偏上，"锻入"式显现（白热 → 锈色扫过 + 火星），
+## 副题随后淡入；菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开四组，每行
+## 52px 触控高度，余烬光标；聚焦时在条上迸火星并让场景轻推一下）；右侧是"旅程标尺"：
+## 14 个章节刻度（已通关亮、当前搏动）+ 四枚小数据片（阶位 / 外观 / 试炼 / 竞技场），
+## 悬停或按 Tab 展开完整档案；底部是慢速打字机轮换的墓志，署名收成页脚一行。
+##
+## 动效：开屏（吊灯逐盏点亮 → 字标锻入 → 菜单逐条落位，可被 _skip_intro 一把跳过，
+## 不是输入门禁）、确认入场（白热闪光 + 镜头前推 + 淡出）、离开（吊灯一盏盏熄灭，
+## 只剩巨剑剪影，再浮出墓志）。
+##
+## 菜单由 MenuList 负责键鼠导航，操作说明复用 ControlsPanel（与暂停菜单同一份）。
+## USE_LIVE_SCENE=false 时退回旧的静态 keyart（同一个 Keyart 节点）。
 
 const KEYART_PATH := "res://assets/kenney_clean/backgrounds/title_keyart.png"
+## The title shows a live, lit pixel scene (TitleWorld) instead of the static key art.
+## Flip to false to fall back to the old keyart in the same `Keyart` TextureRect.
+const USE_LIVE_SCENE := true
+const WORLD_SCENE := "res://scenes/ui/TitleWorld.tscn"
+const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
+const FORGE_SHADER := preload("res://assets/shaders/title_forge.gdshader")
 const LEVEL_PATH := "res://scenes/levels/Level01_Static.tscn"
-const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
-const Plate := preload("res://scripts/ui/menu_plate.gd")
-const KnightLightScript := preload("res://scripts/ui/keyart_knight_light.gd")
-const DossierJagScript := preload("res://scripts/ui/dossier_jag.gd")
 const Transitions := preload("res://scripts/ui/ui_transition.gd")
+const KnightLightScript := preload("res://scripts/ui/keyart_knight_light.gd")
 ## 回火试炼（新游戏模式）：入口由战役解锁旗标控制（契约 §5）。
 const TrialCatalogScript := preload("res://scripts/data/trial_catalog.gd")
 const TrialRecordsScript := preload("res://scripts/data/trial_records.gd")
@@ -27,46 +37,54 @@ const ArenaRunScript := preload("res://scripts/autoload/arena_run.gd")
 const SkinCatalogScript := preload("res://scripts/data/skin_catalog.gd")
 const TRIAL_MENU := "res://scenes/ui/TrialMenu.tscn"
 
+## 墓志取「失败的净化偶自己先锈透」。一句，不是台词。
+const EPITAPH := "失败的净化偶，自己先锈透了。"
+const FADE_OUT := 0.7
+const LOGO_BREATH_PERIOD := 3.2
+# fallback (static keyart) atmosphere
 const EMBERS_RISING := 30
 const EMBERS_FALLING := 14
 const KEYART_BREATH_PERIOD := 5.5
-const LOGO_BREATH_PERIOD := 3.2
-const FADE_OUT := 0.7
-const BAND_HEIGHT := 34.0
-## 角饰要躲开底部装饰带，否则会跟署名文字撞在一起。
 const CORNER_INSET := 16.0
-const TOP_INSET := 30.0
-## 墓志取「失败的净化偶自己先锈透」。一句，不是台词。
-const EPITAPH := "失败的净化偶，自己先锈透了。"
+const BAND_HEIGHT := 34.0
 
-## 左下菜单架：竖脊在 x=92，板面从 x=112 挂出去。
-const RAIL_X := 112.0
-const RAIL_TOP := 224.0
-const SPINE_X := 92.0
-const DIVIDER_W := 440.0
-## 行间空白（像素）：主行动成一簇、次行动成一簇、"离开"单独挂在最下。
-const GAP_PRIMARY := 10.0
-const GAP_GROUP := 20.0
-const GAP_DIVIDER := 14.0
-const GAP_SECONDARY := 6.0
-const GAP_QUIT := 74.0
-const INTRO_STAGGER := 0.045
-const INTRO_DURATION := 0.22
-## 开屏总谱（黑幕 → 场景 → 字标 → 菜单）：见 _play_intro。
-const BOOT_FADE := 0.55
-const RAIL_STAGGER := 0.045
-const RAIL_DURATION := 0.22
+# ---- layout (design px, 1280x720) -------------------------------------------------
+const TOP_INSET := 28.0
+const LOGO_H := 110.0
+const SUBTITLE_H := 30.0
+## 左下菜单：七行 x 52 + 三道组间距 16 = 412；底边 666，"离开"行中心 640。
+const RAIL_X := 72.0
+const RAIL_TOP := 254.0
+const GROUP_GAP := 16.0
+const QUIT_CENTER_Y := 640.0
+## 右侧旅程列。
+const JOURNEY_X := 1000.0
+const JOURNEY_Y := 188.0
+const JOURNEY_W := 208.0
+const JOURNEY_H := 420.0
+## 展开的档案卡（收起时停在右侧 CARD_SLIDE 处不可见，展开时滑回）。
+const CARD_RECT := Rect2(820.0, 184.0, 388.0, 424.0)
+const CARD_SLIDE := 24.0
+## 墓志行（与"离开"行同一条中心线）。
+const EPITAPH_RECT := Rect2(688.0, 624.0, 520.0, 32.0)
+const FOOTER_RECT := Rect2(72.0, 688.0, 1136.0, 28.0)
 
-## 离开锈墓的退场动画：一格格熄灭 → 铁门落下的闷响 → 压黑 → 留一句墓志才退出。
-## 任何按键/点击都能立刻跳到退出（开游戏不该被退场动画拖住）。
+# ---- motion ------------------------------------------------------------------------
+const BOOT_FADE := 0.5
+const LOGO_AT := 0.45
+const LOGO_TIME := 0.95
+const MENU_AT := 1.45
+const MENU_STAGGER := 0.07
+const MENU_LAND := 0.26
+const EPITAPH_CHAR := 0.085
+const EPITAPH_HOLD := 5.5
+const EPITAPH_FADE := 0.7
+## 离开锈墓：吊灯一盏盏熄灭 → 只剩巨剑剪影 → 留一句墓志才退出。任何按键/点击都能立刻跳到退出。
 const QUIT_ROW_STAGGER := 0.055
 const QUIT_RAIL_FADE := 0.30
 const QUIT_SCENE_FADE := 0.55
-const QUIT_BLACKOUT_DELAY := 0.32
-const QUIT_BLACKOUT := 0.85
-const QUIT_CAPTION_DELAY := 1.12
 const QUIT_CAPTION_FADE := 0.35
-const QUIT_HOLD := 0.6
+const QUIT_HOLD := 0.7
 const QUIT_CAPTION := "余 烬 熄 灭。"
 
 const ID_NEW := &"new"
@@ -80,18 +98,32 @@ const ID_KEEP := &"keep"
 const ID_OVERWRITE := &"overwrite"
 const ID_UPDATE := &"update"
 
+## Instance switch (tests set it before add_child); defaults to the USE_LIVE_SCENE const.
+var live_scene_enabled: bool = USE_LIVE_SCENE
+## 测试开关：置 false 时把退出动画完整走一遍，但不真的结束进程（headless 套件用）。
+var quit_on_finish := true
+## 测试接缝：替换 ArenaRun.start()（返回是否真的开始了一场）。
+var arena_start: Callable = Callable()
+
 var _started := false
 var _time := 0.0
+var _look: Dictionary = {}
+var _world_viewport: SubViewport
+var _world: TitleWorld
+var _smooth_material: ShaderMaterial
 var _keyart: TextureRect
 var _masthead: Control
+var _logo: TextureRect
+var _logo_material: ShaderMaterial
+var _subtitle: Label
 var _menu: MenuList
-var _spine: Control
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
 var _confirm_menu: MenuList
 var _char_select: CharacterSelectScreen
 var _update_prompt: UpdatePrompt
+var _update_notice: Button
 var _fade: ColorRect
 var _quit_caption: Label
 var _quitting := false
@@ -100,8 +132,32 @@ var _quit_tween: Tween
 ## 开屏黑幕：整段开场里盖在最上层的纯黑矩形，播完即撤。
 var _curtain: ColorRect
 var _intro_playing := false
-## 测试开关：置 false 时把退出动画完整走一遍，但不真的结束进程（headless 套件用）。
-var quit_on_finish := true
+var _intro_tween: Tween
+var _knight_light: Control
+var _ui_sparks: TitleSparks
+
+# journey column
+var _journey: Control
+var _gauge: TitleGauge
+var _chips: Dictionary = {}
+var _journey_count: Label
+var _journey_chapter: Label
+var _journey_recap: Label
+var _card: TitleCard
+var _dossier_values: Dictionary = {}
+var _dossier_recap: Label
+var _dossier_open := false
+var _dossier_pinned := false
+var _card_tween: Tween
+
+# epitaph typewriter
+var _epitaph: Label
+var _ep_lines: PackedStringArray = []
+var _ep_index := 0
+var _ep_phase := 0            # 0 idle, 1 typing, 2 holding, 3 fading
+var _ep_t := 0.0
+
+var _pointer_seen := false
 
 
 func _ready() -> void:
@@ -112,22 +168,29 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	DisplayServer.window_set_title("Rustgrave")
 	_build_window_backdrop()
+	_look = TitleWorld.state_from_save()
 	# 标题屏自己的主题：Music 的契约要求在这里显式声明（_poll_world 的轮询只是兜底）。
 	# set_state(&"calm") 清掉上一局残留的 danger / boss / death 闭锁。
 	Music.set_state(&"calm")
 	Music.set_theme(&"title")
 	DisplayFit.apply()
 	WorldClock.hold_for_menu()
+	# 音频包若提供了标题环境床（炉厅低鸣），开着它；没有就什么都不做。
+	if Sfx.has_method(&"set_title_bed"):
+		Sfx.call(&"set_title_bed", true)
+	elif Sfx.LIBRARY.has(&"bed_title"):
+		Sfx.play(&"bed_title", 0.0)
 	_build_backdrop()
 	_build_masthead()
 	_build_rail()
+	_build_journey()
 	_build_inscription()
-	_build_dossier()
 	_build_chrome()
+	_build_ui_sparks()
 	# 覆盖层最后加：Control 的绘制与鼠标拾取都按子节点顺序，越后越上。
 	_build_overlays()
-	# 新版本检查：静默拉一次 manifest，结果只让菜单多一格"有新版本"，
-	# 不弹窗、不打断。检查失败/没有新版时菜单保持原样。
+	# 新版本检查：静默拉一次 manifest，结果只让页脚多一个按钮，
+	# 不弹窗、不打断。检查失败/没有新版时保持原样。
 	UpdateService.checked.connect(_on_update_checked)
 	UpdateService.check_async()
 	_play_intro()
@@ -154,15 +217,26 @@ func _build_backdrop() -> void:
 	_keyart.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_keyart.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_keyart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_keyart.texture = UiKit.tex(KEYART_PATH)
 	_keyart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_keyart)
-
-	# 上下压暗：字标和菜单要压住拱顶的光柱，中段仍把骑士留出来，并盖掉右下角水印。
+	if live_scene_enabled:
+		_build_live_world()
+		# 字标压在顶部、菜单压在左下：只轻轻压暗这两处，中段（骑士与光柱）留给场景。
+		add_child(UiKit.scrim(0.58, 0.0, 0.50))
+		add_child(UiKit.scrim_side(0.30, 520.0))
+		# the journey column hangs over the right-hand machinery: darken that edge too
+		var right_scrim := UiKit.scrim_side(0.42, 420.0)
+		right_scrim.flip_h = true
+		right_scrim.anchor_left = 1.0
+		right_scrim.anchor_right = 1.0
+		right_scrim.offset_left = -420.0
+		right_scrim.offset_right = 0.0
+		add_child(right_scrim)
+		return
+	_keyart.texture = UiKit.tex(KEYART_PATH)
+	# 旧版静态 keyart 的氛围：上下压暗 + 骑士光影 + 余烬 + 角饰。
 	add_child(UiKit.scrim(0.74, 0.26, 0.90))
-	# 左侧再压一道：菜单架那几格压在齿轮上，文字与空心角标要有底色才读得出。
 	add_child(UiKit.scrim_side(0.42, 780.0))
-	# 中央骑士的呼吸轮廓光/落影/光柱浮尘：压在暗角之后、前景余烬之前。
 	_knight_light = KnightLightScript.new()
 	add_child(_knight_light)
 	add_child(UiKit.EmberField.build(Rect2(Vector2.ZERO, Vector2(1280, 720)),
@@ -170,50 +244,78 @@ func _build_backdrop() -> void:
 	UiKit.corner_brackets(self, CORNER_INSET, BAND_HEIGHT + CORNER_INSET)
 
 
-## 顶部正中：插座剑夹字标，下面一行副题。整块保持原来的居中构图。
+## The live scene: a 640x360 SubViewport (same recipe as GamePresentation's world) holding
+## a TitleWorld, shown through the existing `Keyart` TextureRect + pixel-smoothing shader.
+func _build_live_world() -> void:
+	_world_viewport = SubViewport.new()
+	_world_viewport.name = "WorldViewport"
+	_world_viewport.size = PresentationMetrics.WORLD_SIZE
+	_world_viewport.world_2d = World2D.new()
+	_world_viewport.disable_3d = true
+	_world_viewport.snap_2d_transforms_to_pixel = true
+	_world_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_world_viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	add_child(_world_viewport)
+	var packed := load(WORLD_SCENE) as PackedScene
+	_world = packed.instantiate() as TitleWorld
+	_world.state = _look
+	_world_viewport.add_child(_world)
+	_keyart.texture = _world_viewport.get_texture()
+	_smooth_material = ShaderMaterial.new()
+	_smooth_material.shader = SMOOTH_SHADER
+	_smooth_material.set_shader_parameter("smoothing",
+			bool(Settings.value(&"pixel_smoothing", GamePresentation.pixel_smoothing)))
+	_keyart.material = _smooth_material
+	get_tree().root.size_changed.connect(_update_smooth_scale)
+	_update_smooth_scale()
+
+
+func _update_smooth_scale() -> void:
+	if _smooth_material == null:
+		return
+	var metrics := PresentationMetrics.for_window(get_tree().root)
+	_smooth_material.set_shader_parameter("scale_hint", int(metrics["scale"]))
+
+
+## 顶部正中：字标夹在副题上面，整块居中。
 func _build_masthead() -> void:
 	var column := VBoxContainer.new()
 	column.name = "MastheadColumn"
-	column.set_anchors_preset(Control.PRESET_FULL_RECT)
+	column.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	column.offset_top = TOP_INSET
-	column.offset_bottom = -(BAND_HEIGHT + 40.0)
+	column.offset_bottom = TOP_INSET + LOGO_H + 8.0 + SUBTITLE_H
+	column.add_theme_constant_override("separation", 8)
 	column.alignment = BoxContainer.ALIGNMENT_BEGIN
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(column)
 
 	_masthead = HBoxContainer.new()
 	_masthead.name = "Masthead"
-	_masthead.alignment = BoxContainer.ALIGNMENT_CENTER
+	(_masthead as HBoxContainer).alignment = BoxContainer.ALIGNMENT_CENTER
 	_masthead.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(_masthead)
 
-	var left_sword := Ornaments.sword()
-	left_sword.name = "SocketSwordLeft"
-	_pack(left_sword)
-	_masthead.add_child(left_sword)
+	_logo = UiKit.sprite_rect(UiKit.TEX_TITLE_LOGO)
+	_logo.name = "TitleLogo"
+	_pack(_logo)
+	_logo_material = ShaderMaterial.new()
+	_logo_material.shader = FORGE_SHADER
+	_logo_material.set_shader_parameter("progress", 1.0)
+	_logo.material = _logo_material
+	_masthead.add_child(_logo)
 
-	var logo := UiKit.sprite_rect(UiKit.TEX_TITLE_LOGO)
-	logo.name = "TitleLogo"
-	_pack(logo)
-	_masthead.add_child(logo)
-
-	var right_sword := Ornaments.sword()
-	right_sword.name = "SocketSwordRight"
-	_pack(right_sword)
-	_masthead.add_child(right_sword)
-
-	var subtitle := UiKit.label("锈 墓 · 余 烬 骑 士", &"SubHeadLabel",
-			HORIZONTAL_ALIGNMENT_CENTER)
-	subtitle.name = "Subtitle"
-	_pack(subtitle)
-	column.add_child(subtitle)
+	_subtitle = UiKit.label("锈 墓 · 余 烬 骑 士", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_subtitle.name = "Subtitle"
+	_subtitle.custom_minimum_size = Vector2(0.0, SUBTITLE_H)
+	_pack(_subtitle)
+	column.add_child(_subtitle)
 
 
-## 左下菜单架：竖脊串起五格菜单。行距用空白节点而不是容器 separation，
-## 主/次行动之间的分组距离才能和原来的 10px 节奏不同。
+## 左下菜单：压暗的铁条分四组。行距用空白节点而不是容器 separation。
 func _build_rail() -> void:
 	_menu = MenuList.new()
 	_menu.name = "Menu"
+	_menu.strip_style = true
 	_menu.add_theme_constant_override("separation", 0)
 	_menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_menu.position = Vector2(RAIL_X, RAIL_TOP)
@@ -221,76 +323,30 @@ func _build_rail() -> void:
 	add_child(_menu)
 
 	var has_save := SaveData.has_save()
-	# 整架换紧凑板 + 收紧行距：总高 344，和右侧档案同顶（RAIL_TOP）同底。
+	# 行动
 	_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
-	_gap(6.0)
 	var cont := "回 看 余 烬" if SaveData.peek_ending() != "" else "继 续 旅 程"
 	_menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY, true)
-	_gap(4.0)
-	_menu.add_child(_rail_hairline())
-	_gap(6.0)
+	_gap(GROUP_GAP)
+	# 模式
 	var trial_ready := TrialCatalogScript.unlocked()
-	_menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.SECONDARY, true)
-	_gap(4.0)
+	var trial_item := _menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.SECONDARY, true)
+	if not trial_ready:
+		trial_item.set_note("第七章后解锁")
 	_menu.add_item(ID_ARENA, "余 烬 竞 技 场", false, MenuItem.Kind.SECONDARY, true)
-	_gap(6.0)
+	_gap(GROUP_GAP)
+	# 系统
 	_menu.add_item(ID_SETTINGS, "设 置", false, MenuItem.Kind.SECONDARY, true)
-	_gap(4.0)
 	_menu.add_item(ID_CONTROLS, "操 作 说 明", false, MenuItem.Kind.SECONDARY, true)
-	_gap(20.0)
-	var foot_rule := _rail_hairline()
-	foot_rule.custom_minimum_size = Vector2(260.0, 2.0)
-	_menu.add_child(foot_rule)
-	_gap(GAP_QUIT - 22.0)
+	_gap(GROUP_GAP)
+	# 离开
 	_menu.add_item(ID_QUIT, "离 开 锈 墓", false, MenuItem.Kind.GHOST, true)
 	_menu.reset_size()
 	_menu.chosen.connect(_on_chosen)
-
-	# 竖脊：从第一格的主行动一直串到"离开"，两端各一颗铆钉。
-	# 左架投影：光从天井中央打下来，影子向外侧（左）落。
-	var shadow := ColorRect.new()
-	shadow.name = "RailShadow"
-	shadow.color = Color(0.0, 0.0, 0.0, 0.26)
-	shadow.position = _menu.position + Vector2(-5.0, 6.0)
-	shadow.size = _menu.size
-	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(shadow)
-	move_child(shadow, _menu.get_index())
-
-	# 从"天花板梁"垂下来的锁链：和背景里的垂链同一语汇，把菜单架挂进场景。
-	# 起点收到 y=32：链子从窗棂下第一道横梁出发，长度够、才读得出"挂着"。
-	var chain := Ornaments.chain(RAIL_TOP + 8.0 - 32.0)
-	chain.name = "RailChain"
-	chain.position = Vector2(
-			SPINE_X + (Ornaments.SPINE_W - Ornaments.CHAIN_W) * 0.5, 32.0)
-	add_child(chain)
-
-	_spine = Ornaments.spine(_menu.size.y - 16.0)
-	_spine.name = "RailSpine"
-	_spine.position = Vector2(SPINE_X, RAIL_TOP + 8.0)
-	add_child(_spine)
-	# 叠在菜单之下：先加进来的先画，回头把脊挪到菜单下面。
-	move_child(_spine, _menu.get_index())
-
+	_menu.focus_changed.connect(_on_focus_changed)
 	# 有存档时光标默认停在"继续"：回车不会再一键抹掉进度。
 	if has_save:
 		_menu.select(1, false)
-
-
-## 紧凑版分隔：2px 锈线（原铆钉横线在短架里太占高）。
-func _rail_hairline() -> Control:
-	var rule := ColorRect.new()
-	rule.name = "RailDivider"
-	rule.color = Color("#3A2012")
-	rule.custom_minimum_size = Vector2(360.0, 2.0)
-	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return rule
-
-
-func _rail_divider() -> Control:
-	var rule := Ornaments.rivet_rule(DIVIDER_W)
-	rule.name = "RailDivider"
-	return rule
 
 
 func _gap(height: float) -> void:
@@ -305,213 +361,124 @@ func _pack(node: Control) -> void:
 	node.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 
-## 右下角的墓志：两道短铆钉夹一行字，和左下的菜单架配重。
-func _build_inscription() -> void:
-	var strip := Control.new()
-	strip.name = "Inscription"
-	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 墓志收进右下角：不再横穿整幅画面（旧版 96→1184 的通栏会把 keyart
-	# 中央的骑士切成两半）。与左下"离开锈墓"同一基线——屏幕底部的两个重音点
-	# （排版约束见 tests/title_screen_test.gd 的 test_quit_aligns_with_epitaph）：
-	# 当前菜单 quit 行中心 y=606，32px 高的 strip 故取 top=590。
-	strip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	strip.offset_left = -(DIVIDER_W + 96.0)
-	strip.offset_right = -SPINE_X
-	strip.offset_top = 590.0
-	strip.offset_bottom = 590.0 + 32.0
-	add_child(strip)
+# ------------------------------------------------------------------ journey ----
 
-	var row := HBoxContainer.new()
-	row.name = "EpitaphRow"
-	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.alignment = BoxContainer.ALIGNMENT_END
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	strip.add_child(row)
+## 右侧旅程列：章节标尺 + 四枚小数据片；悬停 / Tab 展开完整档案卡。
+func _build_journey() -> void:
+	_journey = Control.new()
+	_journey.name = "JourneyColumn"
+	_journey.position = Vector2(JOURNEY_X, JOURNEY_Y)
+	_journey.size = Vector2(JOURNEY_W, JOURNEY_H)
+	_journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_journey)
 
-	var left := Ornaments.stub_rule(true)
-	left.name = "EpitaphRuleLeft"
-	left.custom_minimum_size = Vector2(48.0, 16.0)
-	_pack(left)
-	row.add_child(left)
+	var header := UiKit.label("旅 程", &"TinyStrongLabel")
+	header.name = "JourneyHeader"
+	header.modulate = UiKit.EMBER
+	header.position = Vector2(0.0, 0.0)
+	header.size = Vector2(120.0, 16.0)
+	_journey.add_child(header)
+	_journey_count = UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	_journey_count.name = "JourneyCount"
+	_journey_count.position = Vector2(JOURNEY_W - 90.0, 0.0)
+	_journey_count.size = Vector2(90.0, 16.0)
+	_journey.add_child(_journey_count)
+	_journey_chapter = UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_journey_chapter.name = "JourneyChapter"
+	_journey_chapter.position = Vector2(0.0, 20.0)
+	_journey_chapter.size = Vector2(JOURNEY_W, 16.0)
+	_journey_chapter.clip_text = true
+	_journey_chapter.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_journey.add_child(_journey_chapter)
+	_journey_recap = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_journey_recap.name = "JourneyRecap"
+	_journey_recap.position = Vector2(0.0, 38.0)
+	_journey_recap.size = Vector2(JOURNEY_W, 30.0)
+	_journey_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_journey_recap.max_lines_visible = 2
+	_journey_recap.clip_text = true
+	_journey.add_child(_journey_recap)
 
-	var epitaph := UiKit.label(EPITAPH, &"EpitaphLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-	epitaph.name = "Epitaph"
-	epitaph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_pack(epitaph)
-	row.add_child(epitaph)
+	_gauge = TitleGauge.new()
+	_gauge.name = "JourneyGauge"
+	_gauge.position = Vector2(0.0, 78.0)
+	_journey.add_child(_gauge)
 
-	var right := Ornaments.stub_rule(false)
-	right.name = "EpitaphRuleRight"
-	right.custom_minimum_size = Vector2(48.0, 16.0)
-	_pack(right)
-	row.add_child(right)
+	var chip_y := 78.0 + _gauge.custom_minimum_size.y + 8.0
+	var specs := [["Rank", "阶", 0, 0], ["Skin", "装", 1, 0], ["Trials", "试", 0, 1], ["Arena", "竞", 1, 1]]
+	for spec in specs:
+		var chip := TitleChip.new()
+		chip.name = "Chip" + String(spec[0])
+		chip.tag_text = String(spec[1])
+		chip.position = Vector2(float(spec[2]) * (TitleChip.CHIP_SIZE.x + 12.0),
+				chip_y + float(spec[3]) * (TitleChip.CHIP_SIZE.y + 6.0))
+		_journey.add_child(chip)
+		_chips[String(spec[0])] = chip
 
-
-## 底部装饰带：署名靠左、导航提示靠右，都排进同一条锈色铆钉带里。
-## 右侧「行程档案」：把本次旅程/成长/试炼记录从系统里拉出来放进标题屏，
-## 让开始界面不再只有六格菜单。无存档时显示占位文案，不隐藏面板。
-var _dossier_values: Dictionary = {}
-var _update_notice: Button
-var _dossier_wrap: Control
-var _dossier_jag: Control
-var _dossier_spine: Control
-var _rail_chain: Control
-var _dossier_chain: Control
-var _knight_light: Control
-var _rail_chain_base := 0.0
-var _dossier_chain_base := 0.0
+	_build_dossier_card()
+	_refresh_dossier()
 
 
-func _build_dossier() -> void:
-	# 与左侧铁架同构：包一层定位壳，壳左边立一根竖脊（左架脊在板左，档案脊也在板左），
-	# 每行标签前挂一小截横钉，机芯/铆钉/锈线沿用同一套 Ornaments。
-	var wrap := Control.new()
-	wrap.name = "DossierWrap"
-	wrap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	# 右边缘到屏幕的距离与左栏脊到屏幕的距离一致（对称）。
-	# wrap 上移到 RAIL_TOP-18：板面自身还有 18px 内偏移，这样大板顶边和
-	# 左菜单架第一格同顶（实测对齐，之前差 18px）。
-	# 高度与菜单架同底：菜单（含底部横线与离开行）实测 402px 高，
-	# 右栏板面跟随，两栏底边落在同一条水平线上。
-	wrap.offset_left = -500.0
-	wrap.offset_top = RAIL_TOP - 18.0
-	wrap.offset_right = -SPINE_X
-	wrap.offset_bottom = RAIL_TOP - 18.0 + 344.0 + 18.0
-	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dossier_wrap = wrap
-	add_child(wrap)
-
-	# 右栏改用和左架同族的不规则大板：右侧箭头纹理水平翻转后朝向画面中央，
-	# 正好照应左侧主板的右向凸起；投影也用同一张板形，不再是方块阴影。
-	var plate_size := Plate.plate_size(Plate.Shape.DOSSIER)
-	var arrow := plate_size.x - Plate.body_width(Plate.Shape.DOSSIER)
-	var plate_tex := Plate.texture(Plate.Shape.DOSSIER, Plate.State.NORMAL)
-
-	var shadow_plate := TextureRect.new()
-	shadow_plate.name = "DossierShadow"
-	shadow_plate.texture = plate_tex
-	shadow_plate.flip_h = true
-	shadow_plate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	shadow_plate.size = plate_size
-	shadow_plate.position = Vector2(30.0, 7.0)
-	shadow_plate.modulate = Color(0.0, 0.0, 0.0, 0.35)
-	shadow_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wrap.add_child(shadow_plate)
-
-	# 和左架对称：右栏也从天花板垂一根链到自己的竖脊。起点同左链（y=32），
-	# 右栏 wrap 已上移到 RAIL_TOP-24，链长要按新的相对位置重算。
-	var chain := Ornaments.chain((RAIL_TOP + 18.0) - 32.0)
-	chain.name = "DossierChain"
-	chain.position = Vector2(2.0 + (Ornaments.SPINE_W - Ornaments.CHAIN_W) * 0.5,
-			-(RAIL_TOP + 18.0) + 32.0)
-	wrap.add_child(chain)
-
-	# 左缘两块参差铁舌：模仿左边菜单板的箭头/燕尾轮廓。
-	_dossier_jag = DossierJagScript.new()
-	wrap.add_child(_dossier_jag)
-
-	var plate := TextureRect.new()
-	plate.name = "DossierPlate"
-	plate.texture = plate_tex
-	plate.flip_h = true
-	plate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	plate.size = plate_size
-	plate.position = Vector2(24.0, 0.0)
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wrap.add_child(plate)
-
-	# 竖脊与板同高（板 344，上下各留 18px 边）。
-	var spine := Ornaments.spine(344.0 - 36.0)
-	spine.name = "DossierSpine"
-	spine.position = Vector2(2.0, 18.0)
-	_dossier_spine = spine
-	wrap.add_child(spine)
+## 展开的完整档案：与旧版同名的节点（Dossier / DossierRank / ...），平时收起。
+func _build_dossier_card() -> void:
+	_card = TitleCard.new()
+	_card.name = "DossierWrap"
+	# closed: parked 24px to the right and invisible; it slides home when it opens
+	_card.position = CARD_RECT.position + Vector2(CARD_SLIDE, 0.0)
+	_card.size = CARD_RECT.size
+	_card.visible = false
+	_card.modulate.a = 0.0
+	add_child(_card)
 
 	var panel := PanelContainer.new()
 	panel.name = "Dossier"
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.offset_left = 24.0 + arrow + 18.0
-	panel.offset_top = 18.0
-	panel.offset_right = -(408.0 - (24.0 + plate_size.x) + 18.0)
-	panel.offset_bottom = -26.0
+	panel.position = Vector2(22.0, 22.0)
+	panel.size = CARD_RECT.size - Vector2(44.0, 44.0)
+	panel.custom_minimum_size = panel.size
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wrap.add_child(panel)
+	_card.add_child(panel)
 	var box := VBoxContainer.new()
 	box.name = "Content"
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
-	# 标题行：左右各一道短角铁，和铁架的分组横线同一语汇。
-	var head_row := HBoxContainer.new()
-	head_row.name = "DossierHeadRow"
-	head_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	head_row.add_theme_constant_override("separation", 8)
-	box.add_child(head_row)
-	var stub_l := Ornaments.stub_rule(true)
-	stub_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head_row.add_child(stub_l)
 	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	head.modulate = UiKit.EMBER
 	head.name = "DossierHead"
-	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head_row.add_child(head)
-	var stub_r := Ornaments.stub_rule(false)
-	stub_r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head_row.add_child(stub_r)
-	box.add_child(Ornaments.rivet_rule(280.0))
+	box.add_child(head)
 	_add_dossier_row(box, "Rank", "余 烬 阶 位")
 	_add_dossier_row(box, "Skin", "当 前 外 观")
 	_add_dossier_row(box, "Trials", "回 火 试 炼")
 	_add_dossier_row(box, "Arena", "余 烬 竞 技 场")
 	_add_dossier_row(box, "Chapter", "上 次 行 程")
+	_dossier_recap = UiKit.label("", &"FootnoteLabel")
+	_dossier_recap.name = "DossierRecap"
+	_dossier_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_dossier_recap.custom_minimum_size = Vector2(0.0, 44.0)
+	_dossier_recap.modulate = Color(UiKit.EMBER_ASH.r, UiKit.EMBER_ASH.g, UiKit.EMBER_ASH.b, 0.85)
+	box.add_child(_dossier_recap)
 	if not TrialCatalogScript.unlocked():
-		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」",
-				&"FootnoteLabel")
+		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」", &"FootnoteLabel")
 		trial_hint.name = "TrialLockHint"
 		trial_hint.modulate = UiKit.ASH
 		trial_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		trial_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		trial_hint.custom_minimum_size = Vector2(0.0, 28.0)
+		trial_hint.custom_minimum_size = Vector2(0.0, 30.0)
 		box.add_child(trial_hint)
-	var hint := UiKit.label("Tab 查看目标 · Esc 暂停 · 章节存档记录在烬巢",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	var hint := UiKit.label("Tab 收起 · 悬停展开 · 章节存档记录在烬巢", &"FootnoteLabel",
+			HORIZONTAL_ALIGNMENT_CENTER)
 	hint.name = "DossierHint"
 	hint.modulate = UiKit.ASH
 	box.add_child(hint)
-	_update_notice = Button.new()
-	_update_notice.name = "UpdateNotice"
-	_update_notice.text = "有 新 版 本 · 查 看"
-	_update_notice.theme_type_variation = &"SettingsButton"
-	# 档案行都是 16px 小字，按钮保持同量级：stylebox 自带 6px 上下边距，
-	# 这里显式压掉，22px 一行才和 TinyStrongLabel 行高协调（默认会撑到 40）。
-	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
-		var sb := _update_notice.get_theme_stylebox(st).duplicate() as StyleBox
-		if sb != null:
-			sb.content_margin_top = 2
-			sb.content_margin_bottom = 2
-			_update_notice.add_theme_stylebox_override(st, sb)
-	_update_notice.custom_minimum_size = Vector2(0.0, 22.0)
-	_update_notice.size_flags_horizontal = Control.SIZE_SHRINK_END
-	_update_notice.add_theme_font_size_override("font_size", 12)
-	_update_notice.focus_mode = Control.FOCUS_ALL
-	_update_notice.visible = false
-	_update_notice.pressed.connect(_open_update_prompt)
-	box.add_child(_update_notice)
-	# 弹性留白把收口推到底边，行文与底注之间不留悬空。
 	var flex := Control.new()
 	flex.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	flex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(flex)
-	# 底部收口：短角铁 + 小注，和铁架底部的铆钉呼应。
-	var foot_rule := Ornaments.stub_rule(false)
-	foot_rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(foot_rule)
-	var foot := UiKit.label("档 案 随 存 档 更 新", &"FootnoteLabel",
-			HORIZONTAL_ALIGNMENT_CENTER)
+	var foot := UiKit.label("档 案 随 存 档 更 新", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	foot.name = "DossierFoot"
 	foot.modulate = UiKit.ASH
 	box.add_child(foot)
-	_refresh_dossier()
+
 
 func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void:
 	var row := HBoxContainer.new()
@@ -526,7 +493,7 @@ func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void
 	row.add_child(tick)
 	var tag := UiKit.label(title, &"TinyLabel")
 	tag.modulate = UiKit.ASH
-	tag.custom_minimum_size = Vector2(84.0, 0.0)
+	tag.custom_minimum_size = Vector2(96.0, 0.0)
 	row.add_child(tag)
 	var value := UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	value.name = "Dossier" + key
@@ -541,199 +508,176 @@ func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void
 func _refresh_dossier() -> void:
 	if _dossier_values.is_empty():
 		return
-	var has_save := SaveData.has_save()
+	var peek := TitleWorld.peek_save()
+	# the same look the live scene was built from (forced states in tools / tests included)
+	var has_save := bool(_look.get("has_save", peek.get("has_save", false)))
+	var rank := clampi(int(_look.get("rank", peek.get("rank", 1))), 1, 10)
+	var points := int(_look.get("points", peek.get("points", 0)))
 	var rank_text := "尚无余烬 · 点燃后开始记录"
 	if has_save:
 		# 一行放得下：阶位 + 阶名 + 属性点；XP 进度在角色面板里看。
-		rank_text = "%d 阶 · %s · 点 %d" % [SaveData.ember_rank,
-				EmberRankScript.name_for_rank(SaveData.ember_rank),
-				SaveData.attribute_points]
+		rank_text = "%d 阶 · %s · 点 %d" % [rank, EmberRankScript.name_for_rank(rank), points]
 	_dossier_values["Rank"].text = rank_text
 
-	var skin := StringName(SaveData.skin_id) if SaveData.skin_id != "" else SkinCatalogScript.DEFAULT_SKIN
-	_dossier_values["Skin"].text = SkinCatalogScript.name_of(skin)
+	var skin_id := String(_look.get("skin", peek.get("skin", "")))
+	var skin := StringName(skin_id) if skin_id != "" else SkinCatalogScript.DEFAULT_SKIN
+	var skin_name: String = SkinCatalogScript.name_of(skin)
+	_dossier_values["Skin"].text = skin_name
 
 	var trial_text := "未踏足"
+	var trial_count := 0
 	if ResourceLoader.exists("res://scripts/data/trial_records.gd"):
 		var all: Dictionary = TrialRecordsScript.all()
-		var count := 0
 		for track in all.values():
 			if track is Dictionary:
-				count += (track as Dictionary).size()
-		if count > 0:
-			trial_text = "%d 条记录" % count
+				trial_count += (track as Dictionary).size()
+		if trial_count > 0:
+			trial_text = "%d 条记录" % trial_count
 	_dossier_values["Trials"].text = trial_text
 
 	var arena_text := "未踏足"
 	var arena_records: Dictionary = ArenaRunScript.read_records()
-	if int(arena_records.get("runs", 0)) > 0:
-		arena_text = "最佳 %d 分 · %d 场" % [
-			int(arena_records.get("best_score", 0)), int(arena_records.get("runs", 0))]
+	var arena_runs := int(arena_records.get("runs", 0))
+	if arena_runs > 0:
+		arena_text = "最佳 %d 分 · %d 场" % [int(arena_records.get("best_score", 0)), arena_runs]
 	_dossier_values["Arena"].text = arena_text
 
 	var chapter_text := "尚无旅程"
-	if has_save and SaveData.data.has("meta"):
-		var scene := String((SaveData.data["meta"] as Dictionary).get("scene", ""))
-		var level_id := ""
-		for id in GameContext.LEVELS:
-			if String(GameContext.LEVELS[id]) == scene:
-				level_id = String(id)
-				break
-		if level_id != "":
-			chapter_text = ChapterText.title_of(level_id)
-			var recap := ChapterText.recap_of(level_id)
-			if recap != "":
-				chapter_text = recap
-			if chapter_text.length() > 18:
-				chapter_text = chapter_text.substr(0, 18) + "…"
+	var recap := ""
+	var chapter_id := String(_look.get("chapter_id", ""))
+	if has_save and chapter_id != "":
+		chapter_text = ChapterText.title_of(chapter_id)
+		recap = ChapterText.recap_of(chapter_id)
+	var ending := String(_look.get("ending", ""))
+	if ending != "":
+		chapter_text = _ending_name(ending)
+		recap = ChapterText.ending_summary_of(ending)
 	_dossier_values["Chapter"].text = chapter_text
+	_dossier_recap.text = recap
+
+	# collapsed column: chips + chapter line
+	var cleared := int(_look.get("cleared", 0))
+	_journey_count.text = "%02d / %02d" % [cleared, ChapterText.order().size()]
+	_journey_chapter.text = chapter_text if (has_save or ending != "") else "尚无旅程 · 尚未点燃"
+	_journey_recap.text = recap
+	_journey_recap.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.95)
+	var done: Array[bool] = []
+	done.assign(_look.get("done", []))
+	_gauge.set_journey(done, int(_look.get("chapter_index", -1)) if ending == "" else -1)
+	(_chips["Rank"] as TitleChip).set_chip("阶", str(rank) if has_save else "—", has_save)
+	(_chips["Skin"] as TitleChip).set_chip("装", skin_name, has_save)
+	(_chips["Trials"] as TitleChip).set_chip("试", str(trial_count) if trial_count > 0 else "—", trial_count > 0)
+	(_chips["Arena"] as TitleChip).set_chip("竞", str(int(arena_records.get("best_score", 0))) if arena_runs > 0 else "—",
+			arena_runs > 0)
 
 
-func _build_chrome() -> void:
-	var band := UiKit.panel(&"BandPanel")
-	band.name = "CreditBand"
-	band.anchor_left = 0.0
-	band.anchor_right = 1.0
-	band.anchor_top = 1.0
-	band.anchor_bottom = 1.0
-	band.offset_top = -BAND_HEIGHT
-	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(band)
+## 结局的短名（取自结局概述冒号前的几个字：送剑 / 守火 / 熄灭残芯）。
+func _ending_name(kind: String) -> String:
+	var summary := ChapterText.ending_summary_of(kind)
+	var cut := summary.find("：")
+	return summary.substr(0, cut) if cut > 0 else "旅程已终"
+
+
+# ------------------------------------------------------------- inscription -----
+
+## 底部墓志：一行字，慢速打字机轮换；第一句永远是 EPITAPH。
+func _build_inscription() -> void:
+	var strip := Control.new()
+	strip.name = "Inscription"
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	strip.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	strip.position = EPITAPH_RECT.position
+	strip.size = EPITAPH_RECT.size
+	add_child(strip)
 
 	var row := HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	band.add_child(row)
+	row.name = "EpitaphRow"
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	strip.add_child(row)
 
+	_ep_lines = PackedStringArray([EPITAPH,
+			String(ChapterText.OPENING["situation"]),
+			String(ChapterText.OPENING["lamp"]),
+			String(ChapterText.OPENING["question"])])
+	# Left-aligned, sized to the whole line: a typed prefix then grows to the right while
+	# the finished line still sits flush with the right margin (the row ends at x=1208).
+	_epitaph = UiKit.label(EPITAPH, &"EpitaphLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_epitaph.name = "Epitaph"
+	_epitaph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_pack(_epitaph)
+	row.add_child(_epitaph)
+	_fit_epitaph()
+
+
+## 页脚：署名靠左、导航提示靠右，一行小字，没有底板。
+func _build_chrome() -> void:
+	var band := Control.new()
+	band.name = "CreditBand"
+	band.position = FOOTER_RECT.position
+	band.size = FOOTER_RECT.size
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(band)
+	var rule := ColorRect.new()
+	rule.name = "FooterRule"
+	rule.color = Color(0.23, 0.125, 0.07, 0.7)
+	rule.position = Vector2(0.0, 0.0)
+	rule.size = Vector2(FOOTER_RECT.size.x, 1.0)
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.add_child(rule)
 	var credits := UiKit.label(
-			"美术 ansimuz · aamatniekss · Kronovi · CodeManu · Kenney — 音频 Kenney",
+			"美术 ansimuz · aamatniekss · Kronovi · CodeManu · Kenney — 音频 Kenney · 字体 Fusion Pixel (OFL)",
 			&"FootnoteLabel")
-	credits.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	credits.position = Vector2(0.0, 6.0)
+	credits.size = Vector2(FOOTER_RECT.size.x - 420.0, 20.0)
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.9)
-	row.add_child(credits)
-
-	var hint := UiKit.label("字体 Fusion Pixel (OFL) · ↑↓ 选择 · Enter 确认",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	band.add_child(credits)
+	# 操作提示染成余烬色：页脚里只有这一行是"给玩家的指令"。
+	var hint := UiKit.label("↑↓ 选择 · Enter 确认 · Tab 档案", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	hint.position = Vector2(FOOTER_RECT.size.x - 400.0, 6.0)
+	hint.size = Vector2(400.0, 20.0)
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	# 操作提示染成余烬色：署名带里只有这一行是"给玩家的指令"，
-	# 同行的署名是纯信息，两行不能同权。
 	hint.modulate = UiKit.EMBER_ASH
-	row.add_child(hint)
+	band.add_child(hint)
+
+	_update_notice = Button.new()
+	_update_notice.name = "UpdateNotice"
+	_update_notice.text = "有 新 版 本 · 查 看"
+	# SettingsButton lives in the runtime extras theme (not the project theme)
+	_update_notice.theme = UiKit.extras_theme()
+	_update_notice.theme_type_variation = &"SettingsButton"
+	# 档案行都是 12px 小字，按钮保持同量级：stylebox 自带 6px 上下边距，
+	# 这里显式压掉，22px 一行才和小字协调（默认会撑到 40）。
+	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
+		var sb := _update_notice.get_theme_stylebox(st).duplicate() as StyleBox
+		if sb != null:
+			sb.content_margin_top = 2
+			sb.content_margin_bottom = 2
+			_update_notice.add_theme_stylebox_override(st, sb)
+	_update_notice.add_theme_font_size_override("font_size", 12)
+	_update_notice.focus_mode = Control.FOCUS_ALL
+	_update_notice.visible = false
+	_update_notice.pressed.connect(_open_update_prompt)
+	add_child(_update_notice)
+	# Size only after it is in the tree: a Control's size is clamped *up* to its minimum, and
+	# outside the tree the minimum still comes from the default (24px, wide-margin) button theme.
+	_update_notice.reset_size()
+	_update_notice.position = Vector2(1040.0, 661.0)
+	_update_notice.size = Vector2(168.0, 22.0)
 
 
-## 开屏：黑幕与 keyart 交叉淡入淡出 → 字标跟着亮 → 菜单架逐行爬上来 →
-## 脊柱、墓志、署名带收尾。整段约 1.1 秒，期间不挡操作（菜单一直可点）。
-## 任何一步都可以被 _skip_intro() 一把跳过：玩家进设置再回来、或者换关回来时
-## 不该被同一段开场拖第二次。
-func _play_intro() -> void:
-	_intro_playing = true
-	# 菜单架在开屏期间保持 active：悬停/上下键照常工作，确认键由 _on_chosen
-	# 跳过开屏后照常执行——进场动画不是输入门禁，只是"还没演完"。
-	# 黑幕：盖住整个窗口（内容矩形外也有边），与 keyart 交叉淡出。
-	_curtain = ColorRect.new()
-	_curtain.name = "BootCurtain"
-	_curtain.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_curtain.color = Color.BLACK
-	_curtain.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_curtain)
-
-	# 场景四件套的初始态：全透明，等帷幕退去后依次渗出来。
-	_keyart.modulate.a = 0.0
-	_masthead.modulate.a = 0.0
-	_spine.modulate.a = 0.0
-	# 新节点也参与开屏：链条/骑士光影/右栏与脊柱同一拍淡入，避免"啪"地出现。
-	for extra in [_rail_chain, _dossier_chain, _dossier_wrap, _dossier_spine,
-			_dossier_jag, _knight_light]:
-		if extra is CanvasItem:
-			(extra as CanvasItem).modulate.a = 0.0
-	var inscription := get_node_or_null("Inscription")
-	if inscription != null:
-		(inscription as CanvasItem).modulate.a = 0.0
-	var band := get_node_or_null("CreditBand")
-	if band != null:
-		(band as CanvasItem).modulate.a = 0.0
-	for child in _menu.get_children():
-		var control := child as Control
-		if control != null:
-			control.modulate.a = 0.0
-
-	# 并行时间轴：每段自带 set_delay，总时长 = 最大 (delay + duration)。
-	var tw := create_tween()
-	tw.set_parallel(true)
-	# 0.00s 黑幕退去，keyart 同时渗出来（火光先着）。
-	tw.tween_property(_curtain, "modulate:a", 0.0, BOOT_FADE) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_property(_keyart, "modulate:a", 1.0, BOOT_FADE) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	# 0.35s 字标醒过来：比 keyart 晚半拍，logo 辉光跟着更快一点的节奏。
-	tw.tween_property(_masthead, "modulate:a", 1.0, INTRO_DURATION) \
-			.set_delay(BOOT_FADE * 0.64) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	# 右侧档案/垂链/骑士光与脊柱同一批淡入。
-	var side_delay := BOOT_FADE * 0.9
-	for extra in [_rail_chain, _dossier_chain, _dossier_wrap, _dossier_spine,
-			_dossier_jag, _knight_light]:
-		if extra is CanvasItem:
-			tw.tween_property(extra, "modulate:a", 1.0, RAIL_DURATION) \
-					.set_delay(side_delay)
-	# 0.50s 起菜单逐行爬上来（0.045s/行），脊柱同步淡入。
-	var delay := BOOT_FADE * 0.9
-	for child in _menu.get_children():
-		var control := child as Control
-		if control == null:
-			continue
-		tw.tween_property(control, "modulate:a", 1.0, RAIL_DURATION) \
-				.set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		delay += RAIL_STAGGER
-	tw.tween_property(_spine, "modulate:a", 1.0, RAIL_DURATION) \
-			.set_delay(BOOT_FADE * 0.9) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	# 墓志和署名带最后收尾（菜单爬完的那一刻）。
-	tw.tween_property(inscription, "modulate:a", 1.0, RAIL_DURATION + 0.1) \
-			.set_delay(delay) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_property(band, "modulate:a", 1.0, RAIL_DURATION + 0.1) \
-			.set_delay(delay) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	# 收尾：全部就位后撤掉黑幕、置回非播放态。
-	var total := delay + RAIL_DURATION + 0.1
-	tw.tween_callback(func() -> void:
-		_intro_playing = false
-		if _curtain != null and is_instance_valid(_curtain):
-			_curtain.queue_free()
-			_curtain = null
-	).set_delay(total)
+## UI 层的火星池（聚焦迸火星、字标锻入的火星）：复用 TitleSparks 的火星部分，放大两倍，
+## 落在 UI 的 2px 栅格上。
+func _build_ui_sparks() -> void:
+	_ui_sparks = TitleSparks.new()
+	_ui_sparks.name = "UiSparks"
+	_ui_sparks.scale = Vector2(2.0, 2.0)
+	add_child(_ui_sparks)
 
 
-## 跳过开屏：直接落到终态（不删帷幕之外的东西，_quit_sequence 还要用）。
-func _skip_intro() -> void:
-	if not _intro_playing:
-		return
-	_intro_playing = false
-	# 把还挂着的入场 tween 一次抹平：子节点各自 create_tween 的那批
-	# 随节点释放而失效，这里直接把透明状态和位置落到位。
-	Transitions.snap_visible([
-			_keyart, _masthead, _spine,
-			get_node_or_null("Inscription"),
-			get_node_or_null("CreditBand"),
-			_knight_light, _dossier_wrap, _dossier_spine, _dossier_jag,
-			_rail_chain, _dossier_chain,
-	])
-	for child in _menu.get_children():
-		var control := child as Control
-		if control != null:
-			control.modulate.a = 1.0
-	if _curtain != null and is_instance_valid(_curtain):
-		_curtain.queue_free()
-		_curtain = null
-
-
-## 开屏是否还在播（测试与 _on_chosen 用：动画期间选择键不响应）。
-func intro_playing() -> bool:
-	return _intro_playing
-
+# ---------------------------------------------------------------- overlays -----
 
 func _build_overlays() -> void:
 	_controls = ControlsPanel.new()
@@ -768,26 +712,292 @@ func _build_overlays() -> void:
 	_fade.add_child(_quit_caption)
 
 
+# ------------------------------------------------------------------- intro -----
+
+## 开屏：黑幕退去 → 吊灯一盏盏点亮 → 字标锻入（白热扫过 + 火星）→ 副题 → 菜单逐条落位 →
+## 旅程列、墓志、页脚收尾。整段约 2.5 秒，期间不挡操作（菜单一直可点）。
+## 任何一步都可以被 _skip_intro() 一把跳过：玩家进设置再回来、或者换关回来时
+## 不该被同一段开场拖第二次。
+func _play_intro() -> void:
+	_intro_playing = true
+	# 菜单在开屏期间保持 active：悬停/上下键照常工作，确认键由 _on_chosen
+	# 跳过开屏后照常执行——进场动画不是输入门禁，只是"还没演完"。
+	# 黑幕：盖住整个窗口（内容矩形外也有边），与场景交叉淡出。
+	_curtain = ColorRect.new()
+	_curtain.name = "BootCurtain"
+	_curtain.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_curtain.color = Color.BLACK
+	_curtain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_curtain)
+
+	# 初始态：全透明 / 未锻入 / 菜单条偏在左边，等帷幕退去后依次出现。
+	_keyart.modulate.a = 0.0
+	_masthead.modulate.a = 0.0
+	_subtitle.modulate.a = 0.0
+	_logo_material.set_shader_parameter("progress", 0.0)
+	_journey.modulate.a = 0.0
+	var inscription := get_node_or_null("Inscription") as CanvasItem
+	var band := get_node_or_null("CreditBand") as CanvasItem
+	if inscription != null:
+		inscription.modulate.a = 0.0
+	if band != null:
+		band.modulate.a = 0.0
+	if _knight_light != null:
+		_knight_light.modulate.a = 0.0
+	var rows: Array[MenuItem] = []
+	for child in _menu.get_children():
+		var control := child as Control
+		if control == null:
+			continue
+		control.modulate.a = 0.0
+		if child is MenuItem:
+			(child as MenuItem).land = 1.0
+			rows.append(child as MenuItem)
+	if _world != null:
+		_world.play_intro()
+	_ep_phase = 0
+
+	var tw := create_tween()
+	_intro_tween = tw
+	tw.set_parallel(true)
+	tw.tween_property(_curtain, "modulate:a", 0.0, BOOT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_keyart, "modulate:a", 1.0, BOOT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if _knight_light != null:
+		tw.tween_property(_knight_light, "modulate:a", 1.0, 0.4).set_delay(BOOT_FADE)
+	# 字标锻入
+	tw.tween_property(_masthead, "modulate:a", 1.0, 0.05).set_delay(LOGO_AT)
+	tw.tween_property(_logo_material, "shader_parameter/progress", 1.0, LOGO_TIME) \
+			.set_delay(LOGO_AT).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(func() -> void: UiKit.sfx(&"forge_pulse", &"gate")).set_delay(LOGO_AT)
+	for k in 5:
+		tw.tween_callback(_logo_spark.bind(0.12 + 0.19 * float(k))) \
+				.set_delay(LOGO_AT + LOGO_TIME * (0.12 + 0.19 * float(k)))
+	tw.tween_property(_subtitle, "modulate:a", 1.0, 0.35).set_delay(LOGO_AT + LOGO_TIME * 0.85) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 菜单逐条落位
+	var delay := MENU_AT
+	for i in rows.size():
+		var row := rows[i]
+		tw.tween_property(row, "modulate:a", 1.0, 0.2).set_delay(delay)
+		tw.tween_property(row, "land", 0.0, MENU_LAND).set_delay(delay) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		delay += MENU_STAGGER
+	var menu_end := delay + MENU_LAND
+	tw.tween_property(_journey, "modulate:a", 1.0, 0.35).set_delay(MENU_AT + 0.35)
+	if inscription != null:
+		tw.tween_property(inscription, "modulate:a", 1.0, 0.3).set_delay(menu_end - 0.1)
+	if band != null:
+		tw.tween_property(band, "modulate:a", 1.0, 0.3).set_delay(menu_end - 0.1)
+	# 收尾：全部就位后撤掉黑幕、置回非播放态、墓志开始打字。
+	tw.tween_callback(_finish_intro).set_delay(menu_end + 0.1)
+
+
+func _finish_intro() -> void:
+	_intro_playing = false
+	if _curtain != null and is_instance_valid(_curtain):
+		_curtain.queue_free()
+		_curtain = null
+	_ep_phase = 1
+	_ep_t = 0.0
+
+
+## 字标锻入时沿着扫过的前沿迸几粒火星。
+func _logo_spark(k: float) -> void:
+	if _ui_sparks == null or _logo == null:
+		return
+	var r := _local_rect(_logo)
+	_ui_sparks.burst(Vector2(r.position.x + r.size.x * k, r.position.y + r.size.y * 0.55) * 0.5, 7, 70.0)
+
+
+## 跳过开屏：直接落到终态（不删帷幕之外的东西，_quit_sequence 还要用）。
+func _skip_intro() -> void:
+	if not _intro_playing:
+		return
+	_intro_playing = false
+	# 先把还在跑的入场 tween 杀掉，再把透明状态和位置落到位：
+	# 不然它的后续步骤会把这里写下的终态又改回去。
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_logo_material.set_shader_parameter("progress", 1.0)
+	Transitions.snap_visible([
+			_keyart, _masthead, _subtitle, _journey,
+			get_node_or_null("Inscription"),
+			get_node_or_null("CreditBand"),
+			_knight_light,
+	])
+	for child in _menu.get_children():
+		var control := child as Control
+		if control != null:
+			control.modulate.a = 1.0
+		if child is MenuItem:
+			(child as MenuItem).land = 0.0
+	if _world != null:
+		_world.skip_intro()
+	if _curtain != null and is_instance_valid(_curtain):
+		_curtain.queue_free()
+		_curtain = null
+	_ep_phase = 1
+	_ep_t = 0.0
+
+
+## 开屏是否还在播（测试与 _on_chosen 用：动画期间选择键不响应）。
+func intro_playing() -> bool:
+	return _intro_playing
+
+
+# ------------------------------------------------------------------ per frame ---
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		_pointer_seen = true
+
+
 func _process(delta: float) -> void:
 	_time += delta
-	_animate_chains()
+	_update_pointer()
+	_update_dossier_hover()
+	_update_epitaph(delta)
 	if _quitting or _intro_playing:
-		# 退场/开屏动画期间 keyart / 字标的呼吸会让位给 tween，
+		# 退场/开屏动画期间字标 / keyart 的呼吸会让位给 tween，
 		# 否则 _process 会和 tween 抢同一个 modulate 属性。
 		return
-	# 火光呼吸：keyart 整体在暖色间轻微起伏，标题牌辉光跟着更快一点的节奏。
-	var warm := 0.5 + 0.5 * sin(TAU * _time / KEYART_BREATH_PERIOD)
-	_keyart.modulate = Color(1.0, 1.0, 1.0).lerp(Color(1.06, 0.94, 0.86), warm)
+	if _world == null:
+		# 旧版静态 keyart：火光在暖色间轻微起伏。
+		var warm := 0.5 + 0.5 * sin(TAU * _time / KEYART_BREATH_PERIOD)
+		_keyart.modulate = Color(1.0, 1.0, 1.0).lerp(Color(1.06, 0.94, 0.86), warm)
+	# 字标辉光呼吸。
 	var glow := 0.5 + 0.5 * sin(TAU * _time / LOGO_BREATH_PERIOD)
 	_masthead.modulate = Color(0.94, 0.94, 0.94).lerp(Color(1.10, 1.04, 0.98), glow)
 
 
-## 两条吊链缓慢摆动：只做整数像素横移，像素字/链环不会发虚。
-func _animate_chains() -> void:
-	if _rail_chain != null and is_instance_valid(_rail_chain):
-		_rail_chain.position.x = _rail_chain_base + roundf(sin(_time * 0.65) * 2.0)
-	if _dossier_chain != null and is_instance_valid(_dossier_chain):
-		_dossier_chain.position.x = _dossier_chain_base + roundf(sin(_time * 0.65 + 1.7) * 2.0)
+## 鼠标在标题屏上的位置 → 场景的整数像素视差（没动过鼠标就居中，截图/测试因此可重复）。
+func _update_pointer() -> void:
+	if _world == null:
+		return
+	if not _pointer_seen or _quitting:
+		_world.set_pointer(Vector2.ZERO)
+		return
+	var local := get_local_mouse_position()
+	_world.set_pointer(Vector2(local.x / 640.0 - 1.0, local.y / 360.0 - 1.0))
+
+
+## 悬停旅程列（或展开后悬停在卡上）/ Tab 固定：展开完整档案。
+func _update_dossier_hover() -> void:
+	var want := _dossier_pinned
+	if _pointer_seen and _menu != null and _menu.active and not _quitting and not _intro_playing:
+		var m := get_local_mouse_position()
+		var zone := Rect2(JOURNEY_X - 8.0, JOURNEY_Y - 6.0, JOURNEY_W + 16.0, JOURNEY_H + 12.0)
+		if zone.has_point(m) or (_dossier_open and CARD_RECT.has_point(m)):
+			want = true
+	if want != _dossier_open:
+		_set_dossier_open(want)
+
+
+func _set_dossier_open(open: bool) -> void:
+	_dossier_open = open
+	if _card_tween != null and _card_tween.is_valid():
+		_card_tween.kill()
+	var instant := DisplayServer.get_name() == "headless"
+	if open:
+		_card.visible = true
+	var home_x := CARD_RECT.position.x
+	if instant:
+		_card.modulate.a = 1.0 if open else 0.0
+		_card.position.x = home_x if open else home_x + CARD_SLIDE
+		_card.visible = open
+		_journey.modulate.a = 0.0 if open else (1.0 if not _intro_playing else _journey.modulate.a)
+		return
+	_card_tween = create_tween()
+	_card_tween.set_parallel(true)
+	_card_tween.tween_property(_card, "modulate:a", 1.0 if open else 0.0, 0.18)
+	_card_tween.tween_property(_card, "position:x", home_x if open else home_x + CARD_SLIDE, 0.18) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_card_tween.tween_property(_journey, "modulate:a", 0.0 if open else 1.0, 0.18)
+	if not open:
+		_card_tween.chain().tween_callback(func() -> void: _card.visible = false)
+
+
+func dossier_open() -> bool:
+	return _dossier_open
+
+
+## 墓志：慢速打字机轮换，第一句永远是 EPITAPH。
+func _update_epitaph(delta: float) -> void:
+	if _epitaph == null or _ep_phase == 0 or _quitting:
+		return
+	_ep_t += delta
+	var line: String = _ep_lines[_ep_index]
+	match _ep_phase:
+		1:
+			var shown := int(_ep_t / EPITAPH_CHAR)
+			_epitaph.visible_characters = shown
+			if shown >= line.length():
+				_epitaph.visible_characters = -1
+				_ep_phase = 2
+				_ep_t = 0.0
+		2:
+			if _ep_t >= EPITAPH_HOLD:
+				_ep_phase = 3
+				_ep_t = 0.0
+		3:
+			_epitaph.modulate.a = 1.0 - clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0)
+			if _ep_t >= EPITAPH_FADE:
+				_ep_index = (_ep_index + 1) % _ep_lines.size()
+				_epitaph.text = _ep_lines[_ep_index]
+				_fit_epitaph()
+				_epitaph.visible_characters = 0
+				_epitaph.modulate.a = 1.0
+				_ep_phase = 1
+				_ep_t = 0.0
+
+
+## 墓志标签按当前这一行的整句宽度定宽（右端对齐由 HBox 的 END 对齐保证）。
+func _fit_epitaph() -> void:
+	var font := _epitaph.get_theme_font(&"font")
+	var font_size := _epitaph.get_theme_font_size(&"font_size")
+	var width := 8.0
+	if font != null:
+		width = font.get_string_size(_epitaph.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	_epitaph.custom_minimum_size = Vector2(minf(ceilf(width) + 8.0, EPITAPH_RECT.size.x), EPITAPH_RECT.size.y)
+
+
+## 当前打字机的那一行（测试读）。
+func epitaph_line() -> String:
+	return _ep_lines[_ep_index] if not _ep_lines.is_empty() else ""
+
+
+# ------------------------------------------------------------------ choices -----
+
+func _on_focus_changed(id: StringName) -> void:
+	if _quitting or _started or _menu == null:
+		return
+	var idx := _menu.item_ids().find(id)
+	var items := _menu.items()
+	if idx < 0 or idx >= items.size():
+		return
+	var item := items[idx] as MenuItem
+	if _world != null and not _intro_playing:
+		_world.nudge(1.0)
+	if _ui_sparks != null and item != null and not _intro_playing:
+		var r := _local_rect(item)
+		var at := Vector2(r.position.x + MenuItem.STRIP_CURSOR_X + 6.0, r.position.y + r.size.y * 0.5)
+		_ui_sparks.burst(at * 0.5, 8, 62.0)
+
+
+## 控件在标题屏设计空间里的矩形（与窗口缩放无关：标题屏自己被缩放时
+## Control.get_global_rect() 的 size 不跟着缩，所以走完整的全局变换）。
+func _local_rect(control: Control) -> Rect2:
+	var to_local := get_global_transform().affine_inverse() * control.get_global_transform()
+	var a: Vector2 = to_local * Vector2.ZERO
+	var b: Vector2 = to_local * control.size
+	return Rect2(a, b - a).abs()
+
+
+## 设计空间里的矩形（公开给测试 / 工具）。
+func design_rect(control: Control) -> Rect2:
+	return _local_rect(control)
 
 
 func _on_chosen(id: StringName) -> void:
@@ -810,7 +1020,16 @@ func _on_chosen(id: StringName) -> void:
 		ID_TRIAL:
 			_menu.active = false
 			Sfx.play(&"gate")
+			_confirm_effect()
 			Director.fade_to(TRIAL_MENU, 0.5)
+		ID_ARENA:
+			# 余烬竞技场：和试炼入口同一套待遇（落闸声 + 前推闪光 + ArenaRun 自带的淡出）。
+			_menu.active = false
+			Sfx.play(&"gate")
+			_confirm_effect()
+			if not _start_arena():
+				_menu.active = true
+				Sfx.play(&"ui_denied")
 		ID_SETTINGS:
 			_menu.active = false
 			_settings.open()
@@ -825,6 +1044,24 @@ func _on_chosen(id: StringName) -> void:
 			_quit_sequence()
 
 
+func _start_arena() -> bool:
+	if arena_start.is_valid():
+		return bool(arena_start.call())
+	return ArenaRunScript.start()
+
+
+## 确认入场：白热闪光 + 镜头朝骑士前推 + 在选中条上迸一簇火星。随后调用方淡出换关。
+func _confirm_effect() -> void:
+	if _world != null:
+		_world.enter_push(5.0, 0.55)
+	if _ui_sparks != null and _menu != null:
+		var items := _menu.items()
+		var idx := _menu.item_ids().find(_menu.selected_id())
+		if idx >= 0 and idx < items.size():
+			var r := _local_rect(items[idx] as Control)
+			_ui_sparks.burst(Vector2(r.position.x + 24.0, r.position.y + r.size.y * 0.5) * 0.5, 14, 90.0)
+
+
 func _on_update_checked(status: StringName, _entry: Dictionary) -> void:
 	if status != &"available":
 		return
@@ -833,7 +1070,7 @@ func _on_update_checked(status: StringName, _entry: Dictionary) -> void:
 	_update_notice.visible = true
 
 
-## 版本提示从"菜单架多一行"挪到档案里的小按钮：模式组固定五格，不会被动态行撑出屏幕。
+## 版本提示不进菜单（模式组固定，不会被动态行撑出屏幕）：页脚上方一个小按钮。
 func _open_update_prompt() -> void:
 	if _quitting or _started:
 		return
@@ -844,8 +1081,10 @@ func _open_update_prompt() -> void:
 		_update_prompt.open(UpdateService.entry())
 
 
-## 离开锈墓的退场：菜单架逐格熄灭、背景与余烬一起暗下去，黑幕压上来后留一句
-## "余烬熄灭"再退出进程。总长约 2.1 秒，任何输入都能立刻跳到退出。
+# --------------------------------------------------------------------- quit -----
+
+## 离开锈墓的退场：菜单条逐格熄灭、吊灯一盏盏灭掉、整个炉厅暗下去，只剩巨剑的剪影；
+## 然后浮出一句"余烬熄灭"再退出进程。任何输入都能立刻跳到退出。
 func _quit_sequence() -> void:
 	if _quitting or _started:
 		return
@@ -854,9 +1093,15 @@ func _quit_sequence() -> void:
 		_skip_intro()
 	_quitting = true
 	_menu.active = false
+	_dossier_pinned = false
+	if _dossier_open:
+		_set_dossier_open(false)
 	Sfx.play(&"ui_back")
 	# 音乐先让路，给铁门声留出空间。
 	Music.duck(-10.0, 1.6)
+	var dark_at := 0.9
+	if _world != null:
+		dark_at = _world.quit_out(0.2)
 	_quit_tween = create_tween()
 	_quit_tween.set_parallel(true)
 
@@ -871,24 +1116,21 @@ func _quit_sequence() -> void:
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		row += 1
 
-	# 字标、墓志、署名带、火花一起暗下去：TitleScreen 的直系画布子节点里，
-	# 黑幕和菜单自己另有安排，跳过它们。
+	# 字标、旅程列、墓志、页脚一起暗下去：TitleScreen 的直系画布子节点里，
+	# 黑幕和菜单自己另有安排；活景留着（巨剑剪影还要在里面亮着）。
 	for child in get_children():
 		if not (child is CanvasItem) or child == _fade or child == _menu:
+			continue
+		if _world != null and child == _keyart:
 			continue
 		_quit_tween.tween_property(child, "modulate:a", 0.0, QUIT_SCENE_FADE) \
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 	# 铁门落下的闷响：进关用 gate，离开锈墓也用 gate，一来一去。
-	_quit_tween.tween_callback(func() -> void: Sfx.play(&"gate", 0.0, -6.0)) \
-			.set_delay(QUIT_BLACKOUT_DELAY)
-
-	# 黑幕压上来，最后浮出一句墓志。
-	_quit_tween.tween_property(_fade, "color:a", 1.0, QUIT_BLACKOUT) \
-			.set_delay(QUIT_BLACKOUT_DELAY) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_quit_tween.tween_callback(func() -> void: Sfx.play(&"gate", 0.0, -6.0)).set_delay(dark_at * 0.85)
+	# 最后浮出一句墓志。
 	_quit_tween.tween_property(_quit_caption, "modulate:a", 1.0, QUIT_CAPTION_FADE) \
-			.set_delay(QUIT_CAPTION_DELAY) \
+			.set_delay(dark_at + 0.1) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_quit_tween.chain().tween_interval(QUIT_HOLD)
 	_quit_tween.chain().tween_callback(_finish_quit)
@@ -1034,6 +1276,7 @@ func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
 			}
 		}
 	Sfx.play(&"gate")
+	_confirm_effect()
 	Director.fade_to(LEVEL_PATH, FADE_OUT)
 
 
@@ -1052,6 +1295,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if confirm_open() and event.is_action_pressed("ui_cancel"):
 		close_confirm()
 		get_viewport().set_input_as_handled()
+		return
+	# Tab：固定 / 收起完整档案（没有弹窗压在上面时）。
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
+			and (event as InputEventKey).keycode == KEY_TAB and _menu != null and _menu.active:
+		_dossier_pinned = not _dossier_pinned
+		_set_dossier_open(_dossier_pinned)
+		get_viewport().set_input_as_handled()
 
 
 func _start(continue_game: bool) -> void:
@@ -1067,10 +1317,32 @@ func _start(continue_game: bool) -> void:
 	else:
 		SaveData.delete_save()
 	Sfx.play(&"gate")
+	_confirm_effect()
 	Director.fade_to(target, FADE_OUT)
+
+
+func _notification(what: int) -> void:
+	# 活景只在标题可见时渲染：被盖住 / 隐藏时不再烧 GPU。
+	if what == NOTIFICATION_VISIBILITY_CHANGED and _world_viewport != null:
+		_world_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS \
+				if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
+
+
+## 暴露给测试 / 工具的只读句柄。
+func world() -> TitleWorld:
+	return _world
+
+
+func look() -> Dictionary:
+	return _look
 
 
 func _exit_tree() -> void:
 	if UpdateService.checked.is_connected(_on_update_checked):
 		UpdateService.checked.disconnect(_on_update_checked)
+	var tree := get_tree()
+	if tree != null and tree.root.size_changed.is_connected(_update_smooth_scale):
+		tree.root.size_changed.disconnect(_update_smooth_scale)
+	if Sfx.has_method(&"set_title_bed"):
+		Sfx.call(&"set_title_bed", false)
 	WorldClock.release_menu()

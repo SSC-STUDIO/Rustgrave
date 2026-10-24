@@ -1,6 +1,135 @@
 # 标题与启程界面扩充（v3）
 
-## 0. 标题屏菜单架（重做后）
+> **注意**：下文中 §0–§1.5 的旧版标题屏版式（铁架异形板 + 独立档案石板 + 静态 keyart 光影）**已被 v3 取代**。v3 实时像素活景与新版式完整设计说明见 [`docs/title-live-scene.md`](./title-live-scene.md)（本节 A 保留核心摘要，§2 起的角色选择外观条仍然有效）。
+
+## A. v3 标题活景（P2，已取代下面 §0–§1.5 的版式）
+
+标题屏不再是一张静态 keyart，而是**游戏内实时点光的像素场景** + 一套更轻的版式。
+下面的 §0–§1.5 记录的是旧的"铁架 + 档案板"版式，留作历史；§2 起（角色选择外观条等）仍然有效。
+兼容清单（测试 / 工具依赖的名字）见 A.7。
+
+### A.1 活景：`TitleWorld`
+
+- 文件：`scenes/ui/TitleWorld.tscn` + `scripts/ui/title_world.gd`（`class_name TitleWorld extends Node2D`），
+  部件脚本 `title_chain.gd`（吊链）、`title_lantern.gd`（吊灯：点光 + 加法光晕 + 逐 12fps 的火苗）、
+  `title_gear.gd`（预渲染帧的齿轮）、`title_sparks.gd`（余烬 / 飘灰 / 光柱浮尘 / 锈屑 / 蒸汽 / 火星，
+  一个画布项里的定长池，零逐帧分配）。
+- 渲染方式与游戏世界一致（`GamePresentation`）：`TitleScreen` 里一个 640×360 的 `SubViewport`
+  （`world_2d = World2D.new()`、`snap_2d_transforms_to_pixel`、最近邻、`UPDATE_ALWAYS`；标题被隐藏时
+  `UPDATE_DISABLED`），经**原来的 `Keyart` TextureRect**（`STRETCH_KEEP_ASPECT_COVERED`）+
+  `pixel_smooth.gdshader`（`scale_hint` = 整数缩放，随 `size_changed` 更新）显示。
+  活景里不用 `Fx` / `GameContext.world_effects()`（它们挂到 `game_world` 组 / autoload 根，视口不对），
+  粒子全部自带；`Fx.additive_mat()` 只借材质。
+- 层次（后 → 前，括号里是视差深度，近正远负，骑士层 = 0）：
+
+  | 层 | 说明 |
+  |---|---|
+  | `HallFar` (−0.30) + `PitRiver` | 远处炉厅（冷雾 + 屋顶开口下的天光池 + 远塔 / 吊车臂 / 熔池里的大桶）；熔河是单独的自发光层 |
+  | `Beam` (−0.20) | 抖色的光柱（加法，抵消环境光后按 `shaft` 调强度） |
+  | `HallMid` (−0.55) | 两根大柱、下方更远的第二座桥、悬管与悬索 |
+  | `PitGlow` / `Gears` (+0.55) | 桥下熔池的辉光；大齿轮压在左柱上、小齿轮与它咬合 |
+  | `Stage` (0) | 铁桥 + 骑士（`SkinCatalog` 当前外观的待机帧 + `FrameAnimSprite` + 背扛的 `Greatsword`）/ 插地巨剑 / 余烬巢 |
+  | `Chains` | 6 条装饰吊链 + 5 盏吊灯（各一个 `PointLight2D`） |
+  | `Roof` (+0.5) | 屋顶桁架与撕开的天窗（光柱从这里落下） |
+  | `MassLeft` / `MassRight` (+1.0) | 近景机械山体：边缘朝厅内一侧带暖色边光；右山体里是炉门（自发光、随炉温变暗） |
+  | `Glow`（CanvasLayer，不受环境光影响） | 远景浮尘、余烬 / 飘灰 / 蒸汽、暗角、闪光 |
+
+  灯 ≤ 8（`PitLight`、`ShaftLight`、`ForgeLight` + 5 盏吊灯，`ForgeLight` 在"守火"里兼作余烬巢的光、
+  在"熄灭"里挪到桥心变成那一点将熄的红光），节点约 60 个（上限 250）。
+- 摄像机：自带 `Camera2D`（呼吸 ±1px / 7s，整数）。鼠标视差是**绕骑士平面的轨道视差**：
+  `位置 = 基准 − 鼠标位移 × 深度`，再 `round()` 成整数像素——骑士不动，近景向一边、远景向另一边。
+  没动过鼠标时指针居中（截图 / 测试可重复）。
+- 齿轮：`tools/gen_title_assets.py` 把每个齿轮渲染成**恰好一个辐条周期**的帧网格
+  （大 8×4=32 帧 / 45°，中 8×4 / 45°，小 6×4=24 帧 / 60°），运行时只换帧、从不旋转 Sprite，
+  转满一个周期正好回到起始帧（`tests/title_world_test.gd` 守着）。
+
+### A.2 变体：随存档变化
+
+`TitleWorld.state_from_save()`（纯静态，可单测）→ `peek_save()`（读内存或磁盘，不调用 `load_game()`）
+→ `build_state(peek)`（纯函数）。标题启动时 `SaveData.data` 还是空的，所以按"内存里有已载入的游戏就用内存，
+否则只读地看磁盘上的存档文件"取 `scene / flags / skin / rank / 属性点 / 结局`。
+
+| 变体 | 条件 | 画面 |
+|---|---|---|
+| `cold` | 无存档 | 冷炉：偏冷偏暗、吊灯全暗、炉门与熔河只剩暗红、齿轮几乎不转、不冒汽，余烬将熄 |
+| `journey` | 有存档、无结局 | 按**幕**调色（第 1–3 / 4–7 / 8–11 / 12–14 章 → `act1..act4`：由冷青渐暖到炉红，炉火、齿轮、余烬、蒸汽逐幕加强）；亮灯数 = `ceil(通关章数×5/14)`（通关 0 章 → 0 盏）；"通关"= 章节完成旗标（`StoryFlow.DONE_FLAGS`）或位于存档章节之前 |
+| `give`（送剑） | 结局 | 炉火稳而暖、灯全亮且不闪；骑士不在了，桥上只剩一把插地的巨剑和几粒飘着的锈屑 |
+| `keep`（守火） | 结局 | 骑士站在桥的炉口端朝火里看，余烬巢点着；整体更暖更亮 |
+| `snuff`（熄灭） | 结局 | 灯全暗、炉与齿轮熄了；骑士不在，桥心只剩一点将熄的红光 |
+
+没见过的结局 id 按 `give`（已完成）处理。`TitleWorld.forced_state`（静态）可强制某个状态（截图工具 / 测试）。
+`TitleWorld.configure(state)` 搭好之后也能切换变体（旧演员被收走）。
+
+### A.3 版式（1280×720 设计空间）
+
+- **字标**居中偏上（`MastheadColumn` → `Masthead` → `TitleLogo`，y=28..138）+ 副题 `Subtitle`。字标用
+  `assets/shaders/title_forge.gdshader` 做"锻入"：斜向的前沿自左向右扫过，身后依次是白热 → 余烬 → 字标本色
+  （热度量化成几档，保持像素风），沿途迸火星。
+- **菜单** `Menu`（`MenuList`，`strip_style`）：左下一列压暗的"铁条"（`MenuItem` 的 `strip` 版式：
+  2px 栅格阶梯切角的条身 + 左缘灯口 + 余烬光标），七行 × 52px（触控下限），四组：
+  行动（点燃余烬 / 继续旅程）· 模式（回火试炼 / 余烬竞技场）· 系统（设置 / 操作说明）· 离开；
+  组间距 16。`RAIL_X=72`、`RAIL_TOP=254`，"离开"行中心 y=640。回火试炼未解锁时条的右端有一行小字"第七章后解锁"。
+  聚焦（键盘 / 悬停）：条上迸一簇火星（`UiSparks`，`TitleSparks` 放大两倍落在 2px 栅格上）+
+  场景吊灯一闪、镜头整体推 1–2px（`TitleWorld.nudge`）。
+- **旅程列** `JourneyColumn`（x=1000..1208，y=188..608）：`JourneyHeader` / `JourneyCount`（`04 / 14`）、
+  当前章名 `JourneyChapter`（`ChapterText.title_of`）与前情 `JourneyRecap`（`recap_of`）、
+  `JourneyGauge`（`TitleGauge`：14 个章节刻度，已通关亮、当前搏动，幕界有短横与 醒/债/铸/炉）、
+  四枚数据片 `ChipRank / ChipSkin / ChipTrials / ChipArena`（`TitleChip`）。
+- **档案卡**：悬停旅程列或按 **Tab** 展开（再按 Tab / 移开收起）。节点名沿用旧版：`DossierWrap`（`TitleCard`）→
+  `Dossier`（PanelContainer）→ `DossierRank / DossierSkin / DossierTrials / DossierArena / DossierChapter`、
+  `DossierRecap`、`TrialLockHint`（未解锁时）、`DossierHint`、`DossierFoot`。平时收起（不可见，但节点与文字都在）。
+- **墓志** `Inscription/EpitaphRow/Epitaph`：底部一行，**慢速打字机轮换**（每字 0.085s、停 5.5s、淡出换句），
+  第一句永远是 `EPITAPH`，其余取 `ChapterText.OPENING`（situation / lamp / question）。右端对齐到右边距，
+  与"离开"行同一条中心线（y=640）。
+- **页脚** `CreditBand`：署名靠左、操作提示靠右，一行小字，没有底板。`UpdateNotice`（有新版本时）在页脚上方。
+- 不重叠保证：`tests/title_screen_test.gd` 在 1280×720 / 1920×1080 / 2560×1080（非 16:9）三种窗口里，
+  把每个窗口的 UI 变换套上，量 `Masthead / Subtitle / Menu / JourneyColumn / Epitaph / CreditBand /
+  UpdateNotice` 的物理像素：两两不重叠、都落在内容矩形里；展开的档案卡不压字标 / 菜单 / 墓志。
+  几何探针：`tools/title_metrics.gd`（`scenes/tools/TitleMetrics.tscn`）。
+
+### A.4 动效
+
+- **开屏**（约 2.5 秒，不是输入门禁，`_skip_intro()` 一把跳过）：黑幕退去 → 吊灯按亮灯数一盏盏点亮
+  （`TitleWorld.play_intro`）→ 字标锻入 + 火星 → 副题淡入 → 菜单条逐条落位（淡入 + 左移 28px 归位）→
+  旅程列 / 墓志 / 页脚收尾，墓志开始打字。
+- **确认入场**（继续 / 新游戏 / 试炼 / 竞技场）：白热闪光 + 镜头朝骑士前推 5px（近景向外、远景向内）+
+  吊灯一闪 + 选中条上一簇火星 + `Director.fade_to`（保持原有淡出换关）。
+- **离开**（`_quit_sequence`）：菜单条逐格熄灭，吊灯一盏盏灭掉（每盏 0.2s），整个炉厅暗下去，
+  只剩巨剑的剪影在黑里亮着，然后浮出"余 烬 熄 灭。"再退出；任何按键 / 点击跳到退出。
+- 音频钩子：`Sfx.has_method(&"set_title_bed")` 才调用（标题打开 `true`，`_exit_tree` 里 `false`），
+  本任务不生成音频。
+
+### A.5 `USE_LIVE_SCENE` 回退
+
+`TitleScreen.USE_LIVE_SCENE`（常量，默认 `true`）；实例变量 `live_scene_enabled` 默认取它（测试在 `add_child`
+之前改）。置 `false`：同一个 `Keyart` 节点显示旧的静态 `title_keyart.png`，不建视口，旧的暗角 / 骑士光影 /
+余烬 / 角饰照旧（`keyart_knight_light.gd` 只在回退模式用），新版式、开屏与离开动画照常走。
+
+### A.6 竞技场入口修复
+
+以前 `_on_chosen` 没有 `ID_ARENA` 分支（按了没反应）。现在：`_menu.active = false` → `Sfx.play(&"gate")` →
+确认特效 → `ArenaRun.start()`（失败则还给玩家菜单并播拒绝音）。`TitleScreen.arena_start`（Callable）是测试接缝，
+默认走真正的 `ArenaRun.start()`。
+
+### A.7 兼容清单与资产
+
+- 场景 `res://scenes/ui/TitleScreen.tscn` 仍是主场景；常量 `ID_NEW / ID_CONTINUE / ID_TRIAL / ID_ARENA /
+  ID_SETTINGS / ID_CONTROLS / ID_QUIT / ID_KEEP / ID_OVERWRITE / ID_UPDATE`、`RAIL_X / RAIL_TOP`；
+  公共 API `intro_playing() / is_quitting() / quit_finished() / quit_on_finish / open_confirm() /
+  close_confirm() / confirm_open() / character_select_screen() / _on_chosen(id) / _on_confirm_chosen(id)`；
+  节点 `Menu`（七个 `MenuItem`，id 与档位不变）、`Keyart`、`Masthead`、`MastheadColumn`、`Inscription/EpitaphRow/Epitaph`、
+  `Dossier*`、`TrialLockHint`、`QuitCaption`、`ConfirmMenu`、`OverwriteConfirm`、`WindowBackdrop/Black`、
+  `CreditBand`、`BootCurtain`。继续格默认选中（有存档时）。
+- 新增只读句柄：`world()`、`look()`、`design_rect(control)`、`dossier_open()`、`epitaph_line()`。
+- 资产生成：`python tools/gen_title_assets.py`（可带子集名，如 `gears hall`）→ `assets/title/*.png`；
+  工具库 `tools/title_px.py`、场景层 `tools/gen_title_hall.py`。新增 / 重生成 PNG 之后要跑一次
+  `godot --headless --path . --import`。
+- 截图：`tools/run_title_peek.ps1`（`tools/title_peek.gd`）窗口模式抓开屏帧 / 空闲 / 聚焦 / 各变体 / 多尺寸，
+  存档与设置都隔离在输出目录下（`APPDATA` 也被重定向）。证据目录 `screenshots/acceptance/overhaul-v3/title/`。
+
+## 0. 标题屏菜单架（已被 v3 取代）
+
+> **已被 v3 取代**：v3 改为左下压暗"铁条 + 余烬光标"极简列（`MenuList.strip_style = true`），详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
 
 七格，按"行动 / 模式 / 系统 / 离开"分组：
 
@@ -18,7 +147,9 @@
 "有新版本"不再动态插入菜单架（第 8 行会把整架顶出屏幕），改为档案里一个小号
 「有新版本 · 查看」按钮；档案长文本（上次行程复述）单行省略。
 
-## 1. 标题屏：右侧「行程档案」
+## 1. 标题屏：右侧「行程档案」（已被 v3 取代）
+
+> **已被 v3 取代**：v3 改为右侧 `JourneyColumn`（14 格章节刻度 `TitleGauge` + 当前章前情 + 4 枚数据片 `TitleChip`），悬停或按 `Tab` 展开完整档案卡 `DossierWrap/Dossier`，详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
 
 `title_screen.gd` 在原有"字标 + 左侧铁架 + 墓志/署名带"之外新增 `Dossier` 石板（右侧，StonePanel）：
 
@@ -90,7 +221,9 @@ keyart 的结构是：中央天井光柱 + 左右垂链 + 两侧齿轮/管线 + 
   新增的右栏/链/骑士光/铁舌都在其中，逐格熄灭 + 黑幕节奏不变。
 - **持续光影**：骑士暖雾/高光/光柱浮尘 4.8s 呼吸，铁舌铆钉 3.6s 呼吸。
 
-## 1.5 不规则右栏 + 中央骑士光影
+## 1.5 不规则右栏 + 中央骑士光影（已被 v3 取代）
+
+> **已被 v3 取代**：`keyart_knight_light.gd` 仅在 `TitleScreen.USE_LIVE_SCENE = false` 回退模式下启用；默认由 `TitleWorld` 实时像素场景渲染。
 
 - **右栏不再用方板**：`Plate.Shape.DOSSIER`（340×344，切角 14，右端箭头凸起 44）
   生成整块大板贴图，`flip_h` 后箭头朝画面中央，与左架主板右向箭头互为镜像；

@@ -10,8 +10,12 @@ extends VBoxContainer
 ## `active` 为 false 时不吃输入 —— 打开操作说明这类子面板时由上层置 false。
 
 signal chosen(id: StringName)
+## 选中项变了（键盘、悬停、代码都算）：标题屏用它放火花、推一下场景。
+signal focus_changed(id: StringName)
 
 var active := true
+## 新加进来的项用铁条版式（标题屏；之后的 add_item 才生效）。
+var strip_style := false
 
 var _items: Array[MenuItem] = []
 var _ids: Array[StringName] = []
@@ -24,6 +28,7 @@ func add_item(id: StringName, text: String, item_disabled: bool = false,
 	var item := MenuItem.new(text, kind)
 	item.id = id
 	item.compact = compact
+	item.strip = strip_style
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))
@@ -73,6 +78,7 @@ func select(index: int, play_sound: bool = true) -> void:
 	_items[_index].selected = true
 	if play_sound:
 		Sfx.play(&"ui_move")
+	focus_changed.emit(_ids[_index])
 
 
 ## 从 _index 出发按 step 找下一个可用项（回环），全禁用时原地不动。
