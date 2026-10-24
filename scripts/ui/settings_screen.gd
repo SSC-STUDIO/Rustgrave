@@ -44,6 +44,7 @@ const BUS_NAMES := {
 ## 提示开关等没有专属接口的选项走 Settings.value；键名与各系统约定一致。
 const OPT_FULLSCREEN := &"fullscreen"
 const OPT_SMOOTHING := &"pixel_smoothing"
+var _display_choices: Dictionary = {}
 
 var _root: Control
 var _shell: Dictionary = {}
@@ -219,12 +220,19 @@ func _footer_button(text: String, node_name: StringName) -> Button:
 
 
 func _page(host: Control, node_name: String) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = node_name + "Scroll"
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	host.add_child(scroll)
 	var page := VBoxContainer.new()
 	page.name = node_name
-	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.alignment = BoxContainer.ALIGNMENT_CENTER
 	page.add_theme_constant_override("separation", 6)
-	host.add_child(page)
+	scroll.add_child(page)
 	return page
 
 
@@ -242,6 +250,9 @@ func _build_audio_page(host: Control) -> Control:
 
 func _build_display_page(host: Control) -> Control:
 	var page := _page(host, "DisplayPage")
+	page.add_child(_display_choice(&"resolution", "窗 口 分 辨 率"))
+	page.add_child(_display_choice(&"display_fit", "缩 放 策 略"))
+	page.add_child(_display_choice(&"vsync", "垂 直 同 步"))
 	page.add_child(_toggle_row(OPT_FULLSCREEN, "全 屏"))
 	page.add_child(_toggle_row(OPT_SMOOTHING, "像 素 平 滑"))
 	page.add_child(_slider_row(&"shake", "震 屏 强 度"))
@@ -252,6 +263,47 @@ func _build_display_page(host: Control) -> Control:
 	page.add_child(_viewport_label)
 	page.add_child(_page_note("震动 / 闪光强度同时作用于战斗反馈与过场演出"))
 	return page
+
+
+func _display_choice(id: StringName, title: String) -> Control:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(ROW_WIDTH, UiKit.TOUCH_MIN)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	row.add_child(_name_label(title, 230.0))
+	var choice := OptionButton.new()
+	choice.name = String(id)
+	choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	choice.custom_minimum_size.y = UiKit.TOUCH_MIN
+	if id == &"resolution":
+		for res in DisplayFit.PRESET_RESOLUTIONS:
+			choice.add_item("%d × %d" % [res.x, res.y])
+		var saved: Variant = Settings.value(id, Vector2i(1280, 720))
+		choice.select(maxi(0, DisplayFit.PRESET_RESOLUTIONS.find(saved)))
+	elif id == &"display_fit":
+		for text in ["等比自适应", "扩展视野", "整数像素"]:
+			choice.add_item(text)
+		choice.select(int(Settings.value(id, DisplayFit.FitMode.INTEGER)))
+	else:
+		choice.add_item("关")
+		choice.add_item("开")
+		choice.select(1 if bool(Settings.value(id, true)) else 0)
+	choice.item_selected.connect(_on_display_selected.bind(id))
+	row.add_child(choice)
+	_display_choices[id] = choice
+	return row
+
+
+func _on_display_selected(index: int, id: StringName) -> void:
+	match id:
+		&"resolution":
+			DisplayFit.apply_resolution(DisplayFit.PRESET_RESOLUTIONS[index])
+			_sync_toggle(OPT_FULLSCREEN)
+		&"display_fit":
+			DisplayFit.apply_fit_mode(index as DisplayFit.FitMode, null, true)
+		&"vsync":
+			DisplayFit.apply_vsync(index == 1)
+	if _viewport_label != null:
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 func _build_assist_page(host: Control) -> Control:
@@ -425,7 +477,7 @@ func _sync_all() -> void:
 		_sync_toggle(id)
 	_sync_keys()
 	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 func _slider_percent(id: StringName) -> float:
@@ -526,12 +578,13 @@ func _show_page(index: int) -> void:
 	_tab = clampi(index, 0, _pages.size() - 1)
 	for i in _pages.size():
 		_pages[i].visible = i == _tab
+		_pages[i].get_parent().visible = i == _tab
 		_tab_buttons[i].set_pressed_no_signal(false)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
 	_reset_keys.visible = _tab == TAB_KEYS
 	_wire_page_tail()
 	if _viewport_label != null and _tab == TAB_DISPLAY:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 ## 当前页第一个能拿焦点的控件。
@@ -658,7 +711,7 @@ func _on_toggle_pressed(id: StringName) -> void:
 			Settings.set_value(id, not bool(Settings.value(id, true)))
 	_sync_toggle(id)
 	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 	UiKit.sfx(&"ui_select")
 
 
