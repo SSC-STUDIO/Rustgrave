@@ -26,7 +26,9 @@ const STEPS: Array = [
 	["RoofB", Vector2(1072, 224), 96.0, "brick"],
 	["RoofC", Vector2(1232, 224), 96.0, "brick"],
 	["TowerRoof", Vector2(1760, 160), 144.0, "brick"],
-	["AlleyReturnStep", Vector2(2496, 256), 64.0, "brick"],
+	# Keep the return eave west of StairB's jump arc. Covering the mandatory
+	# staircase either removes its 32px landing or clips the next jump's headroom.
+	["AlleyReturnStep", Vector2(2448, 224), 48.0, "brick"],
 	["EaveE", Vector2(2352, 256), 96.0, "brick"],
 	["EaveD", Vector2(2192, 256), 80.0, "brick"],
 	["DeadRoofA", Vector2(2992, 256), 64.0, "brick"],
@@ -55,7 +57,8 @@ const BLOCKS: Array = [
 	# Keep the 64px street gate meaningful beside the new return stair.
 	# The brick lintel closes its overhead bypass while leaving the open doorway clear.
 	["GateLintel", Vector2(1488, 160), Vector2(48, 96)],
-	["DeadStepA", Vector2(2928, 288), Vector2(64, 32)],
+	# Leave 32px to drop back to the street before the optional blocked roof.
+	["DeadStepA", Vector2(2928, 288), Vector2(32, 32)],
 ]
 const DEBRIS: Array = [
 	["FallingTileTeach", Vector2(400, 320), 0.0],

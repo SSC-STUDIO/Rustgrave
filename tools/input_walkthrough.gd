@@ -3,6 +3,7 @@ extends Node
 ## damages enemies, opens gates, or emits gameplay milestones.
 const ERROR_COLLECTOR := preload("res://tests/error_collector.gd")
 const TITLE := "res://scenes/ui/TitleScreen.tscn"
+const HAZARD_POLICY := preload("res://tools/campaign_hazard_policy.gd")
 var _errors
 var _ending := "rekindle"
 var _step := "startup"
@@ -20,6 +21,7 @@ var _last_frame_usec := 0
 var _campaign := false
 var _basic_abilities := false
 var _skip_captions := true
+var _hazard_wait_frames := 0
 ## --shots: save a PNG at every milestone plus opening / combat / boss beats into
 ## user://shots/. --window=WxH sizes the real window; --onscreen puts it on the desktop
 ## (decorated, at 40,40) instead of the off-screen borderless default.
@@ -188,7 +190,9 @@ func _run() -> void:
 	if not _require(SaveData.last_lit_nest().ends_with("EmberNestEast"), "east checkpoint is reachable"): return
 	_record("east_checkpoint")
 	# --- ④ 炉厅竞技场：刽子手在石台上，炉龛喷火口只在战斗里转 ---
-	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return
+	# Hand control to the combat driver at the arena's near side. Navigation must
+	# not demand a precise point behind a live shield-bearing boss first.
+	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 80.0, Level01EastWing.STAGE_Y)): return
 	if not await _fight_boss(): return
 	_record("boss_slain")
 	if not await _verify_progress_reload(): return
@@ -404,7 +408,7 @@ func _fight_boss() -> bool:
 		if player.get_instance_id() != fighter_id:
 			fighter_id = player.get_instance_id()
 			# 死了回 BossGate 前的巢：长阶 + 石台 + 掩体墩都要走回去（不传送，不跳关）。
-			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return false
+			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 80.0, Level01EastWing.STAGE_Y)): return false
 			continue
 		var boss: ExecutionerBoss = null
 		for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -702,10 +706,28 @@ func _world_root() -> Node:
 	return GameContext.world_root(_player())
 
 
+## Closed pressure gates are real walls even though LevelSanity's static
+## terrain table intentionally omits interactables. Read their live state.
+func _nv_solids() -> Array[Rect2]:
+	var world := _world_root()
+	var solids := LevelSanity.solid_rects(world)
+	for node in world.find_children("*", "", true, false):
+		if node is ArenaDoor and not node.is_open:
+			solids.append(Rect2(node.global_position, Vector2(16.0, 64.0)))
+		elif node is BreakableTerrain:
+			# Optional rubble is still a physical wall until its real chunks break.
+			# Read only the body's direct shapes, excluding the damage Hurtbox.
+			for child in node.get_children():
+				if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
+					var size_: Vector2 = child.shape.size
+					solids.append(Rect2(child.global_position - size_ * 0.5, size_))
+	return solids
+
+
 func _nv_segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var world := _world_root()
-	var solids := LevelSanity.solid_rects(world)
+	var solids := _nv_solids()
 	for top in LevelSanity.top_segments(world):
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := world.get_node_or_null("Platforms/" + name_) as MovingPlatform
@@ -753,10 +775,14 @@ func _nv_link(a: Dictionary, b: Dictionary) -> bool:
 	var at := LevelSanity.TopSeg.new(ar.position.x, ar.end.x, ar.position.y, "a")
 	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
 	if not LevelSanity._can_hop(at, bt): return false
+	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	if a.lift == null and b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
+		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
+			return false
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
-		for r in LevelSanity.solid_rects(_world_root()):
+		for r in _nv_solids():
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	return true
@@ -841,20 +867,10 @@ func _nv_navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 
 ## 炉口挡路吗：前方 ~40px 内有一口同高度的周期炉口，且现在进去（含穿过判定区的时间）不安全。
 ## 已经站在判定区里就不拦（要让人走出去）。
-func _nv_hazard_blocks(p: Player, dir: float) -> bool:
-	if dir == 0.0 or not p.is_on_floor(): return false
-	for hz in _nv_vents:
-		if not is_instance_valid(hz) or not hz is CyclicHazard: continue
-		var c := hz as CyclicHazard
-		var zone := c.hit_rect()
-		if p.global_position.y < zone.position.y - 8.0 or p.global_position.y > zone.end.y + 8.0: continue
-		var px := p.global_position.x
-		if px >= zone.position.x - 7.0 and px <= zone.end.x + 7.0: continue
-		var ahead := (zone.position.x - 7.0 - px) if dir > 0.0 else (px - (zone.end.x + 7.0))
-		if ahead < 0.0 or ahead > 44.0: continue
-		var cross_time := (zone.size.x + 14.0) / 108.0 + 0.3 + ahead / 108.0
-		if not c.safe_window(cross_time): return true
-	return false
+func _nv_hazard_blocks(p: Player, target_x: float) -> bool:
+	if not p.is_on_floor(): return false
+	return HAZARD_POLICY.should_wait(_nv_vents, p.global_position, target_x,
+			p.controller.max_speed)
 
 
 func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
@@ -866,17 +882,24 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
-		if _nv_hazard_blocks(p, signf(x - p.position.x)):
-			_move(0.0)
-			_set_action(&"jump", false)
-			_set_action(&"dash", false)
+		if _nv_hazard_blocks(p, x):
+			_release()
+			_hazard_wait_frames += 1
 			await _frames(1)
 			continue
 		_nv_steer(x)
 		var spitter_close := false
+		var landing_guard := false
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if enemy is SpitterEnemy and not enemy._dead and absf(enemy.position.y - p.position.y) < 14 and absf(enemy.position.x - p.position.x) < 64: spitter_close = true
-		if fight or spitter_close or absf(x - p.position.x) > 96:
+			if enemy is EnemyBase and not enemy._dead and not enemy is GhostEnemy \
+					and absf(enemy.position.y - p.position.y) < 24 and absf(enemy.position.x - p.position.x) < 52:
+				landing_guard = true
+		if not fight and landing_guard:
+			# A run-up is part of traversal, but contact enemies can knock the
+			# knight back into the pit. Clear that real threat before positioning.
+			_nv_combat(false, true)
+		elif fight or spitter_close or absf(x - p.position.x) > 96:
 			_nv_combat(absf(x - p.position.x) > 96)
 		else:
 			_set_action(&"attack", false)
@@ -942,10 +965,19 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 
 ## 台面这一端的外侧（身体高度）是不是实心：是墙不是边。
 func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
-	var probe := Vector2(r.end.x + 5.0 if right else r.position.x - 5.0, r.position.y - 12.0)
-	for s in LevelSanity.solid_rects(_world_root()):
-		if s.grow(-0.5).has_point(probe): return true
+	# Test the full knight body. A balcony can clip the head while leaving the
+	# old single waist-height probe clear, so walking off that edge never works.
+	var probe := Rect2(Vector2(r.end.x + 0.5 if right else r.position.x - 14.5,
+			r.position.y - 26.0), Vector2(14.0, 26.0))
+	for s in _nv_solids():
+		if s.grow(-0.5).intersects(probe): return true
 	return false
+
+
+func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
+	var landing := from.end.x + 8.0 if right else from.position.x - 8.0
+	return landing >= to.position.x + 7.0 and landing <= to.end.x - 7.0 \
+			and not _nv_edge_blocked(from, right)
 
 
 func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
@@ -958,27 +990,28 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(b.lift): return false
 			_nv_steer(b.lift.position.x + b.lift.width * 0.5)
-			if b.lift.position.distance_to(br.position) < 8: return true
+			if b.lift.position.distance_to(br.position) < 8 \
+					and absf(_player().position.y - br.position.y) < 10 and _player().is_on_floor(): return true
 			await _frames(1)
 		return false
 	var right := br.get_center().x >= ar.get_center().x
 	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
 	# 缺口大的上跳（升 ≥16、横跨 ≥24）贴着台缘起跳：真实单跳够距只有 ~40px。
 	var margin := 3.0 if (gap >= 20.0 and br.position.y < ar.position.y - 8.0) else 8.0
+	# At a contiguous 32px riser, jumping against the lip catches the body on
+	# its vertical face. Start earlier so the feet clear it before moving across.
+	if gap < 4.0 and ar.position.y - br.position.y > 24.0: margin = 24.0
 	var launch := clampf(br.position.x - margin if right else br.end.x + margin, ar.position.x + margin, ar.end.x - margin)
 	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
 	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
 	var drop_landing := NAN
 	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and a.lift == null and b.lift == null:
 		right = _nv_goal.x >= ar.get_center().x if _nv_goal.is_finite() else right
-		if right and br.end.x - ar.end.x < 24.0: right = false
-		if not right and ar.position.x - br.position.x < 24.0: right = true
-		# 台缘外侧立着实心（楼座东头的掩体墩）：那一侧不是边，是墙，换另一侧下去。
-		if right and _nv_edge_blocked(ar, true): right = false
-		elif not right and _nv_edge_blocked(ar, false): right = true
+		if not _nv_drop_side_clear(ar, br, right): right = not right
+		if not _nv_drop_side_clear(ar, br, right): return false
 		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
-		drop_landing = clampf(ar.end.x + 18.0 if right else ar.position.x - 18.0,
-				br.position.x + 4.0, br.end.x - 4.0)
+		drop_landing = clampf(ar.end.x + 8.0 if right else ar.position.x - 8.0,
+				br.position.x + 8.0, br.end.x - 8.0)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
@@ -986,7 +1019,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
 			await _frames(1)
 	# 空中加速度只有 270px/s²：站着起跳 0.4s 只飘 ~22px。任何有缺口的跳都要助跑（和玩家一样）。
-	if gap > 0 and a.lift == null:
+	if (gap > 0 or ar.position.y - br.position.y > 24.0) and a.lift == null:
 		var run_start := ar.end.x - 36 if right else ar.position.x + 36
 		run_start = clampf(run_start, ar.position.x + 4.0, ar.end.x - 4.0)
 		if not await _nv_flat(run_start, ar.position.y, false): return false
@@ -1024,10 +1057,17 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			r.position = b.lift.position
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
 		if not is_nan(drop_landing): landing = drop_landing
-		_nv_steer(landing)
+		if not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - ar.position.y) < 8.0:
+			# Leave the whole 14px body past the ledge before braking. Steering to
+			# a point only 8px beyond it can stop 2px short and remain supported.
+			_move(1.0 if right else -1.0)
+		else:
+			_nv_steer(landing)
 		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
-		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40)
+		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
+				or (ar.position.y - br.position.y > 24.0 and gap > 24.0) \
+				or (a.lift != null and gap > 32.0)
 		_set_action(&"dash", i == dash_frame and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()
@@ -1117,6 +1157,12 @@ func _write_result(passed: bool) -> void:
 	result["resumed"] = "--resume" in OS.get_cmdline_user_args()
 	result["fixed_fps_accelerated"] = "--fast" in OS.get_cmdline_user_args()
 	result["rendered"] = _rendered
+	result["hazard_wait_frames"] = _hazard_wait_frames
+	result["assists"] = {
+		"incoming_damage": Settings.assist(&"assist_incoming"),
+		"parry_window": Settings.assist(&"assist_parry"),
+		"toxin_exposure": Settings.assist(&"assist_toxin"),
+	}
 	result["renderer"] = RenderingServer.get_current_rendering_method()
 	if not _frame_ms.is_empty():
 		_frame_ms.sort()
