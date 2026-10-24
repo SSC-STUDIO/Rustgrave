@@ -267,8 +267,8 @@ func test_arena_hearths_frame_the_boss_and_go_out_when_he_falls() -> void:
 	ok(left != null and right != null, "hearths flank the boss")
 	if left != null and right != null:
 		ok(left.position.x < boss.position.x and right.position.x > boss.position.x)
-		almost(left.position.y + Level01EastWing.HEARTH_ART_H, Level01Static.GROUND_TOP, 0.01,
-				"hearth art stands on the paved floor")
+		almost(left.position.y + Level01EastWing.HEARTH_ART_H, Level01EastWing.STAGE_Y, 0.01,
+				"hearth art stands on the stage floor")
 		ok(left.is_in_group("grounded") and left.has_meta("feet"))
 		var left_light := left.get_node_or_null("FlameGlow") as WorldLight
 		ok(left_light != null and left_light.lit, "the hearth light is lit")

@@ -43,16 +43,13 @@ const ALLOWED_KEYS := [
 const GROUND_DETAILS := [
 	# 起点台地：西墙根堆着上一轮埋葬剩下的骨石。
 	["start_terrace", "rock_pile", 2.0, GROUND_TOP, Color.WHITE],
-	# 中段攀爬：浮台底下压着上一班人的骨渣；压板两侧各立一块断碑。
+	# 中段攀爬：浮台底下压着上一班人的骨渣；上层路起点前立着一块断碑。
 	["mid_climb", "bones", 779.0, GROUND_TOP, Color.WHITE],
-	["mid_climb", "stone_4", 999.0, GROUND_TOP, Color.WHITE],
-	["mid_climb", "stone_4", 1069.0, GROUND_TOP, Color.WHITE],
-	# 门区：决斗台门的石栏前倒着旧墓碑，大门与枯树之间是一根断斜撑，
-	# 铁栅外的石栏边还有第二块碑。
-	["gate_approach", "rubble_dry", 1096.0, GROUND_TOP, Color.WHITE],
-	["gate_approach", "girder_r", 1170.0, GROUND_TOP, WRECK_TINT],
-	["gate_approach", "rubble_dry_b", 1334.0, GROUND_TOP, Color.WHITE],
-	["gate_approach", "rubble_dry_c", 1411.0, GROUND_TOP, Color.WHITE],
+
+	# 偏殿门口（草地的最后一段）：上层路从头顶过，门口倒着旧碎石和一根断斜撑。
+	# 偏殿 / 工坊 / 炉廊 / 中殿的装饰在 level01_east_layout.gd（东半的新增装饰）。
+	["gate_approach", "girder_r", 944.0, GROUND_TOP, WRECK_TINT],
+	["gate_approach", "rubble_dry", 988.0, GROUND_TOP, Color.WHITE],
 ]
 
 ## 悬挂细节表：[区域, 键, 挂点节点路径, 相对挂点底边中点的偏移, 色调]。
@@ -75,7 +72,9 @@ const LIGHT_ANCHORS := [
 	["RustyGate", "Props/RustyGate", Vector2(16, 32), AmbientLighting.LightType.TORCH],
 	# 月束打在余烬高台（钩锁锚点 + 余烬核）上，给跳跃目标一个冷色地标。
 	["EmberLedge", "Platforms/EmberLedge", Vector2(40, -8), AmbientLighting.LightType.MOONBEAM],
-	# Boss 门前的最后存档点。
+	# 偏殿门口 / 休息龛 / Boss 门前的三个存档点。
+	["NestMid", "Props/EmberNestMid", Vector2(8, -12), AmbientLighting.LightType.EMBER],
+	["NestForge", "Props/EmberNestForge", Vector2(8, -12), AmbientLighting.LightType.EMBER],
 	["NestEast", "Props/EmberNestEast", Vector2(8, -12), AmbientLighting.LightType.EMBER],
 	# Boss 门 / 炉心：竞技场入口与章末锻炉各一盏。
 	["BossGate", "BossGate", Vector2(0, 32), AmbientLighting.LightType.TORCH],

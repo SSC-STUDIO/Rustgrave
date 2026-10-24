@@ -250,6 +250,7 @@ func test_waymarks_name_the_route() -> void:
 		var feet: Vector2 = item[0]
 		almost(feet.y, Level01Static.GROUND_TOP, 0.01, "%s sits on the ground top" % String(item[1]))
 		ok(feet.x < 400.0 or feet.x >= 512.0, "%s is not planted in the pit" % String(item[1]))
+		ok(feet.x < Level01EastWing.EAST_LIMIT - 80.0, "%s keeps off the east wall" % String(item[1]))
 		labels.append(String(item[1]))
 	ok(labels.has("腐液"))
 	ok(labels.has("东翼"))
@@ -292,7 +293,8 @@ func test_ember_hook_pull_clears_the_ledge_and_lands_on_it() -> void:
 	ok(anchor.x + HALF_W < ledge.position.x, "anchor sits outside the ledge's left edge, so the pull never clips it")
 	ok(anchor.y < ledge.position.y - 40.0, "anchor is high enough above the ledge to pop off over it")
 	# Launch as the walkthrough does: jump from the approach floor, fire mid-air.
-	var pos := Vector2(1447.0, 271.0)
+	# 旧阁的发射点 (1447,271) 在锚点左 65px、地面上方 49px：新阁沿用同一相对位置。
+	var pos := Vector2(anchor.x - 65.0, 271.0)
 	var dir := (anchor - pos).normalized()
 	var released := false
 	for i in 120:
@@ -344,23 +346,27 @@ func test_east_wing_places_heart_gate_and_boss() -> void:
 	ok(host.get_node_or_null("BossGate") != null, "BossGate on the level root")
 	ok(host.get_node_or_null("Pickups/EmberCore") != null, "east ember pickup has a stable save path")
 	var east_nest := host.get_node_or_null("Props/EmberNestEast") as EmberNest
-	ok(east_nest != null, "a second checkpoint waits before the boss gate")
+	ok(east_nest != null, "a checkpoint waits before the boss gate")
 	if east_nest != null:
 		eq(east_nest.position, Level01EastWing.EMBER_NEST_EAST_POS)
-		ok(east_nest.position.x < host.get_node("BossGate").position.x - 100.0, "east nest is outside the arena")
-		almost(east_nest.position.y, Level01Static.GROUND_TOP - 14.0, 0.01, "brazier feet sit on the ground")
+		var gate_x: float = host.get_node("BossGate").position.x
+		ok(east_nest.position.x < gate_x, "east nest is outside the arena, west of the gate")
+		ok(gate_x - east_nest.position.x <= 80.0, "the death run-back to the gate is <= 80px")
+		almost(east_nest.position.y, Level01EastWing.NAVE_Y - 14.0, 0.01, "brazier feet sit on the nave floor")
 	var shelter := host.get_node_or_null("ForgeShelter") as AtmosphereZone
 	ok(shelter != null, "forge remnant is an indoor AtmosphereZone")
 	if shelter != null:
 		eq(shelter.zone, WorldClock.Zone.INDOORS)
 		eq(shelter.position, Level01EastWing.FORGE_SHELTER_POS)
-	eq(host.get_node("BossGate").position, Vector2(1688, 280))
+	eq(host.get_node("BossGate").position, Level01EastWing.BOSS_GATE_POS)
+	eq(heart.position, Level01EastWing.HEART_POS)
+	almost(boss.position.y, Level01EastWing.STAGE_Y, 0.01, "the Executioner stands on the stage top")
 	var wall := host.get_node("Platforms/WallRight") as Node2D
 	almost(wall.position.x, float(Level01EastWing.EAST_LIMIT), 0.01, "WallRight moved to east limit")
 	var placed := false
 	for child in host.get_node("Platforms").get_children():
 		if child is SolidPlatform and absf(child.position.x - Level01EastWing.EAST_FLOOR_X) < 0.1 \
-				and child.size.y >= 80.0:
+				and child.size.y >= 48.0:
 			almost(child.position.x + child.size.x, float(Level01EastWing.EAST_LIMIT), 0.01,
 					"spawned east floor meets the wall")
 			ok(child.size.x > 608.0, "spawned floor is not the old 608px span")

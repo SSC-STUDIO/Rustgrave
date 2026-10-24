@@ -6,6 +6,8 @@ extends TestCase
 ##   · 氛围灯锚定真实地标（余烬巢 / 毒池 / 门 / Boss 门 / 炉心），没有写死坐标；
 ##   · 墓园族锈铁残骸来自 tools/gen_theme_tiles.py 的 rust_remains()。
 
+const ROUTE := preload("res://scripts/levels/chapters/level01_east_layout.gd")
+
 var _level: Node = null
 ## 敌人出生位的身体盒（physics 跑起来前抓的；walker 会挪窝，占用检查按出生位算）。
 var _enemy_boxes: Array[Rect2] = []
@@ -316,8 +318,8 @@ func test_lighting_skips_missing_landmarks() -> void:
 	await flush(1)
 
 
-## 区域覆盖：起点台地 / 毒坑 / 中段攀爬 / 门区各有细节；东翼（Boss 竞技场、炉心）
-## 归 1D，1A 的细节全部留在西侧走廊。
+## 区域覆盖：起点台地 / 毒坑 / 中段攀爬 / 门区各有细节；东半（偏殿、工坊、炉廊、中殿、
+## 竞技场）的装饰归 level01_east_layout.gd，1A 的细节全部留在西侧走廊（草地段）。
 func test_layout_covers_regions_west_of_the_nave() -> void:
 	var dressed: Array[String] = []
 	var rows: Array = []
@@ -332,8 +334,10 @@ func test_layout_covers_regions_west_of_the_nave() -> void:
 	for want in ["start_terrace", "toxic_pit", "mid_climb", "gate_approach"]:
 		ok(dressed.has(want), "region '%s' is dressed" % want)
 	for row in SceneDetails.GROUND_DETAILS:
-		ok(float(row[2]) < Level01Static.EAST_FLOOR_X,
-				"%s stays west of the nave (arena is 1D's)" % String(row[1]))
+		ok(float(row[2]) < ROUTE.GROUND_RIGHT_END,
+				"%s stays on the graveyard grass (the crypt hall onward is the route layout's)" % String(row[1]))
 	# 手摆表的脚点常量必须和关卡几何一致，否则细节会悬空或埋进土里。
 	eq(SceneDetails.GROUND_TOP, Level01Static.GROUND_TOP, "detail ground line matches the level")
-	ok(SceneDetails.GROUND_DETAILS.size() >= 8, "the pass dresses the corridor, not a corner")
+	# 东半（偏殿 / 工坊 / 炉廊 / 中殿）的装饰在 level01_east_layout.gd，由 level01_route_test 数；
+	# 这里只数西段走廊。
+	ok(SceneDetails.GROUND_DETAILS.size() >= 4, "the pass dresses the corridor, not a corner")

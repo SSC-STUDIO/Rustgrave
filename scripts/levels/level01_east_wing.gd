@@ -1,6 +1,9 @@
 class_name Level01EastWing
 extends Node
-## Level01 east wing: pit beams, east floor, ember ledge, Boss, ForgeHeart, gate.
+## Level01 east wing: pit beams, route (压板偏殿 → 锻核工坊 → 中殿长阶), nave floor, ember
+## eyrie, Boss arena, ForgeHeart, gate. The route's new terrain / hazards / enemies / decor are
+## written by scripts/levels/chapters/level01_east_layout.gd (a ChapterLayout helper that is NOT a
+## registered chapter); this node keeps the persisted pieces and the Boss presentation.
 ## Builds into the host's existing Platforms / Hooks / Pickups / Props folders
 ## so authored node paths stay valid. Not a PackedScene — instancing a sub-scene
 ## would reparent those nodes and break SaveData / story lookups.
@@ -11,21 +14,29 @@ const PICKUP := preload("res://scenes/interactables/CorePickup.tscn")
 const BOSS := preload("res://scenes/enemies/ExecutionerBoss.tscn")
 const FORGE := preload("res://scenes/interactables/ForgeHeart.tscn")
 const NEST := preload("res://scenes/interactables/EmberNest.tscn")
-## 东侧余烬巢：Boss 门前最后一个存档点。没有它，死在刽子手手里要从 x=150 重走整条走廊。
-const EMBER_NEST_EAST_POS := Vector2(1536, 306)
+const ROUTE := preload("res://scripts/levels/chapters/level01_east_layout.gd")
+## 东侧余烬巢：BossGate 前最后一个存档点，离门 ≤80px（死亡回程只有一个台阶的事）。
+## 它在刽子手的 360px 仇恨圈之外（Boss 站在 3420），站在巢边不会被点名。
+const EMBER_NEST_EAST_POS := Vector2(3040, 338)
+const BOSS_GATE_POS := Vector2(3112, 312)
+const HEART_POS := Vector2(3664, 324)
 
-const EAST_LIMIT := 2240
-const EAST_FLOOR_X := 1600.0
+const EAST_LIMIT := 3760
+## 中殿底面（EastFloor）起点：长阶的第二级之后。底面 y=352，比巷面低 32px。
+const EAST_FLOOR_X := 2736.0
+const NAVE_Y := 352.0
+## 刽子手的石台顶（比中殿底面高 16px，Boss 站在上面）。
+const STAGE_Y := 336.0
 ## Roofed forge remnant past the Executioner — indoor lighting, rain stops.
-const FORGE_SHELTER_POS := Vector2(2112, 240)
-const FORGE_SHELTER_SIZE := Vector2(256, 160)
-## 刽子手的竞技场：中殿石板（1600..1984）正中的决斗位。两侧各一座落地锻炉
+const FORGE_SHELTER_POS := Vector2(3664, 272)
+const FORGE_SHELTER_SIZE := Vector2(192, 160)
+## 刽子手的竞技场：中殿尽头抬高 16px 的石台（3256..3584）正中的决斗位。两侧各一座落地锻炉
 ## 火膛给他打光、把他夹在构图里；中央一片加法暖池把舞台从暗背景里抬出来。
 ## 这三盏灯也是演出用灯：进场涌一下、二阶段转炽红、Boss 倒地后暗下去。
-const ARENA_CENTER_X := 1860.0
-const ARENA_HEARTH_Y := 320.0
-const ARENA_HEARTH_LEFT_X := 1790.0
-const ARENA_HEARTH_RIGHT_X := 1930.0
+const ARENA_CENTER_X := 3420.0
+const ARENA_HEARTH_Y := STAGE_Y
+const ARENA_HEARTH_LEFT_X := 3350.0
+const ARENA_HEARTH_RIGHT_X := 3490.0
 const ARENA_HEARTH_ENERGY := 0.72
 const ARENA_HEARTH_HOT_ENERGY := 1.05
 const ARENA_HEARTH_RADIUS := 96.0
@@ -34,7 +45,7 @@ const ARENA_HEARTH_HOT_COLOR := Color(1.0, 0.36, 0.14)
 ## 死亡后舞台灯熄掉：交接镜头只剩残芯自己的 HeartLight 在亮。
 const ARENA_DEAD_SCALE := 0.0
 ## 中央暖池：半径有上限，不把整块东翼石板刷白。
-const ARENA_POOL_POS := Vector2(ARENA_CENTER_X, 300.0)
+const ARENA_POOL_POS := Vector2(ARENA_CENTER_X, STAGE_Y - 20.0)
 const ARENA_POOL_RADIUS := 148.0
 const ARENA_POOL_ENERGY := 0.5
 const ARENA_POOL_HOT_ENERGY := 0.72
@@ -42,12 +53,13 @@ const ARENA_POOL_COLOR := Color(1.0, 0.56, 0.28)
 const ARENA_POOL_HOT_COLOR := Color(1.0, 0.40, 0.18)
 ## 火膛贴图的脚点：gh_furnace 32×96，节点原点在贴图中心（旧壁炬约定）。
 const HEARTH_ART_H := 96.0
-## 余烬高台 + 钩锁锚点。锚点必须在台子左端外侧上方：以前放在台子正中上方 (1568,48)，
-## 从左下拉过去的直线穿过台子左端底面，一撞就按「撞墙」脱钩掉下去；从正下方拉则顶在
-## 台底卡住。锚点在 x=1512（台左沿 1528 之外）时牵引线净空，脱钩后向右弹到台面上。
-const EMBER_LEDGE_POS := Vector2(1528, 112)
+## 余烬阁（炉廊上方）= 余烬高台 + 钩锁锚点。锚点必须在台子左端外侧上方：以前放在台子正中
+## 上方，从左下拉过去的直线穿过台子左端底面，一撞就按「撞墙」脱钩掉下去；从正下方拉则顶在
+## 台底卡住。锚点在台左沿 16px 之外时牵引线净空，脱钩后向右弹到台面上（相对位置沿用旧阁）。
+const EMBER_LEDGE_POS := Vector2(2232, 112)
 const EMBER_LEDGE_SIZE := Vector2(80, 16)
-const EMBER_HOOK_POS := Vector2(1512, 56)
+const EMBER_HOOK_POS := Vector2(2216, 56)
+const EMBER_CORE_POS := Vector2(2272, 96)
 ## 毒坑可读跳：踏步 32px（单跳约 37px）。悬空石只铺在坑上，岸边用实心抵地唇，避免挡头。
 const PIT_X0 := 400.0
 const PIT_X1 := 512.0
@@ -97,10 +109,10 @@ static func should_unlock_forge() -> bool:
 	return SaveData.has_flag("boss_dead")
 
 
-## GroundRight in Level01_Static.tscn is (512, 320) size (1088, 80) → ends at 1600.
-## Floor must reach EAST_LIMIT (WallRight) or the boss room drops 32px into the void.
+## CryptFloor (the route layout) ends where the long stair starts; the nave floor takes over at
+## EAST_FLOOR_X and must reach EAST_LIMIT (WallRight) or the boss room drops into the void.
 static func east_floor_rect() -> Rect2:
-	return Rect2(EAST_FLOOR_X, 320.0, float(EAST_LIMIT) - EAST_FLOOR_X, 80.0)
+	return Rect2(EAST_FLOOR_X, NAVE_Y, float(EAST_LIMIT) - EAST_FLOOR_X, 400.0 - NAVE_Y)
 
 
 static func mark_executioner_slain() -> void:
@@ -139,6 +151,8 @@ func build(host: Node2D) -> ExecutionerBoss:
 	floor.cap_left = false
 	floor.cap_right = false
 	platforms.add_child(floor)
+	# 路线：楼座 / 地穴巷 / 工坊 / 炉廊 / 长阶 / 石台与掩体墩（新增地形、机关、敌人、装饰）。
+	_build_route(host)
 	var ledge := PLATFORM.instantiate()
 	ledge.name = "EmberLedge"
 	ledge.skin = "floating"
@@ -151,12 +165,12 @@ func build(host: Node2D) -> ExecutionerBoss:
 	hooks.add_child(hook)
 	var ember := PICKUP.instantiate() as CorePickup
 	ember.name = "EmberCore"
-	ember.position = Vector2(1568, 96)
+	ember.position = EMBER_CORE_POS
 	ember.core = AbilityCatalog.ember_core()
 	pickups.add_child(ember)
 	var shrine := props.get_node_or_null("PurificationShrine") as Node2D
 	if shrine:
-		shrine.position = Vector2(1464, 288)
+		shrine.position = ROUTE.SHRINE_POS
 	if props.get_node_or_null("EmberNestEast") == null:
 		var nest := NEST.instantiate()
 		nest.name = "EmberNestEast"
@@ -164,11 +178,11 @@ func build(host: Node2D) -> ExecutionerBoss:
 		props.add_child(nest)
 	if should_spawn_executioner():
 		boss = BOSS.instantiate()
-		boss.position = Vector2(1860, 320)
+		boss.position = Vector2(ARENA_CENTER_X, STAGE_Y)
 		props.add_child(boss)
 		boss.slain.connect(_on_boss_slain)
 	heart = FORGE.instantiate()
-	heart.position = Vector2(2064, 292)
+	heart.position = HEART_POS
 	heart.name = "ForgeHeart"
 	props.add_child(heart)
 	if should_unlock_forge():
@@ -185,7 +199,7 @@ func build(host: Node2D) -> ExecutionerBoss:
 	rect.size = Vector2(40, 80)
 	shape.shape = rect
 	zone.add_child(shape)
-	zone.position = Vector2(1688, 280)
+	zone.position = BOSS_GATE_POS
 	host.add_child(zone)
 	zone.body_entered.connect(_on_boss_gate)
 	place_forge_shelter(host)
@@ -194,44 +208,63 @@ func build(host: Node2D) -> ExecutionerBoss:
 	return boss
 
 
+## 路线（level01_east_layout.gd）。ChapterLayout 助手只是铺设工具：建完就释放，
+## 没有任何运行期引用（炉口 / 塌陷台自己是场景里的节点）。
+func _build_route(host: Node2D) -> void:
+	var layout: ChapterLayout = ROUTE.new()
+	layout.build(host)
+	layout.free()
+	_bind_arena_vents(host)
+
+
 const TORCH_SCENE := preload("res://scenes/world/TorchLight.tscn")
 const STELE_SCENE := preload("res://scenes/interactables/LoreStele.tscn")
 
 
 func _decorate_cathedral(host: Node2D) -> void:
-	if host.get_node_or_null("CathedralDecor") != null:
+	# The route layout may already have opened the layer (it plants its decor there too).
+	var decor := host.get_node_or_null("CathedralDecor") as Node2D
+	if decor == null:
+		decor = Node2D.new()
+		decor.name = "CathedralDecor"
+		decor.z_index = -3
+		host.add_child(decor)
+	if decor.has_meta("arena_decor"):
 		return
-	var decor := Node2D.new()
-	decor.name = "CathedralDecor"
-	decor.z_index = -3
-	host.add_child(decor)
+	decor.set_meta("arena_decor", true)
 
 	# Level01 keeps the open graveyard sky for the whole map. Tall indoor wall
 	# plates (columns, skull columns, gargoyles, nave torch slabs) read as
 	# floating masonry against the moon and purple mountains — especially near
 	# the 东翼 sign and EmberLedge. Only low door/rails/rubble on the approach,
 	# and roofed forge-remnant art under ForgeShelter.
-	_plant_env_sprite(decor, "res://assets/env/door_arch.png", Vector2(1672, 256), Vector2(1, 1), Color(0.85, 0.82, 0.95, 0.95))
+	# BossGate 的石门洞：脚在中殿底面上，跨进去就是刽子手的炉厅。
+	_plant_env_sprite(decor, "res://assets/env/door_arch.png",
+			Vector2(BOSS_GATE_POS.x - 16.0, NAVE_Y - 64.0), Vector2(1, 1), Color(0.85, 0.82, 0.95, 0.95))
 
-	# Low bastion rails along the nave — shared with the west cemetery, not
+	# Low bastion rails along the arena — shared with the west cemetery, not
 	# 192px indoor slabs over open sky. 东侧栏杆退到炉棚前，让出右火膛的位置。
-	_plant_balustrade(decor, Vector2(1730, 320))
-	_plant_balustrade(decor, Vector2(1988, 320))
+	_plant_balustrade(decor, Vector2(3176, NAVE_Y))
+	_plant_balustrade(decor, Vector2(3612, NAVE_Y))
 
 	# Forge remnant under the shelter roof (altar + one wall torch).
-	_plant_ruin_plate(decor, "res://assets/env/bg_altar_cut.png", Vector2(2004, 128), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
-	_plant_torch(decor, Vector2(2064, 224))
+	var shelter_left := FORGE_SHELTER_POS.x - FORGE_SHELTER_SIZE.x * 0.5
+	_plant_ruin_plate(decor, "res://assets/env/bg_altar_cut.png",
+			Vector2(shelter_left + 20.0, NAVE_Y - 192.0), Vector2(1, 1), Color(0.85, 0.75, 0.7, 0.88))
+	_plant_torch(decor, Vector2(shelter_left + 80.0, NAVE_Y - 96.0))
 
-	# 矮墩上的残石：以前这里是 48×48 的地台铺石板（平顶方块），
+	# 石台两端的残石：以前这里是 48×48 的地台铺石板（平顶方块），
 	# 单独立在墓地行里读不懂；换成有轮廓的碎石，和旁边的 rubble_b 同一族。
-	_plant_env_sprite(decor, "res://assets/env/rubble_c.png", Vector2(1724, 296), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
-	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1810, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
-	_plant_env_sprite(decor, "res://assets/env/rubble_b.png", Vector2(1990, 290), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
+	_plant_env_sprite(decor, "res://assets/env/rubble_c.png",
+			Vector2(3262.0, STAGE_Y - 30.0), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
+	_plant_env_sprite(decor, "res://assets/env/rubble_b.png",
+			Vector2(3552.0, STAGE_Y - 30.0), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。
-	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png", Vector2(1616, 224), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
+	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png",
+			Vector2(BOSS_GATE_POS.x - 56.0, NAVE_Y - 96.0), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
 
 	var vow := ChapterText.stele_of("level01", "SteleExecutioner")
-	_plant_lore_stele(host, Vector2(1636, 320), "SteleExecutioner",
+	_plant_lore_stele(host, ROUTE.STELE_POS, "SteleExecutioner",
 			String(vow.get("title", "")), String(vow.get("text", "")))
 
 
@@ -432,6 +465,7 @@ func _build_boss_arena(host: Node2D) -> void:
 	host.add_child(layer)
 	for x in [ARENA_HEARTH_LEFT_X, ARENA_HEARTH_RIGHT_X]:
 		_plant_arena_hearth(layer, x)
+	_plant_arena_glow(layer)
 	_arena_pool = WorldLight.new()
 	_arena_pool.name = "ArenaPool"
 	_arena_pool.follow = &"authored"
@@ -451,6 +485,34 @@ func _build_boss_arena(host: Node2D) -> void:
 		GameEvents.boss_intro_started.connect(_on_boss_intro_started)
 	if not GameEvents.boss_phase_changed.is_connected(_on_boss_phase_changed):
 		GameEvents.boss_phase_changed.connect(_on_boss_phase_changed)
+
+
+## 远处就能看见的炉厅：石台背后一团很淡的加法暖光（地平线上的余烬），从长阶往下走时
+## 它先于竞技场出现在画面右缘；二阶段更红更亮，Boss 倒地后随舞台灯一起暗下去。
+## 不是灯（不投光）：纯贴图，z 在所有玩法层之后。
+const ARENA_GLOW_TEX := "res://assets/env/glow_soft.png"
+const ARENA_GLOW_ALPHA := 0.17
+const ARENA_GLOW_HOT_ALPHA := 0.27
+const ARENA_GLOW_COLOR := Color(1.0, 0.5, 0.26)
+const ARENA_GLOW_HOT_COLOR := Color(1.0, 0.34, 0.16)
+var _arena_glow: Sprite2D
+
+
+func _plant_arena_glow(parent: Node2D) -> void:
+	if not ResourceLoader.exists(ARENA_GLOW_TEX):
+		return
+	var spr := Sprite2D.new()
+	spr.name = "ArenaGlow"
+	spr.texture = load(ARENA_GLOW_TEX) as Texture2D
+	spr.centered = true
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	spr.position = Vector2(ARENA_CENTER_X, STAGE_Y - 104.0)
+	spr.scale = Vector2(14.0, 7.5)
+	spr.z_index = -6
+	spr.material = Fx.additive_mat()
+	spr.modulate = Color(ARENA_GLOW_COLOR.r, ARENA_GLOW_COLOR.g, ARENA_GLOW_COLOR.b, ARENA_GLOW_ALPHA)
+	parent.add_child(spr)
+	_arena_glow = spr
 
 
 func _plant_arena_hearth(parent: Node2D, x: float) -> void:
@@ -473,6 +535,10 @@ func _process(_delta: float) -> void:
 	if _arena_hearths.is_empty():
 		return
 	var lit := lerpf(1.0, ARENA_DEAD_SCALE, _arena_dim)
+	if _arena_glow != null and is_instance_valid(_arena_glow):
+		var glow := ARENA_GLOW_COLOR.lerp(ARENA_GLOW_HOT_COLOR, _arena_heat)
+		_arena_glow.modulate = Color(glow.r, glow.g, glow.b,
+				lerpf(ARENA_GLOW_ALPHA, ARENA_GLOW_HOT_ALPHA, _arena_heat) * lit * (1.0 + _arena_surge * 0.5))
 	for hearth in _arena_hearths:
 		if not is_instance_valid(hearth):
 			continue
@@ -540,11 +606,85 @@ func _on_boss_intro_started(_boss_name: String) -> void:
 	surge_arena_lights()
 	if boss != null and is_instance_valid(boss) and not boss.is_queued_for_deletion():
 		boss.presentation_surge()
+		_set_vents_live(true)
 
 
 func _on_boss_phase_changed(_boss_name: String, phase: int) -> void:
 	if phase >= 2:
 		_set_arena_hot(true)
+		_set_vents_hot(true)
+
+
+# --- 炉龛喷火口：只在 Boss 战里转 ------------------------------------------------------
+## 两口喷火口（ArenaVentW / ArenaVentE，level01_east_layout 建在 Props 下）平时是熄着的炉口：
+## 本节点关掉它们自己的物理帧，开战（boss_intro_started）后才由本节点逐帧 tick；
+## 二阶段（boss_phase_changed ≥ 2）换成更急、更高的一档；Boss 一倒（slain）先把它们快进到
+## 休止期再停 tick —— 判定体在过场锁住玩家之前就已经收刀。机关本身仍是 CyclicHazard：
+## 预警、安全间隔、冲刺 i-frames 穿越都和炉廊的炉口一样。
+## 两档参数在 level01_east_layout.gd（ARENA_VENT_COOL / ARENA_VENT_HOT）。
+var _arena_vents: Array[CyclicHazard] = []
+var _vents_live := false
+var _vents_hot := false
+
+
+func _bind_arena_vents(host: Node2D) -> void:
+	_arena_vents.clear()
+	_vents_live = false
+	_vents_hot = false
+	var props := host.get_node_or_null("Props")
+	if props == null:
+		return
+	for vent_name in ["ArenaVentW", "ArenaVentE"]:
+		var vent := props.get_node_or_null(vent_name) as CyclicHazard
+		if vent == null:
+			continue
+		vent.set_physics_process(false)
+		_arena_vents.append(vent)
+
+
+func _physics_process(delta: float) -> void:
+	if not _vents_live:
+		return
+	for vent in _arena_vents:
+		if is_instance_valid(vent):
+			vent.tick(delta)
+
+
+func _set_vents_live(live: bool) -> void:
+	if live and (_arena_dead or _arena_vents.is_empty()):
+		return
+	_vents_live = live
+
+
+## 二阶段更热：换参数后把炉口重新对齐到休止期起点（不换参数不会跳档），两口再错开半拍。
+func _set_vents_hot(hot: bool) -> void:
+	if _vents_hot == hot:
+		return
+	_vents_hot = hot
+	var params: Dictionary = ROUTE.ARENA_VENT_HOT if hot else ROUTE.ARENA_VENT_COOL
+	for i in _arena_vents.size():
+		var vent := _arena_vents[i]
+		if not is_instance_valid(vent):
+			continue
+		for key in params:
+			vent.set(key, params[key])
+		_fast_forward_to_rest(vent)
+		if i % 2 == 1:
+			vent.tick(vent.period() * 0.45)
+
+
+## 把炉口快进到下一个休止期起点（判定中 / 预警中的收刀、收预警）。
+static func _fast_forward_to_rest(vent: CyclicHazard) -> void:
+	var c := fposmod(vent.clock(), vent.period())
+	vent.tick(vent.period() - c + 0.001)
+
+
+## Boss 倒地：喷火口立刻收刀并停转。
+func _silence_vents() -> void:
+	_vents_live = false
+	for vent in _arena_vents:
+		if is_instance_valid(vent) and vent.state() != CyclicHazard.State.REST:
+			_fast_forward_to_rest(vent)
 
 
 # --- test / diagnostic views -------------------------------------------------
@@ -567,6 +707,18 @@ func arena_light_energy() -> float:
 	return light._base_energy if light != null else 0.0
 
 
+func arena_vents() -> Array[CyclicHazard]:
+	return _arena_vents
+
+
+func arena_vents_live() -> bool:
+	return _vents_live
+
+
+func arena_vents_hot() -> bool:
+	return _vents_hot
+
+
 func _on_boss_gate(body: Node) -> void:
 	if body is Player and boss != null and is_instance_valid(boss):
 		boss.announce()
@@ -575,5 +727,7 @@ func _on_boss_gate(body: Node) -> void:
 
 func _on_boss_slain() -> void:
 	# Boss 一倒，舞台灯先暗下去；残芯的 HeartLight 和新解锁的可交互性才是下一拍的焦点。
+	# 喷火口先收刀（boss_slain 之后过场会锁住玩家，机关时间线随之冻结）。
+	_silence_vents()
 	_dim_arena_lights()
 	boss_slain.emit()

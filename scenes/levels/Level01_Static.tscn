@@ -91,7 +91,7 @@ skin = "ground"
 
 [node name="GroundRight" parent="Platforms" unique_id=540910394 instance=ExtResource("2_plat")]
 position = Vector2(512, 320)
-size = Vector2(1088, 80)
+size = Vector2(656, 80)
 fill = Color(0.545098, 0.270588, 0.0745098, 1)
 cap_right = false
 skin = "ground"
@@ -150,19 +150,14 @@ fill = Color(0.627451, 0.321569, 0.176471, 1)
 skin = "floating"
 
 [node name="Plat_920_248" parent="Platforms" unique_id=1426230411 instance=ExtResource("2_plat")]
-position = Vector2(920, 248)
+position = Vector2(928, 256)
 size = Vector2(72, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
 [node name="Plat_980_180" parent="Platforms" unique_id=1578425231 instance=ExtResource("2_plat")]
-position = Vector2(980, 180)
+position = Vector2(1032, 232)
 size = Vector2(72, 16)
-fill = Color(0.368627, 0.352941, 0.337255, 1)
-skin = "floating"
-
-[node name="Plat_1080_220" parent="Platforms" unique_id=1903230573 instance=ExtResource("2_plat")]
-position = Vector2(1080, 220)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
@@ -178,37 +173,40 @@ position = Vector2(400, 336)
 position = Vector2(352, 308)
 
 [node name="PressurePlate" parent="Props" unique_id=79261173 instance=ExtResource("6_plate")]
-position = Vector2(1040, 314)
+position = Vector2(1412, 202)
 
 [node name="Door" parent="Props" unique_id=1098633727 instance=ExtResource("7_door")]
-position = Vector2(1144, 256)
+position = Vector2(1664, 256)
 
 [node name="ScrapPile" parent="Props" unique_id=557426399 instance=ExtResource("8_scrap")]
-position = Vector2(1220, 302)
+position = Vector2(1744, 302)
 
 [node name="SocketStation" parent="Props" unique_id=474490195 instance=ExtResource("9_socket")]
-position = Vector2(1296, 296)
+position = Vector2(1840, 296)
 
 [node name="RustyGate" parent="Props" unique_id=170698888 instance=ExtResource("10_gate")]
-position = Vector2(1384, 256)
+position = Vector2(2584, 256)
 
 [node name="PurificationShrine" parent="Props" unique_id=801350851 instance=ExtResource("11_shrine")]
-position = Vector2(1488, 288)
+position = Vector2(2024, 288)
 
 [node name="EmberNest" parent="Props" unique_id=936879023 instance=ExtResource("22_nest")]
 position = Vector2(150, 306)
 
 [node name="Spitter1" parent="Props" unique_id=1426501202 instance=ExtResource("12_spitter")]
 position = Vector2(812, 288)
+aggro_range = 260.0
 
 [node name="Spitter2" parent="Props" unique_id=1079775903 instance=ExtResource("12_spitter")]
-position = Vector2(1018, 180)
+position = Vector2(1472, 208)
+aggro_range = 140.0
 
 [node name="Scrapper1" parent="Props" unique_id=1590711696 instance=ExtResource("23_scrapper")]
 position = Vector2(860, 320)
 
 [node name="GearShield1" parent="Props" unique_id=1913946978 instance=ExtResource("24_gearshield")]
-position = Vector2(960, 320)
+position = Vector2(880, 320)
+aggro_range = 190.0
 
 [node name="FlyingDemon1" parent="Props" instance=ExtResource("31_demon")]
 position = Vector2(460, 130)
