@@ -26,6 +26,12 @@ const RESERVED_PAD_BUTTONS: Array[int] = [JOY_BUTTON_START, JOY_BUTTON_GUIDE]
 const MOVE_AXIS_DEADZONE := 0.2
 ## Slider drags would otherwise rewrite the file dozens of times per second.
 const SAVE_DELAY := 0.4
+## Public assist ranges. 1.0 always preserves the authored combat values.
+const ASSIST_LIMITS := {
+ &"assist_incoming": Vector2(0.5, 1.5), &"assist_parry": Vector2(1.0, 1.5),
+ &"assist_toxin": Vector2(0.5, 1.5), &"subtitle_speed": Vector2(0.6, 1.5),
+ &"text_scale": Vector2(0.85, 1.35),
+}
 
 ## Redirectable for tests; production keeps PATH.
 var save_path: String = PATH
@@ -133,6 +139,7 @@ func apply_all() -> void:
 	for action in REBINDABLE:
 		_apply_key(action, key_for(action))
 		_apply_pad(action, pad_for(action))
+	UiKit.apply_text_scale(assist(&"text_scale"))
 	if InputMap.has_action(&"move_left"):
 		InputMap.action_set_deadzone(&"move_left", MOVE_AXIS_DEADZONE)
 	if InputMap.has_action(&"move_right"):
@@ -415,8 +422,20 @@ func value(key: StringName, default: Variant = null) -> Variant:
 	return _extra.get(key, default)
 
 
+func assist(key: StringName) -> float:
+	var limits: Vector2 = ASSIST_LIMITS.get(key, Vector2.ONE)
+	var result := float(value(key, 1.0))
+	return clampf(result, limits.x, limits.y) if is_finite(result) else 1.0
+
+
 func set_value(key: StringName, v: Variant, persist: bool = true) -> void:
+	if ASSIST_LIMITS.has(key):
+		var limits: Vector2 = ASSIST_LIMITS[key]
+		var number := float(v)
+		v = clampf(number, limits.x, limits.y) if is_finite(number) else 1.0
 	_extra[key] = v
+	if key == &"text_scale":
+		UiKit.apply_text_scale(assist(key))
 	if persist:
 		save_settings()
 	changed.emit(key)

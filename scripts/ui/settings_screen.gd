@@ -21,7 +21,8 @@ const Plate := preload("res://scripts/ui/menu_plate.gd")
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
 const TAB_KEYS := 2
-const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位"]
+const TAB_ASSIST := 3
+const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位", "辅 助"]
 
 const STEP := 5.0
 const SAVE_DELAY := 0.5
@@ -121,7 +122,7 @@ func _build() -> void:
 		tab.toggle_mode = true
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
-		tab.custom_minimum_size = Vector2(210.0, UiKit.TOUCH_MIN)
+		tab.custom_minimum_size = Vector2(156.0, UiKit.TOUCH_MIN)
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
@@ -137,6 +138,7 @@ func _build() -> void:
 	_pages.append(_build_audio_page(host))
 	_pages.append(_build_display_page(host))
 	_pages.append(_build_keys_page(host))
+	_pages.append(_build_assist_page(host))
 
 	_notice = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_notice.name = "Notice"
@@ -249,6 +251,21 @@ func _build_display_page(host: Control) -> Control:
 	_viewport_label.name = "ViewportInfo"
 	page.add_child(_viewport_label)
 	page.add_child(_page_note("震动 / 闪光强度同时作用于战斗反馈与过场演出"))
+	return page
+
+
+func _build_assist_page(host: Control) -> Control:
+	var page := _page(host, "AssistPage")
+	for spec in [[&"assist_incoming", "受 伤 倍 率"], [&"assist_parry", "弹 反 窗 口"],
+			[&"assist_toxin", "毒 素 速 率"], [&"subtitle_speed", "字 幕 速 度"],
+			[&"text_scale", "文 本 缩 放"]]:
+		var row := _slider_row(spec[0], spec[1])
+		var slider := _sliders[spec[0]] as HSlider
+		var limits: Vector2 = Settings.ASSIST_LIMITS[spec[0]]
+		slider.min_value = limits.x * 100.0
+		slider.max_value = limits.y * 100.0
+		page.add_child(row)
+	page.add_child(_page_note("100% 保持原有平衡 · 受伤 / 毒素调低更轻松，弹反调高更宽容"))
 	return page
 
 
@@ -418,7 +435,7 @@ func _slider_percent(id: StringName) -> float:
 		&"flash":
 			return Settings.flash_scale * 100.0
 		_:
-			return Settings.volume_percent(id)
+			return Settings.assist(id) * 100.0 if Settings.ASSIST_LIMITS.has(id) else Settings.volume_percent(id)
 
 
 func _sync_slider(id: StringName) -> void:
@@ -613,7 +630,10 @@ func _on_slider_changed(value: float, id: StringName) -> void:
 		&"flash":
 			Settings.set_flash_scale(value / 100.0, false)
 		_:
-			Settings.set_volume_percent(id, value, false)
+			if Settings.ASSIST_LIMITS.has(id):
+				Settings.set_value(id, value / 100.0, false)
+			else:
+				Settings.set_volume_percent(id, value, false)
 	(_value_labels[id] as Label).text = "%d%%" % int(round(value))
 	_mark_dirty()
 	if _tick_cool <= 0.0:

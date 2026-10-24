@@ -108,7 +108,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	if _typing:
-		_shown += CHARS_PER_SEC * delta
+		_shown += CHARS_PER_SEC * Settings.assist(&"subtitle_speed") * delta
 		var n := mini(_full.length(), int(_shown))
 		_label.text = _full.substr(0, n)
 		if n >= _full.length():

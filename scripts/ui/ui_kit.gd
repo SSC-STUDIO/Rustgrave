@@ -201,6 +201,38 @@ static func has_sfx(key: StringName) -> bool:
 # 文字变体一律进 theme_rust.tres（含 12px 的 Hud*/Tiny* 小字），这里不再定义。
 
 static var _extras: Theme
+static var _font_baselines: Dictionary = {}
+static var _text_scale := 1.0
+
+
+## Scale shared themes from immutable baselines, preserving heading/body/small ratios.
+## Updating a Theme emits changed, so labels and buttons already on screen refresh.
+static func apply_text_scale(factor: float) -> void:
+	_text_scale = clampf(factor, 0.85, 1.35)
+	_scale_theme(load(THEME_PATH) as Theme)
+	if _extras != null:
+		_scale_theme(_extras)
+
+
+static func _scale_theme(theme: Theme) -> void:
+	if theme == null:
+		return
+	var id := theme.get_instance_id()
+	if not _font_baselines.has(id):
+		var sizes: Dictionary = {"default": theme.default_font_size}
+		for type in theme.get_font_size_type_list():
+			for key in theme.get_font_size_list(type):
+				sizes[String(type) + "/" + key] = theme.get_font_size(key, type)
+		_font_baselines[id] = sizes
+	var baseline: Dictionary = _font_baselines[id]
+	if int(baseline["default"]) > 0:
+		theme.default_font_size = roundi(int(baseline["default"]) * _text_scale)
+	for key in baseline:
+		if key == "default":
+			continue
+		var parts := String(key).split("/")
+		theme.set_font_size(parts[1], parts[0], roundi(int(baseline[key]) * _text_scale))
+
 
 
 static func extras_theme() -> Theme:
@@ -214,6 +246,7 @@ static func extras_theme() -> Theme:
 	_extras_scrollbars(t)
 	_extras_bars(t)
 	_extras = t
+	_scale_theme(t)
 	return t
 
 

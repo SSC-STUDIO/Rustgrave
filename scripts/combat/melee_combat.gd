@@ -191,7 +191,10 @@ func is_busy() -> bool:
 
 
 func is_parry_window() -> bool:
-	return _state == State.ACTIVE and not _host_locked()
+	if _host_locked():
+		return false
+	return _state == State.ACTIVE or (_state == State.WINDUP \
+			and phase_progress() >= CombatRules.parry_windup_start())
 
 
 ## 本刀是否已经「打实」：造成了伤害或弹反成功。盾面挡下不算。
