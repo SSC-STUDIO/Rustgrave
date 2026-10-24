@@ -42,3 +42,11 @@
 layout 测试覆盖三层可达、板门接线、主线系核、钩锁支路、吊台接驳 / 接力与实体净空、单向回巢、传送带和蒸汽分区、首遇安全窗、巢的 AI 安全与实际跳跃回程。另跑 level_sanity（过滤 level05）、route_audit、chapter_progression、level_routing、level_weather、chapter_art_audit、prop_fit、chapter_support、parallax_backdrop。
 
 机位 x=320 / 1120 / 1760 / 2720 / 3560，两档 1280×720、1920×1080，逐张检查；必要时补竖向机位。全量套件在整合分支运行；机位图不是完整正常输入通关证据。
+
+### 2026-10-24 落地结果
+
+- 地形、敌人、机关和稳定路径按上表完成。五个吊台全行程无实体交叉；D 的真实玩家乘坐和单跳登顶、东侧检修道失足后的单跳回程均通过物理测试。主线四巢、两压板、系核、锈门、出口均在 `allow_hook=false` 下可达；两个可选龛 / 吊装奖励在 false 不可达、true 可达。
+- `level05_layout` **12/12（319 条断言）**，`level_sanity`（`RUSTGRAVE_LEVEL_FILTER=level05`）**13/13**，`route_audit` **2/2**，`chapter_progression` **3/3**，`level_routing` **6/6**，`level_weather` **6/6**，`chapter_art_audit` **4/4**，`prop_fit` **7/7**，`chapter_support` **2/2**，`parallax_backdrop` **8/8**。合计 **63/63、0 engine errors**。四个巢分别等待六秒，真实玩家血量不变，六秒后每个敌人离玩家超过 96px；传送带搬运、蒸汽实伤和安全窗内正常步行穿越也使用真实玩家。
+- 日志保存在 `screenshots/acceptance/overhaul-v3/level05/tests/<filter>/`。本分支仅跑上述专项；完整套件由整合分支统一执行。
+- `screenshots/acceptance/overhaul-v3/level05/1280x720/` 与 `1920x1080/` 各有 `live_{320,1120,1760,2720,3560}_level05_lit_active.png`，十张均已查看。入口、三层接驳、静态蒸汽廊、系核检修道和吊装奖励能在对应机位辨认；骑士脚点依次为 `(200,320)` / `(1000,320)` / `(1640,288)` / `(2600,224)` / `(3440,320)`，无嵌地或悬空。
+- 截图使用整合分支的贴地 `PeekLive` 夹具，运行机关与敌人 AI，骑士本体物理暂停；跨机位瞬移可能保留上一机位的交互提示，已反馈。图像只证明这十个固定机位的渲染与支撑，完整正常输入通关和整合全量回归仍待执行。

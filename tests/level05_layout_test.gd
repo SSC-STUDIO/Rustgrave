@@ -1,23 +1,18 @@
 extends TestCase
-## Level05 "齿轮工坊": every lift boards from and lands on a real deck within one
-## hop, both pressure plates open their doors (the second only via the vertical
-## lift), the heat-forge gate and the spare tether core are in place, the three
-## checkpoints and the exit stand on solid floor, and the exit hops to level06.
-
-const LAYOUT_PATH := "res://scripts/levels/chapters/level05_layout.gd"
-const JUMP_RISE_MAX := 32.0
-const JUMP_GAP_MAX := 72.0
-const DECK_H := 16.0
-
-var _layout: ChapterLayout
+## Three-tier workshop acceptance with real riders, conveyor motion, steam and safe respawns.
+const L5 := preload("res://scripts/levels/chapters/level05_layout.gd")
 
 
 func setup() -> void:
 	SaveData.flags.clear()
+	Director._set_lock(false)
 
 
 func teardown() -> void:
+	for action in ["move_left", "move_right", "jump"]:
+		Input.action_release(action)
 	SaveData.flags.clear()
+	Director._set_lock(false)
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 
 
@@ -27,409 +22,257 @@ func _build() -> Node2D:
 	host.scene_file_path = GameContext.LEVELS["level05"]
 	host.add_to_group("game_world")
 	add_child(host)
-	_layout = (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	add_child(_layout)
-	_layout.build(host)
+	var layout := L5.new()
+	add_child(layout)
+	layout.build(host)
 	return host
 
 
-## Walkable tops as rects: solids, lift decks at both ends, gear tops.
-func _tops(host: Node2D) -> Array[Rect2]:
-	var rects: Array[Rect2] = []
-	for child in host.get_node("Platforms").get_children():
-		if child is SolidPlatform:
-			var p := child as SolidPlatform
-			if p.size.x >= 24.0 and not String(p.name).begins_with("Ceiling"):
-				rects.append(Rect2(p.position, p.size))
-		elif child is MovingPlatform:
-			var m := child as MovingPlatform
-			rects.append(Rect2(m.start_position(), Vector2(m.width, DECK_H)))
-			rects.append(Rect2(m.end_position(), Vector2(m.width, DECK_H)))
-		elif child is GearPlatform:
-			var g := child as GearPlatform
-			rects.append(Rect2(g.position - Vector2(g.radius, g.radius), Vector2(g.radius * 2.0, g.radius * 2.0)))
-	return rects
+func _rect(host: Node, node_name: String) -> Rect2:
+	var p := host.get_node("Platforms/" + node_name) as SolidPlatform
+	return Rect2(p.position, p.size)
 
 
-func _standing_on(rects: Array[Rect2], feet: Vector2, slack: float = 0.5) -> bool:
-	for r in rects:
-		if feet.x >= r.position.x - 0.01 and feet.x <= r.end.x + 0.01 and absf(feet.y - r.position.y) <= slack:
-			return true
-	return false
+func _deck(lift: MovingPlatform, at_end: bool) -> Rect2:
+	return Rect2(lift.end_position() if at_end else lift.start_position(), Vector2(lift.width, 16))
 
 
-func _rect_named(host: Node2D, plat_name: String) -> Rect2:
-	var p := host.get_node_or_null("Platforms/" + plat_name) as SolidPlatform
-	ok(p != null, "%s exists" % plat_name)
-	return Rect2(p.position, p.size) if p != null else Rect2()
-
-
-## One hop from deck `a` (top-left, width) onto deck `b`: rise <= 32, edge gap <= 72
-## (drops may reach further, like LevelSanity).
-func _one_hop(a: Rect2, b: Rect2) -> bool:
-	var gap := 0.0
-	if b.position.x > a.end.x:
-		gap = b.position.x - a.end.x
-	elif a.position.x > b.end.x:
-		gap = a.position.x - b.end.x
+func _hop(a: Rect2, b: Rect2) -> bool:
 	var rise := a.position.y - b.position.y
-	if rise > JUMP_RISE_MAX:
-		return false
-	if rise >= 0.0:
-		return gap <= JUMP_GAP_MAX
-	return gap <= minf(160.0, JUMP_GAP_MAX + (-rise) * 0.5)
+	var gap := maxf(0, maxf(b.position.x - a.end.x, a.position.x - b.end.x))
+	return rise <= 32 and gap <= minf(160, 72 + maxf(0, -rise) * 0.5)
 
 
-func _deck(m: MovingPlatform, at_end: bool) -> Rect2:
-	return Rect2(m.end_position() if at_end else m.start_position(), Vector2(m.width, DECK_H))
+func _still(host: Node, stop_lifts: bool = true) -> void:
+	for e in host.get_node("Enemies").get_children():
+		e.set_physics_process(false)
+	for h in LevelSanity.hazards(host):
+		h.set_physics_process(false)
+		if h is CyclicHazard:
+			h._set_armed(false)
+	if stop_lifts:
+		for p in host.get_node("Platforms").get_children():
+			if p is MovingPlatform:
+				p.set_physics_process(false)
 
 
-func test_metadata_names_the_workshop() -> void:
-	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
+func test_metadata_story_order_and_v2_paths_survive() -> void:
+	var host := _build()
+	var layout := L5.new()
 	add_child(layout)
-	eq(layout.level_id(), "level05")
-	ok(layout.title().contains("齿轮工坊"), "title names the gear workshop")
-	ok(layout.wake_line() != "", "an opening line")
+	eq(layout.title(), ChapterText.title_of("level05"))
+	eq(layout.wake_line(), ChapterText.wake_of("level05"))
 	eq(layout.theme(), "industrial")
-	ok(layout.indoors(), "the workshop has a roof")
-	eq(layout.east_limit(), 4000)
-	ok(layout.entry_spawn().x < 200.0, "the knight enters from the west")
+	ok(layout.indoors())
+	eq(layout.entry_spawn(), Vector2(96, 300))
+	for path in ["Props/EmberNestStart", "Props/EmberNestLift", "Props/EmberNestGate", "Props/EmberNestHoist",
+		"Props/GateAPlate", "Props/GateADoor", "Props/GateBPlate", "Props/GateBDoor", "Props/RustGate",
+		"Props/SteleQuench", "Props/SteleChain", "Props/SteleNook", "Pickups/TetherCoreE", "Pickups/RewardHoist"]:
+		ok(host.get_node_or_null(path) != null, "stable v2 path: " + path)
+	var exit := host.get_node("Props/Exit") as LevelExit
+	eq(exit.flag_id, "level05_done")
+	eq(exit.target_scene, GameContext.LEVELS["level06"])
+	eq(exit.spawn, ChapterLayout.entry_spawn_of("level06"))
+	ok(L5.EAST - exit.position.x >= 80)
+	for node_name in ["SteleQuench", "SteleChain", "SteleNook"]:
+		var stele := host.get_node("Props/" + node_name) as LoreStele
+		eq(stele.lore_text, String(ChapterText.stele_of("level05", node_name).get("text")))
 
 
-func test_quench_pit_has_headroom_below_both_gear_stones() -> void:
+func test_sanity_and_every_mainline_target_need_only_basic_moves() -> void:
 	var host := _build()
-	for enemy in host.get_node("Enemies").get_children(): enemy.set_physics_process(false)
-	var player := await spawn_player(host, Vector2(504, 348))
-	Input.action_press("move_right")
-	await flush(96)
-	Input.action_release("move_right")
-	ok(player.position.x > 640, "a fallen knight walks beneath both stones without getting trapped")
-	ok(player.health.current > 0, "the short recovery crossing is survivable")
-
-
-func test_lifts_board_and_land_within_one_hop() -> void:
-	var host := _build()
-	var floor_b := _rect_named(host, "FloorB")
-	var floor_c := _rect_named(host, "FloorC")
-	var floor_e := _rect_named(host, "FloorE")
-	var deck_d := _rect_named(host, "DeckD")
-	var lift_c := host.get_node_or_null("Platforms/LiftC") as MovingPlatform
-	var lift_d := host.get_node_or_null("Platforms/LiftD") as MovingPlatform
-	var e1 := host.get_node_or_null("Platforms/LiftE1") as MovingPlatform
-	var e2 := host.get_node_or_null("Platforms/LiftE2") as MovingPlatform
-	ok(lift_c != null and lift_d != null and e1 != null and e2 != null, "four chain lifts")
-	if lift_c == null or lift_d == null or e1 == null or e2 == null:
-		return
-	# C: the long crossing — boards off FloorB's east lip, lands on FloorC.
-	ok(_one_hop(floor_b, _deck(lift_c, false)), "lift C start deck is one hop off FloorB")
-	ok(_one_hop(_deck(lift_c, true), floor_c), "lift C end deck drops onto FloorC")
-	ok(lift_c.travel.y == 0.0 and lift_c.travel.x >= 256.0, "lift C rides across the whole coolant pool")
-	var pool_c := host.get_node_or_null("Props/PoolC") as ToxinPool
-	ok(pool_c != null, "coolant pool C under lift C")
-	if pool_c != null:
-		var pr := pool_c.surface_rect()
-		ok(lift_c.start_position().x <= pr.position.x and lift_c.end_position().x + lift_c.width >= pr.end.x,
-				"lift C spans pool C from lip to lip")
-	# D: vertical — boards from FloorC, tops out level with the plate deck.
-	ok(_one_hop(floor_c, _deck(lift_d, false)), "lift D start deck is a low step off FloorC")
-	ok(lift_d.travel.x == 0.0 and lift_d.travel.y <= -96.0, "lift D climbs at least 96px straight up")
-	ok(_one_hop(_deck(lift_d, true), deck_d), "lift D top deck is one hop from the plate deck")
-	ok(not _one_hop(floor_c, deck_d), "the plate deck cannot be jumped to from the floor")
-	# E1/E2: the relay — E1 boards off FloorC, hands over to E2, E2 lands on FloorE.
-	ok(_one_hop(floor_c, _deck(e1, false)), "lift E1 start deck is one hop off FloorC")
-	ok(_one_hop(_deck(e1, true), _deck(e2, false)), "E1's east end meets E2's west end")
-	ok(_one_hop(_deck(e2, true), floor_e), "lift E2 end deck drops onto FloorE")
-	almost(e1.period, e2.period, 0.001, "relay lifts share a period")
-	almost(absf(e2.phase - e1.phase), 0.5, 0.001, "relay lifts run half a period apart")
-	# Half a period after E1 leaves its west end it is at its east end while E2 is back west.
-	var half := e1.period * 0.5
-	almost(e1.position_at(half).x, e1.end_position().x, 0.01, "E1 reaches its east end at half period")
-	almost(e2.position_at(half + e2.phase * e2.period).x, e2.start_position().x, 0.01,
-			"E2 is at its west end when E1 arrives")
-	ok(e1.end_position().x + e1.width < e2.start_position().x, "relay decks never overlap")
-	for m in [lift_c, lift_d, e1, e2]:
-		ok((m as MovingPlatform).sync_to_physics, "%s carries its rider" % m.name)
-
-
-func test_pressure_plates_open_their_doors() -> void:
-	var host := _build()
-	var props := host.get_node("Props")
-	var tops := _tops(host)
-	var plate_a := props.get_node_or_null("GateAPlate") as PressurePlate
-	var door_a := props.get_node_or_null("GateADoor") as ArenaDoor
-	var plate_b := props.get_node_or_null("GateBPlate") as PressurePlate
-	var door_b := props.get_node_or_null("GateBDoor") as ArenaDoor
-	ok(plate_a != null and door_a != null and plate_b != null and door_b != null, "two plate/door pairs")
-	if plate_a == null or door_a == null or plate_b == null or door_b == null:
-		return
-	ok(plate_a.activated.is_connected(door_a.open_door), "plate A opens door A")
-	ok(plate_b.activated.is_connected(door_b.open_door), "plate B opens door B")
-	ok(not plate_a.activated.is_connected(door_b.open_door), "plate A does not open door B")
-	ok(_standing_on(tops, LevelSanity.feet_of(plate_a), LevelSanity.FOOT_SLACK_DOWN), "plate A rests on walkway B")
-	ok(_standing_on(tops, LevelSanity.feet_of(plate_b), LevelSanity.FOOT_SLACK_DOWN), "plate B rests on the lift-only deck")
-	ok(_standing_on(tops, door_a.position + Vector2(0, 64)), "door A foot meets the floor")
-	ok(_standing_on(tops, door_b.position + Vector2(0, 64)), "door B foot meets the floor")
-	# Plate A sits on the walkway whose stairs climb from the door side, west of door A.
-	var walk_b := _rect_named(host, "WalkB")
-	ok(plate_a.position.x > walk_b.position.x and plate_a.position.x < walk_b.end.x, "plate A on walkway B")
-	ok(walk_b.end.x < door_a.position.x, "walkway B lies before door A")
-	ok(walk_b.position.y <= 320.0 - 100.0, "walkway B is high enough that its spitter cannot hit the floor")
-	# Plate B's deck is reachable only from lift D's top: no other top hops onto it.
-	var deck_d := _rect_named(host, "DeckD")
-	var lift_d := host.get_node("Platforms/LiftD") as MovingPlatform
-	var lift_top := _deck(lift_d, true)
-	for r in tops:
-		if r == deck_d or r == lift_top:
-			continue
-		ok(not _one_hop(r, deck_d), "only lift D reaches the plate deck (not %s)" % r)
-	ok(deck_d.end.x < lift_d.start_position().x and lift_d.start_position().x < door_b.position.x,
-			"plate deck, lift D and door B run west to east")
-
-
-func test_gate_hook_and_spare_tether_core() -> void:
-	var host := _build()
-	var tops := _tops(host)
-	var gate := host.get_node_or_null("Props/RustGate") as RustyGate
-	ok(gate != null, "a heat-forge gate guards the slag road")
-	if gate != null:
-		ok(_standing_on(tops, gate.position + Vector2(8, 64)), "rust gate foot meets FloorE")
-	var hook := host.get_node_or_null("Hooks/HookE") as HookAnchor
-	var pick := host.get_node_or_null("Pickups/TetherCoreE") as CorePickup
-	ok(hook != null and pick != null, "hook anchor and spare tether core")
-	if hook == null or pick == null:
-		return
-	ok(pick.core != null and pick.core.id == &"tether_core", "the spare core is a tether core")
-	ok(hook.position.distance_to(pick.position) <= 96.0, "the core hangs within reach of the anchor")
-	var walk_e := _rect_named(host, "WalkE")
-	ok(pick.position.x >= walk_e.position.x and pick.position.x <= walk_e.end.x
-			and walk_e.position.y - pick.position.y <= 64.0 and walk_e.position.y > pick.position.y,
-			"the core floats just above walkway E")
-	ok(hook.position.y < walk_e.position.y, "the anchor hangs above the walkway")
-	# Without the hookshot the walkway is still climbable: FloorE -> three steps -> walkway.
-	var chain: Array[Rect2] = [_rect_named(host, "FloorE"), _rect_named(host, "StepE1"),
-			_rect_named(host, "StepE2"), _rect_named(host, "StepE3"), walk_e]
-	for i in range(1, chain.size()):
-		ok(_one_hop(chain[i - 1], chain[i]), "stair E hop %d is a single jump" % i)
-	ok(gate.position.x > _rect_named(host, "FloorE").position.x and gate.position.x < 2960.0,
-			"the gate stands between the relay landing and the exit")
-
-
-func test_checkpoints_exit_and_lore_are_placed() -> void:
-	var host := _build()
-	var props := host.get_node("Props")
-	var tops := _tops(host)
-	var nests: Array[EmberNest] = []
-	for nest_name in ["EmberNestStart", "EmberNestLift", "EmberNestGate", "EmberNestHoist"]:
-		var n := props.get_node_or_null(nest_name) as EmberNest
-		ok(n != null, "%s exists" % nest_name)
-		if n != null:
-			nests.append(n)
-			ok(_standing_on(tops, n.position + Vector2(6, 14)), "%s stands on a floor" % nest_name)
-	if nests.size() == 4:
-		var lift_c := host.get_node("Platforms/LiftC") as MovingPlatform
-		var gate := props.get_node("RustGate") as Node2D
-		ok(nests[0].position.x < 480.0, "first nest in the entry hall")
-		ok(nests[1].position.x > lift_c.end_position().x, "second nest waits after the long crossing")
-		ok(nests[2].position.x > 2512.0 and nests[2].position.x < gate.position.x,
-				"third nest after the relay, before the rust gate")
-		ok(nests[3].position.x > gate.position.x, "fourth nest waits past the rust gate, in the hoist run")
-	var exit := props.get_node_or_null("Exit") as LevelExit
-	ok(exit != null, "the slag road ends the level")
-	if exit != null:
-		eq(exit.target_scene, GameContext.LEVELS["level06"], "the slag road hops to level06")
-		eq(exit.flag_id, "level05_done")
-		eq(exit.door_label, "运渣道")
-		ok(_standing_on(tops, exit.position), "exit door stands on the hoist floor")
-		ok(exit.position.x <= 4000.0 - 80.0, "exit keeps clear of the east wall")
-		eq(exit.spawn, ChapterLayout.entry_spawn_of("level06"), "arrives at level06's entry spawn")
-	var quench := props.get_node_or_null("SteleQuench") as LoreStele
-	var chain_stele := props.get_node_or_null("SteleChain") as LoreStele
-	ok(quench != null and chain_stele != null, "two workshop steles")
-	if quench != null and chain_stele != null:
-		ok(quench.lore_title.begins_with("工坊遗训") and chain_stele.lore_title.begins_with("工坊遗训"),
-				"both steles carry the workshop precepts")
-		ok(_standing_on(tops, quench.position), "quench stele on FloorA")
-		var deck_d := _rect_named(host, "DeckD")
-		ok(chain_stele.position.x > deck_d.position.x and chain_stele.position.x < deck_d.end.x
-				and absf(chain_stele.position.y - deck_d.position.y) < 0.5, "chain stele hides on the lift-only deck")
-	for pool_name in ["PitBPool", "PoolC", "PitEPool"]:
-		ok(props.get_node_or_null(pool_name) is ToxinPool, "%s exists" % pool_name)
-	ok(host.get_node_or_null("Waymarks/Sign_工坊") != null, "entry sign")
-	ok(host.get_node_or_null("Waymarks/Sign_渣道") != null, "slag road sign")
-	ok(host.get_node_or_null("IndoorZone") is AtmosphereZone, "whole level is an indoor zone")
-	ok(host.get_node_or_null("ParallaxBackdrop") is CanvasLayer, "industrial backdrop built")
-
-
-func test_step_chains_are_single_jumps() -> void:
-	var host := _build()
-	var chains := [
-		# quench pit: FloorA lip -> two gear stones -> FloorB
-		["FloorA", "GearB1", "GearB2", "FloorB"],
-		# walkway B stairs, climbed westward from the door side
-		["FloorB", "StepB1", "StepB2", "StepB3", "WalkB"],
-		# coolant pool C escape: bed -> lip -> floor, both sides
-		["BedC", "LipC1", "FloorB"],
-		["BedC", "LipC2", "FloorC"],
-		# quench / relay pits climb straight out
-		["PitBBed", "FloorA"], ["PitBBed", "FloorB"],
-		["PitEBed", "FloorC"], ["PitEBed", "FloorE"],
-		# G 吊装下层：吊台 F 的出发/落点都在一跳内，坑底能直接爬回两岸
-		["FloorE", "LiftF@start"], ["LiftF@end", "FloorG"],
-		["PitFBed", "FloorE"], ["PitFBed", "FloorG"],
-	]
-	var platforms := host.get_node("Platforms")
-	for chain in chains:
-		for i in range(1, chain.size()):
-			var a := _named_rect(platforms, String(chain[i - 1]))
-			var b := _named_rect(platforms, String(chain[i]))
-			ok(a.has_area() and b.has_area(), "%s and %s exist" % [chain[i - 1], chain[i]])
-			ok(_one_hop(a, b), "%s -> %s is a single hop" % [chain[i - 1], chain[i]])
-
-
-func _named_rect(platforms: Node, plat_name: String) -> Rect2:
-	if plat_name.ends_with("@start") or plat_name.ends_with("@end"):
-		var m := platforms.get_node_or_null(plat_name.get_slice("@", 0)) as MovingPlatform
-		if m != null:
-			return _deck(m, plat_name.ends_with("@end"))
-		return Rect2()
-	var node := platforms.get_node_or_null(plat_name)
-	if node is SolidPlatform:
-		return Rect2((node as SolidPlatform).position, (node as SolidPlatform).size)
-	if node is GearPlatform:
-		var g := node as GearPlatform
-		return Rect2(g.position - Vector2(g.radius, g.radius), Vector2(g.radius * 2.0, g.radius * 2.0))
-	if node is MovingPlatform:
-		return _deck(node as MovingPlatform, false)
-	return Rect2()
-
-
-func test_enemies_stand_where_they_are_placed() -> void:
-	var host := _build()
-	var tops := _tops(host)
-	var enemies := host.get_node("Enemies")
-	eq(enemies.get_child_count(), 9, "nine enemies")
-	var kinds := {}
-	for child in enemies.get_children():
-		var e := child as Node2D
-		var cls := (e.get_script() as Script).get_global_name()
-		kinds[cls] = int(kinds.get(cls, 0)) + 1
-		if e is GhostEnemy or e is FlyingDemonEnemy:
-			ok(not _standing_on(tops, e.position, 8.0), "%s floats free of any deck" % e.name)
-		else:
-			ok(_standing_on(tops, e.position, 4.0), "%s stands on a platform" % e.name)
-	eq(int(kinds.get("SpitterEnemy", 0)), 2, "two spitters")
-	eq(int(kinds.get("ScrapperEnemy", 0)), 3, "three scrappers")
-	eq(int(kinds.get("GearShieldEnemy", 0)), 1, "one gear shield")
-	eq(int(kinds.get("GhostEnemy", 0)), 2, "two ghosts")
-	eq(int(kinds.get("FlyingDemonEnemy", 0)), 1, "one flying demon")
-	# Spitters hold opposite ends of the two walkways, too high to hit anyone on the floor,
-	# and face different stair climbs.
-	var s1 := enemies.get_node_or_null("Spitter1") as Node2D
-	var s2 := enemies.get_node_or_null("Spitter2") as Node2D
-	var walk_b := _rect_named(host, "WalkB")
-	var walk_e := _rect_named(host, "WalkE")
-	if s1 != null and s2 != null:
-		ok(s1.position.x - walk_b.position.x <= 24.0, "spitter 1 holds walkway B's west end")
-		ok(walk_e.end.x - s2.position.x <= 24.0, "spitter 2 holds walkway E's east end")
-		ok(320.0 - s1.position.y > 96.0 and 320.0 - s2.position.y > 96.0, "walkway spitters cannot fire at the floor")
-		ok(s2.position.x - s1.position.x > 380.0 * 2.0, "the two spitters never cover the same jump")
-	var demon := enemies.get_node_or_null("FlyingDemon1") as Node2D
-	var pool_c := host.get_node_or_null("Props/PoolC") as ToxinPool
-	if demon != null and pool_c != null:
-		var pr := pool_c.surface_rect()
-		ok(demon.position.x > pr.position.x and demon.position.x < pr.end.x and demon.position.y < pr.position.y,
-				"the demon circles above the long coolant pool")
-	var guard := enemies.get_node_or_null("GearShield1") as Node2D
-	var gate := host.get_node_or_null("Props/RustGate") as Node2D
-	if guard != null and gate != null:
-		ok(guard.position.x < gate.position.x and gate.position.x - guard.position.x <= 96.0,
-				"the gear shield stands just before the rust gate")
-
-
-func test_level_sanity_is_clean_on_a_bare_host() -> void:
-	var host := _build()
-	await flush(2)
 	var problems := LevelSanity.check(host)
-	for p in problems:
-		ok(false, p)
-	ok(problems.is_empty(), "LevelSanity clean (%d problems)" % problems.size())
-	var spawn := _layout.entry_spawn()
-	for nest in host.get_node("Props").get_children():
-		if nest is EmberNest:
-			ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest)), "%s reachable from spawn" % nest.name)
-	var exit := host.get_node("Props/Exit") as Node2D
-	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit)), "exit reachable from spawn")
+	ok(problems.is_empty(), "sanity: %s" % [problems])
+	for node in LevelSanity._descendants(host):
+		if node is EmberNest or node is PressurePlate or node is LevelExit or node is RustyGate or node is CorePickup:
+			ok(LevelSanity.is_reachable(host, L5.SPAWN, LevelSanity.feet_of(node), false),
+				"main route needs no hook / extra jump: %s" % node.name)
+	var core := host.get_node("Pickups/TetherCoreE") as CorePickup
+	eq(core.core.id, &"tether_core")
+	ok(_rect(host, "WalkE").has_point(core.position + Vector2(0, 33)), "core sits above the stair-accessible service walk")
 
 
-## G 吊装下层（3040 → 4000）：锈门后的第二段运渣道。吊台 F 横渡第二口冷却槽，
-## 坑底能爬回两岸；吊装检修台是钩锁支路，带 1 个奖励位；出口在下层东端。
-func test_hoist_lower_level_lift_reward_and_exit() -> void:
+func test_three_distinct_floors_are_traversable_and_stairs_work_both_ways() -> void:
 	var host := _build()
-	var tops := _tops(host)
-	var floor_e := _rect_named(host, "FloorE")
-	var floor_g := _rect_named(host, "FloorG")
-	var lift_f := host.get_node_or_null("Platforms/LiftF") as MovingPlatform
-	ok(lift_f != null, "the second coolant pit is crossed by lift F")
-	if lift_f != null:
-		ok(_one_hop(floor_e, _deck(lift_f, false)), "lift F boards from FloorE's east lip")
-		ok(_one_hop(_deck(lift_f, true), floor_g), "lift F lands on the hoist floor")
-		ok(lift_f.travel.x >= 200.0 and lift_f.travel.y == 0.0, "lift F rides across the second pit")
-	var pit_f := host.get_node_or_null("Props/PitFPool") as ToxinPool
-	ok(pit_f != null, "second coolant pool exists")
-	if pit_f != null and lift_f != null:
-		var pr := pit_f.surface_rect()
-		ok(lift_f.start_position().x <= pr.position.x and lift_f.end_position().x + lift_f.width >= pr.end.x,
-				"lift F spans the second pool from lip to lip")
-	var nest := host.get_node_or_null("Props/EmberNestHoist") as EmberNest
-	ok(nest != null, "the hoist run has its own checkpoint")
-	if nest != null:
-		ok(_standing_on(tops, nest.position + Vector2(6, 14)), "hoist nest stands on FloorE")
-		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), LevelSanity.feet_of(nest), false),
-				"hoist nest is reachable on the main route")
-	# 吊装检修台：钩锁支路，主路线跳不上去，奖励位在台上。
-	var deck := _rect_named(host, "HoistDeck")
-	var anchor := host.get_node_or_null("Hooks/HookHoist") as HookAnchor
-	var reward := host.get_node_or_null("Pickups/RewardHoist") as EquipmentPickup
-	ok(deck.has_area() and anchor != null and reward != null, "hoist deck, anchor and reward exist")
-	if deck.has_area() and anchor != null and reward != null:
-		ok(anchor.position.y < deck.position.y, "hoist anchor hangs above the deck")
-		ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW,
-				"hoist deck is a tether drop under the anchor")
-		ok(_standing_on(tops, LevelSanity.feet_of(reward)), "reward rests on the hoist deck")
-		eq(String(reward.get("reward_kind")), "equipment")
-		ok(String(reward.get("reward_ref")) != "")
-		var feet := LevelSanity.feet_of(reward)
-		ok(not LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, false),
-				"the main route cannot reach the hoist deck")
-		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, true),
-				"the hookshot reaches the hoist deck")
-	var exit := host.get_node_or_null("Props/Exit") as LevelExit
-	ok(exit != null, "the hoist run ends at the slag road door")
-	if exit != null:
-		ok(_standing_on(tops, exit.position), "exit stands on the hoist floor")
-		ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), LevelSanity.feet_of(exit), false),
-				"exit is reachable without optional abilities")
+	for chain in L5.STAIR_CHAINS:
+		for i in range(1, chain.size()):
+			ok(_hop(_rect(host, chain[i - 1]), _rect(host, chain[i])), "%s → %s is a single jump" % [chain[i - 1], chain[i]])
+	for point in [Vector2(1080, 224), Vector2(1480, 112), Vector2(1808, 112), Vector2(2008, 224), Vector2(2768, 224), Vector2(3264, 112)]:
+		ok(LevelSanity.is_reachable(host, L5.SPAWN, point, false), "real three-tier route reaches %s" % point)
+		ok(LevelSanity.is_reachable(host, point, Vector2(L5.NEST_HOIST_X, 320), false), "every tier returns to the lower route")
+	ok(320 - _rect(host, "DeckD").position.y >= 200, "top rail is substantially higher than the machine floor")
+	var pools := 0
+	for n in LevelSanity._descendants(host):
+		if n is ToxinPool:
+			pools += 1
+	eq(pools, 0, "the old acid-and-stones corridor has been replaced")
 
 
-## 长冷却池上方的检修龛：本章的支路。主路线（allow_hook=false）跳不上去，
-## 有钩锁时从 FloorC 东端拉上去；龛里是最后一条工坊遗训，不是第二枚同名核。
-func test_hook_nook_is_an_optional_lore_branch() -> void:
+func test_five_lifts_dock_and_relay_without_passing_through_solids() -> void:
 	var host := _build()
-	var nook := host.get_node_or_null("Platforms/NookDeck") as SolidPlatform
-	var anchor := host.get_node_or_null("Hooks/HookNook") as HookAnchor
-	var stele := host.get_node_or_null("Props/SteleNook") as LoreStele
-	ok(nook != null and anchor != null and stele != null, "nook deck, anchor and stele exist")
-	if nook == null or anchor == null or stele == null:
-		return
-	ok(anchor.position.y < nook.position.y, "anchor hangs above the nook")
-	ok(nook.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "nook is a tether drop under the anchor")
-	var floor_c := _rect_named(host, "FloorC")
-	var launch := Vector2(clampf(anchor.position.x, floor_c.position.x, floor_c.end.x), floor_c.position.y - 48.0)
-	ok(launch.distance_to(anchor.position) <= LevelSanity.HOOK_REACH, "anchor is within tether reach of FloorC")
-	ok(_standing_on(_tops(host), LevelSanity.feet_of(stele), LevelSanity.FOOT_SLACK_DOWN), "stele stands on the nook")
-	ok(String(stele.lore_title).begins_with("工坊遗训"), "nook stele is workshop lore")
-	var feet := LevelSanity.feet_of(stele)
-	ok(not LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, false),
-			"the main route cannot reach the nook")
-	ok(LevelSanity.is_reachable(host, _layout.entry_spawn(), feet, true),
-			"the hookshot reaches the nook")
+	var d := host.get_node("Platforms/LiftD") as MovingPlatform
+	var c := host.get_node("Platforms/LiftC") as MovingPlatform
+	var f := host.get_node("Platforms/LiftF") as MovingPlatform
+	var e1 := host.get_node("Platforms/LiftE1") as MovingPlatform
+	var e2 := host.get_node("Platforms/LiftE2") as MovingPlatform
+	ok(_hop(_rect(host, "FloorB"), _deck(d, false)), "D boards from the machine floor")
+	ok(_hop(_deck(d, true), _rect(host, "DeckD")), "D lands beside pressure plate B")
+	ok(_hop(_rect(host, "DeckD"), _deck(c, false)), "drop from top deck boards C")
+	ok(_hop(_deck(c, true), _rect(host, "MidLanding")), "C delivers to the middle dock")
+	ok(_hop(_rect(host, "WalkE"), _deck(f, false)), "F boards from the core walkway")
+	ok(_hop(_deck(f, true), _deck(e1, false)), "F connects to the top relay")
+	ok(_hop(_deck(e1, true), _deck(e2, false)), "relay decks meet across a 16px gap")
+	ok(_hop(_deck(e2, true), _rect(host, "HoistRailEnd")), "relay lands on its static return deck")
+	almost(absf(e1.phase - e2.phase), 0.5)
+	almost(e1.period, e2.period)
+	for lift in [c, d, f, e1, e2]:
+		ok(lift.sync_to_physics, "%s carries riders" % lift.name)
+		var a: Vector2 = lift.start_position()
+		var b: Vector2 = lift.end_position()
+		var swept := Rect2(Vector2(minf(a.x, b.x), minf(a.y, b.y)), Vector2(absf(a.x - b.x) + lift.width, absf(a.y - b.y) + 16))
+		for p in host.get_node("Platforms").get_children():
+			if p is SolidPlatform:
+				ok(not swept.grow(-0.1).intersects(Rect2(p.position, p.size)), "%s never cuts through %s" % [lift.name, p.name])
+
+
+func test_real_player_rides_D_and_jumps_to_the_upper_plate_deck() -> void:
+	var host := _build()
+	_still(host, false)
+	var player := await spawn_player(host, Vector2(1272, 270))
+	player.controller.extra_jumps_unlocked = false
+	await flush(158)
+	ok(player.position.y < 150, "native platform carrying lifts the real knight to the upper tier")
+	Input.action_press("move_right")
+	Input.action_press("jump")
+	await flush(30)
+	Input.action_release("jump")
+	Input.action_release("move_right")
+	await flush(18)
+	ok(player.is_on_floor() and player.position.x >= 1312 and player.position.y < 118,
+		"single jump disembarks onto DeckD without hook / extra jump")
+
+
+func test_plate_wiring_is_independent_and_core_walk_has_east_return_steps() -> void:
+	var host := _build()
+	_still(host)
+	for pair in ["GateA", "GateB"]:
+		var plate := host.get_node("Props/" + pair + "Plate") as PressurePlate
+		var door := host.get_node("Props/" + pair + "Door") as ArenaDoor
+		ok(plate.activated.is_connected(door.open_door))
+		plate.activated.emit()
+		ok(door.is_open)
+	var a := host.get_node("Props/GateAPlate") as PressurePlate
+	var b := host.get_node("Props/GateBDoor") as ArenaDoor
+	ok(not a.activated.is_connected(b.open_door), "A does not silently open B")
+	var player := await spawn_player(host, Vector2(3384, 300))
+	player.controller.extra_jumps_unlocked = false
+	Input.action_press("move_left")
+	Input.action_press("jump")
+	await flush(26)
+	Input.action_release("jump")
+	Input.action_release("move_left")
+	await flush(16)
+	ok(player.is_on_floor() and player.position.y < 292, "falling east of the service walk retains a physical recovery stair")
+
+
+func test_conveyor_teaching_has_real_motion_and_warned_reversal() -> void:
+	var host := _build()
+	_still(host)
+	var belt := host.get_node("Platforms/QuenchBelt") as ConveyorBelt
+	var player := await spawn_player(host, Vector2(552, 300))
+	var start_x := player.position.x
+	await flush(45)
+	ok(player.position.x > start_x + 16, "the authored belt carries a standing real knight")
+	var reverse := host.get_node("Platforms/ReturnBelt") as ConveyorBelt
+	almost(reverse.velocity_at(1.0), -36)
+	almost(reverse.velocity_at(5.0), 0, 0.001, "0.6s stop telegraphs reversal")
+	almost(reverse.velocity_at(5.5), 36)
+	ok(absf(reverse.speed) <= ConveyorBelt.MAX_SPEED)
+	ok(belt.get_node_or_null("HazardHint") is HintArea)
+
+
+func test_steam_is_separate_from_belts_and_first_meet_has_safe_landing_pads() -> void:
+	var host := _build()
+	var first := host.get_node("Props/SteamQuench") as CyclicHazard
+	var band := first.hit_rect()
+	ok(band.position.x - 1568 >= 48 and 1728 - band.end.x >= 48, "first vent has at least 48px clear pads on both sides")
+	for vent_spec in L5.VENTS:
+		var vent := host.get_node("Props/" + String(vent_spec[0])) as CyclicHazard
+		ok(vent.telegraph_time >= 0.5 and vent.rest_time + vent.telegraph_time >= 1.2)
+		ok(vent.get_node_or_null("HazardHint") is HintArea)
+		for belt_spec in L5.BELTS:
+			var belt_rect := _rect(host, belt_spec[0])
+			ok(vent.hit_rect().end.x + 48 <= belt_rect.position.x or vent.hit_rect().position.x - 48 >= belt_rect.end.x,
+				"vent %s and belt %s are in separate horizontal sections" % [vent.name, belt_spec[0]])
+	for e in host.get_node("Enemies").get_children():
+		if e is SpitterEnemy and absf(e.position.y - 288) > 96:
+			continue
+		var radius := float(e.get("wake_range")) if e is GhostEnemy else float(e.get("aggro_range"))
+		ok(e.position.distance_to(Vector2(1648, 288)) > radius, "first steam lesson is outside %s's wake / fire range" % e.name)
+
+
+func test_real_player_can_cross_the_first_steam_during_its_safe_window() -> void:
+	var host := _build()
+	_still(host)
+	var player := await spawn_player(host, Vector2(1584, 268))
+	var hp := player.health.current
+	var wave := host.get_node("Props/SteamQuench") as CyclicHazard
+	ok(wave.safe_window(1.4), "the safe interval covers a normal walk across")
+	wave.set_physics_process(true)
+	Input.action_press("move_right")
+	await flush(76)
+	Input.action_release("move_right")
+	ok(player.position.x > 1704, "normal movement crosses the authored steam corridor")
+	eq(player.health.current, hp, "the timed crossing is damage free")
+
+
+func test_exposed_player_is_hurt_by_active_steam_but_safe_pad_is_clear() -> void:
+	var host := _build()
+	_still(host)
+	var player := await spawn_player(host, Vector2(1648, 268))
+	var hp := player.health.current
+	var wave := host.get_node("Props/SteamQuench") as CyclicHazard
+	wave.tick(wave.seconds_until_active() + 0.3)
+	await flush(8)
+	eq(player.health.current, hp - 1, "the steam uses its real hitbox")
+	var safe := Vector2(1584, 288)
+	ok(not wave.hit_rect().grow(16).has_point(safe), "the nearby waiting pad stays outside damage")
+
+
+func test_all_four_nests_remain_safe_with_six_seconds_of_live_enemy_AI() -> void:
+	for x in [L5.NEST_START_X, L5.NEST_LIFT_X, L5.NEST_GATE_X, L5.NEST_HOIST_X]:
+		var host := _build()
+		var player := await spawn_player(host, Vector2(x + 6, 300))
+		var hp := player.health.current
+		await flush(360)
+		eq(player.health.current, hp, "nest x=%s remains unharmed for six seconds" % x)
+		for e in host.get_node("Enemies").get_children():
+			ok(e.position.distance_to(player.position) > 96, "nest %s never attracts %s" % [x, e.name])
+		host.free()
+		await flush(1)
+	var gaps := [L5.NEST_LIFT_X - L5.NEST_START_X, L5.NEST_GATE_X - L5.NEST_LIFT_X, L5.NEST_HOIST_X - L5.NEST_GATE_X]
+	for gap in gaps:
+		ok(gap <= 1000, "checkpoint spacing stays under 1000px")
+	ok(L5.EXIT_X - L5.NEST_HOIST_X < 1000)
+
+
+func test_top_return_drop_and_hook_reward_branches_are_optional() -> void:
+	var host := _build()
+	var tops := LevelSanity.top_segments(host)
+	var rail := LevelSanity.standing_on(tops, Vector2(432, 112))
+	var floor_seg := LevelSanity.standing_on(tops, Vector2(376, 320))
+	ok(LevelSanity._can_hop(rail, floor_seg) and not LevelSanity._can_hop(floor_seg, rail), "western rail drops one way near the previous nest")
+	ok(absf(376 - L5.NEST_START_X) <= 240)
+	for path in ["Props/SteleNook", "Pickups/RewardHoist"]:
+		var node := host.get_node(path)
+		ok(not LevelSanity.is_reachable(host, L5.SPAWN, LevelSanity.feet_of(node), false), "optional route remains hook only: " + path)
+		ok(LevelSanity.is_reachable(host, L5.SPAWN, LevelSanity.feet_of(node), true), "hook reaches " + path)
+	var reward := host.get_node("Pickups/RewardHoist") as EquipmentPickup
+	eq(reward.reward_ref, "iron_carapace")
+	var support := LevelSanity.standing_on(tops, LevelSanity.feet_of(reward))
+	ok(support != null and support.owner_name == "HoistDeck", "reward sits on stable challenge support")
+	var vent := host.get_node("Props/SteamHoist") as CyclicHazard
+	ok(reward.position.x > vent.hit_rect().end.x + 48, "the reward waits beyond the optional vent with a safe landing")
+	eq((host.get_node("Enemies/Scrapper1") as EnemyBase).variant, &"armored_scrapper")
+	eq((host.get_node("Enemies/GearShield1") as EnemyBase).variant, &"heavy_guard")
+	eq(host.get_node("Enemies").get_child_count(), 10)
