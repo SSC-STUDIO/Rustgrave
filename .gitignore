@@ -29,3 +29,6 @@ build/
 .agents/
 .zcode/
 .zcodeignore
+
+# Generated test artifacts and ad-hoc exports do not belong in source control.
+/artifacts/
