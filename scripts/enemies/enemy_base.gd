@@ -27,6 +27,12 @@ const MARK_OFFSET := Vector2(0.0, -34.0)
 
 @export var patrol_range: float = 64.0
 @export var patrol_speed: float = 40.0
+## 变体预设（EnemyVariants.TABLE 的键）；空 = 原版。
+@export var variant: StringName = &""
+## 群警戒半径：这只敌人读招 / 受击时，半径内的同伴被唤起 ALERT_HOLD 秒（0 = 不警戒，保持原行为）。
+@export var alert_radius: float = 0.0
+## 脱战距离：骑士比这更远（水平）时，追击型敌人放弃追击、回出生点（0 = 不脱战，保持原行为）。
+@export var lose_range: float = 0.0
 @export var drop_equipment: EquipmentItem = null
 @export var drop_equipment_id: StringName = &""
 @export_range(0.0, 1.0) var drop_equipment_chance: float = 1.0
@@ -53,6 +59,11 @@ var _riposte_mark: CombatMarker
 var _opening_mark: CombatMarker
 var _yank_tween: Tween
 var _knight_ref: Player
+## 被同伴唤起后还剩多少秒（见 alert_peers）。
+var _alerted_left: float = 0.0
+## 群警戒：被唤起的同伴 aggro 范围放大的倍数与持续时间。
+const ALERT_HOLD := 3.0
+const ALERT_RANGE_SCALE := 1.5
 
 
 func _ready() -> void:
@@ -65,7 +76,10 @@ func _ready() -> void:
 	_flash_target = get_node_or_null("Visual") as CanvasItem
 	# No riposte window is open at spawn; _process re-arms itself when one opens.
 	set_process(false)
+	var variant_on := variant != &"" and EnemyVariants.apply_pre(self, variant)
 	_enemy_ready()
+	if variant_on:
+		EnemyVariants.apply_post(self, variant)
 
 
 ## 子类初始化钩子：设 max_hp、装配视觉、接特有信号等。
@@ -87,6 +101,8 @@ func knight() -> Player:
 func _physics_process(delta: float) -> void:
 	if _dead:
 		return
+	if _alerted_left > 0.0:
+		_alerted_left = maxf(0.0, _alerted_left - delta)
 	# 过场锁玩家时敌人也停手，否则 Boss 介绍里仍会被砍/被射。
 	if Director.is_input_locked():
 		if _mobile:
@@ -171,6 +187,7 @@ func _on_hit(attacker: Node, target: Node, amount: int) -> void:
 	_flash_white()
 	if amount <= 0:
 		return
+	alert_peers()
 	var killed := health != null and health.current <= 0
 	var row := CombatRules.feel(hit_material, CombatRules.weight_for(attacker, amount, killed))
 	_hurt_lock = maxf(_hurt_lock, float(row["lock"]))
@@ -316,6 +333,45 @@ func yank_to(point: Vector2, duration: float = 0.22) -> bool:
 func begin_telegraph(kind: StringName, duration: float) -> void:
 	telegraph_kind = kind
 	telegraph_started.emit(kind, duration)
+	alert_peers()
+
+
+# ---------------------------------------------------------------------------
+# 群警戒 / 脱战（默认关闭：alert_radius / lose_range 为 0 时与旧行为完全一致）
+# ---------------------------------------------------------------------------
+## 唤起半径内的同伴：只通知，不强迫；同伴自己决定怎么响应（on_alerted）。
+func alert_peers() -> void:
+	if alert_radius <= 0.0 or _dead or not is_inside_tree():
+		return
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node == self or not (node is EnemyBase):
+			continue
+		var peer := node as EnemyBase
+		if peer._dead:
+			continue
+		if global_position.distance_to(peer.global_position) <= alert_radius:
+			peer.on_alerted(self)
+
+
+## 被同伴唤起：默认只是记一段时间，aggro 范围放大（alert_scale）。子类可覆盖（骸骨起身）。
+func on_alerted(_source: EnemyBase) -> void:
+	_alerted_left = ALERT_HOLD
+
+
+func is_alerted() -> bool:
+	return _alerted_left > 0.0
+
+
+## 乘在 aggro / wake 范围上的倍数：被唤起期间 1.5，否则 1。
+func alert_scale() -> float:
+	return ALERT_RANGE_SCALE if _alerted_left > 0.0 else 1.0
+
+
+## 骑士是否已远到该放弃追击（lose_range = 0 永远 false）。
+func lost_target(player: Node2D) -> bool:
+	if lose_range <= 0.0 or player == null:
+		return false
+	return absf(player.global_position.x - global_position.x) > lose_range
 
 
 ## 出招后露出破绽：头顶一个金色箭头，持续 duration 秒。
@@ -398,6 +454,8 @@ func _try_drop_equipment() -> void:
 ## 播报，最后 queue_free。掉落物等差异由子类在调用前自行生成。
 func _death_burst(frames: Array[Texture2D], fps: float, flip: bool,
 		baseline: float, message: String) -> void:
+	if has_meta("variant_blast"):
+		EnemyVariants.death_blast(self)
 	_try_drop_equipment()
 	_disable_combat()
 	if frames.is_empty():

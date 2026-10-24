@@ -45,6 +45,7 @@ func _spawn_actors(restored: bool) -> void:
 		_player.position = SaveData.consume_pending_spawn()
 	elif restored and SaveData.data.has("player") and (SaveData.data["player"] as Dictionary).has("pos"):
 		_player.position = SaveData.data["player"]["pos"]
+	_player.position = SpawnSafety.safe_position(self, _player.position, DEFAULT_SPAWN)
 	if restored:
 		SaveData.apply_player(_player)
 		SaveData.apply_world(self)

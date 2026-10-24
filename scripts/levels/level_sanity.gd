@@ -67,11 +67,15 @@ class TopSeg:
 	var x1: float
 	var y: float
 	var owner_name: String
-	func _init(a: float, b: float, top: float, who: String) -> void:
+	## "" 普通台面；"collapsing" 塌陷台；"conveyor" 传送带（后两者不能当休息点的支撑）。
+	var kind: String = ""
+
+	func _init(a: float, b: float, top: float, who: String, p_kind: String = "") -> void:
 		x0 = a
 		x1 = b
 		y = top
 		owner_name = who
+		kind = p_kind
 
 
 static func check(host: Node, camera_limits: Rect2 = Rect2()) -> Array[String]:
@@ -97,6 +101,7 @@ static func check(host: Node, camera_limits: Rect2 = Rect2()) -> Array[String]:
 	_check_floor_gaps(host, tops, problems)
 	_check_bounds(host, entries, camera_limits, problems)
 	_check_exit_clearance(host, camera_limits, problems)
+	_check_hazards(host, tops, problems)
 	return problems
 
 
@@ -128,7 +133,12 @@ static func top_segments(host: Node) -> Array[TopSeg]:
 			# anything thinner than 24px wide or whose top is at/above the ceiling line.
 			if p.size.x < 24.0 or String(p.name).begins_with("Ceiling") or p.has_meta("non_walkable"):
 				continue
-			segs.append(TopSeg.new(p.global_position.x, p.global_position.x + p.size.x, p.global_position.y, String(p.name)))
+			var kind := ""
+			if p is CollapsingPlatform:
+				kind = "collapsing"
+			elif p is ConveyorBelt:
+				kind = "conveyor"
+			segs.append(TopSeg.new(p.global_position.x, p.global_position.x + p.size.x, p.global_position.y, String(p.name), kind))
 		elif node is MovingPlatform:
 			var m := node as MovingPlatform
 			var a := _to_global(m, m.start_position())
@@ -577,6 +587,98 @@ static func _check_exit_clearance(_host: Node, limits: Rect2, problems: Array[St
 			problems.append("exit %s at x=%.0f hugs the east wall (limit %.0f, need >= %.0fpx clear)" % [node.name, x, limits.end.x, EXIT_WALL_CLEAR])
 		if x < limits.position.x + EXIT_WALL_CLEAR:
 			problems.append("exit %s at x=%.0f hugs the west wall (limit %.0f, need >= %.0fpx clear)" % [node.name, x, limits.position.x, EXIT_WALL_CLEAR])
+
+
+## ----------------------------------------------------------------- hazards --
+## 机关工具箱（scripts/hazards/）的体检。规则见 docs/level_authoring.md §8：
+##   · 周期机关预警 ≥ MIN_TELEGRAPH，且每个周期里"休止 + 预警"至少 HAZARD_SAFE_SPAN 秒；
+##   · 喷口 / 落点立在台面上；机关的判定区离余烬巢、压板、出口、碑、锈核、门至少 HAZARD_CLEARANCE；
+##   · 塌陷台 / 传送带不得是巢、压板、出口、门、碑的唯一支撑，也不能当敌人的站台；
+##   · 外力区不盖余烬巢与出口；摆锤摆幅限制在 PendulumHazard 的上下限之内。
+const HAZARD_CLEARANCE := 40.0
+const HAZARD_SAFE_SPAN := 1.2
+const HAZARD_MAX_ACTIVE := 1.6
+
+
+## 关卡里所有机关节点（"hazards" 组；bot 与测试读它）。
+static func hazards(host: Node) -> Array[Node2D]:
+	var out: Array[Node2D] = []
+	for node in _descendants(host):
+		if node is Node2D and node.is_in_group(&"hazards") and node.has_meta("hazard_kind"):
+			out.append(node as Node2D)
+	return out
+
+
+static func _is_rest_prop(node: Node) -> bool:
+	return node is EmberNest or node is PressurePlate or node is LevelExit or node is ArenaDoor \
+			or node is RustyGate or node is LoreStele or node is ForgeHeart or node is CorePickup
+
+
+static func _check_hazards(host: Node, tops: Array[TopSeg], problems: Array[String]) -> void:
+	var found := hazards(host)
+	var rest_props: Array[Node2D] = []
+	for node in _descendants(host):
+		if _is_rest_prop(node) and node is Node2D:
+			rest_props.append(node as Node2D)
+	# 塌陷台 / 传送带上不许有休息点与固定装置，也不许站敌人。
+	for prop in rest_props:
+		if prop is CorePickup:
+			continue
+		var feet := feet_of(prop)
+		if feet == Vector2.INF:
+			continue
+		var seg := standing_on(tops, feet)
+		if seg != null and seg.kind != "":
+			problems.append("%s (%s) stands on %s %s — a %s surface is not a safe place to rest" % [prop.name, _cls(prop), seg.kind, seg.owner_name, seg.kind])
+	for node in _descendants(host):
+		if not (node is EnemyBase):
+			continue
+		var enemy := node as Node2D
+		var airborne := node is FlyingDemonEnemy or node is GhostEnemy \
+				or (node.has_method("is_airborne") and bool(node.call("is_airborne")))
+		if airborne:
+			continue
+		var seg2 := standing_on(tops, enemy.global_position, ENEMY_FOOT_SLACK, ENEMY_FOOT_SLACK)
+		if seg2 != null and seg2.kind == "collapsing":
+			problems.append("%s (%s) stands on collapsing platform %s" % [node.name, _cls(node), seg2.owner_name])
+	for hz in found:
+		var kind := String(hz.get_meta("hazard_kind", ""))
+		var zone := Rect2()
+		match kind:
+			"cyclic":
+				var c := hz as CyclicHazard
+				zone = c.hit_rect()
+				if c.telegraph_time < CyclicHazard.MIN_TELEGRAPH - 0.001:
+					problems.append("hazard %s telegraphs only %.2fs (< %.2fs)" % [hz.name, c.telegraph_time, CyclicHazard.MIN_TELEGRAPH])
+				if c.rest_time + c.telegraph_time < HAZARD_SAFE_SPAN:
+					problems.append("hazard %s leaves only %.2fs safe per cycle (< %.2fs)" % [hz.name, c.rest_time + c.telegraph_time, HAZARD_SAFE_SPAN])
+				if c.active_time > HAZARD_MAX_ACTIVE:
+					problems.append("hazard %s stays active %.2fs (> %.2fs)" % [hz.name, c.active_time, HAZARD_MAX_ACTIVE])
+				if HazardFx.cardinal(c.facing) == Vector2.UP and c.skin != "bell" \
+						and standing_on(tops, c.global_position, 4.0, 8.0) == null:
+					problems.append("hazard %s vents from thin air at %s" % [hz.name, c.global_position])
+				if c.skin == "bell" or c.skin == "shock":
+					if standing_on(tops, c.global_position, 4.0, 8.0) == null:
+						problems.append("hazard %s lands on nothing at %s" % [hz.name, c.global_position])
+			"pendulum":
+				var p := hz as PendulumHazard
+				zone = p.danger_rect()
+				if p.swing_deg > PendulumHazard.MAX_SWING_DEG + 0.001 or p.period < PendulumHazard.MIN_PERIOD - 0.001:
+					problems.append("pendulum %s swings outside its limits (%.0f deg, %.2fs)" % [hz.name, p.swing_deg, p.period])
+			"force":
+				var f := hz as ForceZone
+				zone = f.zone_rect()
+				if absf(f.push.x) > ForceZone.MAX_PUSH + 0.001:
+					problems.append("force zone %s pushes %.0f px/s (> %.0f)" % [hz.name, f.push.x, ForceZone.MAX_PUSH])
+			_:
+				continue
+		for prop in rest_props:
+			var feet2 := feet_of(prop)
+			var at := (prop as Node2D).global_position
+			var clearance := HAZARD_CLEARANCE if kind != "force" else 0.0
+			var padded := zone.grow(clearance)
+			if padded.has_point(at) or (feet2 != Vector2.INF and padded.has_point(feet2)):
+				problems.append("%s %s reaches %s (%s) at %s — keep rest points %.0fpx clear of hazards" % [kind, hz.name, prop.name, _cls(prop), at, clearance])
 
 
 ## ------------------------------------------------------------ reachability --

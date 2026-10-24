@@ -118,7 +118,8 @@ func _tick_state(delta: float) -> void:
 	match _state:
 		State.BURIED:
 			velocity.x = 0.0
-			if player != null and global_position.distance_to(player.global_position) <= wake_range:
+			if player != null and global_position.distance_to(player.global_position) \
+					<= wake_range * alert_scale():
 				_rise()
 		State.RISE:
 			velocity.x = 0.0
@@ -142,6 +143,9 @@ func _tick_walk(player: Player) -> void:
 	if player == null:
 		velocity.x = 0.0
 		return
+	if lost_target(player):
+		_return_home()
+		return
 	var dx := player.global_position.x - global_position.x
 	if absf(dx) <= CHASE_DEADZONE:
 		velocity.x = 0.0
@@ -152,6 +156,26 @@ func _tick_walk(player: Player) -> void:
 		_state = State.TURN
 		_timer = BACKSTEP_TIME
 	velocity.x = _dir * walk_speed
+
+
+## 骑士跑远了（lose_range > 0 才会发生）：放弃追击，慢慢走回起身的地方。
+func _return_home() -> void:
+	var dx := _anchor_x - global_position.x
+	if absf(dx) <= CHASE_DEADZONE * 2.0:
+		velocity.x = 0.0
+		return
+	_dir = signf(dx)
+	if _wall_ahead() or not _ground_ahead():
+		velocity.x = 0.0
+		return
+	velocity.x = _dir * walk_speed * 0.8
+
+
+## 同伴读招 / 受击：埋着的骸骨立刻起身（EnemyBase.alert_radius > 0 的那只发出警戒）。
+func on_alerted(source: EnemyBase) -> void:
+	super(source)
+	if _state == State.BURIED:
+		_rise()
 
 
 ## 折返：背对骑士走几步；背后也没路就原地站到时间结束。

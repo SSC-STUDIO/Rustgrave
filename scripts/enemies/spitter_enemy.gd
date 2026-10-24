@@ -8,6 +8,9 @@ const PICKUP_SCENE := preload("res://scenes/interactables/CorePickup.tscn")
 @export var shoot_interval: float = 1.85
 @export var projectile_speed: float = 150.0
 @export var aggro_range: float = 380.0
+## 一口吐几发 / 扇形夹角（度）。默认单发；散射变体用 3 发。
+@export var burst: int = 1
+@export var spread_deg: float = 0.0
 
 ## Telegraph: the nozzle glows toxic-orange and the body puffs up before the
 ## bolt actually flies, then snaps back on release. Pure presentation — the
@@ -109,7 +112,7 @@ func _on_shoot_tick() -> void:
 	var player := knight()
 	if player == null:
 		return
-	if global_position.distance_to(player.global_position) > aggro_range:
+	if global_position.distance_to(player.global_position) > aggro_range * alert_scale():
 		return
 	# Do not fire through a full platform-height gap. The player must first
 	# reach the ledge so the telegraph is readable and the fight is answerable.
@@ -166,18 +169,25 @@ func _on_anim_finished(anim: StringName) -> void:
 
 
 func _fire(player: Player) -> void:
-	var proj := PROJECTILE_SCENE.instantiate() as Projectile
 	var effects := GameContext.world_effects(self)
 	if effects == null:
 		effects = get_parent()
-	effects.add_child(proj)
 	# 喷口跟随身体朝向镜像（原图面朝左，scale.x=-1 时面朝右）。
 	var mpos := muzzle.position
 	if _body != null and _body.scale.x < 0.0:
 		mpos.x = -mpos.x
 	var origin := global_position + mpos
 	var dir := player.global_position + Vector2(0, -12) - origin
-	proj.setup(origin, dir, projectile_speed, &"enemy", self)
+	# 散射变体（EnemyVariants scatter_spitter）一口吐 burst 发，按 spread_deg 扇形展开；
+	# 每一发都能单独弹反。默认 burst=1，与原行为一致。
+	var count := maxi(1, burst)
+	for i in count:
+		var proj := PROJECTILE_SCENE.instantiate() as Projectile
+		effects.add_child(proj)
+		var angle := 0.0
+		if count > 1:
+			angle = (float(i) - float(count - 1) * 0.5) * deg_to_rad(spread_deg)
+		proj.setup(origin, dir.rotated(angle), projectile_speed, &"enemy", self)
 
 
 ## 受击白闪覆写：蓄力/回弹与白闪共用 _visual_tween 互相顶替（保持原手感），

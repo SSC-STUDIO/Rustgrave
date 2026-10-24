@@ -112,6 +112,41 @@ func grant_air_jump() -> void:
 	_jumps_left = maxi(_jumps_left, 1)
 
 
+## --- 环境外力（风道 / 涌流 / 泥沼，见 scripts/hazards/force_zone.gd）------------
+## ForceZone 每个物理帧调用 add_environment；physics_tick 读到的是最近 ENV_HOLD 帧内
+## 写入的合力，没人写就当作离开了区域。push.x 是目标速度偏移（像素/秒）、push.y 是竖向
+## 加速度（像素/秒²）、drag 把目标速度与加速度按比例压低。冲刺期间不受影响。
+const ENV_HOLD := 2
+const ENV_DRAG_MAX := 0.85
+
+var _env_push := Vector2.ZERO
+var _env_drag := 0.0
+var _env_frame := -1000
+
+
+## 同一物理帧里多个区域叠加；下一帧的第一次调用先清零。
+func add_environment(push: Vector2, drag: float = 0.0) -> void:
+	var frame := Engine.get_physics_frames()
+	if frame != _env_frame:
+		_env_frame = frame
+		_env_push = Vector2.ZERO
+		_env_drag = 0.0
+	_env_push += push
+	_env_drag = clampf(maxf(_env_drag, drag), 0.0, ENV_DRAG_MAX)
+
+
+func environment_push() -> Vector2:
+	if Engine.get_physics_frames() - _env_frame > ENV_HOLD:
+		return Vector2.ZERO
+	return _env_push
+
+
+func environment_drag() -> float:
+	if Engine.get_physics_frames() - _env_frame > ENV_HOLD:
+		return 0.0
+	return _env_drag
+
+
 func physics_tick(body: CharacterBody2D, delta: float, move_scale: float) -> void:
 	if _dash_cd > 0.0:
 		_dash_cd = maxf(0.0, _dash_cd - delta)
@@ -212,6 +247,9 @@ func _apply_gravity(body: CharacterBody2D, delta: float) -> void:
 			and body.velocity.y < 0.0:
 		scale = jump_cut_gravity_scale
 	body.velocity.y += gravity * scale * delta
+	var env_y := environment_push().y
+	if env_y != 0.0:
+		body.velocity.y += env_y * delta
 	if body.velocity.y > max_fall_speed:
 		body.velocity.y = max_fall_speed
 
@@ -230,6 +268,8 @@ func _speed_multiplier_for(body: CharacterBody2D) -> float:
 func _apply_move(body: CharacterBody2D, axis: float, delta: float, move_scale: float) -> void:
 	var on_floor := body.is_on_floor()
 	var spd_mult := _speed_multiplier_for(body)
+	var env_x := environment_push().x
+	var drag := environment_drag()
 	var target := axis * max_speed * spd_mult * move_scale
 	var accel := acceleration if on_floor else air_acceleration
 	var decel := deceleration if on_floor else air_deceleration
@@ -240,13 +280,19 @@ func _apply_move(body: CharacterBody2D, axis: float, delta: float, move_scale: f
 		accel *= 0.35
 		decel *= 0.8
 		target *= 0.45
+	if drag > 0.0:
+		target *= 1.0 - drag
+		accel *= 1.0 - drag * 0.5
+		decel *= 1.0 - drag * 0.5
+	target += env_x
 
 	if absf(axis) > 0.05:
 		var turning := signf(axis) != signf(body.velocity.x) and absf(body.velocity.x) > 8.0
 		var rate := accel * (1.55 if turning else 1.0)
 		body.velocity.x = move_toward(body.velocity.x, target, rate * delta)
 	else:
-		body.velocity.x = move_toward(body.velocity.x, 0.0, decel * delta)
+		# 没有输入时回到「环境速度」：无风 = 0，与旧行为一致；顺风时被推着走。
+		body.velocity.x = move_toward(body.velocity.x, env_x, decel * delta)
 
 
 func _try_jump(body: CharacterBody2D) -> void:

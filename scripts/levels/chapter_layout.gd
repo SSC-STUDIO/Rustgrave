@@ -446,6 +446,89 @@ func reward(host: Node2D, node_name: String, feet: Vector2, kind: String, reward
 	return pickup
 
 
+## ------------------------------------------------------------- hazards --
+## 机关工具箱（scripts/hazards/，规则见 docs/level_authoring.md §8）。位置约定与
+## platform()/step() 一致；props 可覆盖机关脚本的任何导出属性。LevelSanity 会检查预警、
+## 安全间隔、与巢/压板/出口的净空，以及塌陷台 / 传送带不得当休息点的支撑。
+
+## 周期机关（蒸汽 / 喷火 / 渣喷 / 坠钟 / 冲击波）。pos = 喷口（坠钟 / 冲击波 = 落点地面中心）。
+## 缺省参数取 CyclicHazard.preset(skin)，props 里给的覆盖它。
+func cyclic(host: Node2D, node_name: String, pos: Vector2, skin: String,
+		props: Dictionary = {}) -> CyclicHazard:
+	var hazard := CyclicHazard.new()
+	hazard.name = node_name
+	hazard.skin = skin
+	hazard.position = pos
+	var merged := CyclicHazard.preset(skin)
+	for key in props:
+		merged[key] = props[key]
+	for key in merged:
+		hazard.set(key, merged[key])
+	group(host, "Props").add_child(hazard)
+	return hazard
+
+
+## 塌陷台（16px 厚的悬空踏台，踩上去抖、抖完塌、隔一会儿长回来）。pos = 左上角。
+func collapsing(host: Node2D, plat_name: String, pos: Vector2, width: float,
+		skin: String = "moss_float", props: Dictionary = {},
+		tone: Color = Color.WHITE) -> CollapsingPlatform:
+	var plat := CollapsingPlatform.new()
+	plat.name = plat_name
+	plat.skin = skin
+	plat.position = pos
+	plat.size = Vector2(width, WORLD)
+	plat.tone = tone
+	for key in props:
+		plat.set(key, props[key])
+	group(host, "Platforms").add_child(plat)
+	return plat
+
+
+## 外力区（风道 / 涌流 / 泥沼 / 余烬风）。rect = 区域矩形（世界坐标），push：x 速度偏移、y 竖向加速度。
+func force_zone(host: Node2D, node_name: String, rect: Rect2, skin: String, push: Vector2,
+		props: Dictionary = {}) -> ForceZone:
+	var zone := ForceZone.new()
+	zone.name = node_name
+	zone.skin = skin
+	zone.size = rect.size
+	zone.position = rect.position + rect.size * 0.5
+	zone.push = push
+	for key in props:
+		zone.set(key, props[key])
+	group(host, "Props").add_child(zone)
+	return zone
+
+
+## 传送带。pos = 左上角；height 16 = 悬空踏台，80 = 整段地面。speed 正 = 向右。
+func conveyor(host: Node2D, plat_name: String, pos: Vector2, width: float, speed: float,
+		skin: String = "iron_float", props: Dictionary = {}, height: float = WORLD,
+		tone: Color = Color.WHITE) -> ConveyorBelt:
+	var belt := ConveyorBelt.new()
+	belt.name = plat_name
+	belt.skin = skin
+	belt.position = pos
+	belt.size = Vector2(width, height)
+	belt.speed = speed
+	belt.tone = tone
+	for key in props:
+		belt.set(key, props[key])
+	group(host, "Platforms").add_child(belt)
+	return belt
+
+
+## 摆锤。pivot = 吊点（顶端）；length 链长；props 可给 swing_deg / period / phase / skin / damage。
+func pendulum(host: Node2D, node_name: String, pivot: Vector2, length: float,
+		props: Dictionary = {}) -> PendulumHazard:
+	var swing := PendulumHazard.new()
+	swing.name = node_name
+	swing.position = pivot
+	swing.length = length
+	for key in props:
+		swing.set(key, props[key])
+	group(host, "Props").add_child(swing)
+	return swing
+
+
 ## ---------------------------------------------------------------- decor --
 
 ## 壁炬（墙板 64×192 居中于 pos；y = 台面 - 96 时板底贴台面）。

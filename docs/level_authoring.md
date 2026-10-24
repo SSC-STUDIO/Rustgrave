@@ -242,3 +242,33 @@ func weather_regions() -> Array:
 7. **门/闸门/压板的材质**：`Door`/`RustyGate`/`PressurePlate` 是共享场景，教堂紫贴图
    由 `ChapterLayout.plate_door()/rusty_gate()` 换成当前主题的族变体（只换贴图，
    碰撞与尺寸不变）。不要再去改共享场景的默认贴图。
+
+## 8. 机关工具箱（v3，`scripts/hazards/`）
+
+每章的"专属机关"都从这五个基类里取，不要在章节脚本里手写判定体。全部走
+`ChapterLayout` 助手（位置约定与 `platform()`/`step()` 一致），全部进 `hazards` 组并带
+`hazard_kind` 元数据，`LevelSanity.hazards(host)` 可枚举，战役 bot 与测试读同一份。
+
+| 基类 | 助手 | 用途 | 要点 |
+|---|---|---|---|
+| `CyclicHazard` | `cyclic(host, name, pos, skin, props)` | 蒸汽 `steam` / 炉口喷火 `flame` / 渣喷泉 `slag` / 坠钟 `bell` / 冲击波 `shock` | 休止 → 预警 → 判定循环；预警 ≥0.5s；判定体跟着画面走（喷柱升到哪判定到哪，冲击波只在两条前沿窄带里伤人）；`phase` 出生即定；`seconds_until_active()` / `safe_window(t)` 供 bot 读 |
+| `CollapsingPlatform` | `collapsing(host, name, pos, width, skin, props)` | 锈梁 / 塌瓦 / 断桥 | 继承 `SolidPlatform`；踩上抖 `shake_time`（0.6s）→ 塌 → `respawn_time` 后长回；骑士还压在原位时不长回 |
+| `ForceZone` | `force_zone(host, name, rect, skin, push, props)` | 风道 `wind` / 涌流 `water` / 泥沼 `mud` / 余烬风 `ember` | `push.x` 是目标速度偏移（上限 96，低于跑速 108）、`push.y` 是竖向加速度、`drag` 压低速度；`gust_period` 做阵风（前 0.6s 有风声/风丝预兆）；冲刺不受影响；`toxin_per_second` 给泥沼带毒（毒池 36/s） |
+| `ConveyorBelt` | `conveyor(host, name, pos, width, speed, skin, props, height)` | 传送带 | 继承 `SolidPlatform`，用 `constant_linear_velocity` 带人；`speed` 上限 54；`flip_period` 反向前先停转 0.6s |
+| `PendulumHazard` | `pendulum(host, name, pivot, length, props)` | 钟舌 / 铁锤 / 压碎机走廊 | 正弦摆动，摆幅 ≤70°、周期 ≥1.8s；每次过最低点重新武装；`head_over(x0, x1, t)` 供 bot 读 |
+
+通用规则（`LevelSanity` 会拒绝，见 `tests/level_sanity_hazards_test.gd`）：
+
+1. 周期机关预警 ≥0.5s，且每个周期里"休止 + 预警"≥1.2s，判定期 ≤1.6s。
+2. 喷口 / 落点立在台面上；机关的判定区离余烬巢、压板、出口、门、碑、锈核 ≥40px；外力区不盖这些点。
+3. 塌陷台 / 传送带不得是巢、压板、出口、门、碑的支撑，也不能站敌人（敌人会随塌陷掉下去）。
+4. 冲刺 i-frames 照常能穿过机关；过场锁玩家时机关时间线冻结并收刀。
+5. 首遇提示：每个机关默认带一块 `HintArea`（文案在 `HintService.CATALOG` 的 `steam/flame/slag/bell/shock/collapse/wind/surge/conveyor/pendulum/mud/candle`）。
+6. 主线必须能在不吃一次机关伤害的前提下通过（预警 + 安全间隔就是为这个）；机关只在主线上制造"时机"，不制造"必中"。
+7. 没有专用音效时自动退回现有音效键（`HazardFx.SFX` 的候选表）；新音效只要加进 `Sfx.LIBRARY` 就会被选中。
+
+外观检查：`tools/hazard_probe.gd`（`scenes/tools/HazardProbe.tscn`，窗口模式运行）逐一推进机关到
+休止 / 预警 / 判定早中晚五个时刻并截图；测试见 `tests/{cyclic_hazard,collapsing_platform,force_zone,conveyor_belt,pendulum_hazard}_test.gd`。
+
+`PlayerController.add_environment(push, drag)` 是唯一的外力入口（`ForceZone` 每个物理帧写入，
+2 个物理帧没人写就当作离开区域）；不要在别处直接改玩家 `velocity` 来"推"人。

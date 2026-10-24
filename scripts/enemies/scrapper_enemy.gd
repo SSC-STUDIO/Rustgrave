@@ -112,7 +112,7 @@ func _tick_patrol(_delta: float) -> void:
 	var player := knight()
 	if _cooldown <= 0.0 and player != null:
 		var to_player := player.global_position - global_position
-		if absf(to_player.x) < aggro_range and absf(to_player.y) < 70.0:
+		if absf(to_player.x) < aggro_range * alert_scale() and absf(to_player.y) < 70.0:
 			_dir = signf(to_player.x) if absf(to_player.x) > 4.0 else _dir
 			_enter_windup()
 

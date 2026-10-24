@@ -26,7 +26,7 @@
 ## 2. 阶段清单
 
 - [x] P0 基线与分支
-- [ ] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒/Boss 韧性 + 读档坐标安全
+- [x] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒 + 读档坐标安全（Boss 韧性延后，见 §4）
 - [ ] P2 标题活景（`TitleWorld`）+ 版式与动效重做 + `ID_ARENA` 接线
 - [ ] P3 第一章（前半微调 + 后半重建）
 - [ ] P4 第一幕：level02 / level02b / level03
@@ -45,4 +45,21 @@
 
 ## 4. 决策与变更记录
 
-（随实现追加。）
+### P1（机关工具箱 / 敌人 / 存档安全）
+
+- 五个机关基类（`CyclicHazard` / `CollapsingPlatform` / `ForceZone` / `ConveyorBelt` / `PendulumHazard`）
+  + `HazardFx`（音效键解析、首遇提示、像素绘制助手）落在 `scripts/hazards/`；`ChapterLayout` 增加
+  `cyclic/collapsing/force_zone/conveyor/pendulum` 助手；规则与参数写进 `docs/level_authoring.md` §8。
+- `PlayerController.add_environment(push, drag)` 是唯一外力入口（风 / 涌流 / 泥沼）；没有外力时行为与旧版逐位一致。
+- `LevelSanity` 新增 `_check_hazards`（预警/安全间隔/净空/塌陷台与传送带不得当休息点/外力区不盖巢）与
+  `LevelSanity.hazards(host)`；`TopSeg.kind` 标记塌陷台与传送带。
+- 敌人：`EnemyVariants`（装甲碎铁犬、疾行碎铁犬、重盾卫、散射喷吐者、爆裂骸骨）；`EnemyBase` 增加
+  `variant` / `alert_radius`（群警戒）/ `lose_range`（骸骨脱战回巢），默认全 0，与旧行为一致。
+- `SpawnSafety`：读档 / 重生坐标落进实心或机关判定区时，退到最后点亮的巢 → 任意巢 → 缺省出生点；
+  已接进 `Level01Static` / `Level02Undercroft` / `ChapterLevel`。
+- **延后：Boss 韧性（连续终结击打断）**。七个 Boss 各自持有状态机（Executioner / Nightmare 仍是 assist 模式），
+  "打断"需要逐个 Boss 的钩子，收益小于风险；改为在 Boss 竞技场里用地形与机关制造压力。若后续要做，
+  入口是 `BossDirector` 的 `auto_drive` 五个 Boss。
+- 外观检查工具：`tools/hazard_probe.gd`（`scenes/tools/HazardProbe.tscn`）；证据 `screenshots/acceptance/overhaul-v3/p1/`。
+- 全量回归：1237 项，除两处本阶段新增用例的测试写法问题（已修）外全部通过，0 engine errors。
+  （前序用例会泄漏导演过场锁，机关遇锁冻结，所以机关测试在 `setup()` 里归一化 `Director._set_lock(false)`。）

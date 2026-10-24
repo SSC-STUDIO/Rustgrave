@@ -62,6 +62,8 @@ func _spawn_actors(restored: bool) -> void:
 		_player.position = SaveData.consume_pending_spawn()
 	elif restored and SaveData.data.has("player") and (SaveData.data["player"] as Dictionary).has("pos"):
 		_player.position = SaveData.data["player"]["pos"]
+	# 改版后的台面/机关可能盖住旧存档的坐标：不安全就退到最后点亮的巢或缺省出生点。
+	_player.position = SpawnSafety.safe_position(self, _player.position, layout.default_spawn())
 	if restored:
 		SaveData.apply_player(_player)
 		SaveData.apply_world(self)
