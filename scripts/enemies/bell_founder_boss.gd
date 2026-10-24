@@ -537,6 +537,13 @@ func _interrupt_attack() -> void:
 			_boss_director.notify_attack_finished()
 
 
+func _interrupt_for_poise() -> void:
+	_interrupt_attack()
+	_disarm_poise_hitboxes(_transient)
+	_state = State.IDLE
+	_timer = 0.0
+
+
 # ---------------------------------------------------------------------------
 # 视觉（程序化像素：铸工剪影 + 钟形盔 + 大锤）
 # ---------------------------------------------------------------------------

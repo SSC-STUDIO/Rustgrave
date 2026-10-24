@@ -611,6 +611,13 @@ func _finish_attack() -> void:
 		_boss_director.notify_attack_finished()
 
 
+func _interrupt_for_poise() -> void:
+	_interrupt_attack()
+	_clear_drop_box()
+	_state = State.IDLE
+	_timer = 0.0
+
+
 # ---------------------------------------------------------------------------
 # 视觉（程序化像素：没有空钟的帧素材，用色板形状画一座锈钟）
 # ---------------------------------------------------------------------------

@@ -552,6 +552,15 @@ func _interrupt_attack() -> void:
 			_boss_director.notify_attack_finished()
 
 
+func _interrupt_for_poise() -> void:
+	_interrupt_attack()
+	hitbox.disarm()
+	# A hook-earned down window remains longer than this finisher recovery.
+	if _state != State.DOWNED:
+		_state = State.IDLE
+		_timer = 0.0
+
+
 # ---------------------------------------------------------------------------
 # 视觉（程序化像素：披灰的翼 + 羽刃轮廓）
 # ---------------------------------------------------------------------------

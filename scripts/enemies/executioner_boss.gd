@@ -551,6 +551,17 @@ func _enter_stagger() -> void:
 	super._enter_stagger()
 
 
+func _interrupt_for_poise() -> void:
+	_slash_next = false
+	_slash_phase = SlashPhase.NONE
+	_clear_slash_box()
+	_interrupt_final_stand()
+	_state = State.STAGGER
+	_timer = 0.0  # EnemyBase holds the recovery; the shield resumes afterwards.
+	_set_blocking(false)
+	_kill_flicker()
+
+
 ## 被打断（硬直 / 死亡）时终局招立刻收口，不留悬空判定与预警。
 func _interrupt_final_stand() -> void:
 	_final_phase = FinalPhase.NONE

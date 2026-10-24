@@ -59,6 +59,11 @@ const RIPOSTE_TIME := 1.2
 const RIPOSTE_MULT := 2
 ## 非盾类敌人被弹丸打中后的硬直（盾类走自己的 stagger_time）。
 const RIPOSTE_STAGGER := 0.55
+## 两次真正命中的剑刃终结击，在这个窗口内积累一次首领破势。
+const BOSS_POISE_HITS := 2
+const BOSS_POISE_WINDOW := 5.0
+const BOSS_POISE_RECOVERY := 0.8
+const BOSS_POISE_COOLDOWN := 1.6
 
 # ---------------------------------------------------------------------------
 # 毒素档位：奖励（伤害、位移、钩程、剑光）与风险（满溢掉血）都读这张表。

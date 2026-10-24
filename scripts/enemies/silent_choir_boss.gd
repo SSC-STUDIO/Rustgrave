@@ -364,6 +364,10 @@ func _cancel_drive() -> void:
 	_clear_active_box()
 
 
+func _interrupt_for_poise() -> void:
+	_cancel_drive()
+
+
 func _begin_windup_pose(id: StringName) -> void:
 	if _anim != null:
 		_anim.play("sing", true)

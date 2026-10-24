@@ -1,5 +1,17 @@
 # Rustgrave 验收记录
 
+## 2026-10-24 v3 续作：Boss 连续终结击破势
+
+- 独立 `codex/overhaul-v3-completion`，整合基线 `8b91f22`；原 OneDrive 工作区的未提交内容未混入。
+- 全量 `tools/run_tests.ps1`：**1298/1298，0 engine errors**；
+  `screenshots/acceptance/overhaul-v3/p1-poise/full-final/summary.json` 为 `passed=true`、`completed=true`。
+- 专项 `boss_poise`：**6/6，111 条断言**，覆盖七个 Boss 的前摇/活动判定撤回、
+  剑终结击累计、免疫与格挡、过期/冷却、冻结/重置、阶段及碰撞不变。
+- `scenes/tools/BossPoiseAcceptance.tscn` 加载真实第一章竞技场，1280×720 渲染三张图，
+  `screenshots/acceptance/overhaul-v3/p1-poise/render/report.json` 通过且无引擎错误；图像已查看。
+  这是摆位并调用真实伤害路径的战斗夹具，不能证明正常输入通关或真人手感。
+- 完整 14 章地形重建、输入通关与渲染矩阵继续按 `docs/overhaul-v3.md` 跟踪，未在此宣告完成。
+
 ## 2026-10-17 全面升级 · 阶段一（样板）验收
 
 环境：Windows 10、Godot 4.7.1 stable、GL Compatibility、NVIDIA RTX 4060 Laptop。

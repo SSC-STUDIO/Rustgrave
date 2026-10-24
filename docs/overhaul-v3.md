@@ -14,7 +14,8 @@
   （`Props/EmberNest`、`Props/EmberNestEast`、`Props/Door`、`Props/RustyGate`、`Props/ForgeHeart`、
   `Pickups/EmberCore`、`Props/ScrapPile`）不改名。
 - **门禁**：每阶段全量 `tools/run_tests.ps1` + `LevelSanity` + 渲染机位截图通过才进下一阶段；一阶段一提交。
-- **分支**：`feature/overhaul-v3`（自 `merge/all-branches` 的 `8bfa46f` 基线提交切出）。
+- **分支**：最初为 `feature/overhaul-v3`（自 `merge/all-branches` 的 `8bfa46f` 基线提交切出）。
+  当前续作在独立 `codex/overhaul-v3-completion`，以整合基线 `8b91f22` 开始；原目录的未提交改动不纳入本次提交。
 
 ## 1. 基线（P0）
 
@@ -26,7 +27,7 @@
 ## 2. 阶段清单
 
 - [x] P0 基线与分支
-- [x] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒 + 读档坐标安全（Boss 韧性延后，见 §4）
+- [x] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒 + 读档坐标安全 + Boss 连续终结击破势
 - [ ] P2 标题活景（`TitleWorld`）+ 版式与动效重做 + `ID_ARENA` 接线
 - [ ] P3 第一章（前半微调 + 后半重建）
 - [ ] P4 第一幕：level02 / level02b / level03
@@ -68,9 +69,22 @@
   `variant` / `alert_radius`（群警戒）/ `lose_range`（骸骨脱战回巢），默认全 0，与旧行为一致。
 - `SpawnSafety`：读档 / 重生坐标落进实心或机关判定区时，退到最后点亮的巢 → 任意巢 → 缺省出生点；
   已接进 `Level01Static` / `Level02Undercroft` / `ChapterLevel`。
-- **延后：Boss 韧性（连续终结击打断）**。七个 Boss 各自持有状态机（Executioner / Nightmare 仍是 assist 模式），
-  "打断"需要逐个 Boss 的钩子，收益小于风险；改为在 Boss 竞技场里用地形与机关制造压力。若后续要做，
-  入口是 `BossDirector` 的 `auto_drive` 五个 Boss。
+- **Boss 韧性已补齐**：5 秒内两次实际造成伤害的玩家剑终结击触发破势；轻击、重击、火焰/剑波、反射物、
+  格挡和无敌帧不累计。普通连段不会清掉已有累计。七个 Boss 各自撤回当前近战与预警，停止移动并露出金色空当，
+  恢复期 0.8 秒，触发后 1.6 秒免累计；已发射弹体与场地机关仍按原寿命运行。暂停、过场锁、导演冻结时计时停止，
+  重试/死亡清空累计。没有新增伤害倍率，也不改变阶段、缩放或攻击表。
 - 外观检查工具：`tools/hazard_probe.gd`（`scenes/tools/HazardProbe.tscn`）；证据 `screenshots/acceptance/overhaul-v3/p1/`。
 - 全量回归：1237 项，除两处本阶段新增用例的测试写法问题（已修）外全部通过，0 engine errors。
   （前序用例会泄漏导演过场锁，机关遇锁冻结，所以机关测试在 `setup()` 里归一化 `Director._set_lock(false)`。）
+
+### 2026-10-24 续作：Boss 破势验收
+
+- `tests/boss_poise_test.gd`：6/6、111 条断言，覆盖七个 Boss 活动判定立即撤回、前摇/预警取消、实际命中路径、
+  格挡/致死优先级、轻击保留累计、过期/冷却、暂停/过场/重置，以及阶段与判定形状不变。
+- 全量 `tools/run_tests.ps1`：**1298/1298 通过，0 engine errors**；
+  `screenshots/acceptance/overhaul-v3/p1-poise/full-final/summary.json` 确认 `completed=true`、`passed=true`。
+- 真实第一章竞技场的渲染夹具 `scenes/tools/BossPoiseAcceptance.tscn`：三张截图已查看，
+  `p1-poise/render/report.json` 确认破势、近战撤回、金色空当与恢复均通过，无引擎错误。
+  夹具会摆放角色并注入两次真实伤害调用，**不能替代正常输入通关**。
+- 整合基线已有标题/第一章、02/02b 地形与手柄默认映射；其余章节与系统仍需按各自门禁完成。
+  阶段清单保留未验收项，不沿用附件中未经证据支持的完成标记。

@@ -674,6 +674,15 @@ func _enter_rest() -> void:
 	show_opening(rest_time)
 
 
+func _interrupt_for_poise() -> void:
+	hitbox.disarm()
+	_dismiss_lane()
+	_disarm_poise_hitboxes(_transient)
+	_state = State.REST
+	_timer = 0.0
+	_clear_tint()
+
+
 ## 嘶鸣：停 neigh_time，震屏，从鬃毛里落下火骷髅。
 func _begin_neigh() -> void:
 	_state = State.NEIGH

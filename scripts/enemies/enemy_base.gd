@@ -91,6 +91,31 @@ func is_hurt_locked() -> bool:
 	return _dead or _hurt_lock > 0.0
 
 
+## BossDirector 只在已结算的连续终结击后调用；每个首领收回自己的招式。
+func break_poise(duration: float) -> void:
+	_interrupt_for_poise()
+	for child in get_children():
+		if child is CombatMarker and child.kind in [CombatMarker.Kind.RING,
+				CombatMarker.Kind.ZONE, CombatMarker.Kind.LANE]:
+			child.visible = false
+			child.dismiss()
+	velocity = Vector2.ZERO
+	_hurt_lock = maxf(_hurt_lock, duration)
+	show_opening(duration)
+
+
+func _interrupt_for_poise() -> void:
+	pass
+
+
+## Cancel melee volumes immediately; launched projectiles/arena fields keep their lifetime.
+func _disarm_poise_hitboxes(nodes: Array) -> void:
+	for node in nodes:
+		if is_instance_valid(node) and node is Hitbox:
+			node.disarm()
+			node.queue_free()
+
+
 ## 缓存的骑士引用（场景重载后自动重取），避免每帧各敌人各自扫编组。
 func knight() -> Player:
 	if _knight_ref == null or not is_instance_valid(_knight_ref) or not _knight_ref.is_inside_tree():

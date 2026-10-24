@@ -411,6 +411,12 @@ func _cancel_drive() -> void:
 	_clear_active_box()
 
 
+func _interrupt_for_poise() -> void:
+	_cancel_drive()
+	_vent_left = 0.0
+	_close_valve()
+
+
 func _begin_windup_pose(id: StringName) -> void:
 	if _anim == null:
 		return
