@@ -118,6 +118,7 @@ var _logo_material: ShaderMaterial
 var _subtitle: Label
 var _menu: MenuList
 var _controls: ControlsPanel
+var _recap: CanvasLayer
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
 var _confirm_menu: MenuList
@@ -678,6 +679,11 @@ func _build_ui_sparks() -> void:
 # ---------------------------------------------------------------- overlays -----
 
 func _build_overlays() -> void:
+	_recap = load("res://scripts/ui/ember_recap.gd").new() as CanvasLayer
+	_recap.name = "EmberRecap"
+	_recap.layer = 8
+	_recap.closed.connect(func() -> void: _menu.active = true)
+	add_child(_recap)
 	_controls = ControlsPanel.new()
 	_controls.layer = 5
 	_controls.closed.connect(func() -> void: _menu.active = true)
@@ -1014,7 +1020,11 @@ func _on_chosen(id: StringName) -> void:
 				_menu.active = false
 				_char_select.open()
 		ID_CONTINUE:
-			_start(true)
+			if SaveData.peek_ending() != "":
+				_menu.active = false
+				_recap.open()
+			else:
+				_start(true)
 		ID_TRIAL:
 			_menu.active = false
 			Sfx.play(&"gate")

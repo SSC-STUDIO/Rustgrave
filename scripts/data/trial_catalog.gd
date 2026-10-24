@@ -92,7 +92,7 @@ const BOSS_TABLE := [
 		"flag": "boss_dead",
 		"title": "炉约刽子手 · 铸渣残躯",
 		"scene": "res://scenes/enemies/ExecutionerBoss.tscn",
-		"spawn": Vector2(1696, 300),
+		"spawn": Vector2(Level01EastWing.ARENA_CENTER_X - 204.0, Level01EastWing.STAGE_Y - 20.0),
 	},
 	{
 		"kind": "nightmare_boss",
@@ -105,24 +105,24 @@ const BOSS_TABLE := [
 	# --- 二期 Boss 占位（场景缺失 → 自动跳过；交付后核对三列即可） -----------------
 	{
 		"kind": "capstan_warden",
-		"level_id": "level03",
-		"flag": "level03_done",
+		"level_id": "level02b",
+		"flag": "capstan_dead",
 		"title": "绞盘守卫",
 		"scene": "res://scenes/enemies/CapstanWarden.tscn",
 		"spawn": Vector2(96, 300),
 	},
 	{
 		"kind": "silent_choir",
-		"level_id": "level04",
-		"flag": "level04_done",
+		"level_id": "level04b",
+		"flag": "choir_dead",
 		"title": "无声唱诗班",
 		"scene": "res://scenes/enemies/SilentChoir.tscn",
 		"spawn": Vector2(96, 300),
 	},
 	{
 		"kind": "hollow_bell",
-		"level_id": "level07",
-		"flag": "level07_done",
+		"level_id": "level02",
+		"flag": "hollow_bell_dead",
 		"title": "空钟",
 		"scene": "res://scenes/enemies/HollowBell.tscn",
 		"spawn": Vector2(96, 300),
@@ -130,7 +130,7 @@ const BOSS_TABLE := [
 	{
 		"kind": "bell_founder",
 		"level_id": "level07b",
-		"flag": "level07b_done",
+		"flag": "founder_dead",
 		"title": "铸钟人",
 		"scene": "res://scenes/enemies/BellFounder.tscn",
 		"spawn": Vector2(96, 300),
@@ -138,12 +138,27 @@ const BOSS_TABLE := [
 	{
 		"kind": "emberwind_herald",
 		"level_id": "level09b",
-		"flag": "level09b_done",
+		"flag": "herald_dead",
 		"title": "烬风先驱",
 		"scene": "res://scenes/enemies/EmberwindHerald.tscn",
 		"spawn": Vector2(96, 300),
 	},
 ]
+
+## Single-stage rematches use the same loadout, save lock and records as Boss Rush.
+static func boss_spawn(row: Dictionary) -> Vector2:
+	var id := String(row.get("level_id", ""))
+	if id == "level01":
+		return Vector2(Level01EastWing.ARENA_CENTER_X - 204.0, Level01EastWing.STAGE_Y - 20.0)
+	var path := "res://scripts/levels/level02_layout.gd" if id == "level02" else String(GameContext.LAYOUTS.get(id, ""))
+	if path != "":
+		var script := load(path) as GDScript
+		var values := script.get_script_constant_map()
+		var left := float(values.get("ARENA_LEFT", values.get("ARENA_X0", 1740.0)))
+		var boss_pos: Vector2 = values.get("BOSS_POS", Vector2(left + 320.0, 320.0))
+		return Vector2(left + 100.0, boss_pos.y - 20.0)
+	return row.get("spawn", Vector2.INF)
+
 
 ## Boss 连战里"全部"目标的稳定 id。
 const ALL_BOSSES_ID := "all"
@@ -301,6 +316,9 @@ static func targets_for(track: int) -> Array[Dictionary]:
 ## 目标显示名（结算 / 记录 / 菜单共用同一口径）。
 static func target_title(track: int, target_id: String) -> String:
 	if track == Track.BOSS_RUSH:
+		for row in BOSS_TABLE:
+			if String(row["kind"]) == target_id:
+				return String(row["title"])
 		return "全 部 Boss"
 	for entry in all_chapters():
 		if String(entry.get("id", "")) == target_id:
@@ -325,6 +343,8 @@ static func stages_for(track: int, target_id: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if track == Track.BOSS_RUSH:
 		for row in available_bosses():
+			if target_id != ALL_BOSSES_ID and target_id != String(row.get("kind", "")):
+				continue
 			var level_id := String(row.get("level_id", ""))
 			var scene := String(GameContext.LEVELS.get(level_id, ""))
 			if scene == "":
@@ -332,7 +352,8 @@ static func stages_for(track: int, target_id: String) -> Array[Dictionary]:
 			out.append({
 				"level_id": level_id,
 				"scene": scene,
-				"spawn": (row.get("spawn", Vector2.INF) as Vector2),
+				"spawn": boss_spawn(row),
+				"death_flag": String(row.get("flag", "")),
 				"boss_kind": String(row.get("kind", "")),
 				"title": String(row.get("title", "")),
 			})

@@ -580,6 +580,10 @@ func mark_flag(id: String) -> void:
 
 
 func has_flag(id: String) -> bool:
+	# A practice scene must build its defeated Boss again. The stored campaign
+	# flags remain intact and all writes remain blocked by the existing trial lock.
+	if TrialRunScript.forces_boss_spawn() and id == String(TrialRunScript.stage().get("death_flag", "")):
+		return false
 	return flags.has(id)
 
 
