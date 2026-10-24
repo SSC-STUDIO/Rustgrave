@@ -37,7 +37,7 @@
 | `PitGlow` (`Sprite2D`) | 2 | `-0.10` | 桥下炉心辉光（`glow.png`，加法混合） |
 | `Gears` (`GearBig` / `GearSmall`) | 2 | `+0.55` | 左侧咬合大小齿轮（`gear_big.png` / `gear_small.png`） |
 | `Stage` (`Bridge` + 角色/巨剑/余烬巢) | 10 | `0.00` | 中央铁桥（`bridge.png`，桥面 `DECK_Y = 266`）与桥上叙事主体 |
-| `Chains` (`Chain0..5` + `Lantern0..13`) | 20 | `-0.10 .. +0.70` | 6 条装饰铁链与 14 盏进度吊灯；每通关一章点亮一盏，按索引从左至右 |
+| `Chains` (`Chain0..5` + `Lantern0..13`) | 20（吊灯局部 `+25`） | `-0.10 .. +0.70` | 6 条装饰铁链与 14 盏进度吊灯；灯笼排在世界 `x=80..483`、顶 `y=38`，置于前景机壳前，避开 Logo/菜单/右栏；每通关一章点亮一盏 |
 | `Roof` (`Sprite2D`) | 30 | `+0.50` | 顶部桁架与天窗裂口（`roof.png`） |
 | `MassLeft` / `MassRight` (`Sprite2D`) | 40 | `+1.00` | 左右近景机械山体；右侧含自发光炉门 `ForgeMouth` 与前景齿轮 `GearFront` |
 | `PitLight` / `ShaftLight` / `ForgeLight` | — | — | 3 盏环境光与 5 个吊灯光池共 **8 盏点光**；光柱、炉门及 2 个吊灯光池开启阴影，桥身/炉柱/骑士有真实 `LightOccluder2D` |

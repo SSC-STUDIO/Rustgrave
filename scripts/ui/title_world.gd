@@ -471,6 +471,8 @@ func _build_chains() -> void:
 	for i in LANTERN_COUNT:
 		var lantern := TitleLantern.new()
 		lantern.name = "Lantern%d" % _lanterns.size()
+		# The fourteen progress cages must remain in front of the side machinery.
+		lantern.z_index = 25
 		lantern.length = 62.0 + float(i % 3) * 4.0
 		lantern.swing_amp = 1.0
 		lantern.swing_period = 6.2 + float(i % 4) * 0.4
@@ -478,7 +480,7 @@ func _build_chains() -> void:
 		lantern.light_radius = 84.0
 		lantern.emits_light = LIGHT_POOL_FIXTURES.has(i)
 		lantern.casts_shadows = i in [4, 10]
-		lantern.position = Vector2(44.0 + float(i) * 42.0, 40.0)
+		lantern.position = Vector2(80.0 + float(i) * 31.0, 38.0)
 		host.add_child(lantern)
 		_lanterns.append(lantern)
 		_register(lantern, lantern.position, 0.15, lantern.position + Vector2(0.0, lantern.length * 0.5))
