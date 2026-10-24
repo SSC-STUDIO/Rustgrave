@@ -15,6 +15,9 @@ const KIND_STUB := 2
 ## 菜单架左侧的竖脊：把整列按钮串成一只挂在墙上的铁架。
 const KIND_SPINE := 3
 const SPINE_W := 20
+## 从天花板垂到竖脊的锁链：标题屏两侧各挂一根，和背景垂链同语汇。
+const KIND_CHAIN := 4
+const CHAIN_W := 8
 const PAL := {
 	"0": Color("#120E14"),
 	"7": Color("#4A2A18"),
@@ -84,6 +87,12 @@ static func spine(height: float = 300.0) -> Control:
 	return mark
 
 
+static func chain(chain_height: float = 120.0) -> Control:
+	var mark = _make(KIND_CHAIN)
+	mark.custom_minimum_size = Vector2(CHAIN_W, chain_height)
+	return mark
+
+
 static func _make(which: int, on_left: bool = true) -> Control:
 	var mark = load("res://scripts/ui/ui_ornament.gd").new()
 	mark.kind = which
@@ -100,6 +109,8 @@ func _apply_size() -> void:
 		custom_minimum_size = Vector2(722, 16)
 	elif kind == KIND_SPINE:
 		custom_minimum_size = Vector2(SPINE_W, 300)
+	elif kind == KIND_CHAIN:
+		custom_minimum_size = Vector2(CHAIN_W, 120)
 	else:
 		custom_minimum_size = Vector2(104, 16)
 
@@ -111,6 +122,8 @@ func _draw() -> void:
 		_draw_rule()
 	elif kind == KIND_SPINE:
 		_draw_spine()
+	elif kind == KIND_CHAIN:
+		_draw_chain()
 	else:
 		_draw_stub()
 
@@ -184,6 +197,31 @@ func _draw_stub() -> void:
 		draw_rect(Rect2(0.0, 8.0, 28.0, 2.0), PAL["7"])
 	var rivet_x := 4.0 if rivet_on_left else width - 10.0
 	_rivet(rivet_x, 6.0)
+
+
+## 2px 像素锁链：长短环交替，顶部/底部带吊扣，颜色压暗到近背景的锈色。
+func _draw_chain() -> void:
+	var h: float = custom_minimum_size.y
+	var w: float = custom_minimum_size.x
+	var dark := PAL["7"]
+	var lit := PAL["9"]
+	var y := 0.0
+	var i := 0
+	while y < h - 6.0:
+		if i % 2 == 0:
+			draw_rect(Rect2(1.0, y + 2.0, 2.0, 6.0), dark)
+			draw_rect(Rect2(w - 3.0, y + 2.0, 2.0, 6.0), dark)
+			draw_rect(Rect2(1.0, y + 6.0, w - 2.0, 2.0), lit)
+		else:
+			draw_rect(Rect2(0.0, y + 2.0, w, 2.0), dark)
+			draw_rect(Rect2(w * 0.5 - 1.0, y, 2.0, 8.0), lit)
+		y += 6.0
+		i += 1
+	# 吊扣：上端一块小铁板，下端收进竖脊铆钉的位置。
+	draw_rect(Rect2(-2.0, 0.0, w + 4.0, 2.0), lit)
+	draw_rect(Rect2(w * 0.5 - 2.0, 2.0, 4.0, 4.0), dark)
+	draw_rect(Rect2(-2.0, h - 6.0, w + 4.0, 2.0), lit)
+	draw_rect(Rect2(w * 0.5 - 2.0, h - 10.0, 4.0, 4.0), dark)
 
 
 func _rivet(x: float, y: float) -> void:

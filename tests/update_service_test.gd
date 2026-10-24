@@ -3,7 +3,7 @@ extends TestCase
 ## 决策逻辑（JSON / 版本比较 / 跳过记忆）直接喂字节，不依赖网络；
 ## 拉起本地一次性 HTTP 服务器的用例验证 check_async 的完整请求路径。
 ##
-## 套件整体带 RUSTGRAVE_NO_UPDATE_CHECK 跑（run_tests.gd 设置），所以每个用例
+## 套件整体带 RUSTGRAVE_NO_UPDATE_CHECK 跑（run_tests.ps1 设置），所以每个用例
 ## setup 里显式 _arm_for_test() 重新打开网络——只对本文件打开的本地服务器生效，
 ## 别的用例打开标题屏时 UpdateService 仍保持离线。
 

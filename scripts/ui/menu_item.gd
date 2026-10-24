@@ -25,6 +25,11 @@ const BREATH_MIN := 1.0
 const BREATH_MAX := 1.18
 
 ## 异形板的形状/状态与光标、火盆在板内的位置（设计像素，落在 2px 栅格上）。
+const SHAPES_COMPACT := {
+	Kind.PRIMARY: Plate.Shape.RAIL_PRIMARY,
+	Kind.SECONDARY: Plate.Shape.RAIL_SECONDARY,
+	Kind.GHOST: Plate.Shape.RAIL_GHOST,
+}
 const SHAPES := {Kind.PRIMARY: Plate.Shape.PRIMARY, Kind.SECONDARY: Plate.Shape.SECONDARY,
 		Kind.GHOST: Plate.Shape.GHOST}
 const CURSOR_X := {Kind.PRIMARY: 30.0, Kind.SECONDARY: 24.0, Kind.GHOST: 26.0}
@@ -35,6 +40,8 @@ const TICK_LIT := Color("#FFC14A")
 
 ## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
 var id: StringName = &""
+## 标题屏的紧凑板：同样的三档形状，映射到更矮更短的一组 SPECS。
+var compact := false
 var kind: Kind = Kind.DEFAULT
 ## 挂钉只属于"铁架"版式（标题屏 / 暂停菜单）；对话框里的板不要向左伸的挂钉。
 var show_tick := true:
@@ -106,8 +113,14 @@ func _build_default_row() -> void:
 
 
 ## 标题屏的异形板：板面形状/状态全在 MenuPlate，这里只负责摆字、光标和火苗。
+func _shape() -> int:
+	if compact and kind != Kind.DEFAULT:
+		return SHAPES_COMPACT[kind]
+	return SHAPES[kind]
+
+
 func _build_plate_row() -> void:
-	var shape: int = SHAPES[kind]
+	var shape: int = _shape()
 	var size := Plate.plate_size(shape)
 	var body_w := Plate.body_width(shape)
 	var height := Plate.frame_height(shape)
@@ -124,6 +137,9 @@ func _build_plate_row() -> void:
 	add_child(_plate)
 
 	_label = UiKit.label(_text, &"MenuItemLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	if compact:
+		# 紧凑板高度只有 48/40，字号跟着收一档，字才不会顶满上下沿。
+		_label.add_theme_font_size_override("font_size", 28)
 	_label.position = Vector2.ZERO
 	_label.size = Vector2(body_w, height)
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -136,7 +152,7 @@ func _build_plate_row() -> void:
 	_cursor = UiKit.sprite_rect(UiKit.TEX_CURSOR)
 	var art := _cursor.texture
 	var cursor_h := art.get_height() if art != null else 28
-	_cursor_x = CURSOR_X[kind]
+	_cursor_x = CURSOR_X[kind] - (6.0 if compact else 0.0)
 	_cursor.position = Vector2(_cursor_x - 8.0, (height - cursor_h) * 0.5)
 	add_child(_cursor)
 
@@ -213,7 +229,7 @@ func _refresh_default() -> void:
 
 
 func _refresh_plate() -> void:
-	var shape: int = SHAPES[kind]
+	var shape: int = _shape()
 	var state := Plate.State.NORMAL
 	if disabled:
 		state = Plate.State.GHOST_DISABLED if kind == Kind.GHOST else Plate.State.DISABLED

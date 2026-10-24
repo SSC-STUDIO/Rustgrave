@@ -19,9 +19,11 @@ var _index := -1
 
 
 func add_item(id: StringName, text: String, item_disabled: bool = false,
-		kind: MenuItem.Kind = MenuItem.Kind.DEFAULT) -> MenuItem:
+		kind: MenuItem.Kind = MenuItem.Kind.DEFAULT,
+		compact: bool = false) -> MenuItem:
 	var item := MenuItem.new(text, kind)
 	item.id = id
+	item.compact = compact
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))

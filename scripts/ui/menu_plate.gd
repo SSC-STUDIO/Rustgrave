@@ -12,7 +12,7 @@ extends RefCounted
 
 ## PRIMARY 主行动（右端箭头）/ SECONDARY 次行动（右端燕尾）/ GHOST 第三层（四只角标）/
 ## TAG 两头都切角的"标牌"，给需要任意宽度的 Button、标签页当 9-slice 底。
-enum Shape { PRIMARY, SECONDARY, GHOST, TAG }
+enum Shape { PRIMARY, SECONDARY, GHOST, TAG, RAIL_PRIMARY, RAIL_SECONDARY, RAIL_GHOST, DOSSIER }
 enum State { NORMAL, SELECTED, DISABLED, GHOST, GHOST_SELECTED, GHOST_DISABLED }
 
 const CELL := 2
@@ -50,6 +50,13 @@ const SPECS := {
 	Shape.SECONDARY: {"w": 320, "h": 52, "cham": 6, "grow": 0, "notch": 20},
 	Shape.GHOST: {"w": 280, "h": 52, "cham": 4, "grow": 0, "notch": 0},
 	Shape.TAG: {"w": 240, "h": 52, "cham": 8, "grow": 0, "notch": 0},
+	## 标题屏紧凑版：同样的画法/材质，只是更矮更短，七格菜单才收得进右栏的高度。
+	Shape.RAIL_PRIMARY: {"w": 384, "h": 48, "cham": 6, "grow": 16, "notch": 0},
+	Shape.RAIL_SECONDARY: {"w": 300, "h": 40, "cham": 6, "grow": 0, "notch": 18},
+	Shape.RAIL_GHOST: {"w": 260, "h": 40, "cham": 4, "grow": 0, "notch": 0},
+	## 右栏档案的大板：右侧箭头凸起，水平翻转后朝向画面中央，和左架主板互相照应。
+	## 高 402 与左菜单架同底（菜单含底部横线与"离开"行，实测 402px）。
+	Shape.DOSSIER: {"w": 340, "h": 344, "cham": 14, "grow": 44, "notch": 0},
 }
 ## GHOST 不是一整只板，而是四只角标：臂长（像素，2px 的倍数）。
 const GHOST_ARM := 18

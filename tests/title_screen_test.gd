@@ -44,7 +44,9 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 	for i in mini(items.size(), EXPECTED_KINDS.size()):
 		eq(items[i].kind, EXPECTED_KINDS[i], "第 %d 格的档位" % i)
 	for item in items:
-		ok(item.custom_minimum_size.y >= UiKit.TOUCH_MIN, "每格都够触控最小高度")
+		# 标题屏改为紧凑板（指针/键盘优先）：行高 40–48，不再套 52 的触控下限；
+		# 真正的手柄/触控操作区（HUD、暂停菜单）仍由 UiKit.TOUCH_MIN 守。
+		ok(item.custom_minimum_size.y >= 40.0, "紧凑行高不低于 40")
 
 	title.queue_free()
 	await get_tree().process_frame
@@ -227,3 +229,37 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	SaveData.delete_save()
 	SaveData.save_path = "user://rustgrave_save.cfg"
 
+
+
+## 排版约束：左下"离开锈墓"和右下墓志句在同一基线上（屏幕底部的两个重音）。
+func test_quit_aligns_with_epitaph() -> void:
+	var title: TitleScreen = await _open_title()
+	var menu := title.get_node("Menu") as MenuList
+	var epitaph := title.get_node_or_null("Inscription/EpitaphRow/Epitaph") as Label
+	ok(epitaph != null, "墓志句存在")
+	if epitaph != null:
+		var quit_item: MenuItem = menu.items()[menu.items().size() - 1]
+		var quit_center := quit_item.get_global_rect().get_center().y
+		var ep_center := epitaph.get_global_rect().get_center().y
+		almost(quit_center, ep_center, 2.0, "离开锈墓与墓志同基线")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 重叠防线：右栏（含板/底注）必须停在墓志句上方，不能盖住底部文案。
+func test_no_overlap_between_dossier_and_epitaph() -> void:
+	var title: TitleScreen = await _open_title()
+	var dossier := title.find_child("Dossier", true, false) as Control
+	var epitaph := title.get_node_or_null("Inscription/EpitaphRow/Epitaph") as Control
+	var foot := title.find_child("DossierFoot", true, false) as Control
+	ok(dossier != null and epitaph != null, "右栏与墓志都存在")
+	if dossier != null and epitaph != null:
+		var panel_rect := dossier.get_global_rect()
+		var ep_rect := epitaph.get_global_rect()
+		ok(panel_rect.end.y <= ep_rect.position.y + 1.0,
+				"右栏底 %.0f 不越过墓志顶 %.0f" % [panel_rect.end.y, ep_rect.position.y])
+		if foot != null:
+			var foot_rect := foot.get_global_rect()
+			ok(panel_rect.encloses(foot_rect), "底注完整落在右栏内")
+	title.queue_free()
+	await get_tree().process_frame
