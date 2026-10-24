@@ -706,10 +706,21 @@ func _world_root() -> Node:
 	return GameContext.world_root(_player())
 
 
+## Closed pressure gates are real walls even though LevelSanity's static
+## terrain table intentionally omits interactables. Read their live state.
+func _nv_solids() -> Array[Rect2]:
+	var world := _world_root()
+	var solids := LevelSanity.solid_rects(world)
+	for node in world.find_children("*", "", true, false):
+		if node is ArenaDoor and not node.is_open:
+			solids.append(Rect2(node.global_position, Vector2(16.0, 64.0)))
+	return solids
+
+
 func _nv_segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var world := _world_root()
-	var solids := LevelSanity.solid_rects(world)
+	var solids := _nv_solids()
 	for top in LevelSanity.top_segments(world):
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := world.get_node_or_null("Platforms/" + name_) as MovingPlatform
@@ -764,7 +775,7 @@ func _nv_link(a: Dictionary, b: Dictionary) -> bool:
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
-		for r in LevelSanity.solid_rects(_world_root()):
+		for r in _nv_solids():
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	return true
@@ -871,9 +882,17 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 			continue
 		_nv_steer(x)
 		var spitter_close := false
+		var landing_guard := false
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if enemy is SpitterEnemy and not enemy._dead and absf(enemy.position.y - p.position.y) < 14 and absf(enemy.position.x - p.position.x) < 64: spitter_close = true
-		if fight or spitter_close or absf(x - p.position.x) > 96:
+			if enemy is EnemyBase and not enemy._dead and not enemy is GhostEnemy \
+					and absf(enemy.position.y - p.position.y) < 24 and absf(enemy.position.x - p.position.x) < 52:
+				landing_guard = true
+		if not fight and landing_guard:
+			# A run-up is part of traversal, but contact enemies can knock the
+			# knight back into the pit. Clear that real threat before positioning.
+			_nv_combat(false, true)
+		elif fight or spitter_close or absf(x - p.position.x) > 96:
 			_nv_combat(absf(x - p.position.x) > 96)
 		else:
 			_set_action(&"attack", false)
@@ -943,7 +962,7 @@ func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
 	# old single waist-height probe clear, so walking off that edge never works.
 	var probe := Rect2(Vector2(r.end.x + 0.5 if right else r.position.x - 14.5,
 			r.position.y - 26.0), Vector2(14.0, 26.0))
-	for s in LevelSanity.solid_rects(_world_root()):
+	for s in _nv_solids():
 		if s.grow(-0.5).intersects(probe): return true
 	return false
 
@@ -964,7 +983,8 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(b.lift): return false
 			_nv_steer(b.lift.position.x + b.lift.width * 0.5)
-			if b.lift.position.distance_to(br.position) < 8: return true
+			if b.lift.position.distance_to(br.position) < 8 \
+					and absf(_player().position.y - br.position.y) < 10 and _player().is_on_floor(): return true
 			await _frames(1)
 		return false
 	var right := br.get_center().x >= ar.get_center().x
@@ -1039,7 +1059,8 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
 		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
-				or (ar.position.y - br.position.y > 24.0 and gap > 24.0)
+				or (ar.position.y - br.position.y > 24.0 and gap > 24.0) \
+				or (a.lift != null and gap > 32.0)
 		_set_action(&"dash", i == dash_frame and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()

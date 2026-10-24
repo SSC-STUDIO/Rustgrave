@@ -140,7 +140,7 @@ func test_haul_bridge_dual_water_routes_and_shortcut_on_foot() -> void:
 		["CanalPierMid", Vector2(1576, 320)],
 		["CanalPierE", Vector2(1864, 320)],
 		["FloorWellLanding", Vector2(2100, 320)],
-		["PumpCatwalk", Vector2(2496, 136)],
+		["PumpCatwalk", Vector2(2472, 136)],
 		["PumpOverlookE", Vector2(2640, 168)],
 		["PumpStepE", Vector2(2728, 200)],
 	]

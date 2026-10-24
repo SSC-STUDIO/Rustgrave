@@ -129,3 +129,41 @@ func test_full_height_contiguous_riser_is_jumped_before_touching_the_face() -> v
 	almost(player.position.y, 288.0, 1.0)
 	ok(not player.controller.extra_jumps_unlocked)
 	driver._release()
+
+
+func test_closed_pressure_gate_uses_the_upper_route_until_it_is_open() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.step(host, "Floor", Vector2(0, 320), 320.0)
+	layout.step(host, "Step", Vector2(64, 288), 32.0)
+	layout.step(host, "Gallery", Vector2(104, 256), 32.0)
+	layout.step(host, "Bridge", Vector2(144, 224), 72.0)
+	var gate := ArenaDoor.new()
+	gate.position = Vector2(144, 256)
+	host.get_node("Props").add_child(gate)
+	var player := await spawn_player(host, Vector2(32, 296))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = Vector2(248, 320)
+	ok(not driver._nv_link(_segment(Rect2(96, 320, 48, 16)),
+			_segment(Rect2(160, 320, 160, 16))), "closed gate blocks a direct floor hop")
+	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
+	ok(not route.is_empty(), "upper gallery is reachable with a single jump")
+	if route.is_empty(): return
+	var used_bridge := false
+	for edge in route:
+		used_bridge = used_bridge or edge.r.position.y == 224.0
+	ok(used_bridge, "route climbs over the gate instead of walking into it")
+	for i in range(1, route.size()):
+		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+		ok(crossed, "gate detour edge %d uses real input; feet=%s" % [i, player.position])
+		if not crossed:
+			driver._release()
+			return
+	almost(player.position.y, 320.0, 1.0)
+	gate.open_door()
+	ok(driver._nv_link(_segment(Rect2(96, 320, 48, 16)),
+			_segment(Rect2(160, 320, 160, 16))), "opening the real gate restores its direct floor hop")
+	driver._release()
