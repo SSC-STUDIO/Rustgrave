@@ -59,6 +59,50 @@ func test_player_damage_and_exposure_use_assists_but_enemies_do_not() -> void:
 	eq(enemy_hp.current, 16)
 
 
+func test_assisted_windup_deflects_real_projectile_without_early_sword_damage() -> void:
+	Director.abort()
+	Director._set_lock(false)
+	var arena := Node2D.new()
+	add_child(arena)
+	build_floor(arena)
+	var player := await spawn_player(arena)
+	player.set_physics_process(false)
+	player.melee.set_process(false)
+	var target := Node2D.new()
+	target.position = player.position + Vector2(18, -14)
+	var hp := Health.new()
+	hp.name = "Health"
+	hp.max_hp = 20
+	target.add_child(hp)
+	var hurt := Hurtbox.new()
+	hurt.team = &"enemy"
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(10, 10)
+	shape.shape = rect
+	hurt.add_child(shape)
+	target.add_child(hurt)
+	arena.add_child(target)
+	var bolt := preload("res://scenes/combat/Projectile.tscn").instantiate() as Projectile
+	bolt.setup(target.position, Vector2.LEFT, 0.0, &"enemy", null)
+	arena.add_child(bolt)
+	await flush(2)
+	ok(player.melee.start_swing())
+	player.melee.tick(player.melee.windup_time * 0.6)
+	player.melee._process(0.0)
+	ok(not bolt.deflected, "default windup does not parry")
+	Settings.set_value(&"assist_parry", 1.5, false)
+	player.melee._process(0.0)
+	ok(bolt.deflected, "production overlap query deflects during assisted windup")
+	ok(not player.melee.hitbox.monitoring, "sword damage volume remains disabled")
+	eq(hp.current, 20, "adjacent enemy takes no early sword damage")
+	ok(player.melee.swing_connected())
+	player.melee.tick(player.melee.windup_time)
+	eq(player.melee.phase_name(), "active")
+	ok(player.melee._parried_swing, "entering active preserves this swing's earlier parry")
+	ok(hp.current < 20, "sword damage starts at the normal active boundary")
+
+
 func test_text_scale_preserves_theme_ratios_and_updates_live() -> void:
 	var theme := load(UiKit.THEME_PATH) as Theme
 	var body := theme.get_font_size("font_size", &"BodyLabel")
