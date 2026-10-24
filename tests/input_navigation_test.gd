@@ -31,6 +31,54 @@ func _segment(rect: Rect2) -> Dictionary:
 	return {"r": rect, "lift": null}
 
 
+func test_conveyor_runup_countersteers_world_motion_before_the_workshop_stair() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	var belt := layout.conveyor(host, "QuenchBelt", Vector2(480, 320), 224.0, 36.0,
+			"iron_float", {"hint_id": &""})
+	layout.step(host, "FloorB", Vector2(704, 320), 768.0)
+	layout.step(host, "StepB1", Vector2(752, 288), 48.0)
+	var player := await spawn_player(host, Vector2(640, 296))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	ok(absf(player.get_platform_velocity().x) > 30.0, "fixture stands on the real moving belt")
+	ok(await driver._nv_flat(668, 320, false), "input settles its world position against the belt")
+	ok(absf(player.position.x - 668.0) < 4.0)
+	driver._nv_goal = Vector2(776, 288)
+	ok(not driver._nv_link(_segment(Rect2(480, 320, 224, 16)),
+			_segment(Rect2(752, 288, 48, 16))), "graph walks across the existing floor before jumping")
+	var route := driver._nv_path(driver._nv_segments(), driver._nv_goal)
+	ok(not route.is_empty())
+	if route.is_empty(): return
+	for i in range(1, route.size()):
+		ok(await driver._nv_cross(route[i - 1], route[i]), "belt/stair edge %d uses real input" % i)
+	almost(player.position.y, 288.0, 1.0)
+	ok(player.is_on_floor())
+	ok(not player.controller.extra_jumps_unlocked)
+	almost(belt.speed, 36.0, 0.001, "navigation does not stop or alter the conveyor")
+	driver._release()
+
+
+func test_counterflow_belt_positioning_uses_normal_direction_input() -> void:
+	var host := _host()
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	layout.conveyor(host, "ReturnBelt", Vector2(0, 320), 512.0, -36.0,
+			"iron_float", {"hint_id": &""})
+	var player := await spawn_player(host, Vector2(224, 296))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	ok(await driver._nv_flat(320, 320, false), "walk east against the westbound belt")
+	ok(absf(player.position.x - 320.0) < 4.0)
+	ok(await driver._nv_flat(160, 320, false), "walk west with the same belt")
+	ok(absf(player.position.x - 160.0) < 4.0)
+	ok(player.health.current > 0)
+	driver._release()
+
+
 func test_runup_flanks_a_live_shield_guard_on_fixed_ground() -> void:
 	var host := _host()
 	var layout := ChapterLayout.new()

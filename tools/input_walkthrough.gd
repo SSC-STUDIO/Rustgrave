@@ -783,6 +783,12 @@ func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
 		for r in (_nv_solids() if solids.is_empty() else solids):
+			# Walk over an actual connecting floor before climbing its stair.
+			# Skipping that floor invents a gap and an unnecessary airborne dash,
+			# which can overshoot a narrow landing after a conveyor run-up.
+			if br.position.y < ar.position.y - 8.0 and absf(r.position.y - ar.position.y) < 1.0 \
+					and r.position.x <= x0 + 0.5 and r.end.x >= x1 - 0.5:
+				return false
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	return true
@@ -880,7 +886,7 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
-		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < 12:
+		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.get_real_velocity().x) < 12:
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
@@ -918,7 +924,9 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 func _nv_steer(x: float) -> void:
 	var p := _player()
 	var dx := x - p.position.x
-	var speed := p.velocity.x
+	# CharacterBody.velocity excludes the conveyor's inherited floor motion.
+	# Brake against measured world movement so a belt can be counter-steered.
+	var speed := p.get_real_velocity().x if p.is_on_floor() else p.velocity.x
 	var brake := speed * speed / (2.0 * (400.0 if p.is_on_floor() else 270.0) * 1.55)
 	if absf(dx) < 2 and absf(speed) < 10:
 		_move(0)
