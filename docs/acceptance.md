@@ -375,3 +375,9 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 渲染连续新游戏 `input-20261024-220815-789` 完成14章到达、梦魇三阶段与击杀、真实熔渣死亡和Continue后，验收脚本误读旧场景的出口引用而失败。现于Continue后重取真实出口；合法已击杀存档恢复不重复执行死亡验证。导航拒绝把会先落到中间楼梯上的下落直接连到远处低层地面。最终东阶中层宽64→32，给从320地面向288台阶起跳留出净空，保留上层回路。
 
 `overhaul-v3/finale-continue-fix/tests-final/` 19/19、0引擎错误；正常移动用例覆盖实际STEPS的东阶净空和中间落脚面。`input-20261024-222018-301/rekindle.json` 为已击杀合法存档恢复的渲染验证，最终出口、结局字幕与campaign_complete均通过，0引擎错误；该轮不是新游戏全程证据。
+
+### 2026-10-24：14章新游戏完整渲染输入通过
+
+`./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Fast -Rendered -Ending rekindle` 通过，证据 `screenshots/acceptance/input-20261024-222123-500/rekindle.json`。从标题新游戏开始，`resumed=false`，不拼接恢复局；`input_only=true`、`basic_abilities=true`、`rendered=true`，2次真实死亡、0引擎错误。第一章后依次记录其余13章入口、七Boss真实击杀、梦魇三阶段、熔渣死亡恢复、标题Continue后Boss缺席、最终出口/字幕和持久化game_complete。
+
+主线仅单跳/冲刺/热锻，无钩锁或额外跳跃；公开辅助为受伤0.5、弹反1.5、毒素0.5，按真实机关安全窗口等候665帧。只读路线/敌人状态并发正常输入，不写角色位置、血量、敌人伤害、门或进度旗标。115张PNG全部解码、尺寸确认为1920×1080，哈希和章节入口索引在同目录 `render-manifest.json`。加速固定60Hz模拟和离屏窗口不证明实体性能或真人手感。最终全量另以 `full-authoritative-final/` 为准。
