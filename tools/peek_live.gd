@@ -128,8 +128,15 @@ func _ready() -> void:
 			continue
 		camera.global_position = Vector2(x, cam_y)
 		camera.force_update_scroll()
-		# Park the knight at the camera height (vertical levels): floor y when cam_y is default.
-		player.global_position = Vector2(x - 120.0, 320.0 if is_equal_approx(cam_y, 220.0) else cam_y + 100.0)
+		# Camera fixtures must also respect rebuilt terrain. The old fixed y320
+		# buried the actor in raised floors and left him floating over sunken ones.
+		var feet := park_feet(GameContext.world_root(player), Vector2(x - 120.0, cam_y + 100.0))
+		if not feet.is_finite():
+			push_error("peek_live: no clear fixed support at camera " + str(spot))
+			get_tree().quit(1)
+			return
+		player.global_position = feet
+		print("PEEK park ", spot, " feet=", feet, " (camera fixture)")
 		await get_tree().create_timer(hold).timeout
 		if layers:
 			# Freeze motion so the two captures differ only where the backdrop shows through.
@@ -151,6 +158,35 @@ func _ready() -> void:
 				layer.visible = true
 			Engine.time_scale = 1.0
 	get_tree().quit(0)
+
+
+## Nearest fixed support with room for the whole 14x26 knight body. Moving and
+## temporary platform endpoints are unsuitable for a parked, physics-disabled actor.
+static func park_feet(world: Node, wanted: Vector2) -> Vector2:
+	var best := Vector2.INF
+	var best_score := INF
+	var solids := LevelSanity.solid_rects(world)
+	for top in LevelSanity.top_segments(world):
+		if top.owner_name.contains("@") or top.kind in ["collapsing", "conveyor", "candle"]:
+			continue
+		if top.x1 - top.x0 < 16.0 or absf(top.y - wanted.y) > 160.0:
+			continue
+		var px := clampf(wanted.x, top.x0 + 8.0, top.x1 - 8.0)
+		if absf(px - wanted.x) > 96.0:
+			continue
+		var body := Rect2(px - 7.0, top.y - 26.0, 14.0, 26.0)
+		var clear := true
+		for solid in solids:
+			if solid.grow(-0.1).intersects(body):
+				clear = false
+				break
+		if not clear:
+			continue
+		var score := absf(top.y - wanted.y) + absf(px - wanted.x) * 2.0
+		if score < best_score:
+			best_score = score
+			best = Vector2(px, top.y)
+	return best
 
 
 ## Backdrop = every CanvasLayer drawn under the world (layer < 0) that is visible.

@@ -31,6 +31,10 @@
   走下台缘时身体完全离开支撑面后再刹车。`bot-navigation/targeted-r3/` 的真实玩家物理夹具
   **3/3、15 条断言、0 engine errors**，验证窄柱下落、绕开头顶障碍、改走上层台后落回下层；
   这些是局部输入回归，完整战役仍待跑完。
+- 渲染工具也改为寻找真实固定台面，并检查整个人体净空；不再固定 y320。
+  `peek-support/targeted-final/` **3/3、0 engine errors**；真实第四章 x1760 的渲染图
+  `peek-support/render/live_1760_level04_lit_active.png` 已查看，骑士脚点为 (1640,288)，站在掩体台顶。
+  仍是固定机位夹具，不提供输入可达性证据。PowerShell 包装恢复调用方 APPDATA，并拒绝引擎 ERROR。
 
 ## 2026-10-17 全面升级 · 阶段一（样板）验收
 
