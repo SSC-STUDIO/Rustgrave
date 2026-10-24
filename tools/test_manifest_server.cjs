@@ -4,7 +4,10 @@
 // argv[4] requests (default 12) so a crashed test cannot leak the process.
 const http = require("http");
 const fs = require("fs");
-const body = process.argv[2];
+const bodyArg = process.argv[2];
+const body = bodyArg.startsWith("--body-file=")
+	? fs.readFileSync(bodyArg.slice("--body-file=".length), "utf8")
+	: bodyArg;
 const wantPath = process.argv[3] || "/update.json";
 const maxRequests = Number(process.argv[4] || 12);
 

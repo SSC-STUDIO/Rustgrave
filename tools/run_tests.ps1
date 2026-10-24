@@ -18,15 +18,21 @@ if ($CaseFilter) { $arguments += @('--', ('"--case-filter=' + $CaseFilter.Replac
 
 # Child processes inherit this isolated user directory; never touch player saves.
 $originalAppData = $env:APPDATA
+$originalTestNode = $env:RUSTGRAVE_TEST_NODE
 try {
     $env:APPDATA = Join-Path $runDir 'userdata'
     # The suite runs with the update check disabled: no case may hang on the
     # network. update_service_test re-arms it itself against a local server.
     $env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
+    # Godot's Windows CreateProcess does not resolve a bare "node" reliably.
+    # Pass the discovered executable so real local HTTP tests cannot silently skip.
+    $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
+    if ($nodeCommand) { $env:RUSTGRAVE_TEST_NODE = $nodeCommand.Source }
     $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WorkingDirectory $projectDir `
         -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
 } finally {
     $env:APPDATA = $originalAppData
+    $env:RUSTGRAVE_TEST_NODE = $originalTestNode
     Remove-Item Env:\RUSTGRAVE_NO_UPDATE_CHECK -ErrorAction SilentlyContinue
 }
 
