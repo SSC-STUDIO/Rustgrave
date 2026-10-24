@@ -34,4 +34,13 @@ flowchart LR
 
 验收：level10_layout更新支撑/主路/回收/三巢六秒AI/首喷口安全/环道/奖励/单向回廊/真实脉冲跳跃与高台规避/阶段事件重排与收刀/死亡重载/两结局持久化；nightmare_boss、filtered level_sanity、route_audit、chapter_progression、routing/weather/art/prop/support/parallax。五点600/1168/1744/2752/3504各1280×720与1920×1080，另拍Boss全景，逐图记录尺寸/SHA。独立分支不跑full，交主分支权威全量；正常输入整章通关、真人/实体手柄手感不由截图或几何测试代替。
 
-当前状态：章节实现已完成；level10_layout 21/21、filtered level_sanity 13/13、nightmare_boss 10/10、cyclic_hazard 10/10、route_audit 2/2、chapter_progression 5/5、level_routing 6/6、level_weather 6/6、chapter_art_audit 4/4均零引擎错误。prop_fit 7/7、chapter_support 2/2、parallax_backdrop 8/8同样零引擎错误。双分辨率截图待渲染窗口释放后验收；本分支未跑full，完整战役由主分支权威验收。
+当前状态：章节实现已完成；level10_layout 21/21、filtered level_sanity 13/13、nightmare_boss 10/10、cyclic_hazard 10/10、route_audit 2/2、chapter_progression 5/5、level_routing 6/6、level_weather 6/6、chapter_art_audit 4/4均零引擎错误。prop_fit 7/7、chapter_support 2/2、parallax_backdrop 8/8同样零引擎错误。五机位×1280×720/1920×1080十张常规图，以及一阶段/三阶段1920×1080全景共12张最终图全部逐张看过，PNG头尺寸与SHA256已记录；本分支未跑full，普通输入战役由主分支权威验收。
+
+## 最终画面与证据（2026-10-24）
+
+- 本地证据根：`screenshots/acceptance/overhaul-v3/level10/`；`render-review.json` 包含12项定向门禁、12张最终图的尺寸、SHA256与逐图说明。
+- `1280x720/`、`1920x1080/` 各为600/1168/1744/2752/3504五机位。渣槽预警与恢复地面、冷却巢、回程阶梯、上下环道、柱台与梦魇轮廓均清楚；角色脚点分别落在352/288/352/320/320，未埋入地形。
+- `panorama/phase1/` 为0.35相机缩放的完整大殿：四座柱台、中央炉台、上下回路与原尺寸梦魇同框，只有中央慢脉冲。`panorama/phase3/` 用真实HP阈值进入三阶段，`verification.log` 在拍摄前确认 `phase actual=3 hp=5`，血条三阶段与三口脉冲可见。相变红闪图与被无敌帧挡下第二击的二阶段图已标记superseded，均不计入12张最终图。
+- 全景夹具从精确窗口尺寸版PeekLive复制到ignored截图目录，仅改变夹具相机、伤害时序与等待时间；没有修改Boss或共享运行时，也未把夹具纳入提交。规范PeekLive的SHA256为 `BCC7A931C8A1AAB77BEC23919DCC390E213BAEE4CD802026DD9DFB9FD6B81474`。
+- 终局回归包含原送剑的跨场景持久化与回标题（chapter_progression），以及本章新增守火持久化与回标题。梦魇缩放1×、碰撞48×28、原五个攻击ID与死亡存档逻辑保留；脉冲真实Hitbox伤害、单跳/柱台避让、导演冻结、完整相变预警与死亡同帧收刀已验证。
+- 限制：图像是停靠相机夹具，不能证明普通输入全章通关或真人/手柄手感。本章不独跑full；主分支整合后负责权威full与普通输入战役。Godot生成的`.import`与音频总线噪声保留，不暂存。
