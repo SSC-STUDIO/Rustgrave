@@ -257,6 +257,10 @@ func weather_regions() -> Array:
 | `ConveyorBelt` | `conveyor(host, name, pos, width, speed, skin, props, height)` | 传送带 | 继承 `SolidPlatform`，用 `constant_linear_velocity` 带人；`speed` 上限 54；`flip_period` 反向前先停转 0.6s |
 | `PendulumHazard` | `pendulum(host, name, pivot, length, props)` | 钟舌 / 铁锤 / 压碎机走廊 | 正弦摆动，摆幅 ≤70°、周期 ≥1.8s；每次过最低点重新武装；`head_over(x0, x1, t)` 供 bot 读 |
 
+五类都提供只读 `safe_window(duration)`，查询不推进相位、不触发机关、不撤销判定。周期机关表示整段无伤害；塌陷台表示整段有实体支撑（按立即踩上开始抖动计算）；外力区表示整段无推力、减速或毒素；传送带表示整段停转。运动中的传送带仍可通行，不能把“没有静止空窗”误读成路线不可达。摆锤可另传世界坐标 `x0,x1`（缺省为吊点下方14px通道），计算整段球头扫过范围，调用方另检竖向净空。常风和持续泥沼不会虚报等待后可出现的空窗。
+
+塌陷台的最低抖动预警为0.5秒；当前章节显式使用0.7、0.8或1.4秒，不能依赖更短预警制造难度。各类的时段边界、查询无副作用和摆锤中途横扫由对应工具箱测试保护。
+
 通用规则（`LevelSanity` 会拒绝，见 `tests/level_sanity_hazards_test.gd`）：
 
 1. 周期机关预警 ≥0.5s，且每个周期里"休止 + 预警"≥1.2s，判定期 ≤1.6s。

@@ -256,3 +256,17 @@ func _draw_mud() -> void:
 		var bx := s.x * size.x - half.x
 		var by := half.y - 12.0 + s.y * 8.0
 		HazardFx.px_rect(self, Rect2(bx, by - life * 4.0, r, r), Color(0.7, 0.5, 0.2, 0.6 * (1.0 - life)))
+
+
+## 整段停留期间无推力、减速或毒素；常风/泥沼不会假报一个等待即可出现的空窗。
+func safe_window(duration: float = 0.0) -> bool:
+	if drag > 0.0 or toxin_per_second > 0.0:
+		return false
+	if push.is_zero_approx():
+		return true
+	if gust_period <= 0.05:
+		return false
+	var c := fposmod(_t, gust_period)
+	if c < gust_period * gust_duty:
+		return false
+	return maxf(0.0, duration) < gust_period - c

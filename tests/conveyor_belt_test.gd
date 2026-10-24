@@ -66,3 +66,24 @@ func test_a_knight_is_carried_along() -> void:
 	var x1 := player.global_position.x
 	await flush(40)
 	ok(player.global_position.x < x1 - 8.0, "reversing the belt carries the knight back")
+
+
+func test_safe_window_requires_a_full_stationary_interval_and_preserves_motion() -> void:
+	var layout := ChapterLayout.new()
+	add_child(layout)
+	var belt := layout.conveyor(_host(), "Belt", Vector2(100, 0), 96.0, 40.0,
+			"iron_float", {"flip_period": 3.0, "hint_id": &""})
+	belt.set_physics_process(false)
+	ok(not belt.safe_window(), "a moving belt is not a stationary landing")
+	belt.tick(2.5)
+	ok(belt.safe_window(0.4))
+	ok(not belt.safe_window(0.5), "waiting ends before the reverse direction starts")
+	almost(belt.clock(), 2.5, 0.0001)
+	almost(belt.current_velocity(), 0.0, 0.0001)
+	belt.tick(0.6)
+	ok(not belt.safe_window())
+	almost(belt.current_velocity(), -40.0, 0.0001, "query did not suppress the real reversal")
+	belt.speed = 0.0
+	ok(not belt.safe_window(), "changing the setting alone has not stopped the physical belt yet")
+	belt.tick(0.0)
+	ok(belt.safe_window(100.0), "a disabled belt is always a stable support")

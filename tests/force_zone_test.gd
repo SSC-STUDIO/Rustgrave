@@ -106,3 +106,26 @@ func test_mud_adds_toxin_while_the_knight_stands_in_it() -> void:
 	var before := player.toxin.toxin
 	await flush(40)
 	ok(player.toxin.toxin > before, "standing in rust mud builds toxin (%.3f -> %.3f)" % [before, player.toxin.toxin])
+
+
+func test_safe_window_covers_the_whole_calm_interval_without_advancing_the_gust() -> void:
+	var zone := _zone(_host(), Rect2(0, -100, 100, 100), "wind", Vector2(60, 0),
+			{"gust_period": 4.0, "gust_duty": 0.5})
+	zone.set_physics_process(false)
+	ok(not zone.safe_window(0.1), "zero force at the ramp origin is not a calm interval")
+	zone.tick(2.5)
+	var time := zone.clock()
+	ok(zone.safe_window(1.4))
+	ok(not zone.safe_window(1.5), "the next gust must not start before the crossing finishes")
+	almost(zone.clock(), time, 0.0001, "query leaves the deterministic phase alone")
+	zone.tick(1.6)
+	ok(not zone.safe_window())
+	zone.gust_period = 0.0
+	ok(not zone.safe_window(), "a steady wind never advertises a calm window")
+	zone.push = Vector2.ZERO
+	ok(zone.safe_window(100.0), "an inert zone is clear for any crossing")
+	zone.drag = 0.3
+	ok(not zone.safe_window(), "mud drag persists even without wind")
+	zone.drag = 0.0
+	zone.toxin_per_second = 12.0
+	ok(not zone.safe_window(), "toxin exposure also persists during calm")
