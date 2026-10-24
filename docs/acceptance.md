@@ -1,5 +1,21 @@
 # Rustgrave 验收记录
 
+## 2026-10-25：v3最终整合验收
+
+当前权威结果见 `docs/overhaul-v3.md` 最终门禁表与 `screenshots/acceptance/overhaul-v3/final-evidence-index.json`。下文按日期保留历史失败、局部夹具与旧范围；它们不覆盖本节的新结果。
+
+本节证据路径除源码/文档外，均相对 `screenshots/acceptance/overhaul-v3/`。
+
+- 无章节/用例过滤全量：**1462/1462、28740条断言、0引擎错误**。`full-final-window-contract/summary.json` 为 `passed=true`、`completed=true`，源码 `f7bcff7`，启动记录包含两份输入驱动SHA256。保留防护/锚点warning，以及退出时3个ObjectDB实例泄漏warning，不声称零warning。
+- 同一源码从标题新游戏完成14章渲染输入：`../input-20261025-002258-602/rekindle.json`，校验归档 `input-final/rekindle-window-contract/`。`input_only/basic_abilities/rendered=true`、`resumed=false`；3次真实死亡、0引擎错误、138个里程碑、115张1080p PNG。七Boss实际击杀、梦魇三阶段、熔渣致死/复活/Continue后Boss缺席、最终出口/字幕与完成存档均通过。辅助0.5/1.5/0.5，机关等待645帧；模拟固定60Hz加速，不代表显示器帧率。
+- 第一章熄灭分支为 `input-final/snuff/`：新游戏、基本能力、辅助均100%、1次真实死亡、0引擎错误；这是提前结局。
+- 14章×5机位×2分辨率共140张构图、标题24+4张、系统UI8张均已审阅。固定/无敌角色与BossFixture只提供构图或战斗状态证据，不混入输入通关结论。
+- 七位Boss独立设计并自行绘制459张透明像素帧，可编辑源稿随代码提交，459/459重绘一致、跨Boss零完全相同帧；见 `docs/original-bosses.md` 与原画板。
+- 标题与14章入口15次性能探针，p95 3.349–5.001ms，保留钟楼1160.905ms停顿。源码差异审计 `render-runtime-compatibility.json` 证明后续只读查询与不影响当前章节的预警下限可沿用原构图/采样；未声称停顿已修复或Boss最坏场景达标。
+- 音频14个机关文件+1条标题循环数值审计通过；不是主观听感验收。实体触屏、手柄实机手感、真人试玩、音频混音及实体显示器呈现/性能仍未验证。
+
+复现：`./tools/run_tests.ps1 -TimeoutSeconds 2400 -ArtifactsDir <新目录>`；`./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Fast -Rendered -Ending rekindle`。测试需清除 `RUSTGRAVE_LEVEL_FILTER`，使用隔离APPDATA。PNG/日志/哈希索引留在本地ignored目录，源代码与本节已提交，未推送或发布。历史逐章定向门禁没有满足“每阶段全量先通过”，此流程偏差保留，不追认。
+
 ## 2026-10-24：七位Boss独立原创美术
 
 七位Boss现均读取各自的 `assets/characters/original_*` 素材，共459张透明像素PNG；不再以盾卫、幽魂或旧马匹帧充当Boss主体。设计与可编辑绘制源稿索引见 `docs/original-bosses.md`，权属说明见 `assets/external/CREDITS.md`。
@@ -393,4 +409,4 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 
 `./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Fast -Rendered -Ending rekindle` 通过，证据 `screenshots/acceptance/input-20261024-222123-500/rekindle.json`。从标题新游戏开始，`resumed=false`，不拼接恢复局；`input_only=true`、`basic_abilities=true`、`rendered=true`，2次真实死亡、0引擎错误。第一章后依次记录其余13章入口、七Boss真实击杀、梦魇三阶段、熔渣死亡恢复、标题Continue后Boss缺席、最终出口/字幕和持久化game_complete。
 
-主线仅单跳/冲刺/热锻，无钩锁或额外跳跃；公开辅助为受伤0.5、弹反1.5、毒素0.5，按真实机关安全窗口等候665帧。只读路线/敌人状态并发正常输入，不写角色位置、血量、敌人伤害、门或进度旗标。115张PNG全部解码、尺寸确认为1920×1080，哈希和章节入口索引在同目录 `render-manifest.json`。加速固定60Hz模拟和离屏窗口不证明实体性能或真人手感。最终全量另以 `full-authoritative-final/` 为准。
+主线仅单跳/冲刺/热锻，无钩锁或额外跳跃；公开辅助为受伤0.5、弹反1.5、毒素0.5，按真实机关安全窗口等候665帧。只读路线/敌人状态并发正常输入，不写角色位置、血量、敌人伤害、门或进度旗标。115张PNG全部解码、尺寸确认为1920×1080，哈希和章节入口索引在同目录 `render-manifest.json`。加速固定60Hz模拟和离屏窗口不证明实体性能或真人手感。该历史轮次后的全量曾在 `full-authoritative-final/` 失败；现以本页2026-10-25最终整合节的 `full-final-window-contract/` 为准。

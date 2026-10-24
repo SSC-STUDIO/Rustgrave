@@ -1,6 +1,6 @@
 # 锈墓全面改造 v3：实施与验收清单
 
-本页记录标题活景、14章重做和系统升级的当前状态。**七位原创Boss、140张最终机位图、入口性能采样与修正后新游戏14章输入已完成；最终全量正在复跑。** 章节细节见 `docs/level-redesign/`，规范见 `docs/level_authoring.md`，历次验收见 `docs/acceptance.md`。
+本页记录标题活景、14章重做和系统升级的当前状态。**截至2026-10-25，七位原创Boss、14章新游戏输入、140张关卡图、性能/音频审计及最终无过滤全量1462/1462均已完成。** 章节细节见 `docs/level-redesign/`，规范见 `docs/level_authoring.md`，历次验收见 `docs/acceptance.md`。
 
 ## 工作区与不变契约
 
@@ -20,7 +20,7 @@
 | P5 | 完成四章实现与定向验收 | 04/04b/05/06；补唱诗阶梯、地窖东西回路净空和传送带真实速度导航 |
 | P6 | 完成六章实现与定向验收 | 07/07b/08/09/09b/10；补折返次序、斜坡接地、熄灭浇口安全查询、Herald世界区域坐标 |
 | P7 | 完成实现与专项验收 | 手柄、五项辅助、显示、地图、总结与复战、复活、音频、预算；Start与次级绑定冲突另作修正 |
-| P8 | 渲染/性能/新游戏输入完成，全量复跑 | 140张机位图、15处性能采样、最新普通输入14章通关通过；墓园测试天气隔离已修正，最终全量待终结报告 |
+| P8 | 完成最终整合验收与文档 | 无过滤全量1462/1462、新游戏14章/七Boss、140张机位图、15处性能采样、音频审计与证据索引全部通过；硬件/真人边界见末节 |
 
 并行阶段采用逐章定向门禁，再做整合全量。历史未在每次合入前完成全套的事实保留，不追认成“每阶段全量先通过”。先前 `full-final` 是1405/1406、0引擎错误、`passed=false`，唯一失败为修正前第三章恢复布局；它不是最终通过证据。
 
@@ -86,17 +86,51 @@
 
 首轮 `full-authoritative-final/` 为1451/1453、0引擎错误，`passed=false`：水渠导航跳过真实中间台阶，键位测试直接改内存绑定却假定当前设备为键盘。前者现经过真实台阶并计入下落刹车净空；后者通过设置页的真实抓键入口验证设备切换与即时刷新，未改产品提示规则。后续补齐连续桥、低顶板台阶、完整杂物支撑与窄瓮落脚的真实输入回归，导航20/20、恢复12/12。`full-authoritative-verified/`、`full-authoritative-complete/`、`full-final-certified/` 的中途运行有superseded记录，均不计为最终通过。
 
-`full-final-frozen/` 发现墓园“泥沼外不增毒”测试继承全局天气，锈雨会按原规则在干地独立增毒。`3651425` 明确用晴天隔离泥沼边界，并新增锈雨仍会增毒的实际角色回归；章节11/11、0引擎错误。没有修改游戏天气、毒素规则或布局。当前无章节/用例过滤全量为 `full-final-weather-fixed/`，必须终结行与summary同时通过后才能关闭P8。
+`full-final-frozen/` 终结为1456/1457、0引擎错误、`passed=false`：墓园“泥沼外不增毒”测试继承全局天气，锈雨会按原规则在干地独立增毒。`3651425` 用晴天隔离泥沼边界，并新增锈雨仍会增毒的实际角色回归；章节11/11、0引擎错误，游戏天气/毒素/布局未改。随后 `full-final-weather-fixed/` 已终结1458/1458、0引擎错误。清单审计又发现四类机关缺统一safe_window接口，`f7bcff7`补齐只读查询并把塌台最低抖动预警提升到0.5秒；当前关卡使用0.6/0.7/0.8/1.4秒，实际时序不变。最终取代上述历史全量的是 `full-final-window-contract/`：**1462/1462、0引擎错误**，终结行与summary同时通过。
 
 首次新游戏完整渲染输入 `input-20261024-222123-500/rekindle.json`（2次死亡、665帧机关等候）及校验副本 `input-final/rekindle/` 保留为历史通过记录。后续导航变化暴露的失败局也原样保留，不拼接为新游戏通过。
 
-最新修正后新游戏完整渲染输入为 `input-20261024-234119-947/rekindle.json`：`passed=true`、`campaign=true`、`input_only=true`、`basic_abilities=true`、`resumed=false`、`rendered=true`，5次真实死亡、0引擎错误。记录139个里程碑、第一章后13个有序章节入口、七Boss实际击杀、梦魇三阶段、真实熔渣致死、复活及标题Continue后Boss缺席、最终出口/字幕与game_complete持久化。公开辅助仍为受伤0.5/弹反1.5/毒素0.5，机关等候628帧，主线没有钩锁或额外跳跃。
+接口补齐前通过的新游戏完整渲染输入为 `input-20261024-234119-947/rekindle.json`：`passed=true`、`campaign=true`、`input_only=true`、`basic_abilities=true`、`resumed=false`、`rendered=true`，5次真实死亡、0引擎错误。记录139个里程碑、第一章后13个有序章节入口、七Boss实际击杀、梦魇三阶段、真实熔渣致死、复活及标题Continue后Boss缺席、最终出口/字幕与game_complete持久化。公开辅助仍为受伤0.5/弹反1.5/毒素0.5，机关等候628帧，主线没有钩锁或额外跳跃。
 
 115张实际PNG逐张解码并确认为1920×1080；`input-final/rekindle-verified/` 按文件校验归档121个文件，包含报告、日志、render-manifest、运行来源和12图联系表。联系表逐格查看，Boss出口图只表示击杀后的到达，击杀由里程碑与正常输入日志验证；新游戏/完成截图可能处于淡变中。来源为启动提交d1f61ca，归档时只追加过文档；后续墓园修改仅为测试。不能据此证明真人手感或实体显示器性能。
 
 渲染第一章熄灭分支 `input-20261024-222748-442/snuff.json` 也通过：`resumed=false`、基本能力、1次真实死亡、0引擎错误，三项辅助均100%。原件与校验后的 `input-final/snuff/` 副本同时保留。这是第一章提前结局，不是14章路线。
 
-当前运行时的标题守火及14章入口共15次1080p/8秒采样，原始样本、进程条件、JSON/PNG哈希在 `final-performance/`。回调间隔p95为3.349–5.001ms；钟楼有一次1160.905ms长停顿，来源未确定，详见 `docs/title-perf-acceptance.md`。固定机位、并发负载和离屏窗口不用于声称实体显示器性能或全程无卡顿。最终仍需无过滤全量、证据索引与报告关闭P8。
+最终接口提交`f7bcff7`重新从标题新游戏完成14章渲染输入：原件 `input-20261025-002258-602/rekindle.json`，归档 `input-final/rekindle-window-contract/`；138个里程碑、115张1920×1080 PNG、3次真实死亡、机关等候645帧、0引擎错误，`resumed=false`。启动前记录源码与两份驱动哈希，七Boss击杀、梦魇三阶段、致死/复活/Continue及最终出口/字幕与game_complete均独立验证；公开辅助为受伤0.5/弹反1.5/毒素0.5。归档副本逐文件校验，未拼接历史恢复局。
+
+标题守火及14章入口共15次1080p/8秒采样，原始样本、进程条件、JSON/PNG哈希在 `final-performance/`，源`83e430c`。`render-runtime-compatibility.json`逐字核对后续运行时差异：仅四个未被现有运行时调用的只读safe_window方法和对当前关卡无影响的最低抖动值；布局、画法、素材、既有调用均相同。因此沿用已审阅构图与停放机位采样，不称两棵源码树逐字相同。p95为3.349–5.001ms；钟楼有一次1160.905ms长停顿，来源未确定，详见性能报告。固定机位、并发负载和离屏窗口不用于声称实体显示器性能或全程无卡顿。
+
+## 最终门禁（2026-10-25）
+
+证据根为 `screenshots/acceptance/overhaul-v3/`；`final-evidence-index.json` 校验下列原件的SHA256、实际PNG尺寸、报告状态和必需套件覆盖。源代码与本页提交到Git，图像/日志保留为本机ignored证据。
+
+| 门禁 | 最终结果 | 证据 |
+| --- | --- | --- |
+| 无过滤全量 | **1462/1462，28740条断言，0引擎错误**；`passed=true`、`completed=true`，无章节/用例过滤 | `full-final-window-contract/`，源`f7bcff7` |
+| 新游戏14章渲染输入 | 14章、七Boss实际击杀、梦魇三阶段、致死/复活/Continue/最终出口与持久化通过；3次死亡、0引擎错误 | `input-final/rekindle-window-contract/`；原件`../input-20261025-002258-602/` |
+| 第一章熄灭 | 新游戏、基本能力、三项辅助100%、1次死亡、0引擎错误 | `input-final/snuff/`；这是提前结局 |
+| 章节构图 | 14章×5机位×2分辨率＝140张，14份联系表逐张审阅 | `final-matrix/manifest.json`、`visual-review.json` |
+| 原创Boss | 7位、459张透明像素帧、459/459源稿重现、跨Boss零完全相同帧 | `original-bosses/original-assets-review.json`、`seven-original-bosses.png` |
+| 标题 / 系统UI | 标题24张主矩阵+4张补图；系统默认/135%字体/显示/总结页共8张 | `title-perf/capture-manifest.json`、`systems/report.json` |
+| 实测入口性能 | 标题+14章共15次1080p、至少8秒采样；p95 3.349–5.001ms，保留钟楼1160.905ms离群值 | `final-performance/`、`render-runtime-compatibility.json` |
+| 音频数值审计 | 14个机关音效+1条标题循环，0硬失败/削波/DC异常/缺失/未解析引用，循环接缝通过 | `audio-hazard-verified.*`、`audio-title-verified.*` |
+
+全量stderr保留防护分支与Control锚点warning，以及退出时3个ObjectDB实例泄漏warning；未把warning改称失败，也不声称日志零告警。数值音频审计不代表人耳混音验收。
+
+### 原始清单逐项核对
+
+| 要求 | 当前实现与直接证据 |
+| --- | --- |
+| 五类机关、环境外力、安全窗口、提示 | `scripts/hazards/`、`ChapterLayout`、`PlayerController.add_environment`；五类专测、Sanity/Traversal、首遇与预算回归；`f7bcff7`补齐四个只读查询，四类25/25定向通过 |
+| 敌人变体、脱战群警戒、Boss破势、v2读档安全 | EnemyVariants/EnemyBase/BossPoise/SpawnSafety与对应正反例及迁移套件；七Boss真实判定撤回回归 |
+| 标题实时场景、进度变体、回退、版式和竞技场入口 | TitleWorld/TitleScreen、三分辨率live/keyart图、14灯/阴影/坐姿补图、title_metrics、ID_ARENA/交互回归 |
+| 第一章后半与其余13章蓝图/地形/遭遇/捷径/奖励/机关/Boss场 | `docs/level-redesign/level*.md`共14份，逐章layout及恢复物理用例、全部Sanity/route_audit/progression、140张构图和新游戏输入 |
+| 七Boss独立设计与自行绘制 | `docs/original-bosses.md`、三份可编辑绘制源稿、七套真实战斗状态美术回归、459帧重绘及轮廓/装备审阅；旧角色帧不供Boss使用 |
+| 手柄映射/重绑/设备提示、五项辅助、显示持久化 | gamepad/settings/key-labels/combat-rules/display-fit/resolution与UI实图；保留默认平衡和Start/Esc返回规则 |
+| 地图、回看余烬/复战、复活QoL、音频和预算 | map/pause/ember_recap/trial/death_respawn/audio_library/system_budget套件，真实Start事件、8张系统UI图与音频数值审计 |
+| 升级bot、基本能力、完整验收和文档 | 只读机关策略与真实输入驱动，新游戏14章/熄灭分支、统一构图/性能/证据索引；authoring/acceptance/本页/性能报告同步 |
+
+故事与章节顺序、原存档节点和v2迁移、基础能力、Boss判定/攻击ID均由全量及真实场景验证。历史逐章门禁替代每阶段全量的流程偏差仍保留在上文；最终全量不追认历史流程。未扩展多槽、完整i18n、Boss Director迁移或新玩家招式。
 
 ## 未验证项
 

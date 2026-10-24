@@ -89,7 +89,7 @@ Godot 4.7.1，Compatibility / OpenGL 3.3；渲染日志实际确认 NVIDIA GeFor
 
 ## 七位原创Boss整合后的最终入口采样
 
-在 `83e430c` 的整合树重新串行采集标题守火态及14章入口，各1920×1080、预热2秒、采样至少8秒。后续 `e52ab41`、`1d615c2`、`f886c30` 只修改测试与输入验收工具，没有改变这些场景、素材或运行时。证据位于 `screenshots/acceptance/overhaul-v3/final-performance/`：`runs.json` 逐次记录时间、提交和其他Godot进程；`summary.json` 索引原始JSON/PNG及SHA256。15张实际PNG均解码并核对1920×1080，联系表已检查真实入口、玩家、HUD和标题坐姿。
+在 `83e430c` 的整合树重新串行采集标题守火态及14章入口，各1920×1080、预热2秒、采样至少8秒。后续测试/工具/文档变化之外，`f7bcff7`为四类机关追加只读safe_window并提升最低抖动下限。`render-runtime-compatibility.json`逐字核对全部运行时差异：仅这四个未被既有运行时调用的方法，以及不影响当前章节0.6/0.7/0.8/1.4秒配置的预警下限。场景、画法、素材、布局与既有调用相同，故保留这批构图与停放入口采样；不称源码逐字相同。证据位于 `screenshots/acceptance/overhaul-v3/final-performance/`：`runs.json` 逐次记录时间、提交和其他Godot进程；`summary.json` 索引原始JSON/PNG及SHA256。15张实际PNG均解码并核对1920×1080，联系表已检查真实入口、玩家、HUD和标题坐姿。
 
 本批日志确认实际渲染器为Windows Compatibility / OpenGL 3.3、RTX 4060 Laptop GPU，驱动字符串为 **NVIDIA 621.01**；上文560.94属于早期采样记录。玩家与相机固定，AI/机关运行；同期有headless全量和用户已有编辑器/游戏，具体PID及命令保存在每次记录中。没有停止用户进程，也不把本批与早期批次当作严格A/B。
 
@@ -126,4 +126,4 @@ Godot 4.7.1，Compatibility / OpenGL 3.3；渲染日志实际确认 NVIDIA GeFor
 - 离屏渲染回调频率不是实体显示器呈现 FPS；未获取 GPU timer、逐脚本时间、帧呈现或整机功耗。
 - 固定入口、短时采样与无敌静止玩家不证明全关移动、Boss 战、最坏粒子/灯光组合、低端 GPU 或长时间稳定性。
 - 本轮没有实体触屏/手柄、真人手感、实体显示器性能或现场音频听感验收；不能从单元测试、PNG 或回调频率推出这些结论。
-- 标题截图/定向测试与探针证据已完成；P8 的普通输入全战役及最终全量测试应引用根任务独立报告。
+- 标题截图/定向测试与探针证据已完成；最终接口提交后的普通输入14章战役已通过，见 `overhaul-v3/input-final/rekindle-window-contract/`。它采用公开辅助和基本能力、3次真实死亡、115张1080p截图、0引擎错误；与本页停放机位性能样本分别归档。最终全量以 `docs/overhaul-v3.md` 和 `docs/acceptance.md` 的最终记录为准。
