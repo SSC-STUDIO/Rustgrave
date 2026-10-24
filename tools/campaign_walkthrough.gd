@@ -1,11 +1,16 @@
 extends "res://tools/input_walkthrough.gd"
-## Continues the real new-game walkthrough through chapters 2–10. Geometry is
+## Continues the real new-game walkthrough through all 14 chapters. Geometry is
 ## read to choose inputs; the driver never moves actors or grants progress.
 
 var _fight_tick := 0
 var _final_caption_recorded := false
 
 func _run() -> void:
+	# Public settings only, in the runner's isolated user directory. No HP grants,
+	# invulnerability, direct enemy damage, gate opening or progress mutation.
+	Settings.set_value(&"assist_incoming", 0.5, false)
+	Settings.set_value(&"assist_parry", 1.5, false)
+	Settings.set_value(&"assist_toxin", 0.5, false)
 	if not "--resume" in OS.get_cmdline_user_args():
 		await super._run()
 		return
@@ -263,6 +268,12 @@ func _flat(x: float, y: float, fight: bool = true) -> bool:
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
+		if p.is_on_floor() and HAZARD_POLICY.should_wait(LevelSanity.hazards(_world()),
+				p.global_position, x, p.controller.max_speed):
+			_release()
+			_hazard_wait_frames += 1
+			await _frames(1)
+			continue
 		_steer(x)
 		var spitter_close := false
 		var skeleton_ahead := false

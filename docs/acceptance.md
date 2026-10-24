@@ -12,6 +12,19 @@
   这是摆位并调用真实伤害路径的战斗夹具，不能证明正常输入通关或真人手感。
 - 完整 14 章地形重建、输入通关与渲染矩阵继续按 `docs/overhaul-v3.md` 跟踪，未在此宣告完成。
 
+### 战役输入工具：机关等待与辅助选项
+
+- 第一章与后续章节共用只读 `tools/campaign_hazard_policy.gd`：周期机关等待覆盖完整宽度的安全窗口，
+  已在判定区内则继续离开；区分楼层与目的地，摆锤预测后续 0.25 秒的锤头位置。
+- 专项 `campaign_hazard_policy` **4/4、16 条断言、0 engine errors**，
+  证据 `screenshots/acceptance/overhaul-v3/bot-policy/targeted-final/`。
+- 战役工具使用公开设置：受伤 0.5、弹反 1.5、毒素 0.5；报告写入实际倍率与机关等待帧数。
+  不更改角色位置、HP、敌人伤害结算、进度旗标或门状态。
+- 第一轮真实输入冒烟暴露了辅助弹反前摇读取关闭 Area 的引擎错误；已修为仅查询弹丸，
+  专项 `comfort_options` **7/7**、`integration_parry` **3/3**，均无引擎错误。
+  实体 Hurtbox 验证前摇无提前剑伤，进入正常判定期才造成伤害。
+  本节记录工具与缺陷验证，不宣称 14 章输入通关。
+
 ## 2026-10-17 全面升级 · 阶段一（样板）验收
 
 环境：Windows 10、Godot 4.7.1 stable、GL Compatibility、NVIDIA RTX 4060 Laptop。

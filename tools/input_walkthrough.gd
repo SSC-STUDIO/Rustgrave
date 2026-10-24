@@ -3,6 +3,7 @@ extends Node
 ## damages enemies, opens gates, or emits gameplay milestones.
 const ERROR_COLLECTOR := preload("res://tests/error_collector.gd")
 const TITLE := "res://scenes/ui/TitleScreen.tscn"
+const HAZARD_POLICY := preload("res://tools/campaign_hazard_policy.gd")
 var _errors
 var _ending := "rekindle"
 var _step := "startup"
@@ -20,6 +21,7 @@ var _last_frame_usec := 0
 var _campaign := false
 var _basic_abilities := false
 var _skip_captions := true
+var _hazard_wait_frames := 0
 ## --shots: save a PNG at every milestone plus opening / combat / boss beats into
 ## user://shots/. --window=WxH sizes the real window; --onscreen puts it on the desktop
 ## (decorated, at 40,40) instead of the off-screen borderless default.
@@ -841,20 +843,10 @@ func _nv_navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 
 ## 炉口挡路吗：前方 ~40px 内有一口同高度的周期炉口，且现在进去（含穿过判定区的时间）不安全。
 ## 已经站在判定区里就不拦（要让人走出去）。
-func _nv_hazard_blocks(p: Player, dir: float) -> bool:
-	if dir == 0.0 or not p.is_on_floor(): return false
-	for hz in _nv_vents:
-		if not is_instance_valid(hz) or not hz is CyclicHazard: continue
-		var c := hz as CyclicHazard
-		var zone := c.hit_rect()
-		if p.global_position.y < zone.position.y - 8.0 or p.global_position.y > zone.end.y + 8.0: continue
-		var px := p.global_position.x
-		if px >= zone.position.x - 7.0 and px <= zone.end.x + 7.0: continue
-		var ahead := (zone.position.x - 7.0 - px) if dir > 0.0 else (px - (zone.end.x + 7.0))
-		if ahead < 0.0 or ahead > 44.0: continue
-		var cross_time := (zone.size.x + 14.0) / 108.0 + 0.3 + ahead / 108.0
-		if not c.safe_window(cross_time): return true
-	return false
+func _nv_hazard_blocks(p: Player, target_x: float) -> bool:
+	if not p.is_on_floor(): return false
+	return HAZARD_POLICY.should_wait(_nv_vents, p.global_position, target_x,
+			p.controller.max_speed)
 
 
 func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
@@ -866,10 +858,9 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
-		if _nv_hazard_blocks(p, signf(x - p.position.x)):
-			_move(0.0)
-			_set_action(&"jump", false)
-			_set_action(&"dash", false)
+		if _nv_hazard_blocks(p, x):
+			_release()
+			_hazard_wait_frames += 1
 			await _frames(1)
 			continue
 		_nv_steer(x)
@@ -1117,6 +1108,12 @@ func _write_result(passed: bool) -> void:
 	result["resumed"] = "--resume" in OS.get_cmdline_user_args()
 	result["fixed_fps_accelerated"] = "--fast" in OS.get_cmdline_user_args()
 	result["rendered"] = _rendered
+	result["hazard_wait_frames"] = _hazard_wait_frames
+	result["assists"] = {
+		"incoming_damage": Settings.assist(&"assist_incoming"),
+		"parry_window": Settings.assist(&"assist_parry"),
+		"toxin_exposure": Settings.assist(&"assist_toxin"),
+	}
 	result["renderer"] = RenderingServer.get_current_rendering_method()
 	if not _frame_ms.is_empty():
 		_frame_ms.sort()
