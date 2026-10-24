@@ -285,9 +285,9 @@ func _begin_dive() -> void:
 	_face_player()
 	begin_telegraph(&"emberwind_herald", DIVE_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.LANE,
-			Vector2(_facing * 30.0, _floor_y - HOVER_HEIGHT + 8.0),
+			Vector2(global_position.x + _facing * 30.0, _floor_y - DIVE_LOW + 8.0),
 			DIVE_WINDUP, Color(1.0, 0.7, 0.35, 0.95),
-			{"length": DIVE_LANE, "facing": _facing})
+			{"length": DIVE_LANE, "facing": _facing, "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"boss_axe_swing"), global_position, 0.1, -8.0)
 
 
@@ -296,9 +296,9 @@ func _begin_push() -> void:
 	_face_player()
 	begin_telegraph(&"emberwind_herald", PUSH_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
-			Vector2(_facing * PUSH_SIZE.x * 0.5, _floor_y - 70.0),
+			Vector2(global_position.x + _facing * PUSH_SIZE.x * 0.5, _floor_y - PUSH_SIZE.y * 0.5 - 10.0),
 			PUSH_WINDUP, Color(0.55, 0.9, 1.0, 0.9),
-			{"rect": Rect2(-PUSH_SIZE * 0.5, PUSH_SIZE)})
+			{"rect": Rect2(-PUSH_SIZE * 0.5, PUSH_SIZE), "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -8.0)
 
 
@@ -318,10 +318,10 @@ func _begin_updraft() -> void:
 	set_meta("updraft_x", _clamp_x(at_x))
 	begin_telegraph(&"emberwind_herald", UPDRAFT_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
-			Vector2(float(get_meta("updraft_x")) - global_position.x, _floor_y - 80.0),
+			Vector2(float(get_meta("updraft_x")), _floor_y - UPDRAFT_HEIGHT * 0.5),
 			UPDRAFT_WINDUP, Color(0.65, 0.95, 0.85, 0.9),
 			{"rect": Rect2(-Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT) * 0.5,
-					Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT))})
+					Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT)), "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -10.0)
 
 
@@ -416,7 +416,11 @@ func _do_push() -> void:
 	zone.size = PUSH_SIZE
 	zone.flow = _facing * (PUSH_FLOW_P2 if _enraged else PUSH_FLOW)
 	zone.life = PUSH_ACTIVE + 0.05
-	zone.position = Vector2(_facing * PUSH_SIZE.x * 0.5, _floor_y - zone.size.y * 0.5 - 10.0)
+	# These ground areas belong to the Boss for cleanup but stay in world space.
+	# _floor_y is already global; inheriting the flying transform counted it twice.
+	zone.top_level = true
+	zone.position = Vector2(global_position.x + _facing * PUSH_SIZE.x * 0.5,
+			_floor_y - zone.size.y * 0.5 - 10.0)
 	add_child(zone)
 	_transient.append(zone)
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -6.0)
@@ -449,7 +453,8 @@ func _do_updraft() -> void:
 	zone.size = Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT)
 	zone.lift = UPDRAFT_LIFT_P2 if _enraged else UPDRAFT_LIFT
 	zone.life = UPDRAFT_LIFE if _enraged else UPDRAFT_LIFE * 0.75
-	zone.position = Vector2(float(get_meta("updraft_x")) - global_position.x,
+	zone.top_level = true
+	zone.position = Vector2(float(get_meta("updraft_x")),
 			_floor_y - zone.size.y * 0.5)
 	add_child(zone)
 	_transient.append(zone)
