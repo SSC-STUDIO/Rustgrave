@@ -178,8 +178,6 @@ func _ready() -> void:
 	# 音频包若提供了标题环境床（炉厅低鸣），开着它；没有就什么都不做。
 	if Sfx.has_method(&"set_title_bed"):
 		Sfx.call(&"set_title_bed", true)
-	elif Sfx.LIBRARY.has(&"bed_title"):
-		Sfx.play(&"bed_title", 0.0)
 	_build_backdrop()
 	_build_masthead()
 	_build_rail()
