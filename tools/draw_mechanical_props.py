@@ -117,6 +117,18 @@ def render(key, size, ramp, family):
                     for dy in range(3):
                         if pixels[x,y+dy][3]: pixels[x,y+dy]=p[3]
                     break
+    if key == 'metal_panel':
+        # A freestanding salvaged cover has clipped steel corners, rather than
+        # filling the entire rectangular canvas like a backdrop tile.
+        outline = [(0,4),(4,0),(w-5,0),(w-1,4),(w-1,h-5),
+                   (w-5,h-1),(4,h-1),(0,h-5)]
+        mask = Image.new('L', size)
+        ImageDraw.Draw(mask).polygon(outline, fill=255)
+        im.putalpha(mask)
+        d.line([(0,4),(4,0)], fill=p[3])
+        d.line([(w-5,0),(w-1,4)], fill=p[3])
+        d.line([(0,h-5),(4,h-1)], fill=p[0])
+        d.line([(w-5,h-1),(w-1,h-5)], fill=p[0])
     return im
 
 
