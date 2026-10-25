@@ -4,12 +4,10 @@ extends Camera2D
 ## plus a decaying trauma shake that nudges `offset` (never the limits), and an
 ## external decaying jolt written by the Juice autoload via `shake_offset`.
 
-## 视口已是 1280x720；zoom=2.0 让可视范围回到 640x360 世界单位，
-## 因此速度/碰撞盒/关卡坐标无需改动，只是每个世界单位渲染成 2x2 像素。
-## 改这个值等于改画面取景（WorldScale 不变，看得更多或更少）。
+## PresentationMetrics keeps a 640x360 logical view at every render density.
+## Zoom changes framing only; it is independent of the physical raster size.
 const ZOOM := 1.0
-## 1280×720 在 2560×1440（2.5K）上是 2× 整数拉伸。zoom=2 时
-## 1 世界单位 = 4 屏幕像素；对齐 0.25 世界单位 = 1 物理像素。
+## Preserve the authored whole-world-unit camera grid across resolutions.
 const PIXEL_GRID := 1.0
 ## 与 Director 宽银幕条同高（viewport 像素），只读、不改 Director。
 const LETTER_BAR_PX := 32.0

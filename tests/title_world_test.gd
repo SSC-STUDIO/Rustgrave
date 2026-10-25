@@ -433,15 +433,16 @@ func test_the_keyart_node_shows_the_live_viewport() -> void:
 	var vp := title.get_node_or_null("WorldViewport") as SubViewport
 	ok(vp != null, "世界视口存在")
 	if vp != null:
-		eq(vp.size, PresentationMetrics.WORLD_SIZE, "视口 640x360")
+		var density := mini(4, int(PresentationMetrics.for_window(get_tree().root)["scale"]))
+		eq(vp.size, PresentationMetrics.WORLD_SIZE * density, "native physical raster")
+		eq(vp.size_2d_override, PresentationMetrics.WORLD_SIZE, "logical view stays 640x360")
 		ok(vp.snap_2d_transforms_to_pixel, "整数像素对齐")
 		eq(int(vp.canvas_item_default_texture_filter), int(Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST), "最近邻")
 		eq(int(vp.render_target_update_mode), int(SubViewport.UPDATE_ALWAYS), "可见时每帧渲染")
 		ok(vp.world_2d != get_viewport().world_2d, "自己的 World2D（灯光不会漏进别处）")
 	ok(keyart.material is ShaderMaterial, "套着像素平滑着色器")
 	var material := keyart.material as ShaderMaterial
-	eq(int(material.get_shader_parameter("scale_hint")), int(PresentationMetrics.for_window(get_tree().root)["scale"]),
-			"平滑着色器的缩放提示 = 当前整数缩放")
+	eq(int(material.get_shader_parameter("scale_hint")), 1, "native detail bypasses reconstruction")
 	ok(title.world() != null, "标题持有活景")
 	# 看不见时不再渲染
 	title.visible = false
