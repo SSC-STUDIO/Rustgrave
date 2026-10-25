@@ -38,12 +38,26 @@ var _default_keys: Dictionary = {}
 var _extra: Dictionary = {}
 var _loaded := false
 var _save_pending := false
+## 最近一次输入来自手柄时，提示文案改画按键名而不是键盘键帽。
+var using_gamepad := false
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_capture_default_keys()
 	load_settings()
+	_install_gamepad()
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton and event.pressed:
+		using_gamepad = true
+	elif event is InputEventJoypadMotion and absf(event.axis_value) >= 0.55:
+		using_gamepad = true
+	elif event is InputEventKey and event.pressed and not event.echo:
+		using_gamepad = false
+	elif event is InputEventMouseButton and event.pressed:
+		using_gamepad = false
 
 
 ## Read the file (missing / corrupt / foreign version all fall back to defaults)
@@ -117,6 +131,18 @@ func apply_all() -> void:
 		_apply_volume(bus)
 	for action in REBINDABLE:
 		_apply_key(action, key_for(action))
+	_apply_display()
+
+
+func _apply_display() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var vsync_on := bool(value(&"vsync", true))
+	DisplayServer.window_set_vsync_mode(
+			DisplayServer.VSYNC_ENABLED if vsync_on else DisplayServer.VSYNC_DISABLED)
+	var index := int(value(&"resolution_index", -1))
+	if index >= 0 and index < DisplayFit.PRESET_RESOLUTIONS.size():
+		DisplayFit.apply_resolution(DisplayFit.PRESET_RESOLUTIONS[index])
 
 
 # --- volume -----------------------------------------------------------------
@@ -278,6 +304,67 @@ func set_value(key: StringName, v: Variant, persist: bool = true) -> void:
 	if persist:
 		save_settings()
 	changed.emit(key)
+
+
+## 手柄默认键。只在这个动作上还没有对应手柄事件时补一条，不覆盖键盘改键。
+func _install_gamepad() -> void:
+	if not InputMap.has_action(&"world_map"):
+		InputMap.add_action(&"world_map", 0.5)
+	_ensure_key(&"world_map", KEY_M)
+	_ensure_button(&"world_map", JOY_BUTTON_BACK)
+	_ensure_button(&"jump", JOY_BUTTON_A)
+	_ensure_button(&"dash", JOY_BUTTON_B)
+	_ensure_button(&"attack", JOY_BUTTON_X)
+	_ensure_button(&"interact", JOY_BUTTON_Y)
+	_ensure_button(&"socket_1", JOY_BUTTON_LEFT_SHOULDER)
+	_ensure_button(&"socket_2", JOY_BUTTON_RIGHT_SHOULDER)
+	_ensure_button(&"hookshot", JOY_BUTTON_RIGHT_STICK)
+	_ensure_axis(&"hookshot", JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_ensure_button(&"skill_1", JOY_BUTTON_LEFT_STICK)
+	_ensure_axis(&"skill_1", JOY_AXIS_TRIGGER_LEFT, 1.0)
+	_ensure_button(&"skill_2", JOY_BUTTON_DPAD_UP)
+	_ensure_button(&"move_left", JOY_BUTTON_DPAD_LEFT)
+	_ensure_button(&"move_right", JOY_BUTTON_DPAD_RIGHT)
+	_ensure_axis(&"move_left", JOY_AXIS_LEFT_X, -1.0)
+	_ensure_axis(&"move_right", JOY_AXIS_LEFT_X, 1.0)
+	if InputMap.has_action(&"ui_cancel"):
+		_ensure_button(&"ui_cancel", JOY_BUTTON_START)
+
+
+func _ensure_key(action: StringName, physical: Key) -> void:
+	if not InputMap.has_action(action):
+		return
+	for event in InputMap.action_get_events(action):
+		if event is InputEventKey and (event as InputEventKey).physical_keycode == physical:
+			return
+	var key := InputEventKey.new()
+	key.physical_keycode = physical
+	InputMap.action_add_event(action, key)
+
+
+func _ensure_button(action: StringName, button: JoyButton) -> void:
+	if not InputMap.has_action(action):
+		return
+	for event in InputMap.action_get_events(action):
+		if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == button:
+			return
+	var joy := InputEventJoypadButton.new()
+	joy.button_index = button
+	InputMap.action_add_event(action, joy)
+
+
+func _ensure_axis(action: StringName, axis: JoyAxis, axis_value: float) -> void:
+	if not InputMap.has_action(action):
+		return
+	for event in InputMap.action_get_events(action):
+		if event is InputEventJoypadMotion:
+			var motion := event as InputEventJoypadMotion
+			if motion.axis == axis and signf(motion.axis_value) == signf(axis_value):
+				return
+	var joy := InputEventJoypadMotion.new()
+	joy.axis = axis
+	joy.axis_value = axis_value
+	InputMap.action_add_event(action, joy)
 
 
 func _reset_values() -> void:

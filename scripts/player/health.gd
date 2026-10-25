@@ -10,6 +10,8 @@ signal died
 
 var current: int
 var invincible: bool = false
+## AI 打 AI 时为 true：不发 GameEvents.hit，避免满屏顿帧。玩家打出或受到的伤害仍会发。
+var quiet: bool = false
 var _hit_iframe: float = 0.0
 var _dead: bool = false
 
@@ -33,16 +35,50 @@ func take_damage(amount: int, attacker: Node = null) -> bool:
 		return false
 	var effective_damage := amount
 	var host := get_parent()
+	var incoming := 1.0
+	if host is Player:
+		incoming = clampf(float(Settings.value(&"assist_incoming", 1.0)), 0.5, 1.5)
+		if not is_equal_approx(incoming, 1.0):
+			effective_damage = int(round(float(amount) * incoming))
 	if host is Player and "stats" in host and host.stats != null and host.stats.has_method(&"get_defense_reduction"):
-		effective_damage = maxi(1, amount - host.stats.get_defense_reduction())
+		effective_damage -= host.stats.get_defense_reduction()
+	# 默认倍率仍至少扣 1 点，和改辅助选项之前一样。调低之后允许四舍五入到 0。
+	effective_damage = maxi(1, effective_damage) if is_equal_approx(incoming, 1.0) else maxi(0, effective_damage)
+	if effective_damage <= 0:
+		return false
 	current = maxi(0, current - effective_damage)
 	_hit_iframe = hit_iframe_time
 	changed.emit(current, max_hp)
-	GameEvents.hit.emit(attacker, get_parent(), effective_damage)
+	if _should_broadcast_hit(attacker):
+		GameEvents.hit.emit(attacker, get_parent(), effective_damage)
 	if current <= 0 and not _dead:
 		_dead = true
 		died.emit()
 	return true
+
+
+func grant_iframes(seconds: float) -> void:
+	_hit_iframe = maxf(_hit_iframe, maxf(0.0, seconds))
+
+
+func _should_broadcast_hit(attacker: Node) -> bool:
+	if not quiet:
+		return true
+	var host := get_parent()
+	if host is Player:
+		return true
+	return _attacker_is_player(attacker)
+
+
+func _attacker_is_player(attacker: Node) -> bool:
+	var cursor: Node = attacker
+	var guard := 0
+	while cursor != null and guard < 8:
+		if cursor is Player or cursor.is_in_group("player"):
+			return true
+		cursor = cursor.get_parent()
+		guard += 1
+	return false
 
 
 ## Dynamically adjust max_hp pool with strict resurrection latch protection

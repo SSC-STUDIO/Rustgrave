@@ -130,8 +130,8 @@ func test_state_for_each_ending() -> void:
 		eq(s["act"], 4, "结局都在第四幕的终点")
 		eq(s["cleared"], 14, "全部通关")
 		eq(TitleWorld.grade_id(s), StringName(ending), "%s 有自己的调色" % ending)
-	eq(TitleWorld.build_state(_peek("level10", [], "give"))["lit"], 5, "送剑：灯全亮")
-	eq(TitleWorld.build_state(_peek("level10", [], "keep"))["lit"], 5, "守火：灯全亮")
+	eq(TitleWorld.build_state(_peek("level10", [], "give"))["lit"], 5, "还火：灯全亮")
+	eq(TitleWorld.build_state(_peek("level10", [], "keep"))["lit"], 5, "守炉：灯全亮")
 	eq(TitleWorld.build_state(_peek("level10", [], "snuff"))["lit"], 0, "熄灭：灯全暗")
 	# 没见过的结局 id（旧测试里写过 "purified"）按已完成处理，不崩
 	eq(TitleWorld.build_state(_peek("level10", [], "purified"))["variant"], TitleWorld.VARIANT_GIVE)
@@ -178,7 +178,7 @@ func test_state_from_save_peeks_the_file_on_disk() -> void:
 	cfg.set_value("meta", "ending", "keep")
 	cfg.save(SAVE_PATH)
 	var ended := TitleWorld.state_from_save()
-	eq(ended["variant"], TitleWorld.VARIANT_KEEP, "读盘：守火结局")
+	eq(ended["variant"], TitleWorld.VARIANT_KEEP, "读盘：守炉结局")
 
 	# 强制状态（工具 / 测试用）压过存档
 	TitleWorld.forced_state = TitleWorld.build_state(_peek("", [], "", false))
@@ -237,17 +237,17 @@ func test_each_variant_puts_the_right_actors_on_the_bridge() -> void:
 
 	var give := _make_world(TitleWorld.build_state(_peek("level10", [], "give")))
 	await flush(3)
-	ok(give.knight() == null, "送剑：骑士不在了")
-	ok(give.planted_sword() != null, "送剑：桥上只剩插着的巨剑")
+	ok(give.knight() == null, "还火：骑士不在了")
+	ok(give.planted_sword() != null, "还火：桥上只剩插着的巨剑")
 	eq(give.sparks().active_count(TitleSparks.Kind.SPECK), TitleSparks.CAPS[TitleSparks.Kind.SPECK],
-			"送剑：飘着一些锈屑")
+			"还火：飘着一些锈屑")
 	await _free_world(give)
 
 	var keep := _make_world(TitleWorld.build_state(_peek("level10", [], "keep")))
 	await flush(3)
-	ok(keep.knight() != null, "守火：骑士在")
-	ok(keep.knight().position.x > TitleWorld.KNIGHT_X + 40.0, "守火：骑士站在炉口那一端")
-	ok(keep.nest() != null, "守火：余烬巢点着")
+	ok(keep.knight() != null, "守炉：骑士在")
+	ok(keep.knight().position.x > TitleWorld.KNIGHT_X + 40.0, "守炉：骑士站在炉口那一端")
+	ok(keep.nest() != null, "守炉：余烬巢点着")
 	await _free_world(keep)
 
 	var snuff := _make_world(TitleWorld.build_state(_peek("level10", [], "snuff")))
@@ -265,7 +265,7 @@ func test_configure_swaps_the_actors() -> void:
 	ok(world.knight() != null, "起初骑士在")
 	world.configure(TitleWorld.build_state(_peek("level10", [], "give")))
 	await flush(3)
-	ok(world.knight() == null, "切到送剑后骑士被收走")
+	ok(world.knight() == null, "切到还火后骑士被收走")
 	ok(world.planted_sword() != null, "巨剑插上了")
 	world.configure(TitleWorld.build_state(_peek("level04", _done_flags(4))))
 	await flush(3)
@@ -464,7 +464,7 @@ func test_without_the_live_scene_the_old_keyart_is_shown() -> void:
 	var keyart := title.get_node_or_null("Keyart") as TextureRect
 	ok(keyart != null, "回退模式也有 Keyart")
 	ok(keyart.texture != null and not (keyart.texture is ViewportTexture), "显示的是静态贴图")
-	eq(keyart.texture.resource_path, TitleScreen.KEYART_PATH, "就是旧 keyart")
+	eq(DensityTextures.source_path(keyart.texture), TitleScreen.KEYART_PATH, "就是旧 keyart")
 	eq(int(keyart.stretch_mode), int(TextureRect.STRETCH_KEEP_ASPECT_COVERED), "拉伸模式不变")
 	ok(title.get_node_or_null("WorldViewport") == null, "回退模式不建世界视口")
 	ok(title.world() == null, "回退模式没有活景")

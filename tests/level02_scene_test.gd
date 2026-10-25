@@ -42,6 +42,33 @@ func test_arrival_from_the_forge_drops_the_knight_into_the_shaft() -> void:
 	almost(player.global_position.y, 320.0, 2.0, "lands on FloorA")
 
 
+## 到达顺序（和 ChapterLevel 同一套）：先发 chapter_started（章间分镜挂在它上面），再排
+## 章节卡 → 醒来句 → 目标；目标只念一次。
+func test_first_entry_announces_the_chapter_and_queues_card_wake_objective_once() -> void:
+	var announced: Array[String] = []
+	var on_started := func(id: String) -> void: announced.append(id)
+	GameEvents.chapter_started.connect(on_started)
+	SaveData.pending_spawn = Level02Layout.ENTRY_SPAWN
+	var level := SCENE.instantiate()
+	add_child(level)
+	await flush(2)
+	GameEvents.chapter_started.disconnect(on_started)
+	eq(announced, ["level02"], "the undercroft announces itself like every other chapter")
+	ok(Director.playing, "the arrival script is running")
+	var kinds: Array[String] = []
+	var captions: Array[String] = []
+	for raw in Director._queue:
+		var step: Dictionary = raw
+		kinds.append(String(step.get("kind", "")))
+		if String(step.get("kind", "")) == "caption":
+			captions.append(String(step.get("text", "")))
+	eq(captions, [ChapterText.wake_of("level02"), "目标 · %s" % ChapterText.objective_of("level02")],
+			"wake line first, then the objective — each once")
+	ok(kinds.find("tableau") >= 0 and kinds.find("tableau") < kinds.find("caption"),
+			"the chapter card comes before the lines")
+	Director.abort()
+
+
 func _live_level() -> Node:
 	SaveData.pending_spawn = Vector2.INF
 	var level := SCENE.instantiate()

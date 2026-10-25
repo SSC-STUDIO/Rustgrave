@@ -44,7 +44,7 @@ var _glow_tex: Texture2D
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if has_glow:
-		_glow_tex = load(GLOW) as Texture2D
+		_glow_tex = DensityTextures.load_texture(GLOW)
 		_overlay = Node2D.new()
 		_overlay.name = "Glow"
 		_overlay.material = Fx.additive_mat()

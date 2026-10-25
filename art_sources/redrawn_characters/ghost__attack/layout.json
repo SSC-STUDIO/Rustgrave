@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1248,
+    1024
+  ],
+  "cell": [
+    416,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/ghost/attack/attack_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        512
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        20,
+        19,
+        44,
+        61
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/attack/attack_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        512
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        15,
+        17,
+        46,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/attack/attack_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        512
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        8,
+        15,
+        54,
+        57
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/attack/attack_3.png",
+      "slot": [
+        0,
+        512,
+        416,
+        1024
+      ],
+      "frame_origin": [
+        16,
+        528
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        8,
+        14,
+        52,
+        57
+      ]
+    }
+  ]
+}

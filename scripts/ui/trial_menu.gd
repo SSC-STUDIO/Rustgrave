@@ -1,13 +1,13 @@
 extends CanvasLayer
-## 回火试炼入口菜单：赛道 tab + 目标列表 + 记录 / 规则 / 固定装载 + 开始。
+## 回火试炼入口菜单：赛道 tab + 目标列表 + 试炼卷宗（记录 / 规则 / 固定装载）+ 开始。
 ##
-## 版式沿用现有弹窗语言（ui_modal / MenuList / PlateButton），不新增素材：
-## 左侧一列目标（章节或"全部 Boss"），右侧战场档案（记录、固定装载、规则），
-## 底部「开始试炼 / 返回标题」。开局后由 TrialRun 接管（pending 机制换场）。
+## 版式沿用回看余烬的语汇：左侧是铁条菜单（目标，一行 = 一场试炼），右侧是半透明的
+## 「试炼卷宗」切角卡片，两列的题头落在同一行；底部「开始试炼」为主行动，「返回标题」退成次行动。
+## 赛道 tab 仍在最上面（←→ / 肩键切换）。开局后由 TrialRun 接管（pending 机制换场）。
 ##
 ## 输入：
 ##   ←→ / PageUp·PageDown / 肩键   切赛道
-##   ↑↓                            选目标（列表行 ≥52 设计像素，鼠标/触控同行）
+##   ↑↓                            选目标（铁条行 52 设计像素，鼠标/触控同行）
 ##   Enter                         开始当前目标
 ##   Esc                           回标题
 
@@ -21,7 +21,11 @@ const Records := preload("res://scripts/data/trial_records.gd")
 const RESULTS_PATH := "res://scripts/ui/trial_results.gd"
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const TAB_WIDTH := 250.0
-const ROW_MIN := 52.0
+## 左列（目标）与右侧卷宗的宽度；卷宗吃掉剩下的宽度。
+const TARGET_W := 380.0
+const DOSSIER_W := 420.0
+## 两列顶上的留白：卷宗卡的内边距与左列题头对齐到同一行（同回看余烬的 HEAD_TOP 做法）。
+const DOSSIER_INSET := 22.0
 
 var _shell: Dictionary = {}
 var _root: Control
@@ -38,6 +42,7 @@ var _title_label: Label
 var _sub_label: Label
 var _record_label: Label
 var _loadout_label: Label
+var _rules_kicker: Label
 var _rule_label: Label
 var _locked_label: Label
 var _empty_label: Label
@@ -91,7 +96,7 @@ func _build() -> void:
 	var column := VBoxContainer.new()
 	column.name = "Column"
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 8)
 	body.add_child(column)
 
 	_build_tabs(column)
@@ -100,7 +105,7 @@ func _build() -> void:
 	main.name = "Main"
 	main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	main.add_theme_constant_override("separation", 20)
+	main.add_theme_constant_override("separation", 16)
 	column.add_child(main)
 	_build_target_side(main)
 	_build_dossier_side(main)
@@ -131,72 +136,83 @@ func _build_tabs(parent: VBoxContainer) -> void:
 		_tabs.append(tab)
 
 
+## 左列：题头「试炼目标」+ 铁条菜单（每行一个目标，和回看余烬的行程入口同一套铁条）。
 func _build_target_side(parent: HBoxContainer) -> void:
-	var plaque := UiKit.panel()
-	plaque.name = "Targets"
-	plaque.custom_minimum_size = Vector2(520.0, 0.0)
-	plaque.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	parent.add_child(plaque)
-	var inner := VBoxContainer.new()
-	inner.add_theme_constant_override("separation", 6)
-	plaque.add_child(inner)
-	var kicker := UiKit.label("目 标", &"TinyStrongLabel")
-	inner.add_child(kicker)
+	var side := VBoxContainer.new()
+	side.name = "Targets"
+	side.custom_minimum_size = Vector2(TARGET_W, 0.0)
+	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_theme_constant_override("separation", 6)
+	parent.add_child(side)
+	var top := Control.new()
+	top.name = "HeadInset"
+	# 列间距 6 会再加一次：顶上的留白扣掉这 6px，题头才和卷宗的内边距落在同一行。
+	top.custom_minimum_size = Vector2(0.0, DOSSIER_INSET - 6.0)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	side.add_child(top)
+	side.add_child(GlassKit.kicker("试 炼 目 标"))
+	# 说明文字排在题头下面、列表上面：没有目标时它就贴着题头落下（列表那一格是展开的，排在后面会被挤到底部）。
+	_empty_label = UiKit.label("", &"DimLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_empty_label.name = "Empty"
+	_empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_empty_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_empty_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	side.add_child(_empty_label)
 	_scroll = ScrollContainer.new()
 	_scroll.name = "Scroll"
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	inner.add_child(_scroll)
-	_empty_label = UiKit.label("", &"DimLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_empty_label.name = "Empty"
-	_empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_empty_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	inner.add_child(_empty_label)
+	side.add_child(_scroll)
 
 
+## 右侧「试炼卷宗」：玻璃切角卡（与回看余烬的旅程档案同一透明度）。内容可长可短，套滚动。
 func _build_dossier_side(parent: HBoxContainer) -> void:
-	var plaque := UiKit.panel()
-	plaque.name = "Dossier"
-	plaque.custom_minimum_size = Vector2(440.0, 0.0)
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	parent.add_child(plaque)
-	# 档案内容可长可短：套一层滚动，卡片的最小高度就不会被文字撑爆
-	# （否则底部「开始 / 返回」会被弹窗的提示带挤掉）。
+	var card := TitleCard.new()
+	card.name = "Dossier"
+	card.custom_minimum_size = Vector2(DOSSIER_W, 0.0)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.body_alpha = GlassKit.CARD_ALPHA / TitleCard.FILL.a
+	parent.add_child(card)
 	var scroll := ScrollContainer.new()
 	scroll.name = "DossierScroll"
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 24.0
+	scroll.offset_top = DOSSIER_INSET
+	scroll.offset_right = -24.0
+	scroll.offset_bottom = -16.0
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	plaque.add_child(scroll)
+	card.add_child(scroll)
 	var inner := VBoxContainer.new()
 	inner.name = "Inner"
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inner.add_theme_constant_override("separation", 8)
+	inner.add_theme_constant_override("separation", 6)
 	scroll.add_child(inner)
 
-	var kicker := HBoxContainer.new()
-	inner.add_child(kicker)
-	kicker.add_child(UiKit.label("战 场 档 案", &"TinyStrongLabel"))
+	inner.add_child(GlassKit.kicker("试 炼 卷 宗"))
 	_title_label = _dossier_title()
 	inner.add_child(_title_label)
 	_sub_label = UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_LEFT)
 	inner.add_child(_sub_label)
-	inner.add_child(UiKit.divider())
-	_record_label = UiKit.label("", &"BodyLabel")
-	_record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	inner.add_child(_record_label)
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inner.add_child(spacer)
-	inner.add_child(UiKit.label("固 定 装 载", &"TinyStrongLabel"))
-	_loadout_label = _footnote("")
-	inner.add_child(_loadout_label)
-	inner.add_child(UiKit.label("规 则", &"TinyStrongLabel"))
+	var rule := GlassKit.rule(120.0)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	inner.add_child(rule)
+	_rules_kicker = GlassKit.kicker("规 则")
+	inner.add_child(_rules_kicker)
 	_rule_label = _footnote("")
 	inner.add_child(_rule_label)
-	_locked_label = _footnote("")
+	# 记录与固定装载的小标题并进各自的首行（「记 录 ·」「固 定 装 载 ·」），卡片不够高时省一行题头。
+	_record_label = UiKit.label("", &"BodyLabel")
+	_record_label.name = "Record"
+	_record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inner.add_child(_record_label)
+	_loadout_label = _footnote("")
+	_loadout_label.name = "Loadout"
+	inner.add_child(_loadout_label)
+	# 未解锁时卷宗只留题头与解锁条件：这一行是锁定态的正文，所以用正文字号。
+	_locked_label = UiKit.label("", &"BodyLabel")
+	_locked_label.name = "UnlockHint"
+	_locked_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_locked_label.modulate = Color(1.1, 0.85, 0.6)
 	inner.add_child(_locked_label)
 
@@ -220,19 +236,20 @@ func _build_footer(parent: VBoxContainer) -> void:
 	footer.alignment = BoxContainer.ALIGNMENT_CENTER
 	footer.add_theme_constant_override("separation", 16)
 	parent.add_child(footer)
-	_start_button = _plate_button("开 始 试 炼", &"Start")
+	# 主行动（开始）用铆钉板；返回标题退成次行动的铁按钮。
+	_start_button = _plate_button("开 始 试 炼", &"Start", &"PlateButton")
 	_start_button.pressed.connect(start_selected)
 	footer.add_child(_start_button)
-	_back_button = _plate_button("返 回 标 题", &"Back")
+	_back_button = _plate_button("返 回 标 题", &"Back", &"SettingsButton")
 	_back_button.pressed.connect(_back_to_title)
 	footer.add_child(_back_button)
 
 
-func _plate_button(text: String, node_name: StringName) -> Button:
+func _plate_button(text: String, node_name: StringName, variation: StringName) -> Button:
 	var button := Button.new()
 	button.name = String(node_name)
 	button.text = text
-	button.theme_type_variation = &"PlateButton"
+	button.theme_type_variation = variation
 	button.focus_mode = Control.FOCUS_ALL
 	button.custom_minimum_size = Vector2(230.0, UiKit.TOUCH_MIN)
 	return button
@@ -263,6 +280,8 @@ func _rebuild_targets() -> void:
 		_target_menu = null
 	_target_menu = MenuList.new()
 	_target_menu.name = "TargetList"
+	# 铁条版式：与回看余烬的行程入口同一套条身，深色底让它压在玻璃卡旁边也读得清。
+	_target_menu.strip_style = true
 	_target_menu.add_theme_constant_override("separation", 6)
 	_target_menu.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_target_menu.chosen.connect(_on_target_chosen)
@@ -270,10 +289,9 @@ func _rebuild_targets() -> void:
 	for entry in _targets:
 		var row: Dictionary = entry
 		var item := _target_menu.add_item(StringName(String(row.get("id", ""))),
-				String(row.get("title", "")), false, MenuItem.Kind.DEFAULT)
+				String(row.get("title", "")), false, MenuItem.Kind.PRIMARY)
+		item.dark_plate = true
 		item.show_tick = false
-		item.custom_minimum_size = Vector2(0.0, ROW_MIN)
-		item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_target_menu.active = not _locked and not _targets.is_empty()
 	_empty_label.visible = _targets.is_empty()
 	if _targets.is_empty():
@@ -288,7 +306,8 @@ func _rebuild_targets() -> void:
 
 func _empty_text() -> String:
 	if _locked:
-		return "试炼尚未解锁。\n通关第七章（钟楼）或走完任一结局后，这里会亮起来。"
+		return "试炼尚未解锁。\n通关%s（%s）或走完任一结局后，这里会亮起来。" % [
+			Catalog.unlock_chapter_label(), ChapterText.name_of(Catalog.UNLOCK_CHAPTER)]
 	match _track:
 		Catalog.Track.BOSS_RUSH:
 			return "还没有可以连战的 Boss。\n先推进主线，让 Boss 倒下一次。"
@@ -314,22 +333,31 @@ func start_selected() -> bool:
 func _refresh_dossier() -> void:
 	if _title_label == null:
 		return
+	# 锁定与否决定卷宗哪些行存在：锁定时只留题头与解锁条件，不留空行。
+	_sub_label.visible = not _locked
+	_rules_kicker.visible = not _locked
+	_rule_label.visible = not _locked
+	_record_label.visible = not _locked
+	_loadout_label.visible = not _locked
+	_locked_label.visible = _locked
 	if _locked:
 		_title_label.text = "尚 未 解 锁"
-		_sub_label.text = Catalog.unlock_requirement()
+		_sub_label.text = ""
 		_record_label.text = ""
-		_loadout_label.text = "—"
-		_rule_label.text = "—"
+		_loadout_label.text = ""
+		_rule_label.text = ""
 		_locked_label.text = Catalog.unlock_requirement()
 		_start_button.disabled = true
 		return
 	_locked_label.text = ""
 	var has_target := _selected_target != ""
 	_title_label.text = Catalog.target_title(_track, _selected_target) if has_target else "—"
-	_sub_label.text = Catalog.target_subtitle(_track, _selected_target)
+	# 副题一行写清赛道与目标的口径（例：限时疾行 · 锈墓・壹）。
+	var sub := Catalog.target_subtitle(_track, _selected_target)
+	_sub_label.text = Catalog.track_name(_track) + (" · " + sub if sub != "" else "")
 	var summary := Records.summary_line(_track, _selected_target) if has_target else ""
 	_record_label.text = ("记 录 · " + summary) if summary != "" else "记 录 · 尚 无"
-	_loadout_label.text = Catalog.loadout_summary(_track)
+	_loadout_label.text = "固 定 装 载 · " + Catalog.loadout_summary(_track)
 	var rules := PackedStringArray()
 	for line in Catalog.track_rules(_track):
 		rules.append("· " + String(line))

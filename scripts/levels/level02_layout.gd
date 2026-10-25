@@ -14,6 +14,7 @@ extends Node2D
 ##     门前第四余烬巢、空钟门（出口，Boss 死亡后开）
 
 const PLATFORM := preload("res://scenes/world/Platform.tscn")
+const _OVERHAUL := preload("res://scripts/levels/chapter_overhaul.gd")
 const NEST := preload("res://scenes/interactables/EmberNest.tscn")
 const STELE := preload("res://scenes/interactables/LoreStele.tscn")
 const TOXIN := preload("res://scenes/interactables/ToxinPool.tscn")
@@ -167,6 +168,7 @@ func build(host: Node2D) -> void:
 		specks.name = "ThemeMotes"
 		specks.flavor = "spores"
 		host.add_child(specks)
+	_OVERHAUL.dress(self, host)
 
 
 func _group(host: Node2D, group_name: String) -> Node2D:
@@ -439,7 +441,7 @@ func _build_decor(host: Node2D) -> void:
 func _sprite(parent: Node2D, path: String, pos: Vector2, tint: Color, grounded: bool = false) -> void:
 	if not ResourceLoader.exists(path):
 		return
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false
@@ -462,7 +464,7 @@ func _waymark(parent: Node2D, feet: Vector2, text: String) -> void:
 	if ResourceLoader.exists(SIGN_TEX):
 		var spr := Sprite2D.new()
 		spr.name = "Board"
-		spr.texture = load(SIGN_TEX) as Texture2D
+		spr.texture = DensityTextures.load_texture(SIGN_TEX)
 		spr.centered = false
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		spr.position = origin
@@ -489,6 +491,6 @@ func _harmonize_fill(node: Node, key: String) -> void:
 	var path := PropCatalog.path_for(key, "undercroft")
 	if path == String(PropCatalog.DECOR.get(key, "")) or not ResourceLoader.exists(path):
 		return
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex != null:
 		fill.texture = tex

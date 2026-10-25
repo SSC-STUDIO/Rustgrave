@@ -5,7 +5,10 @@ extends Node
 ## script is skipped or aborted. Pause hangs us via suspend() / tree.paused,
 ## not by us setting paused ourselves.
 ##
-## Step kinds: lock unlock wait tableau caption cam_focus cam_release letterbox sfx fx anim.
+## Step kinds: lock unlock wait tableau caption board cam_focus cam_release letterbox sfx fx anim.
+## `board` = {"kind": "board", "id": "interlude_level01" | "prologue" | "ending_give" | "credits"}:
+## one full-screen storyboard (scripts/data/storyboards.gd, played by StoryboardPlayer). The
+## step ends when the board does; Enter is forwarded to the board (see skip_step).
 ## fx ids: ember_rise ash_fall heart_pulse shock_ring rust_flake dust_puff plant bell_ring
 ##   grave_answer core_ring boss_roar phase_flash shake flash freeze slowmo.
 
@@ -17,6 +20,7 @@ signal step_started(index: int, step: Dictionary)
 signal step_finished(index: int, step: Dictionary)
 
 const FADE_DEFAULT := 0.45
+const Storyboards := preload("res://scripts/data/storyboards.gd")
 ## 进行中的剧本之外还能再排这么多条。满了丢掉最旧的并打日志，避免故事监听静默丢过场。
 const PLAY_QUEUE_MAX := 8
 
@@ -47,6 +51,11 @@ var _letter_top: ColorRect
 var _letter_bot: ColorRect
 var _letter_amount: float = 0.0
 var _letter_target: float = 0.0
+## 全屏分镜播放器（层 13）。board 步骤把它跑起来，见 storyboard_player.gd。
+var _board: CanvasLayer
+## 测试跑器里 board 步骤默认只是一小段等待（TEST_BOARD_STUB_SECONDS）；要走真播放的用例置位它。
+var test_boards: bool = false
+const TEST_BOARD_STUB_SECONDS := 0.3
 ## play(..., true) 时，一次 ui_accept 结束当前这条剧本并解锁，队列里的下一条照常接上。
 var _skip_to_end: bool = false
 var _script_skip_queue: Array = []
@@ -65,6 +74,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_overlay()
 	add_child(preload("res://scripts/ui/cinematic_presentation.gd").new())
+	_board = preload("res://scripts/ui/storyboard_player.gd").new()
+	add_child(_board)
+	_board.connect("board_finished", _on_board_finished)
 	add_child(preload("res://scripts/ui/story_stage.gd").new())
 
 
@@ -153,6 +165,30 @@ func caption() -> Caption:
 	return _caption
 
 
+## 分镜播放器（故事页回放直接用它：play_board(id, {"replay": true})）。
+func board() -> CanvasLayer:
+	return _board
+
+
+## 一段分镜正在演（含故事页回放）。
+func board_active() -> bool:
+	return _board != null and bool(_board.get("playing"))
+
+
+## 全屏分镜（序章 / 章间 / 结局 / 滚动字幕）正在演：暂停菜单不许在这时打开——它会盖在
+## 分镜上，而分镜有自己的跳过（Enter / 按住 / 点「跳过」）。故事页回放（replay）自己读键、
+## 本来就在暂停菜单里点开，不在此列。PauseMenu.open() 读它。
+func board_blocks_pause() -> bool:
+	return board_active() and not bool(_board.get("replay"))
+
+
+## 跳过按钮上的字：章间「Enter · 跳过」，序章/结局「Enter · 下一句」。
+func board_skip_label(touch: bool) -> String:
+	if _board == null:
+		return ""
+	return String(_board.call("skip_label", touch))
+
+
 func is_input_locked() -> bool:
 	return _locked
 
@@ -197,9 +233,12 @@ func estimate_seconds(script: Array) -> float:
 				total += float(step.get("duration", 0.28))
 			"tableau":
 				total += float(step.get("seconds", 0.0))
+			"board":
+				total += Storyboards.seconds_of(String(step.get("id", "")))
 			"caption":
 				var text := String(step.get("text", ""))
-				total += float(text.length()) / Caption.CHARS_PER_SEC 						+ float(step.get("hold", Caption.DEFAULT_HOLD))
+				total += float(text.length()) / Caption.CHARS_PER_SEC \
+						+ float(step.get("hold", Caption.DEFAULT_HOLD))
 	return total
 
 
@@ -277,6 +316,9 @@ func play(script: Array, skip_to_end: bool = false) -> void:
 	# CinematicPresentation，不经过这里，所以仍然保留（契约 §5）。
 	if TrialRun.suppresses_cinematics():
 		return
+	# 竞技场不播剧情（章节卡 / 间幕会盖住对局）。Boss 横幅不走 play()。
+	if ArenaRun.active():
+		return
 	if playing:
 		if _script_queue.size() >= PLAY_QUEUE_MAX:
 			var dropped: Array = _script_queue.pop_front()
@@ -306,6 +348,8 @@ func play(script: Array, skip_to_end: bool = false) -> void:
 func play_when_clear(script: Array, skip_to_end: bool = false, on_start: Callable = Callable()) -> void:
 	if TrialRun.suppresses_cinematics():
 		return
+	if ArenaRun.active():
+		return
 	if _clear_to_start():
 		if on_start.is_valid():
 			on_start.call()
@@ -334,6 +378,11 @@ func is_aborting() -> bool:
 
 func skip_step() -> void:
 	if not playing or _suspended or get_tree().paused:
+		return
+	# 分镜自己决定 Enter 的含义（章间整段跳过 / 序章与结局逐句），即使这条剧本是
+	# skip_to_end：开场里的序章不能被一次 Enter 连同后面的开场一起吞掉。
+	if _wait_kind == "board" and _board != null:
+		_board.call("press_accept")
 		return
 	if _skip_to_end:
 		var cam := _camera()
@@ -372,6 +421,8 @@ func abort() -> void:
 	_clear_time_effects()
 	if _caption != null:
 		_caption.clear()
+	if _board != null:
+		_board.call("abort")
 	_queue.clear()
 	_script_queue.clear()
 	var dropped := not _deferred.is_empty()
@@ -424,6 +475,9 @@ func _process(delta: float) -> void:
 	if not _deferred.is_empty() and _clear_to_start():
 		_start_deferred()
 	if not playing or not _waiting:
+		return
+	if _wait_kind == "board":
+		# 分镜自己计时，结束时发 board_finished（见 _on_board_finished）。
 		return
 	if _wait_kind == "caption":
 		if _caption == null or not _caption.is_busy():
@@ -602,9 +656,28 @@ func _run_step(step: Dictionary) -> void:
 				_advance()
 		"caption":
 			if _caption != null:
+				# `who` 可选：不写就按「说话人：内容」自动拆名牌（Caption.enqueue）。
 				_caption.enqueue(String(step.get("text", "")),
-						float(step.get("hold", Caption.DEFAULT_HOLD)))
+						float(step.get("hold", Caption.DEFAULT_HOLD)),
+						String(step.get("who", "")))
 			_begin_wait(0.0, "caption")
+		"board":
+			var board_id := String(step.get("id", ""))
+			var started := false
+			# 测试跑器里分镜只占一小段等待（否则每个走章间/序章的用例都要真等几十秒，
+			# 而且分镜的输入宽限会吞掉用例里立刻按下的确认键）；要测真播放的用例置位
+			# test_boards，或直接用自己的 StoryboardPlayer。
+			var stub := _is_test_runner() and not test_boards
+			if _board != null and not stub:
+				started = bool(_board.call("play_board", board_id,
+						{"skip_all": bool(step.get("skip_all", board_id.begins_with("interlude_")))}))
+			if started:
+				_begin_wait(0.0, "board")
+			elif stub:
+				_begin_wait(TEST_BOARD_STUB_SECONDS, "wait")
+			else:
+				_finish_step(step)
+				_advance()
 		"cam_focus":
 			var cam := _camera()
 			var dur := float(step.get("duration", 0.8))
@@ -648,6 +721,12 @@ func _begin_wait(sec: float, kind: String) -> void:
 	_waiting = true
 	_wait_kind = kind
 	_step_timer = maxf(0.0, sec)
+
+
+func _on_board_finished(_id: String, _completed: bool) -> void:
+	if _aborting or not playing or _wait_kind != "board":
+		return
+	_complete_wait()
 
 
 func _complete_wait() -> void:

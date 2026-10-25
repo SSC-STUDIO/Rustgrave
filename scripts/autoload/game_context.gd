@@ -47,6 +47,11 @@ const LAYOUTS := {
 	"level09b": "res://scripts/levels/chapters/level09b_layout.gd",
 	"level10": "res://scripts/levels/chapters/level10_layout.gd",
 }
+## 竞技场等模式场景不是战役关卡（is_world_scene 保持 false，存档不收它们），
+## 但仍要走 640×360 表现层，否则会把窗口当成世界视口。
+const MODE_SCENES: Array[String] = [
+	"res://scenes/levels/Arena_Duel.tscn",
+]
 
 
 ## The level after `id` in play order, or "" for the last one.
@@ -87,6 +92,10 @@ static func world_scene_path(node: Node = null) -> String:
 
 static func is_world_scene(path: String) -> bool:
 	return LEVELS.values().has(path)
+
+
+static func is_mode_scene(path: String) -> bool:
+	return MODE_SCENES.has(path)
 
 
 ## Save-namespace id for a level scene path; "" for Level01 and for unknown
@@ -140,7 +149,7 @@ static func gameplay_input_enabled() -> bool:
 ## Authored levels always load inside the presentation shell (640×360 world
 ## viewport). Remember which level so GamePresentation can instantiate it.
 static func route_scene(path: String) -> String:
-	if is_world_scene(path):
+	if is_world_scene(path) or is_mode_scene(path):
 		pending_world_path = path
 		return PRESENTATION_PATH
 	return path

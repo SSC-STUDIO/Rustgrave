@@ -44,6 +44,8 @@ const STRIP_H := 40.0
 const STRIP_WIDTH := {Kind.PRIMARY: 344.0, Kind.SECONDARY: 304.0, Kind.GHOST: 248.0}
 const STRIP_CURSOR_X := 14.0
 const STRIP_LABEL_X := 48.0
+## 选中条整体右移 4px（缓动），像被从架上抽出半寸。
+const STRIP_SHIFT := 4.0
 const LAND_SHIFT := 28.0
 const STRIP_RUST := Color("#8B4513")
 const STRIP_IRON := Color("#4A3E44")
@@ -55,6 +57,8 @@ var id: StringName = &""
 var compact := false
 ## 铁条版式（MenuList.strip_style 在 add_child 之前写入）。
 var strip := false
+## 压在不透明深色面板上的铁条（回看页）：底色更深、几乎不透明，才不会和卡片的紫底混成一片。
+var dark_plate := false
 ## 开屏"落位"：1 = 整条向左偏移 LAND_SHIFT 并等着淡入，0 = 在原位。
 var land := 0.0:
 	set(value):
@@ -87,7 +91,9 @@ var _cursor: TextureRect
 var _brazier: Node2D
 var _time := 0.0
 var _cursor_x := 0.0
+var _cursor_base_y := 0.0
 var _cursor_tween: Tween
+var _shift_tween: Tween
 
 
 func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
@@ -191,8 +197,9 @@ func _build_strip_row() -> void:
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_label)
 	_note = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-	_note.position = Vector2(width - 120.0, 0.0)
-	_note.size = Vector2(104.0, HEIGHT)
+	# 右端让开削角阶梯（最外 8px 是斜面），小字收在条身内。
+	_note.position = Vector2(width - 124.0, 0.0)
+	_note.size = Vector2(100.0, HEIGHT)
 	_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_note.visible = false
 	add_child(_note)
@@ -202,7 +209,8 @@ func _build_strip_row() -> void:
 	var art := _cursor.texture
 	var cursor_h := art.get_height() if art != null else 28
 	_cursor_x = STRIP_CURSOR_X
-	_cursor.position = Vector2(_cursor_x - 8.0, (HEIGHT - cursor_h) * 0.5)
+	_cursor_base_y = (HEIGHT - cursor_h) * 0.5
+	_cursor.position = Vector2(_cursor_x - 8.0, _cursor_base_y)
 	add_child(_cursor)
 
 
@@ -212,6 +220,9 @@ func set_note(value: String) -> void:
 		return
 	_note.text = value
 	_note.visible = value != ""
+	if value != "":
+		_note.add_theme_font_size_override("font_size", 10)
+		_note.modulate = Color(0.70, 0.65, 0.60, 0.85)
 
 
 func _apply_land() -> void:
@@ -220,7 +231,7 @@ func _apply_land() -> void:
 	var ox := -land * LAND_SHIFT
 	_label.position.x = STRIP_LABEL_X + ox
 	if _note != null:
-		_note.position.x = size.x - 120.0 + ox
+		_note.position.x = size.x - 124.0 + ox
 	queue_redraw()
 
 
@@ -237,6 +248,9 @@ func _process(delta: float) -> void:
 	var breath := lerpf(BREATH_MIN, BREATH_MAX, 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD))
 	# 只动 rgb：alpha 留给开屏淡入用，每帧整体覆盖会把淡入吃掉。
 	modulate = Color(breath, breath, breath, modulate.a)
+	# 铁条的光标轻轻起落：整数像素，字形不出灰边。
+	if strip and _cursor != null:
+		_cursor.position.y = _cursor_base_y + float(roundi(sin(TAU * _time / 0.9)))
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -256,6 +270,8 @@ func _draw_strip() -> void:
 	var ox := -land * LAND_SHIFT
 	var lit := selected and not disabled
 	var fill := Color(0.055, 0.04, 0.075, 0.74)
+	if dark_plate:
+		fill = Color(0.028, 0.022, 0.038, 0.96)
 	var edge := Color(0.30, 0.17, 0.10, 0.85)
 	var accent := STRIP_RUST if kind == Kind.PRIMARY else STRIP_IRON
 	if kind == Kind.GHOST:
@@ -269,6 +285,10 @@ func _draw_strip() -> void:
 		edge = Color(0.86, 0.5, 0.18, 0.95)
 		accent = STRIP_EMBER
 	var x0 := 0.0 + ox
+	if lit:
+		# 条外一圈炉温光晕：选中条像刚从火里抽出来。
+		draw_rect(Rect2(x0 - 2.0, y0 - 2.0, w - 4.0, h + 4.0), Color(1.0, 0.55, 0.15, 0.07))
+		draw_rect(Rect2(x0 - 1.0, y0 - 1.0, w - 6.0, h + 2.0), Color(1.0, 0.65, 0.22, 0.10))
 	# body, right end chamfered in 2px steps (4 steps = 8px)
 	draw_rect(Rect2(x0, y0 + 8.0, w - 8.0, h - 16.0), fill)
 	for i in 4:
@@ -284,6 +304,9 @@ func _draw_strip() -> void:
 		draw_rect(Rect2(x0 + 4.0, y0 + 1.0, 56.0, h - 2.0), Color(1.0, 0.6, 0.2, 0.16))
 		draw_rect(Rect2(x0 + 4.0, y0 + 1.0, 28.0, h - 2.0), Color(1.0, 0.7, 0.25, 0.14))
 		draw_rect(Rect2(x0 + 1.0, y0 + 4.0, 2.0, h - 8.0), Color(1.0, 0.94, 0.7))
+		# 削角尖上一粒余烬：右端不再是个闷头。
+		draw_rect(Rect2(x0 + w - 10.0, y0 + h * 0.5 - 2.0, 4.0, 4.0), Color(0.55, 0.28, 0.10))
+		draw_rect(Rect2(x0 + w - 9.0, y0 + h * 0.5 - 1.0, 2.0, 2.0), Color(1.0, 0.85, 0.45))
 
 
 func _draw() -> void:
@@ -304,6 +327,8 @@ func _notification(what: int) -> void:
 	# 短钉的位置取自本行高度：容器排版完成后第一次拿到真实尺寸，要重画。
 	if what == NOTIFICATION_RESIZED:
 		queue_redraw()
+		# 容器重排会重置 position：选中条的抽出量补回来（不播缓动）。
+		_apply_shift(selected and not disabled, true)
 
 
 func _refresh() -> void:
@@ -356,6 +381,46 @@ func _refresh_strip() -> void:
 		_cursor_tween.tween_property(_cursor, "position:x", tx, 0.12) \
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_brazier.modulate.a = 1.0 if lit else 0.0
+	_apply_shift(lit)
+
+
+## 选中条向右抽出 4px。容器重排会把 position 重置回 0，NOTIFICATION_RESIZED 里补回来。
+func _apply_shift(lit: bool, instant: bool = false) -> void:
+	if not strip:
+		return
+	var tx := STRIP_SHIFT if lit else 0.0
+	if is_equal_approx(position.x, tx):
+		return
+	if instant or not is_inside_tree():
+		position.x = tx
+		return
+	if _shift_tween != null and _shift_tween.is_valid():
+		_shift_tween.kill()
+	_shift_tween = create_tween()
+	_shift_tween.tween_property(self, "position:x", tx, 0.14) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## 确认这一格：条身上一道白热闪光扫过（TitleScreen._confirm_effect 调用）。
+func flash() -> void:
+	if not strip or not is_inside_tree():
+		return
+	var overlay := ColorRect.new()
+	overlay.name = "ConfirmFlash"
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var y0 := floorf((HEIGHT - STRIP_H) * 0.5)
+	overlay.position = Vector2(0.0, y0)
+	overlay.size = Vector2(size.x, STRIP_H)
+	overlay.color = Color(1.0, 0.9, 0.68, 0.0)
+	var blend := CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	overlay.material = blend
+	add_child(overlay)
+	var tw := overlay.create_tween()
+	tw.tween_property(overlay, "color:a", 0.55, 0.06)
+	tw.tween_property(overlay, "color:a", 0.0, 0.30) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(overlay.queue_free)
 
 
 func _refresh_plate() -> void:

@@ -1,0 +1,82 @@
+{
+  "density": 6,
+  "size": [
+    1536,
+    1024
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/jump/jump_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        68,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/jump/jump_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        68,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/jump/jump_2.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        68,
+        80
+      ]
+    }
+  ]
+}

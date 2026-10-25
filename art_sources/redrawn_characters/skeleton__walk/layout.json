@@ -1,0 +1,197 @@
+{
+  "density": 6,
+  "size": [
+    1216,
+    768
+  ],
+  "cell": [
+    304,
+    352
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/skeleton/walk/walk_0.png",
+      "slot": [
+        0,
+        0,
+        304,
+        352
+      ],
+      "frame_origin": [
+        20,
+        20
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        6,
+        12,
+        38,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_1.png",
+      "slot": [
+        304,
+        0,
+        608,
+        352
+      ],
+      "frame_origin": [
+        324,
+        20
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        13,
+        9,
+        35,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_2.png",
+      "slot": [
+        608,
+        0,
+        912,
+        352
+      ],
+      "frame_origin": [
+        628,
+        20
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        14,
+        7,
+        30,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_3.png",
+      "slot": [
+        912,
+        0,
+        1216,
+        352
+      ],
+      "frame_origin": [
+        932,
+        20
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        6,
+        15,
+        38,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_4.png",
+      "slot": [
+        0,
+        352,
+        304,
+        704
+      ],
+      "frame_origin": [
+        20,
+        372
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        7,
+        12,
+        38,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_5.png",
+      "slot": [
+        304,
+        352,
+        608,
+        704
+      ],
+      "frame_origin": [
+        324,
+        372
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        13,
+        9,
+        35,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_6.png",
+      "slot": [
+        608,
+        352,
+        912,
+        704
+      ],
+      "frame_origin": [
+        628,
+        372
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        13,
+        7,
+        30,
+        52
+      ]
+    },
+    {
+      "source": "assets/characters/skeleton/walk/walk_7.png",
+      "slot": [
+        912,
+        352,
+        1216,
+        704
+      ],
+      "frame_origin": [
+        932,
+        372
+      ],
+      "size": [
+        44,
+        52
+      ],
+      "bbox": [
+        7,
+        14,
+        38,
+        52
+      ]
+    }
+  ]
+}

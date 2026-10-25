@@ -79,6 +79,7 @@ const BLAST_LIFE := 0.18
 ## 窑匠 + 余烬步双槽在共鸣窗口里的终结冲击波：比一刀更重，值得为弹反而打。
 const BLAST_SIZE := Vector2(56, 22)
 const BLAST_DAMAGE := 2
+const ArenaCatalog := preload("res://scripts/data/arena_catalog.gd")
 
 var _sprites: Dictionary = {}
 var _sprite_root: Sprite2D
@@ -96,6 +97,14 @@ var _fire_trails: Array = []
 var _blasts: Array = []
 var _band_seen: StringName = &"cold"
 var _hp_seen: int = 0
+## 竞技场纵深。只有加入 arena_plane 组之后才读这些；战役物理不碰。
+var _arena_z := 0.0
+var _arena_vz := 0.0
+var _arena_plane_on := false
+var _arena_jump_queued := false
+var _arena_drive_on := false
+var _arena_drive_x := 0.0
+var _arena_drive_depth := 0.0
 ## 流派被动运行时状态（见 PassiveCatalog）。
 var _passive_heal_cd: float = 0.0
 var _toxin_overflow_count: int = 0
@@ -167,8 +176,13 @@ func _physics_process(delta: float) -> void:
 		return
 	controller.extra_jumps_unlocked = inventory.has_ability(AbilityIds.EMBER_STEP)
 	if cutscene_locked:
+		_arena_exit_plane()
 		_tick_cutscene_idle(delta)
 		return
+	if _arena_plane_active():
+		_physics_arena_plane(delta)
+		return
+	_arena_exit_plane()
 	health.invincible = controller.is_invincible()
 	_tick_skills(delta)
 	var move_scale := CombatRules.SWING_MOVE_SCALE if melee.is_busy() else 1.0
@@ -384,11 +398,11 @@ func _setup_kenney_sprite() -> void:
 	_sprite_root.position = KENNEY_SPRITE_OFFSET
 	_sprite_root.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual.add_child(_sprite_root)
-	_sprites["stand"] = load(P_STAND_PATH) as Texture2D
+	_sprites["stand"] = DensityTextures.load_texture(P_STAND_PATH)
 	if ResourceLoader.exists(P_JUMP_PATH):
-		_sprites["jump"] = load(P_JUMP_PATH) as Texture2D
+		_sprites["jump"] = DensityTextures.load_texture(P_JUMP_PATH)
 	if ResourceLoader.exists(P_HURT_PATH):
-		_sprites["hurt"] = load(P_HURT_PATH) as Texture2D
+		_sprites["hurt"] = DensityTextures.load_texture(P_HURT_PATH)
 	_sprite_root.texture = _sprites["stand"]
 	_sprite_root.modulate = Color(1, 1, 1, 1)
 
@@ -418,7 +432,8 @@ func _update_visual(delta: float) -> void:
 
 ## Same ground-move threshold as the run/bob visuals. No physics writes.
 func _poll_stride_audio(delta: float) -> void:
-	var moving := is_on_floor() \
+	var grounded := is_on_floor() or (_arena_plane_active() and _arena_z <= 1.0)
+	var moving := grounded \
 		and not controller.is_dashing() \
 		and not melee.is_busy() \
 		and health.current > 0 \
@@ -464,6 +479,12 @@ func _update_knight_anim() -> void:
 	if _hurt_timer > 0.0:
 		_anim.play("hurt")
 		return
+	if _arena_plane_active():
+		if _arena_z > 1.5:
+			_anim.play("jump" if _arena_vz > 0.0 else "fall")
+			return
+		_anim.play("run" if absf(velocity.x) > 12.0 else "idle")
+		return
 	if not is_on_floor():
 		_anim.play("jump" if velocity.y < 0.0 else "fall")
 		return
@@ -487,14 +508,16 @@ func _update_kenney_sprite(delta: float) -> void:
 		return
 	var tex: Texture2D = _sprites.get("stand") as Texture2D
 	var is_slashing := melee.phase_name() != "idle"
+	var airborne := not is_on_floor()
+	if _arena_plane_active():
+		airborne = _arena_z > 1.5
 	if health.current <= 0:
 		tex = _sprites.get("hurt", tex) as Texture2D
-	elif controller.is_dashing() or not is_on_floor():
+	elif controller.is_dashing() or airborne:
 		tex = _sprites.get("jump", tex) as Texture2D
 	if tex != null and _sprite_root.texture != tex:
 		_sprite_root.texture = tex
-	# 行走 bob：地面移动时给精灵 Y 方向 sin 摆动，恢复到 stand 时直接归零。
-	var moving := is_on_floor() and not is_slashing and absf(velocity.x) > 12.0
+	var moving := (not airborne) and not is_slashing and absf(velocity.x) > 12.0
 	if moving:
 		_bob_t += delta
 		var base_y := KENNEY_SPRITE_OFFSET.y
@@ -994,16 +1017,33 @@ func _on_died() -> void:
 		_anim.play("death")  # 物理停摆后由 _process 继续播完倒地
 	set_physics_process(false)
 	GameEvents.player_died.emit()
+	if ArenaRun.active():
+		collision_layer = 0
+		if melee != null:
+			melee.cancel_attack()
+		var downed: Hurtbox = get_node_or_null("Hurtbox") as Hurtbox
+		if downed != null:
+			downed.set_deferred("monitorable", false)
+		GameEvents.announcement.emit("灰卫倒下…")
+		return
 	GameEvents.announcement.emit("余烬熄灭…")
-	var wait := Timer.new()
-	wait.one_shot = true
-	wait.wait_time = 1.15
-	add_child(wait)
-	wait.start()
-	await wait.timeout
+	var waited := 0.0
+	var hinted := false
+	while waited < 1.15:
+		await get_tree().process_frame
+		if not is_instance_valid(self) or get_tree() == null:
+			return
+		waited += get_process_delta_time()
+		if not hinted and waited >= 0.4:
+			hinted = true
+			GameEvents.announcement.emit("按跳跃跳过")
+		if waited >= 0.4 and Input.is_action_just_pressed(&"jump"):
+			break
 	if not is_instance_valid(self) or get_tree() == null:
 		return
 	var nest := _resolve_lit_nest()
+	if nest != null:
+		GameEvents.announcement.emit("余烬巢已复位")
 	var reload := GameContext.world_scene_path(self)
 	if reload == "" and get_tree().current_scene != null:
 		reload = get_tree().current_scene.scene_file_path
@@ -1014,6 +1054,241 @@ func _on_died() -> void:
 		SaveData.respawn(reload, nest.global_position)
 	else:
 		Director.fade_to(reload)
+
+
+## 竞技场原地复活：满血、恢复碰撞和物理、短无敌。不重载场景。
+func arena_respawn(at: Vector2) -> void:
+	if not is_inside_tree():
+		return
+	global_position = at
+	velocity = Vector2.ZERO
+	_arena_z = 0.0
+	_arena_vz = 0.0
+	_arena_jump_queued = false
+	if is_in_group("arena_plane"):
+		global_position.y = ArenaCatalog.clamp_depth(global_position.y)
+	_arena_apply_lift()
+	if health != null:
+		health.heal_full()
+		health.grant_iframes(1.2)
+		health.invincible = false
+	collision_layer = 2
+	collision_mask = 1
+	visible = true
+	var hurt: Hurtbox = get_node_or_null("Hurtbox") as Hurtbox
+	if hurt != null:
+		hurt.monitorable = true
+	set_physics_process(true)
+	set_process(true)
+	if controller != null:
+		controller.clear_buffers()
+		controller._dash_timer = 0.0
+		controller._iframe = 1.2
+	if melee != null:
+		melee.cancel_attack()
+	if _anim != null:
+		_anim.play("idle")
+	_clear_campaign_death_veil()
+	GameEvents.player_respawned.emit()
+
+
+func _arena_plane_active() -> bool:
+	return is_in_group("arena_plane") and ArenaRun.active() and not cutscene_locked
+
+
+func arena_depth() -> float:
+	return global_position.y
+
+
+func arena_z() -> float:
+	return _arena_z
+
+
+func arena_spans_depth() -> bool:
+	return false
+
+
+func arena_shadow_metrics() -> Dictionary:
+	return ArenaCatalog.shadow_metrics(_arena_z)
+
+
+func arena_request_jump() -> void:
+	_arena_jump_queued = true
+
+
+func arena_set_drive(axis_x: float, axis_depth: float, want_jump: bool) -> void:
+	_arena_drive_on = true
+	_arena_drive_x = axis_x
+	_arena_drive_depth = axis_depth
+	if want_jump:
+		_arena_jump_queued = true
+
+
+func arena_clear_drive() -> void:
+	_arena_drive_on = false
+
+
+func arena_force_z(height: float) -> void:
+	_arena_z = clampf(height, 0.0, ArenaCatalog.JUMP_Z_MAX)
+	_arena_vz = 0.0
+	_arena_apply_lift()
+
+
+func _physics_arena_plane(delta: float) -> void:
+	_arena_enter_plane()
+	health.invincible = controller.is_invincible()
+	_tick_skills(delta)
+	if controller._iframe > 0.0:
+		controller._iframe = maxf(0.0, controller._iframe - delta)
+	if controller._dash_cd > 0.0:
+		controller._dash_cd = maxf(0.0, controller._dash_cd - delta)
+	var move_scale := CombatRules.SWING_MOVE_SCALE if melee.is_busy() else 1.0
+	var axis := Input.get_axis(&"move_left", &"move_right")
+	var depth_axis := _arena_depth_axis()
+	var want_jump := _arena_jump_queued or Input.is_action_just_pressed(&"jump")
+	_arena_jump_queued = false
+	if _arena_drive_on:
+		axis = _arena_drive_x
+		depth_axis = _arena_drive_depth
+	var on_ground := _arena_z <= 0.6
+	if on_ground:
+		controller._air_dashes_left = controller.air_dashes
+	if controller.is_dashing():
+		controller._dash_timer = maxf(0.0, controller._dash_timer - delta)
+		velocity.x = controller._dash_dir * controller._dash_speed_for(self)
+	else:
+		var can_dash := true
+		if melee != null and melee.is_busy() and not melee.can_dash_cancel():
+			can_dash = false
+		if can_dash and Input.is_action_just_pressed(&"dash"):
+			_arena_start_dash(on_ground, axis)
+		if not controller.is_dashing():
+			if want_jump and on_ground:
+				_arena_vz = ArenaCatalog.JUMP_Z
+				controller.jumped.emit(false)
+				Sfx.play(&"jump")
+			var spd := controller.max_speed * controller._speed_multiplier_for(self) * move_scale
+			if controller._commit_lock:
+				spd *= 0.45
+			var target := 0.0
+			var rate := controller.deceleration
+			if absf(axis) > 0.05:
+				target = axis * spd
+				rate = controller.acceleration
+			velocity.x = move_toward(velocity.x, target, rate * delta)
+			if absf(axis) > 0.2:
+				controller.facing = 1 if axis > 0.0 else -1
+	_process_skill_input()
+	global_position.x += velocity.x * delta
+	global_position.y += depth_axis * ArenaCatalog.DEPTH_SPEED * delta
+	global_position.x = clampf(global_position.x, 18.0, ArenaCatalog.LANE_RIGHT - 18.0)
+	global_position.y = ArenaCatalog.clamp_depth(global_position.y)
+	velocity.y = 0.0
+	_arena_integrate_z(delta)
+	_arena_apply_lift()
+	var face := float(controller.facing)
+	visual.scale.x = face
+	melee.scale.x = face
+	_update_visual(delta)
+	_poll_slash_arc(face)
+	_poll_toxin_band()
+	_poll_interact()
+	_poll_sockets()
+
+
+func _arena_depth_axis() -> float:
+	var axis := 0.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		axis -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		axis += 1.0
+	var joy := Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
+	if absf(joy) > 0.4:
+		axis = clampf(joy, -1.0, 1.0)
+	return clampf(axis, -1.0, 1.0)
+
+
+func _arena_start_dash(on_ground: bool, axis: float) -> void:
+	if controller._dash_cd > 0.0 or controller.is_dashing():
+		return
+	if not on_ground and controller._air_dashes_left <= 0:
+		return
+	if not on_ground:
+		controller._air_dashes_left -= 1
+	var dir := float(controller.facing)
+	if absf(axis) > 0.2:
+		dir = signf(axis)
+		controller.facing = 1 if dir > 0.0 else -1
+	controller._dash_dir = dir
+	controller._dash_timer = controller.dash_duration
+	controller._dash_cd = controller.dash_cooldown
+	controller._iframe = controller.iframe_duration
+	velocity.x = dir * controller._dash_speed_for(self)
+	controller.dashed.emit()
+	GameEvents.dash_performed.emit()
+	Sfx.play(&"dash")
+
+
+func _arena_integrate_z(delta: float) -> void:
+	var was := _arena_z
+	if _arena_z > 0.0 or _arena_vz != 0.0:
+		_arena_vz -= ArenaCatalog.JUMP_Z_GRAVITY * delta
+		_arena_z += _arena_vz * delta
+	if _arena_z > ArenaCatalog.JUMP_Z_MAX:
+		_arena_z = ArenaCatalog.JUMP_Z_MAX
+		if _arena_vz > 0.0:
+			_arena_vz = 0.0
+	if _arena_z <= 0.0:
+		_arena_z = 0.0
+		_arena_vz = 0.0
+		if was > 1.0:
+			Fx.dust_puff(global_position + Vector2(0.0, -2.0))
+			Sfx.play_at(&"land", global_position, 0.06, -5.0)
+
+
+func _arena_apply_lift() -> void:
+	if visual != null:
+		visual.position.y = -_arena_z
+	if melee != null:
+		melee.position.y = -_arena_z
+	var hurt := get_node_or_null("Hurtbox") as Node2D
+	if hurt != null:
+		hurt.position.y = -_arena_z
+
+
+func _arena_enter_plane() -> void:
+	if _arena_plane_on:
+		return
+	_arena_plane_on = true
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	collision_mask = 0
+	floor_snap_length = 0.0
+	velocity.y = 0.0
+
+
+func _arena_exit_plane() -> void:
+	_arena_jump_queued = false
+	if not _arena_plane_on:
+		return
+	_arena_plane_on = false
+	_arena_z = 0.0
+	_arena_vz = 0.0
+	_arena_apply_lift()
+	motion_mode = CharacterBody2D.MOTION_MODE_GROUNDED
+	collision_mask = 1
+	floor_snap_length = 4.0
+
+
+## 战役 HUD 的死亡幕在竞技场不会自己收。正式界面接上前，复活时把它关掉。
+func _clear_campaign_death_veil() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var veil := tree.root.find_child("DeathOverlay", true, false)
+	if veil is CanvasItem:
+		var item := veil as CanvasItem
+		item.visible = false
+		item.modulate.a = 0.0
 
 
 ## 存档里的巢路径可能是场景相对路径或旧的绝对 NodePath。

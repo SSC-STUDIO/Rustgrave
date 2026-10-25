@@ -1,5 +1,6 @@
 extends CanvasLayer
-## 回火试炼结算 overlay：用时 / 死亡 / 评级 / 记录，三个出口（再来一次 / 换赛道 / 回标题）。
+## 回火试炼结算 overlay：试炼判决。用时 / 统计两格夹着一枚大号评级印记（菱形章，字在章心），
+## 印记底下挂「新纪录 / 首通」的小牌；底下一行记录文字；最底下三个出口（再来一次为主行动）。
 ##
 ## 只被 TrialRun.finish() 创建；不读战役存档，记录文本全部来自 TrialRecords。
 ## 打开期间暂停 SceneTree（结算不是"还要继续打"的场景），关闭时恢复。
@@ -15,15 +16,23 @@ const ID_RETRY := &"retry"
 const ID_TRACKS := &"tracks"
 const ID_TITLE := &"title"
 
+## 判决行的尺寸：两格读数等高，与中间的印记 + 小牌同高。
+const CELL_W := 264.0
+const CELL_H := 148.0
+const SEAL_SIZE := 116.0
+## 评级字母的字号：12px 像素字的整数倍（6 倍），不做小数缩放。
+const LETTER_SIZE := 72
+
 static var _open: CanvasLayer = null
 
 var _result: Dictionary = {}
 var _shell: Dictionary = {}
 var _menu: MenuList
-var _time_label: Label
-var _rank_label: Label
-var _badge_label: Label
 var _track_label: Label
+var _time_label: Label
+var _seal: RankSeal
+var _badge_panel: PanelContainer
+var _badge_label: Label
 var _stats_label: Label
 var _record_label: Label
 
@@ -92,6 +101,7 @@ func _begin() -> void:
 func _build() -> void:
 	_shell = Modal.build(self, {
 		"title": "回 火 试 炼 · 结 算",
+		"kicker": "试 炼 判 决",
 		"size": Vector2(900.0, 600.0),
 		"hint": "↑↓ 选择 · Enter 确认",
 		"back": "Esc 回标题",
@@ -105,42 +115,52 @@ func _build() -> void:
 	column.name = "Column"
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_BEGIN
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 6)
 	body.add_child(column)
 
-	_track_label = UiKit.label(String(_result.get("track_name", "试炼")), &"SubHeadLabel",
-			HORIZONTAL_ALIGNMENT_CENTER)
+	# 题头：赛道 · 目标，一行写完。
+	_track_label = UiKit.label(_track_line(), &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_track_label.name = "TrackLine"
 	column.add_child(_track_label)
-	column.add_child(UiKit.divider())
 
-	# 大数字行：用时 + 评级徽记。
-	var numbers := HBoxContainer.new()
-	numbers.name = "Numbers"
-	numbers.alignment = BoxContainer.ALIGNMENT_CENTER
-	numbers.add_theme_constant_override("separation", 26)
-	column.add_child(numbers)
+	# 判决：左格读用时，中间是评级印记（下挂新纪录 / 首通的小牌），右格读统计。
+	var verdict := HBoxContainer.new()
+	verdict.name = "Verdict"
+	verdict.alignment = BoxContainer.ALIGNMENT_CENTER
+	verdict.add_theme_constant_override("separation", 20)
+	column.add_child(verdict)
+
 	_time_label = UiKit.label(Records.format_ms(int(_result.get("elapsed_ms", 0))),
 			&"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_time_label.name = "Time"
-	numbers.add_child(_time_label)
-	_rank_label = UiKit.label(String(_result.get("rank", "B")), &"HeadLabel",
-			HORIZONTAL_ALIGNMENT_CENTER)
-	_rank_label.name = "Rank"
-	_rank_label.add_theme_color_override("font_color",
-			Catalog.rank_color(StringName(String(_result.get("rank", "B")))))
-	numbers.add_child(_rank_label)
-	_badge_label = UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_LEFT)
-	_badge_label.name = "Badge"
-	_badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	numbers.add_child(_badge_label)
+	verdict.add_child(_readout("用 时", "TimeCell", _time_label))
+
+	var center := VBoxContainer.new()
+	center.name = "Seal"
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 6)
+	verdict.add_child(center)
+	_seal = RankSeal.new()
+	_seal.name = "Rank"
+	_seal.custom_minimum_size = Vector2(SEAL_SIZE, SEAL_SIZE)
+	var rank := StringName(String(_result.get("rank", "B")))
+	_seal.letter = String(rank)
+	_seal.tint = Catalog.rank_color(rank)
+	center.add_child(_seal)
+	_badge_panel = UiKit.panel(&"KeyCapPanel")
+	_badge_panel.name = "Badge"
+	_badge_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_badge_label = UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_badge_label.name = "BadgeText"
+	_badge_panel.add_child(_badge_label)
+	center.add_child(_badge_panel)
 
 	_stats_label = UiKit.label(_stats_line(), &"BodyLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_stats_label.name = "Stats"
 	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(_stats_label)
+	verdict.add_child(_readout("统 计", "StatsCell", _stats_label))
 
-	_record_label = UiKit.label(_record_line(), &"DimLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_record_label = UiKit.label(_record_line(), &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_record_label.name = "Record"
 	_record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_record_label)
@@ -153,7 +173,7 @@ func _build() -> void:
 	_menu = MenuList.new()
 	_menu.name = "Menu"
 	_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_menu.add_theme_constant_override("separation", 8)
+	_menu.add_theme_constant_override("separation", 6)
 	column.add_child(_menu)
 	_menu.compact(_menu.add_item(ID_RETRY, "再 来 一 次", false, MenuItem.Kind.PRIMARY))
 	_menu.compact(_menu.add_item(ID_TRACKS, "换 条 赛 道", false, MenuItem.Kind.SECONDARY))
@@ -161,6 +181,33 @@ func _build() -> void:
 	_menu.chosen.connect(_on_chosen)
 
 	_refresh_badge()
+
+
+## 一格读数：小题头 + 大值，半透明的切角小格（与判决的印记同一个视觉重心）。
+func _readout(kicker_text: String, cell_name: String, value: Label) -> Control:
+	var cell := ReadoutCell.new()
+	cell.name = cell_name
+	cell.custom_minimum_size = Vector2(CELL_W, CELL_H)
+	cell.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 18.0
+	box.offset_top = 12.0
+	box.offset_right = -18.0
+	box.offset_bottom = -12.0
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 6)
+	cell.add_child(box)
+	box.add_child(GlassKit.kicker(kicker_text, HORIZONTAL_ALIGNMENT_CENTER))
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(value)
+	return cell
+
+
+func _track_line() -> String:
+	var track := String(_result.get("track_name", "试炼"))
+	var target := String(_result.get("target_title", ""))
+	return track if target == "" else track + " · " + target
 
 
 func _stats_line() -> String:
@@ -197,6 +244,8 @@ func _refresh_badge() -> void:
 		_badge_label.text = "新 纪 录"
 	else:
 		_badge_label.text = ""
+	if _badge_panel != null:
+		_badge_panel.visible = _badge_label.text != ""
 
 
 # --- 出口 ---------------------------------------------------------------------
@@ -243,7 +292,7 @@ func time_text() -> String:
 
 
 func rank_text() -> String:
-	return _rank_label.text if _rank_label != null else ""
+	return _seal.letter if _seal != null else ""
 
 
 func badge_text() -> String:
@@ -264,3 +313,55 @@ func track_text() -> String:
 
 func menu() -> MenuList:
 	return _menu
+
+
+## 评级印记：菱形章（与标题的结局印记同一套菱形语汇放大），中心一个评级字母，两侧各一道细线。
+## 颜色随评级（S 余烬金 / A 锈橙 / B 灰烬）；字母用 12px 像素字的 6 倍绘制。
+class RankSeal extends Control:
+	var letter := "":
+		set(value):
+			letter = value
+			queue_redraw()
+	var tint: Color = GlassKit.EMBER:
+		set(value):
+			tint = value
+			queue_redraw()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := Vector2(floorf(size.x * 0.5), floorf(size.y * 0.5))
+		var line := Color(tint.r, tint.g, tint.b, 0.4)
+		draw_rect(Rect2(c.x - 90.0, c.y, 50.0, 2.0), line)
+		draw_rect(Rect2(c.x + 40.0, c.y, 50.0, 2.0), line)
+		GlassKit.diamond(self, c, 56.0, Color(tint.r, tint.g, tint.b, 0.14))
+		GlassKit.diamond(self, c, 52.0, tint)
+		GlassKit.diamond(self, c, 45.0, GlassKit.INK)
+		GlassKit.diamond(self, c, 41.0, Color(tint.r, tint.g, tint.b, 0.35))
+		GlassKit.diamond(self, c, 37.0, GlassKit.INK)
+		var font := get_theme_default_font()
+		if font != null and letter != "":
+			var width := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, LETTER_SIZE).x
+			draw_string(font, Vector2(floorf(c.x - width * 0.5), floorf(c.y + float(LETTER_SIZE) * 0.36)),
+					letter, HORIZONTAL_ALIGNMENT_LEFT, -1, LETTER_SIZE, tint)
+
+
+## 判决行里的读数格：半透明的 2px 阶梯切角小格，不做落影（比标题档案卡轻一级）。
+class ReadoutCell extends Control:
+	const FILL := Color(0.05, 0.035, 0.07, 0.62)
+	const BORDER := Color("#4A2A18")
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		draw_rect(Rect2(4.0, 0.0, w - 8.0, h), FILL)
+		draw_rect(Rect2(2.0, 2.0, w - 4.0, h - 4.0), FILL)
+		draw_rect(Rect2(0.0, 4.0, w, h - 8.0), FILL)
+		draw_rect(Rect2(4.0, 0.0, w - 8.0, 1.0), BORDER)
+		draw_rect(Rect2(4.0, h - 1.0, w - 8.0, 1.0), BORDER)
+		draw_rect(Rect2(0.0, 4.0, 1.0, h - 8.0), BORDER)
+		draw_rect(Rect2(w - 1.0, 4.0, 1.0, h - 8.0), BORDER)

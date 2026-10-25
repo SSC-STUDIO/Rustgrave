@@ -13,7 +13,7 @@ extends "res://scripts/ui/title_prop.gd"
 ##
 ## 摆在 TitleWorld 的 Stage 上、桥面之后、近侧栏杆（BridgeFront）之后。左侧机房
 ## mass_left 画到世界 x=240，视差深度 1 时指针还能再把它往右推 9px，所以火盆左缘
-## 要留在 x≥256。骑士站在 x=326。两座中心 272 / 306：左盆躲开机房，右盆贴在骑士左侧。
+## 要留在 x≥256。骑士站在 x=326，两盆分立骑士两侧：左盆 272 躲开机房视差线，右盆 426 在骑士右侧。
 ## 节点：本体（两个炉膛 + 烟）+ Glow（飞火与光晕）+ RootedFlames = 3个。
 
 const FURNACE := "res://assets/title/brazier_furnace.png"
@@ -24,7 +24,7 @@ const REGION_H := 36.0
 ## 炉膛里那团火的底边在这 36 行里的 y。
 const FLAME_AT := 12.0
 const FEET_Y := 266.0
-const XS: Array[float] = [272.0, 306.0]
+const XS: Array[float] = [272.0, 426.0]
 const DEAD := Color(0.30, 0.28, 0.32)
 const LIT := Color(1.45, 1.25, 1.05)
 
@@ -53,7 +53,7 @@ var _fire: FireStrip
 
 
 func _setup() -> void:
-	_body = load(FURNACE) as Texture2D
+	_body = DensityTextures.load_texture(FURNACE)
 	var n := POOL * XS.size()
 	_px.resize(n)
 	_py.resize(n)

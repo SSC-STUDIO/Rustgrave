@@ -107,6 +107,10 @@ func _process(delta: float) -> void:
 func expose(amount: float) -> void:
 	_exposing = true
 	var res := _get_toxin_resistance()
+	if get_parent() is Player and amount > 0.0:
+		var rate := clampf(float(Settings.value(&"assist_toxin", 1.0)), 0.5, 1.5)
+		if not is_equal_approx(rate, 1.0):
+			amount *= rate
 	var effective_amount := amount * (1.0 - res) if amount > 0.0 else amount
 	toxin = clampf(toxin + effective_amount, 0.0, max_toxin)
 	GameEvents.toxin_changed.emit(toxin, max_toxin)

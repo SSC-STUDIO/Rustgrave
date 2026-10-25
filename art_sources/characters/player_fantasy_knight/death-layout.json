@@ -1,0 +1,243 @@
+{
+  "density": 6,
+  "size": [
+    2304,
+    2048
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        37,
+        42,
+        65,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        32,
+        41,
+        59,
+        78
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_2.png",
+      "slot": [
+        1536,
+        0,
+        2304,
+        512
+      ],
+      "frame_origin": [
+        1560,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        26,
+        50,
+        57,
+        73
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_3.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        20,
+        51,
+        54,
+        72
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_4.png",
+      "slot": [
+        768,
+        512,
+        1536,
+        1024
+      ],
+      "frame_origin": [
+        792,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        56,
+        51,
+        78
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_5.png",
+      "slot": [
+        1536,
+        512,
+        2304,
+        1024
+      ],
+      "frame_origin": [
+        1560,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        59,
+        50,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_6.png",
+      "slot": [
+        0,
+        1024,
+        768,
+        1536
+      ],
+      "frame_origin": [
+        24,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        58,
+        50,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_7.png",
+      "slot": [
+        768,
+        1024,
+        1536,
+        1536
+      ],
+      "frame_origin": [
+        792,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        64,
+        52,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_8.png",
+      "slot": [
+        1536,
+        1024,
+        2304,
+        1536
+      ],
+      "frame_origin": [
+        1560,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        68,
+        54,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/death/death_9.png",
+      "slot": [
+        0,
+        1536,
+        768,
+        2048
+      ],
+      "frame_origin": [
+        24,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        14,
+        68,
+        54,
+        80
+      ]
+    }
+  ]
+}

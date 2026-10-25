@@ -1,0 +1,128 @@
+{
+  "density": 6,
+  "size": [
+    1536,
+    768
+  ],
+  "cell": [
+    512,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/scrapper_hell_hound/jump/jump_0.png",
+      "slot": [
+        0,
+        0,
+        512,
+        320
+      ],
+      "frame_origin": [
+        22,
+        16
+      ],
+      "size": [
+        78,
+        48
+      ],
+      "bbox": [
+        11,
+        22,
+        56,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/jump/jump_1.png",
+      "slot": [
+        512,
+        0,
+        1024,
+        320
+      ],
+      "frame_origin": [
+        534,
+        16
+      ],
+      "size": [
+        78,
+        48
+      ],
+      "bbox": [
+        0,
+        7,
+        78,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/jump/jump_2.png",
+      "slot": [
+        1024,
+        0,
+        1536,
+        320
+      ],
+      "frame_origin": [
+        1046,
+        16
+      ],
+      "size": [
+        78,
+        48
+      ],
+      "bbox": [
+        0,
+        10,
+        78,
+        44
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/jump/jump_3.png",
+      "slot": [
+        0,
+        320,
+        512,
+        640
+      ],
+      "frame_origin": [
+        22,
+        336
+      ],
+      "size": [
+        78,
+        48
+      ],
+      "bbox": [
+        0,
+        5,
+        77,
+        44
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/jump/jump_4.png",
+      "slot": [
+        512,
+        320,
+        1024,
+        640
+      ],
+      "frame_origin": [
+        534,
+        336
+      ],
+      "size": [
+        78,
+        48
+      ],
+      "bbox": [
+        24,
+        20,
+        62,
+        48
+      ]
+    }
+  ]
+}

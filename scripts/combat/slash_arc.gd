@@ -39,7 +39,7 @@ static func sheet_available() -> bool:
 static func _get_frames() -> Array[AtlasTexture]:
 	if not _frame_cache.is_empty() or not sheet_available():
 		return _frame_cache
-	var sheet := load(SHEET_PATH) as Texture2D
+	var sheet := DensityTextures.load_texture(SHEET_PATH)
 	if sheet == null:
 		return _frame_cache
 	for i in range(SHEET_COLS * SHEET_ROWS):

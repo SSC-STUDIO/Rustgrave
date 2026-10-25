@@ -7,6 +7,7 @@ const PauseMenuScript := preload("res://scripts/ui/pause_menu.gd")
 const ControlsPanelScript := preload("res://scripts/ui/controls_panel.gd")
 const TutorialRecallScript := preload("res://scripts/ui/tutorial_recall.gd")
 const MapScreenScript := preload("res://scripts/ui/map_screen.gd")
+const JournalScript := preload("res://scripts/ui/journal_screen.gd")
 const Plate := preload("res://scripts/ui/menu_plate.gd")
 
 ## 卡片必须比设计分辨率小一圈，四周才留得出底下那层（标题屏 keyart / 暂停菜单）。
@@ -22,7 +23,7 @@ func teardown() -> void:
 
 
 func _instances(pause: PauseMenu) -> Dictionary:
-	var counts := {"settings": 0, "tutorial": 0, "map": 0, "controls": 0}
+	var counts := {"settings": 0, "tutorial": 0, "map": 0, "controls": 0, "journal": 0}
 	for child in pause.get_children():
 		if child is SettingsScreen:
 			counts["settings"] += 1
@@ -32,6 +33,8 @@ func _instances(pause: PauseMenu) -> Dictionary:
 			counts["map"] += 1
 		elif child is ControlsPanel:
 			counts["controls"] += 1
+		elif child.get_script() == JournalScript:
+			counts["journal"] += 1
 	return counts
 
 
@@ -94,10 +97,14 @@ func test_pause_menu_is_a_modal_card_with_rail_and_dossier() -> void:
 	for child in pause.menu().get_children():
 		if child is MenuItem:
 			items.append(child)
-	eq(items.size(), 6, "暂停菜单六格")
-	if items.size() == 6:
+	eq(items.size(), 7, "暂停菜单七格（回到锈墓 / 设置 / 地图 / 故事 / 教程回看 / 操作说明 / 返回标题）")
+	if items.size() == 7:
 		eq(items[0].kind, MenuItem.Kind.PRIMARY, "第一格是主行动")
-		eq(items[5].kind, MenuItem.Kind.GHOST, "最后一格是第三层")
+		eq(items[6].kind, MenuItem.Kind.GHOST, "最后一格是第三层")
+		var ids := pause.menu().item_ids()
+		ok(ids.has(PauseMenu.ID_STORY), "有「故事」一格")
+		ok(ids.find(PauseMenu.ID_STORY) > ids.find(PauseMenu.ID_MAP), "故事紧跟在地图后面")
+		ok(ids.find(PauseMenu.ID_STORY) < ids.find(PauseMenu.ID_TITLE), "故事排在返回标题之前")
 	ok(pause.dossier_label("chapter") != null, "右列有行程档案")
 	ok(pause.dossier_label("objective") != null, "档案里有当前目标行")
 
@@ -170,6 +177,7 @@ func test_pause_sub_screens_open_close_without_duplicating_or_unpausing() -> voi
 		[&"settings", pause.settings_screen()],
 		[&"tutorial", pause.tutorial_recall()],
 		[&"map", pause.map_screen()],
+		[&"story", pause.journal_screen()],
 		[&"controls", pause.controls_panel()],
 	]
 	for entry in subs:

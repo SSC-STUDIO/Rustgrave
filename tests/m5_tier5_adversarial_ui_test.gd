@@ -111,6 +111,17 @@ func test_title_screen_rail_exactly_seven_items_under_all_save_conditions() -> v
 	ok(items_c.size() >= 7, "At least 7 items when ending reached")
 	ok(not (items_c[1] as MenuItem).disabled, "Continue/Recall item enabled")
 	ok((items_c[1] as MenuItem)._text.contains("回 看 余 烬"), "Continue button displays '回 看 余 烬'")
+	# 文案写「回看余烬」，行为就必须是回看：打开总结页，而不是直接读档进关。
+	title_c._skip_intro()
+	title_c._on_chosen(TitleScreen.ID_CONTINUE)
+	await get_tree().process_frame
+	ok(title_c.recap_open(), "Recall row opens the recap page instead of loading the save")
+	ok(not title_c._started, "Recall row must not start the game")
+	ok(not menu_c.active, "Title menu is inactive while the recap page is open")
+	ok(title_c.recap_page().row_ids().has(&"continue"), "The recap page still offers 继续旅程")
+	title_c.recap_page().close()
+	await get_tree().process_frame
+	ok(menu_c.active, "Title menu is active again after the recap page closes")
 	title_c.queue_free()
 	await get_tree().process_frame
 

@@ -61,6 +61,9 @@ func _ready() -> void:
 	SaveData.entering_from_checkpoint = false
 	SaveData.ending = ""
 	Director.abort()
+	if level_id == "title":
+		await _sample_title(out_dir, win_size)
+		return
 	if GameContext.LEVELS.has(level_id):
 		GameContext.pending_world_path = GameContext.LEVELS[level_id]
 	var presentation := preload("res://scenes/ui/GamePresentation.tscn").instantiate()
@@ -180,6 +183,35 @@ func _count_nodes(node: Node, histogram: Dictionary, depth: int) -> void:
 		e["physics"] = int(e["physics"]) + 1
 	for child in node.get_children():
 		_count_nodes(child, histogram, depth + 1)
+
+
+func _sample_title(out_dir: String, win_size: Vector2i) -> void:
+	var title := load("res://scenes/ui/TitleScreen.tscn").instantiate()
+	add_child(title)
+	await get_tree().create_timer(SETTLE_SECONDS).timeout
+	var frame_ms: Array[float] = []
+	var nodes: Array[float] = []
+	var lights: Array[float] = []
+	var start := Time.get_ticks_usec()
+	while Time.get_ticks_usec() - start < int(SAMPLE_SECONDS * 1_000_000.0):
+		await get_tree().process_frame
+		frame_ms.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+		nodes.append(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+		lights.append(float(get_tree().root.find_children("*", "PointLight2D", true, false).size()))
+	var report := {
+		"level": "title",
+		"window": "%dx%d" % [win_size.x, win_size.y],
+		"sampled_frames": frame_ms.size(),
+		"frame_ms_avg": snappedf(_mean(frame_ms), 0.01),
+		"nodes_avg": snappedf(_mean(nodes), 0.1),
+		"light_nodes": int(lights.back()) if not lights.is_empty() else 0,
+	}
+	var file := FileAccess.open("%s/frame_cost_title_%dx%d.json" % [out_dir, win_size.x, win_size.y],
+			FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(report, "\t"))
+	print("FRAMECOST level=title %s" % JSON.stringify(report))
+	get_tree().quit(0)
 
 
 func _mean(values: Array[float]) -> float:

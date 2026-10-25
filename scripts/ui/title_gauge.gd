@@ -9,6 +9,9 @@ const TICKS := 14
 const SPACING := 19.0
 const TOP := 8.0
 const ROD_X := 196.0
+## Leftmost ink of the ruler (the act tick). The journey summary stops 8px before this
+## so the two-line recap never runs under 壹贰叁 or the act glyphs.
+const INK_LEFT := 146.0
 const ACT_STARTS := [0, 3, 7, 11]
 const PULSE_FPS := 8.0
 const COL_ROD := Color("#4A2A18")
@@ -83,17 +86,42 @@ func _draw() -> void:
 		if _done[i]:
 			lit_to = i
 	if lit_to >= 0:
-		draw_rect(Rect2(ROD_X - 1.0, TOP - 4.0, 2.0, tick_position(lit_to).y - TOP + 6.0), COL_ROD_LIT)
+		# 点亮段先铺一层炉温辉光，再压亮色杆芯。
+		var lit_len := tick_position(lit_to).y - TOP + 6.0
+		draw_rect(Rect2(ROD_X - 3.0, TOP - 4.0, 6.0, lit_len), Color(1.0, 0.6, 0.2, 0.08))
+		draw_rect(Rect2(ROD_X - 1.0, TOP - 4.0, 2.0, lit_len), COL_ROD_LIT)
 	var font := get_theme_default_font()
+	var current_act := -1
+	for a in ACT_STARTS.size():
+		var start: int = ACT_STARTS[a]
+		var end: int = ACT_STARTS[a + 1] if a + 1 < ACT_STARTS.size() else TICKS
+		if _current >= start and _current < end:
+			current_act = a
 	for a in ACT_STARTS.size():
 		var i: int = ACT_STARTS[a]
 		var y := tick_position(i).y
 		if i > 0:
+			# 上一幕整幕通关时，这道分隔线烧成余烬色。
+			var sep_col := COL_ROD
+			var prev_done := true
+			for p in range(ACT_STARTS[a - 1], i):
+				if p >= _done.size() or not _done[p]:
+					prev_done = false
+					break
+			if prev_done:
+				sep_col = Color(COL_EMBER.r, COL_EMBER.g, COL_EMBER.b, 0.6)
 			var sep := y - SPACING * 0.5
-			draw_rect(Rect2(ROD_X - 26.0, sep, 26.0, 1.0), COL_ROD)
+			draw_rect(Rect2(ROD_X - 22.0, sep, 22.0, 1.0), sep_col)
+		# 幕名收在刻度杆左侧，给旅程摘要留出一整列。
+		draw_rect(Rect2(INK_LEFT, y - 3.0, 6.0, 1.0),
+				COL_EMBER if a == current_act else COL_ROD)
+		draw_rect(Rect2(INK_LEFT, y - 3.0, 1.0, 6.0),
+				COL_EMBER if a == current_act else COL_ROD)
 		if font != null and a < _acts.size():
-			draw_string(font, Vector2(ROD_X - 92.0, y + 4.0), _acts[a], HORIZONTAL_ALIGNMENT_LEFT, 20.0, 12,
-					Color(COL_BONE.r, COL_BONE.g, COL_BONE.b, 0.55))
+			var act_col := COL_EMBER if a == current_act else Color(COL_BONE.r, COL_BONE.g, COL_BONE.b, 0.55)
+			act_col.a = 0.92 if a == current_act else 0.55
+			draw_string(font, Vector2(INK_LEFT + 8.0, y + 4.0), _acts[a], HORIZONTAL_ALIGNMENT_LEFT, 16.0, 12,
+					act_col)
 	for i in TICKS:
 		var c := tick_position(i)
 		var is_done := i < _done.size() and _done[i]
@@ -108,7 +136,7 @@ func _draw() -> void:
 		if font != null and i < _numerals.size():
 			var col := COL_BONE if is_done or is_now else Color(0.55, 0.52, 0.5)
 			col.a = 0.9 if is_now else (0.7 if is_done else 0.38)
-			draw_string(font, Vector2(ROD_X - 22.0 - 24.0, c.y + 4.0), _numerals[i], HORIZONTAL_ALIGNMENT_RIGHT, 24.0,
+			draw_string(font, Vector2(ROD_X - 24.0, c.y + 4.0), _numerals[i], HORIZONTAL_ALIGNMENT_RIGHT, 20.0,
 					12, col)
 
 
@@ -129,4 +157,4 @@ func _draw_current(c: Vector2) -> void:
 	_diamond(c, 5, COL_EMBER.lerp(COL_HOT, pulse), Color("#8B4513"))
 	draw_rect(Rect2(c.x - 1.0, c.y - 1.0, 3.0, 3.0), COL_HOT)
 	# a short lead line from the rod toward the chapter text
-	draw_rect(Rect2(c.x - 34.0, c.y, 24.0, 1.0), Color(COL_EMBER.r, COL_EMBER.g, COL_EMBER.b, 0.35 + 0.35 * pulse))
+	draw_rect(Rect2(c.x - 28.0, c.y, 20.0, 1.0), Color(COL_EMBER.r, COL_EMBER.g, COL_EMBER.b, 0.35 + 0.35 * pulse))

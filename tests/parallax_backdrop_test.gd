@@ -43,7 +43,7 @@ func test_backdrop_is_a_canvas_layer_of_parallax2d_plates() -> void:
 		ok(spr != null and spr.texture != null, "%s carries the authored plate" % name)
 		if spr == null or spr.texture == null:
 			continue
-		eq(String(spr.texture.resource_path), spec[0], "%s keeps the authored plate (phase-3 grade does the colour)" % name)
+		eq(DensityTextures.source_path(spr.texture), spec[0], "%s keeps the authored plate (phase-3 grade does the colour)" % name)
 		almost(spr.scale.x, float(spec[2]), 0.001, "%s plate scale" % name)
 		eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
 	for name in ["CloudFar", "CloudLow", "FarMountains", "MidGrove", "NearGround"]:

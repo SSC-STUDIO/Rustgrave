@@ -25,6 +25,7 @@ func setup() -> void:
 
 func teardown() -> void:
 	TitleWorld.forced_state = {}
+	ArenaRun.use_default_file()
 
 
 func _open_title() -> TitleScreen:
@@ -95,9 +96,9 @@ func test_rail_stays_clear_of_the_keyart_center() -> void:
 	ok(epitaph != null, "墓志存在")
 	if epitaph != null:
 		var box: Rect2 = title.design_rect(epitaph)
-		ok(box.position.x > KEYART_CENTER, "墓志在画面右半边")
+		ok(box.position.x > TitleScreen.EPITAPH_RECT.position.x - 1.0, "墓志落在墓志区内（避开左侧菜单）")
 		ok(box.position.y > 360.0, "墓志在画面下半边")
-		ok(box.end.x <= 1280.0 - TitleScreen.RAIL_X + 1.0, "墓志右端不越过右边距")
+		ok(box.end.x <= TitleScreen.JOURNEY_X + 1.0, "墓志右端停在旅程列之前")
 
 	title.queue_free()
 	await get_tree().process_frame
@@ -308,11 +309,42 @@ func test_dossier_shows_profile_summary_with_a_save() -> void:
 func test_dossier_has_placeholders_without_a_save() -> void:
 	SaveData.save_path = "user://title_dossier_empty.cfg"
 	SaveData.delete_save()
+	var arena_path := "user://title_arena_records_test.cfg"
+	if FileAccess.file_exists(arena_path):
+		DirAccess.remove_absolute(arena_path)
+	ArenaRun.use_file(arena_path)
 	var title: TitleScreen = await _open_title()
 	var rank := title.find_child("DossierRank", true, false) as Label
 	ok(rank != null and rank.text.contains("尚无"), "无存档时有占位文案")
 	var trials := title.find_child("DossierTrials", true, false) as Label
 	ok(trials != null and trials.text.contains("未踏足"))
+	var arena := title.find_child("DossierArena", true, false) as Label
+	ok(arena != null and arena.text == "胜 0 场", "没有胜场键时档案记胜 0 场")
+	var chip_arena := title.find_child("ChipArena", true, false) as TitleChip
+	ok(chip_arena != null and chip_arena.value_text == "胜 0 场" and not chip_arena.lit,
+			"竞芯片缺胜场时显示胜0场")
+	var legacy := ConfigFile.new()
+	legacy.set_value("meta", "best_score", 90)
+	legacy.set_value("meta", "runs", 3)
+	legacy.save(arena_path)
+	title.queue_free()
+	await get_tree().process_frame
+	title = await _open_title()
+	arena = title.find_child("DossierArena", true, false) as Label
+	chip_arena = title.find_child("ChipArena", true, false) as TitleChip
+	ok(arena != null and arena.text == "胜 0 场", "旧档没有 wins 键时按 0 场")
+	ok(chip_arena != null and chip_arena.value_text == "胜 0 场" and not chip_arena.lit,
+			"旧档没有 wins 键时芯片不亮")
+	legacy.set_value("meta", "wins", 7)
+	legacy.save(arena_path)
+	title.queue_free()
+	await get_tree().process_frame
+	title = await _open_title()
+	arena = title.find_child("DossierArena", true, false) as Label
+	chip_arena = title.find_child("ChipArena", true, false) as TitleChip
+	ok(arena != null and arena.text == "胜 7 场", "档案显示胜场")
+	ok(chip_arena != null and chip_arena.value_text == "胜 7 场" and chip_arena.lit,
+			"竞芯片亮起并显示胜场")
 	var chapter := title.find_child("JourneyChapter", true, false) as Label
 	ok(chapter != null and chapter.text.contains("尚无旅程"), "旅程列的章节行有占位")
 	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
@@ -321,9 +353,30 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	await get_tree().process_frame
 	SaveData.delete_save()
 	SaveData.save_path = "user://rustgrave_save.cfg"
+	if FileAccess.file_exists(arena_path):
+		DirAccess.remove_absolute(arena_path)
+	ArenaRun.use_default_file()
 
 
 ## 有存档时刻度按进度点亮，当前章搏动（用真的存档文件，走 TitleWorld.peek_save 那条路）。
+## 结局摘要两行停在章节标尺左侧，底边也让开标尺，不能再和壹贰叁叠在一起。
+func test_journey_summary_stops_clear_of_the_ruler() -> void:
+	var title: TitleScreen = await _open_title()
+	var recap := title.find_child("JourneyRecap", true, false) as Label
+	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
+	ok(recap != null and gauge != null, "摘要和标尺都在")
+	if recap != null and gauge != null:
+		ok(recap.position.x + recap.size.x <= TitleGauge.INK_LEFT - 8.0 + 0.01,
+				"摘要右端 %.1f 停在标尺墨线 %.1f 左侧至少 8px" % [recap.position.x + recap.size.x, TitleGauge.INK_LEFT])
+		ok(recap.position.y + recap.size.y <= gauge.position.y - 6.0,
+				"摘要底边在标尺顶之上")
+		eq(recap.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "超出用省略号")
+		ok(recap.clip_contents, "摘要裁在自己的矩形里")
+		ok(recap.max_lines_visible == 2, "摘要最多两行")
+	title.queue_free()
+	await get_tree().process_frame
+
+
 func test_gauge_lights_the_cleared_chapters() -> void:
 	var path := "user://title_gauge_test.cfg"
 	SaveData.save_path = path
@@ -465,6 +518,112 @@ func test_epitaph_types_slowly_and_starts_with_the_epitaph_line() -> void:
 	await get_tree().process_frame
 
 
+# ------------------------------------------------------------ 回看余烬 ----
+
+const RECAP_SAVE := "user://title_recap_test.cfg"
+
+
+## 把 SaveData 指到一个临时存档路径，并清空内存里的旗标 / 结局（标题冷启动时它们还没读档）。
+func _begin_recap_env() -> Dictionary:
+	var saved := {"path": SaveData.save_path, "flags": SaveData.flags.duplicate(),
+			"ending": SaveData.ending}
+	SaveData.save_path = RECAP_SAVE
+	SaveData.flags = PackedStringArray()
+	SaveData.ending = ""
+	if FileAccess.file_exists(RECAP_SAVE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE))
+	return saved
+
+
+func _end_recap_env(saved: Dictionary) -> void:
+	if FileAccess.file_exists(RECAP_SAVE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE))
+	SaveData.save_path = String(saved["path"])
+	SaveData.flags = saved["flags"]
+	SaveData.ending = String(saved["ending"])
+
+
+func _write_recap_save(ending: String, flags: Array) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 3)
+	cfg.set_value("meta", "scene", String(GameContext.LEVELS["level05"]))
+	if ending != "":
+		cfg.set_value("meta", "ending", ending)
+	cfg.set_value("player", "origin", "ember_vanguard")
+	cfg.set_value("story", "flags", flags)
+	cfg.save(RECAP_SAVE)
+
+
+## 有结局时菜单行写着「回看余烬」：选它必须打开总结页，而不是直接读档进关。
+func test_continue_row_with_an_ending_opens_the_recap_page() -> void:
+	var saved := _begin_recap_env()
+	_write_recap_save("give", [StoryFlow.done_flag("level01"), StoryFlow.done_flag("level02")])
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var items := _items(title)
+	ok((items[1] as MenuItem)._text.contains("回 看 余 烬"), "有结局：这一行写「回看余烬」")
+	ok(title._continue_opens_recap, "写着回看，行为就是回看")
+	var menu := title.get_node("Menu") as MenuList
+	title._on_chosen(TitleScreen.ID_CONTINUE)
+	await get_tree().process_frame
+	ok(title.recap_open(), "选「回看余烬」打开总结页")
+	ok(not title._started, "没有直接读档进关")
+	ok(not menu.active, "总结页开着：左下菜单不吃输入")
+	var recap = title.recap_page()
+	eq(recap.heading_text(), "结局 · 还火", "标题写结局名")
+	eq(recap.count_text(), "已过 2 / 14 章",
+			"前两章的完成旗标是 boss_dead / undercroft_done：按 DONE_FLAGS 数，冷启动（存档还没读进内存）也数得对")
+	ok(recap.row_ids().has(&"continue"), "总结页里仍有「继续旅程」")
+	ok(recap.row_ids().has(&"chapter_level01") and recap.row_ids().has(&"chapter_level02"),
+			"第一、二章能再入")
+	ok(not recap.row_ids().has(&"chapter_level03"), "没通关的章不列")
+	recap.close()
+	await get_tree().process_frame
+	ok(not title.recap_open(), "Esc / 返回关掉总结页")
+	ok(menu.active, "菜单重新吃输入")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+## 没有结局时「继续旅程」仍然是直接读档；旅程列里的「回看余烬」按钮随时能开同一页。
+func test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page() -> void:
+	var saved := _begin_recap_env()
+	_write_recap_save("", [StoryFlow.done_flag("level01")])
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	ok(not title._continue_opens_recap, "没结局：继续就是继续")
+	ok((_items(title)[1] as MenuItem)._text.contains("继 续 旅 程"), "行文案是继续旅程")
+	var button := title.find_child("RecapButton", true, false) as Button
+	ok(button != null, "旅程列里有回看按钮")
+	button.pressed.emit()
+	await get_tree().process_frame
+	ok(title.recap_open(), "按钮打开总结页")
+	var recap = title.recap_page()
+	eq(recap.heading_text(), "尚无结局")
+	eq(recap.count_text(), "已过 1 / 14 章")
+	ok(recap.row_ids().has(&"continue"), "有存档就有继续旅程")
+	recap.close()
+	await get_tree().process_frame
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+## 再入某章的落点是该章入口出生点，不再是写死的 (176, 240)。
+func test_chapter_entry_spawns_come_from_the_levels() -> void:
+	eq(TitleScreen.chapter_entry_spawn("level01"), Level01Static.DEFAULT_SPAWN,
+			"第一章：Level01Static.DEFAULT_SPAWN（表里的数值没漂移）")
+	eq(TitleScreen.chapter_entry_spawn("level02"), Level02Layout.ENTRY_SPAWN,
+			"第二章：Level02Layout.ENTRY_SPAWN")
+	eq(TitleScreen.chapter_entry_spawn("level09b"), Vector2(96, -340), "风口崖道的入口在高处")
+	for id in GameContext.LEVEL_ORDER:
+		var spawn := TitleScreen.chapter_entry_spawn(id)
+		ok(spawn != Vector2(176, 240), "%s 的落点不再是写死的 (176,240)" % id)
+		if id != "level01" and id != "level02":
+			eq(spawn, ChapterLayout.entry_spawn_of(id), "%s：和出口门送人过来的是同一个点" % id)
+
+
 ## ID_ARENA 以前没有分支（按了没反应）：现在走 ArenaRun.start()，和试炼入口同样的待遇。
 func test_arena_entry_dispatches_to_the_arena_run() -> void:
 	var title: TitleScreen = await _open_title()
@@ -506,3 +665,19 @@ func test_arena_entry_default_wiring_starts_a_real_run() -> void:
 	await flush(4)
 	Director.choice_hold = false
 	Director._fading = false
+
+
+## 墓志和右下"回看余烬"条不能压在一起：水平方向必须留出安全缝。
+func test_epitaph_clears_recap_button() -> void:
+	var title: TitleScreen = await _open_title()
+	var epitaph := title.get_node_or_null("Inscription/EpitaphRow/Epitaph") as Control
+	var recap := title.find_child("RecapButton", true, false) as Control
+	ok(epitaph != null and recap != null, "墓志与回看条都存在")
+	if epitaph != null and recap != null:
+		title._update_epitaph(TitleScreen.EPITAPH_CHAR * 40.0)
+		var ep := title.design_rect(epitaph)
+		var rc := title.design_rect(recap)
+		ok(ep.end.x <= rc.position.x - 8.0,
+				"墓志右端 %.0f 与回看条左端 %.0f 至少留 8px" % [ep.end.x, rc.position.x])
+	title.queue_free()
+	await get_tree().process_frame

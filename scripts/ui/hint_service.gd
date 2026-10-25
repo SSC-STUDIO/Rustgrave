@@ -130,6 +130,7 @@ func _connect_sources() -> void:
 	GameEvents.swing_started.connect(_on_swing)
 	GameEvents.dash_performed.connect(_on_dash)
 	GameEvents.player_died.connect(_on_died)
+	GameEvents.player_respawned.connect(_on_respawned)
 	var tree := get_tree()
 	if tree != null:
 		tree.node_added.connect(_on_node_added)
@@ -145,6 +146,8 @@ func _disconnect_sources() -> void:
 		GameEvents.dash_performed.disconnect(_on_dash)
 	if GameEvents.player_died.is_connected(_on_died):
 		GameEvents.player_died.disconnect(_on_died)
+	if GameEvents.player_respawned.is_connected(_on_respawned):
+		GameEvents.player_respawned.disconnect(_on_respawned)
 	var tree := get_tree()
 	if tree != null and tree.node_added.is_connected(_on_node_added):
 		tree.node_added.disconnect(_on_node_added)
@@ -278,7 +281,7 @@ func _show(id: StringName, text: String, once: bool) -> void:
 		_label.text = _current_text
 		_fit_label(compact)
 	if _panel != null:
-		_panel.theme_type_variation = &"HintPanelTiny" if compact else &"HintPanel"
+		_panel.theme_type_variation = GLASS_PLATE_TINY if compact else GLASS_PLATE
 		_panel.visible = true
 	# 18×28 的箭头留给 24px 教学条；12px 的紧凑条放不下它，也不缺它。
 	if _mark != null:
@@ -317,6 +320,9 @@ func _can_show_now() -> bool:
 		return false
 	var tree := get_tree()
 	if tree == null or tree.paused:
+		return false
+	# 竞技场用自己的复活倒计时，不播战役教学（死亡那条会教玩家去余烬巢）。
+	if ArenaRun.active():
 		return false
 	if Director.playing or Director.choice_hold or Director.is_input_locked():
 		return false
@@ -394,9 +400,23 @@ func _on_dash() -> void:
 
 func _on_died() -> void:
 	_dead = true
+	if ArenaRun.active():
+		_death_pending = false
+		dismiss()
+		return
 	if not has_seen(&"death") and enabled():
 		_death_pending = true
 	dismiss()
+
+
+func _on_respawned() -> void:
+	_dead = false
+	if ArenaRun.active():
+		_death_pending = false
+		return
+	if _death_pending:
+		_death_pending = false
+		offer(&"death")
 
 
 func _on_node_added(node: Node) -> void:
@@ -458,11 +478,45 @@ func _bolt_near(player: Player) -> bool:
 
 # --- 视图 ---------------------------------------------------------------------
 
+## 提示条的玻璃板：暗底半透明 + 锈色细边，与 HUD 的玻璃框同一个 CARD_ALPHA。
+## 用 StyleBoxFlat 而不是 TAG 板：TAG 的切角边距约 16 设计像素，放不进半高的单行提示（<= 26px）。
+## 变体写在主题里（UI 脚本不用 add_theme_stylebox_override，见 ui_kit.gd 的约定）。
+static var _glass: Theme
+
+## 变体名 → 横向 / 纵向内边距。
+const GLASS_PLATE := &"HintGlassPlate"
+const GLASS_PLATE_TINY := &"HintGlassPlateTiny"
+
+
+static func glass_theme() -> Theme:
+	if _glass == null:
+		_glass = Theme.new()
+		_glass.set_type_variation(GLASS_PLATE, &"PanelContainer")
+		_glass.set_stylebox("panel", GLASS_PLATE, _glass_box(16.0, 6.0))
+		_glass.set_type_variation(GLASS_PLATE_TINY, &"PanelContainer")
+		_glass.set_stylebox("panel", GLASS_PLATE_TINY, _glass_box(10.0, 2.0))
+	return _glass
+
+
+static func _glass_box(pad_x: float, pad_y: float) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.05, 0.035, 0.07, GlassKit.CARD_ALPHA)
+	box.set_border_width_all(1)
+	box.border_color = Color("#4A2A18")
+	box.content_margin_left = pad_x
+	box.content_margin_right = pad_x
+	box.content_margin_top = pad_y
+	box.content_margin_bottom = pad_y
+	return box
+
+
 ## 在 parent（HUD 的 Root）下建出提示条。没有 attach 也能工作（测试 / 无界面）。
 func attach(parent: Control) -> void:
 	if _panel != null:
 		return
-	_panel = UiKit.panel(&"HintPanel")
+	_panel = UiKit.panel()
+	_panel.theme = glass_theme()
+	_panel.theme_type_variation = GLASS_PLATE
 	_panel.name = "HintPlate"
 	_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -475,6 +529,11 @@ func attach(parent: Control) -> void:
 	row.add_theme_constant_override("separation", 12)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_panel.add_child(row)
+	# 左侧一个小题头「提 示」，与标题屏、回看页的小标题同一语汇。
+	var kicker := UiKit.label("提 示", &"TinyStrongLabel")
+	kicker.name = "Kicker"
+	kicker.modulate = UiKit.EMBER
+	row.add_child(kicker)
 	var mark := UiKit.sprite_rect(UiKit.TEX_CURSOR)
 	mark.name = "Mark"
 	mark.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED

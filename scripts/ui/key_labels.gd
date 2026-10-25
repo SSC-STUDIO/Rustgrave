@@ -16,6 +16,23 @@ const ACTION_NAMES := {
 	&"hookshot": "钩锁",
 	&"skill_1": "主动技能 1",
 	&"skill_2": "主动技能 2",
+	&"world_map": "地图",
+}
+
+## 最近一次输入来自手柄时，提示改画这套键帽（和 Settings 装上的默认手柄一致）。
+const PAD_GLYPHS := {
+	&"move_left": "←",
+	&"move_right": "→",
+	&"jump": "A",
+	&"dash": "B",
+	&"attack": "X",
+	&"interact": "Y",
+	&"socket_1": "LB",
+	&"socket_2": "RB",
+	&"hookshot": "RT",
+	&"skill_1": "LT",
+	&"skill_2": "↑",
+	&"world_map": "Select",
 }
 
 ## OS.get_keycode_string 给的是英文名，这里把常见的几个换成界面里已经在用的写法。
@@ -41,6 +58,8 @@ static func pretty(raw: String) -> String:
 
 ## 当前绑定在 action 上的首个键盘键（Settings 说了算）。
 static func label(action: StringName) -> String:
+	if Settings.using_gamepad and PAD_GLYPHS.has(action):
+		return String(PAD_GLYPHS[action])
 	return pretty(Settings.key_label(action))
 
 

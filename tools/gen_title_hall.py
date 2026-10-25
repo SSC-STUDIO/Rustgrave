@@ -252,6 +252,51 @@ def build_hall_far() -> None:
         for y in range(int(top) + 20, H, 36):
             silhouette(mask_rect(W, H, cx - w / 2 - 1, y, cx + w / 2 + 1, y + 3), depth + 0.5)
 
+    def gear_silhouette(cx, cy, r, depth):
+        """Big gear on the far wall: toothed ring + spokes, echoing the stage gears."""
+        teeth = np.zeros((H, W), bool)
+        for k in range(8):
+            a = math.radians(k * 45)
+            teeth |= mask_rect(W, H, cx + math.cos(a) * r - 2, cy + math.sin(a) * r - 2,
+                               cx + math.cos(a) * r + 2, cy + math.sin(a) * r + 2)
+        ring = mask_ellipse(W, H, cx, cy, r, r) & ~mask_ellipse(W, H, cx, cy, r - 3, r - 3)
+        spokes = np.zeros((H, W), bool)
+        for k in range(4):
+            a = math.radians(k * 45 + 22.5)
+            spokes |= mask_line(W, H, (cx, cy), (cx + math.cos(a) * (r - 2), cy + math.sin(a) * (r - 2)), 2)
+        silhouette(teeth | ring | spokes, depth)
+        silhouette(mask_ellipse(W, H, cx, cy, 2, 2), depth - 0.4)
+
+    def catwalk(x0, x1, y, depth):
+        """A second, higher walkway: deck, railing and brackets dropping into the dark."""
+        silhouette(mask_rect(W, H, x0, y, x1, y + 2), depth)
+        silhouette(mask_rect(W, H, x0 + 2, y - 9, x1 - 2, y - 8), depth)
+        for x in range(int(x0) + 4, int(x1), 22):
+            silhouette(mask_rect(W, H, x, y - 8, x + 1, y), depth)
+        for x in range(int(x0) + 12, int(x1) - 6, 36):
+            silhouette(mask_line(W, H, (x, y + 2), (x - 5, y + 16), 1), depth + 0.3)
+            silhouette(mask_line(W, H, (x, y + 2), (x + 5, y + 16), 1), depth + 0.3)
+
+    def pipe_run(x0, x1, y, depth, thick=3):
+        """A horizontal pipe along the far wall, flange rings, top edge catching the skylight."""
+        silhouette(mask_rect(W, H, x0, y, x1, y + thick), depth)
+        for x in range(int(x0) + 10, int(x1) - 4, 40):
+            silhouette(mask_rect(W, H, x, y - 1, x + 2, y + thick + 1), depth - 0.2)
+        p.px[mask_rect(W, H, x0, y, x1, y + 1), :3] = MIST[3]
+
+    def furnace_mouth(cx, y, w=7, h=10):
+        """A distant forge mouth on the far wall: dark arch frame, warm throat inside."""
+        frame = mask_rect(W, H, cx - w / 2 - 1, y, cx + w / 2 + 2, y + h) | \
+            mask_ellipse(W, H, cx + 0.5, y + 1, w / 2 + 2, 3)
+        silhouette(frame, 0.35)
+        throat = mask_rect(W, H, cx - w / 2 + 1, y + 3, cx + w / 2, y + h - 1) & (bayer_field(W, H, 4) < 0.85)
+        p.px[throat, :3] = EMBERGLOW[4]
+        p.px[mask_rect(W, H, cx - 1, y + h - 4, cx + 2, y + h - 1), :3] = (0xFF, 0x8C, 0x00)
+
+    # the farthest row: paler towers dissolving into the haze behind everything else
+    for cx, top, w in [(96, 70, 22), (264, 30, 26), (372, 58, 22), (545, 24, 30), (636, 80, 20)]:
+        tower(cx, top, w, 1.25)
+
     for cx, top, w, d in [(40, 90, 34, 0.4), (112, 54, 26, 0.5), (186, 126, 30, 0.2), (338, 38, 40, 0.6),
                           (414, 112, 28, 0.2), (478, 66, 32, 0.5), (570, 100, 38, 0.3), (660, 48, 34, 0.6)]:
         tower(cx, top, w, d, bottom=H if cx % 2 == 0 else 330)
@@ -268,6 +313,29 @@ def build_hall_far() -> None:
     silhouette(lat, 0.9)
     for cx in (300, 440):
         silhouette(mask_rect(W, H, cx, 101, cx + 1, 150 + (cx % 17)), 0.8)
+    # hook blocks on the crane's cables; the right one carries a pouring ladle
+    silhouette(mask_rect(W, H, 299, 161, 302, 167), 0.6)
+    silhouette(mask_rect(W, H, 439, 165, 442, 171), 0.6)
+    silhouette(mask_poly(W, H, [(436, 171), (446, 171), (444, 180), (438, 180)]), 0.5)
+    silhouette(mask_line(W, H, (438, 180), (436, 184), 1), 0.5)
+    # --- enrichment pass: more readable depth in the visible far band (frame x 240..500) ---
+    # a second, higher walkway with railing and brackets, and a ladder down to the lower one
+    catwalk(246, 486, 172, 0.75)
+    silhouette(mask_rect(W, H, 470, 174, 471, 252), 0.7)
+    silhouette(mask_rect(W, H, 474, 174, 475, 252), 0.7)
+    for y in range(178, 252, 7):
+        silhouette(mask_rect(W, H, 470, y, 475, y + 1), 0.7)
+    # pipe runs along the far wall
+    pipe_run(250, 502, 210, 0.85)
+    pipe_run(60, 224, 118, 0.7)
+    # far gears echo the stage machinery
+    gear_silhouette(272, 208, 22, 0.9)
+    gear_silhouette(465, 150, 16, 0.75)
+    gear_silhouette(534, 206, 11, 0.6)
+    # a plinth ledge with a row of distant forge mouths glowing on the far wall
+    silhouette(mask_rect(W, H, 288, 230, 462, 233), 0.5)
+    for fx in (300, 382, 448):
+        furnace_mouth(fx, 220)
     # distant catwalk with posts
     walk_y = 252
     silhouette(mask_rect(W, H, 70, walk_y, 650, walk_y + 3), 0.6)

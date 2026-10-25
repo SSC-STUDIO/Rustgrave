@@ -279,4 +279,5 @@ func _build_decor(host: Node2D) -> void:
 	foliage(host, "bush_s", Vector2(3540, 320), 1.0, false, DRY_BUSH)
 	prop(host, "brick_house", Vector2(3700, 320), 1.0, Color(0.4, 0.44, 0.54))
 	prop(host, "rubble_dry_c", Vector2(3806, 320))
-	hanging(host, "vine", Vector2(3096, 224), Color(0.4, 0.42, 0.4, 0.7))
+	# 屋脊西端垂下的灰藤：挂在 DeadRidge（3120–3260，顶 224）的底沿下。
+	hanging(host, "vine", Vector2(3128, 240), Color(0.4, 0.42, 0.4, 0.7))

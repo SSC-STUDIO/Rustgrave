@@ -1,0 +1,427 @@
+{
+  "density": 6,
+  "size": [
+    3200,
+    2560
+  ],
+  "cell": [
+    640,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        640
+      ],
+      "frame_origin": [
+        20,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        87,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        640
+      ],
+      "frame_origin": [
+        660,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        87,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_2.png",
+      "slot": [
+        1280,
+        0,
+        1920,
+        640
+      ],
+      "frame_origin": [
+        1300,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        23,
+        87,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_3.png",
+      "slot": [
+        1920,
+        0,
+        2560,
+        640
+      ],
+      "frame_origin": [
+        1940,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        29,
+        66,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_4.png",
+      "slot": [
+        2560,
+        0,
+        3200,
+        640
+      ],
+      "frame_origin": [
+        2580,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        29,
+        65,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_5.png",
+      "slot": [
+        0,
+        640,
+        640,
+        1280
+      ],
+      "frame_origin": [
+        20,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        29,
+        55,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_6.png",
+      "slot": [
+        640,
+        640,
+        1280,
+        1280
+      ],
+      "frame_origin": [
+        660,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        35,
+        31,
+        55,
+        75
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_7.png",
+      "slot": [
+        1280,
+        640,
+        1920,
+        1280
+      ],
+      "frame_origin": [
+        1300,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        36,
+        36,
+        58,
+        75
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_8.png",
+      "slot": [
+        1920,
+        640,
+        2560,
+        1280
+      ],
+      "frame_origin": [
+        1940,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        36,
+        38,
+        62,
+        68
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_9.png",
+      "slot": [
+        2560,
+        640,
+        3200,
+        1280
+      ],
+      "frame_origin": [
+        2580,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        36,
+        35,
+        62,
+        56
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_10.png",
+      "slot": [
+        0,
+        1280,
+        640,
+        1920
+      ],
+      "frame_origin": [
+        20,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        42,
+        38,
+        62,
+        56
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_11.png",
+      "slot": [
+        640,
+        1280,
+        1280,
+        1920
+      ],
+      "frame_origin": [
+        660,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        44,
+        39,
+        61,
+        56
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_12.png",
+      "slot": [
+        1280,
+        1280,
+        1920,
+        1920
+      ],
+      "frame_origin": [
+        1300,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        45,
+        40,
+        60,
+        54
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_13.png",
+      "slot": [
+        1920,
+        1280,
+        2560,
+        1920
+      ],
+      "frame_origin": [
+        1940,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        45,
+        40,
+        59,
+        53
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_14.png",
+      "slot": [
+        2560,
+        1280,
+        3200,
+        1920
+      ],
+      "frame_origin": [
+        2580,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        45,
+        40,
+        59,
+        53
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_15.png",
+      "slot": [
+        0,
+        1920,
+        640,
+        2560
+      ],
+      "frame_origin": [
+        20,
+        1940
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        45,
+        40,
+        59,
+        53
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_16.png",
+      "slot": [
+        640,
+        1920,
+        1280,
+        2560
+      ],
+      "frame_origin": [
+        660,
+        1940
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        45,
+        40,
+        59,
+        53
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/death/death_17.png",
+      "slot": [
+        1280,
+        1920,
+        1920,
+        2560
+      ],
+      "frame_origin": [
+        1300,
+        1940
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        47,
+        40,
+        59,
+        53
+      ]
+    }
+  ]
+}

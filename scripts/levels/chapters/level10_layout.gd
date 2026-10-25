@@ -1,5 +1,5 @@
 extends ChapterLayout
-## 锈墓・拾 — 炉心深处（终关）。第一关点燃的那颗残芯真正的所在；
+## 锈墓・拾 — 炉心深处（终关）。第一关点燃的那颗火种真正的所在；
 ## 梦魇——炉火熄灭时最后一匹没被熔掉的战马——守在这里。
 ##
 ## 玩法变化（平地 Boss 竞技场）：入口回廊是跳石与火骷髅，门前厅是安全巢；
@@ -240,13 +240,13 @@ func _build_decor(host: Node2D) -> void:
 		prop(host, RUBBLE_KEYS[i % RUBBLE_KEYS.size()], Vector2(float(RUBBLE[i]), FLOOR_Y), 1.0, TONE)
 
 
-## 炉心祭坛：终局门旁的背景墙板，残芯的所在。顶 64px 是素墙，走 RuinPlate 塌成残垣，
+## 炉心祭坛：终局门旁的背景墙板，火种的所在。顶 64px 是素墙，走 RuinPlate 塌成残垣，
 ## 不然 128×192 的板子在墙前是一块硬边矩形。feet 元数据 + grounded 组让体检照常查脚。
 func _altar(host: Node2D, feet: Vector2, tint: Color) -> Node2D:
 	var path: String = DECOR["altar"]
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	var root := Node2D.new()
 	root.name = "ForgeAltar"
 	root.position = Vector2(feet.x - float(tex.get_width()) * 0.5, feet.y - float(tex.get_height()))

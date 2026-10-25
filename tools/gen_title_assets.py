@@ -9,7 +9,9 @@ hand-controlled pixel art than as engine shapes (assets/title/*.png):
                                      frames, so the loop is seamless and the gears
                                      turn with no sprite rotation (a rotated pixel
                                      sprite breaks its pixels)
-  hall_far      the hazy far end of the forge hall + the pale pool under the roof gap
+  hall_far      the hazy far end of the forge hall + the pale pool under the roof gap;
+                two tower rows, far gears, a second walkway, wall pipe runs and a row
+                of distant glowing forge mouths
   hall_mid      mid-distance pylons, hanging pipes, a second (lower) bridge
   roof          ceiling trusses with the torn opening the light shaft falls through
   mass_left /   dark foreground machinery, warm-lit on the edge that faces the hall

@@ -18,7 +18,7 @@ static func anim(char_name: String, action: String) -> Array[Texture2D]:
 		var path := "%s%s/%s_%d.png" % [BASE, key, action, i]
 		if not ResourceLoader.exists(path):
 			break
-		var tex := load(path) as Texture2D
+		var tex := DensityTextures.load_texture(path)
 		if tex == null:
 			break
 		frames.append(tex)

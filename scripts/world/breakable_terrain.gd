@@ -10,6 +10,12 @@ extends StaticBody2D
 ##
 ## 分块：每个 chunk 一条 CollisionShape2D + 一张 Sprite2D；根节点保留 Hurtbox 统一收伤，
 ## 按攻击者位置把伤害落到最近的一块上。
+##
+## M3 升级：
+##   · `chunk_size` 允许 16/32 分块粒度（默认 32，不变旧行为）。
+##   · `damage_area(center, radius, amount)`：爆炸/冲击波的面杀伤入口（见 Destruction）。
+##   · `support_collapse`（默认 true）：一块碎掉后，同列正上方失去支撑的块连锁塌落；
+##     塌落只出碎屑不重复播全碎旁白，读档恢复按记录逐块安静还原（记录已含塌落结果）。
 
 const CHUNK := 32
 const SKIN_TEX := {
@@ -29,37 +35,50 @@ const SKIN_TEX := {
 @export var hit_material: StringName = &"stone"
 @export var chunk_hp: int = 2
 @export var persist_break: bool = false
+## 分块粒度（像素）：16 = 细碎，32 = 默认。钳制在 8..64。
+@export var chunk_size: int = CHUNK
+## true = 一块碎掉后同列上方失去支撑的块连锁塌落（M3）。
+@export var support_collapse: bool = true
 
 var _cols := 0
 var _rows := 0
+var _cell := float(CHUNK)
 var _hp: Array[int] = []
 var _broken: Array[bool] = []
 var _shapes: Array[CollisionShape2D] = []
 var _sprites: Array[Sprite2D] = []
 var _hurtbox: Hurtbox
+var _last_attacker: Node = null
+## 塌落重入防护：_break_chunk → _collapse_unsupported → _break_chunk 的嵌套
+## 摊平成最外层一次迭代，避免深列时的调用栈嵌套。
+var _collapsing := false
+## 全碎通知只发一次（塌落连锁里最后一块和触发块都会走到 _on_fully_broken）。
+var _fully_notified := false
 
 
 func _ready() -> void:
 	collision_layer = 1
 	collision_mask = 0
+	add_to_group(&"breakable_terrain")
 	if persist_break:
 		add_to_group(&"persistent")
 	_build()
 
 
 func _build() -> void:
-	_cols = maxi(1, int(ceil(size.x / float(CHUNK))))
-	_rows = maxi(1, int(ceil(size.y / float(CHUNK))))
+	_cell = clampf(float(chunk_size), 8.0, 64.0)
+	_cols = maxi(1, int(ceil(size.x / _cell)))
+	_rows = maxi(1, int(ceil(size.y / _cell)))
 	var tex: Texture2D = null
 	var tex_path := String(SKIN_TEX.get(skin, SKIN_TEX["stone"]))
 	if ResourceLoader.exists(tex_path):
-		tex = load(tex_path) as Texture2D
+		tex = DensityTextures.load_texture(tex_path)
 	for row in _rows:
 		for col in _cols:
 			var cell_size := Vector2(
-				minf(CHUNK, size.x - col * CHUNK),
-				minf(CHUNK, size.y - row * CHUNK))
-			var corner := Vector2(col * CHUNK, row * CHUNK)
+				minf(_cell, size.x - col * _cell),
+				minf(_cell, size.y - row * _cell))
+			var corner := Vector2(col * _cell, row * _cell)
 			var spr := Sprite2D.new()
 			spr.name = "Chunk_%d_%d" % [col, row]
 			spr.centered = false
@@ -117,6 +136,7 @@ func _on_hurt(amount: int, attacker: Node) -> void:
 	var source := attacker as Node2D
 	if source != null:
 		point = source.global_position
+		_last_attacker = attacker
 	if not _accepts(attacker):
 		# 轻击：只在表面崩一点火星，不记伤害。
 		Fx.impact(hit_material, point, Vector2.UP, &"light")
@@ -128,7 +148,12 @@ func _on_hurt(amount: int, attacker: Node) -> void:
 	var damage := 1
 	if attacker is Projectile:
 		damage = maxi(1, amount)
+	var hp_before := _hp[index]
 	damage_chunk(index, damage)
+	if not _broken[index] and _hp[index] < hp_before:
+		# 打实了但没碎：崩一处轻量材质反馈 + 该块变暗（受损读得出来）。
+		Fx.impact(hit_material, point, Vector2.UP, &"light")
+		_dim_chunk(index)
 
 
 func _accepts(attacker: Object) -> bool:
@@ -151,12 +176,27 @@ func _nearest_chunk(point: Vector2) -> int:
 			continue
 		var col := i % _cols
 		var row := int(i / _cols)
-		var center := global_position + Vector2((col + 0.5) * CHUNK, (row + 0.5) * CHUNK)
+		var center := global_position + Vector2((col + 0.5) * _cell, (row + 0.5) * _cell)
 		var d := center.distance_squared_to(point)
 		if d < best_d:
 			best_d = d
 			best = i
 	return best
+
+
+## 面杀伤（M3）：爆破/冲击波对半径内所有完好块造成伤害，返回碎块数。
+## 与 Hurtbox 的"最近一块"规则互补：单点命中走 _on_hurt，范围伤害走这里。
+func damage_area(center: Vector2, radius: float, amount: int) -> int:
+	var broken := 0
+	for i in _broken.size():
+		if _broken[i]:
+			continue
+		var col := i % _cols
+		var row := int(i / _cols)
+		var chunk_center := global_position + Vector2((col + 0.5) * _cell, (row + 0.5) * _cell)
+		if chunk_center.distance_to(center) <= radius and damage_chunk(i, amount):
+			broken += 1
+	return broken
 
 
 ## 对某一块造成伤害；hp<=0 时掉该块碰撞/贴图并出碎屑。返回是否打碎。
@@ -170,31 +210,73 @@ func damage_chunk(index: int, amount: int) -> bool:
 	return true
 
 
+## 受击未碎的块变暗一档：不用新贴图就能读出"这块裂了"。
+func _dim_chunk(index: int) -> void:
+	if index < _sprites.size() and is_instance_valid(_sprites[index]):
+		_sprites[index].modulate *= Color(0.78, 0.78, 0.82)
+
+
 func _break_chunk(index: int, quiet: bool = false) -> void:
 	_broken[index] = true
 	var col := index % _cols
 	var row := int(index / _cols)
 	var cell_size := Vector2(
-		minf(CHUNK, size.x - col * CHUNK),
-		minf(CHUNK, size.y - row * CHUNK))
-	var center := global_position + Vector2((col + 0.5) * CHUNK, (row + 0.5) * CHUNK)
+		minf(_cell, size.x - col * _cell),
+		minf(_cell, size.y - row * _cell))
+	var center := global_position + Vector2(col * _cell + cell_size.x * 0.5,
+			row * _cell + cell_size.y * 0.5)
 	if index < _shapes.size() and is_instance_valid(_shapes[index]):
 		_shapes[index].disabled = true
 		_shapes[index].queue_free()
 	if index < _sprites.size() and is_instance_valid(_sprites[index]):
 		_sprites[index].visible = false
 	if not quiet:
-		Fx.impact(hit_material, center, Vector2.UP, &"heavy")
-		Fx.burst(&"stone" if hit_material == &"stone" else &"rust", center)
+		# 定向碎屑：远离最后攻击者；正上方出手的老路径不受影响（无攻击者时仍向上）。
+		var away := Vector2.UP
+		if _last_attacker is Node2D and is_instance_valid(_last_attacker):
+			var delta: Vector2 = center - (_last_attacker as Node2D).global_position
+			if delta.length_squared() > 1.0:
+				away = delta.normalized()
+		Fx.impact(hit_material, center, away, &"heavy")
+		Fx.burst(&"stone" if hit_material == &"stone" else &"rust", center, away.angle())
+	if support_collapse:
+		_collapse_unsupported(quiet)
 	if broken_chunks() >= _broken.size():
 		_on_fully_broken(quiet)
 
 
+## 列式重力（M3）：非底行、正下方块已碎的块失去支撑，连锁塌落。
+## 塌落走正常 _break_chunk（出碎屑），但 quiet 恢复路径全程安静；
+## 全碎旁白仍只由 _on_fully_broken 播一次。
+func _collapse_unsupported(quiet: bool = false) -> void:
+	if _collapsing:
+		return
+	_collapsing = true
+	var changed := true
+	while changed:
+		changed = false
+		for col in _cols:
+			var row := _rows - 2
+			while row >= 0:
+				var index := row * _cols + col
+				if not _broken[index] and _broken[index + _cols]:
+					_break_chunk(index, quiet)
+					changed = true
+				row -= 1
+	_collapsing = false
+
+
 func _on_fully_broken(quiet: bool = false) -> void:
+	if _fully_notified:
+		return
+	_fully_notified = true
 	if _hurtbox != null:
 		_hurtbox.set_deferred("monitoring", false)
 	if quiet:
 		return
+	# 整板坍塌是 finisher 级反馈：短慢镜头（低优先级，不压弹反/死亡演出）。
+	Juice.slow_mo(110, 0.3, Juice.PRIORITY_HIT)
+	Juice.shake(3.2, 160)
 	GameEvents.announcement.emit("裂石板碎成了粉尘，后面的路露了出来。")
 	if persist_break:
 		var player := get_tree().get_first_node_in_group(&"player") as Node

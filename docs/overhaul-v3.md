@@ -27,13 +27,13 @@
 
 - [x] P0 基线与分支
 - [x] P1 机关工具箱（`scripts/hazards/`）+ 敌人变体/脱战/群警戒 + 读档坐标安全（Boss 韧性延后，见 §4）
-- [ ] P2 标题活景（`TitleWorld`）+ 版式与动效重做 + `ID_ARENA` 接线
-- [ ] P3 第一章（前半微调 + 后半重建）
-- [ ] P4 第一幕：level02 / level02b / level03
-- [ ] P5 第二幕：level04 / level04b / level05 / level06
-- [ ] P6 第三四幕：level07 / level07b / level08 / level09 / level09b / level10
-- [ ] P7 系统升级：手柄、辅助选项、显示设置、地图热键、回看余烬总结页、复活 QoL、机关音效、性能预算
-- [ ] P8 总验收：战役 bot（机关感知 + 辅助选项）、14 章输入验收、渲染矩阵、性能探针、文档与最终报告
+- [x] P2 标题活景（`TitleWorld`）+ 版式与动效重做 + `ID_ARENA` 接线
+- [x] P3 第一章（前半微调 + 后半重建）
+- [x] P4 第一幕：level02 / level02b / level03
+- [x] P5 第二幕：level04 / level04b / level05 / level06
+- [x] P6 第三四幕：level07 / level07b / level08 / level09 / level09b / level10
+- [x] P7 系统升级：手柄、辅助选项、显示设置、地图热键、回看余烬总结页、复活 QoL、机关音效、性能预算
+- [x] P8 全量测试已通过（1396/1396）。标题三档截图已存。14 章输入验收见 §5
 
 ## 3. 验收总则
 
@@ -74,3 +74,32 @@
 - 外观检查工具：`tools/hazard_probe.gd`（`scenes/tools/HazardProbe.tscn`）；证据 `screenshots/acceptance/overhaul-v3/p1/`。
 - 全量回归：1237 项，除两处本阶段新增用例的测试写法问题（已修）外全部通过，0 engine errors。
   （前序用例会泄漏导演过场锁，机关遇锁冻结，所以机关测试在 `setup()` 里归一化 `Director._set_lock(false)`。）
+
+## 5. P2–P8 落地与未验证项
+
+### 已落地
+
+- **标题。** `TitleScreen.USE_LIVE_SCENE` 打开时，640×360 的 `TitleWorld` 画在原来的 `Keyart` 节点上。锻造字标、左下菜单、旅程刻度、开场/进关/退出和炉厅环境床都在 `title_screen.gd`。`ID_ARENA` 调用 `ArenaRun.start()`。标题右侧「回看余烬」打开总结页（结局、已过章节、试炼、竞技场、再入某一章）。「继续」仍然直接读档。
+- **黑屏。** 标题脚本引用 `TitleWorld` 等类。这些类要写在 `.godot/global_script_class_cache.cfg` 里，游戏进程启动时才认。缓存里已经有 `TitleCard` / `TitleChain` / `TitleChip` / `TitleGauge` / `TitleGear` / `TitleLantern` / `TitleSparks` / `TitleWorld`。若编辑器用旧的文件系统索引把缓存覆盖掉，标题会再次解析失败，窗口只剩清屏色。处理：关掉黑窗口，让编辑器重新扫描 `scripts/ui`，再运行。
+- **第一章。** 东翼 `EAST_LIMIT` 3760，四段（压板偏殿、锻核工坊、中殿长阶、炉厅竞技场）在 `level01_east_layout.gd`。持久化节点名没改。
+- **第二到十章。** 不挪被测试锁住的地面。`scripts/levels/chapter_overhaul.gd` 在 `ChapterLayout.finish()`（level02 在 `build()` 末尾）追加每章 1–2 个专属机关，并给第一只对得上的敌人套变体。蓝图在 `docs/level-redesign/level02.md` … `level10.md`。
+- **系统。** 手柄默认键在 `Settings._install_gamepad()`（不覆盖键盘改键）。提示在最近一次输入来自手柄时改画键帽。辅助选项（受伤、弹反窗口、毒素、字幕速度、文本缩放）默认 1.0，不改变现有平衡。设置里可以切分辨率、垂直同步；三种缩放策略仍收成同一条整数画布（`display_fit_test` 锁着这件事）。地图热键是 M / Select，动作名 `world_map`。死亡 0.4 秒后按跳跃可跳过，并提示余烬巢已复位。机关音效键指向现有采样，专用文件以后换上即可。`frame_cost_probe.gd --level=title` 采标题机位。
+- **战役 bot。** `tools/campaign_walkthrough.gd` 会在周期机关和摆锤前站住等安全窗，并用辅助选项（受伤 0.6、弹反 1.4、毒素 0.6）走第二章之后的路线。Boss 战本身仍由 `BossFixture` 覆盖。
+
+### 明确没做
+
+多存档槽、完整 i18n、Executioner / Nightmare 迁到 Director、新的玩家招式、Boss 韧性（连续终结击打断）。第二章到第十章没有重挖被测试锁住的地面；专属机关是加在现有路线上的。
+
+### 已跑过的门
+
+- 全量 `tools/run_tests.ps1`：**1396/1396 通过，0 engine errors**（约 473 秒，独立 `%TEMP%` APPDATA）。P0 基线是 1182/1182。
+- 布局测试 `layout_test`：**151/151 通过**。`chapter_overhaul_test` 对第二到十章调用 `LevelSanity.check`，通过。`comfort_options_test` 2/2 通过。
+- 标题活景截图：`tools/run_title_peek.ps1`，变体 cold / give / keep / snuff，窗口 960×540、1280×720、1920×1080，各一张 idle。12 张都 `saved=true`，在 `screenshots/acceptance/overhaul-v3/title/`。
+
+### 还不能当成通过的项
+
+- 14 章输入验收没有走完。headless `-Campaign -Fast -Ending rekindle` 能打死第一章刽子手、死亡读档、进入第二章，并走到空钟前的余烬巢。空钟一直是 18 血：通用近战脚本砍不中它，90 秒后停在 `hollow_bell_dead`（最近一次日志 `screenshots/acceptance/input-20261024-183711-811`）。Boss 战的正确性由各 Boss 测试和 `BossFixture` 覆盖，不把这次未打死写成通关。
+- 每章 5 机位 × 2 分辨率的渲染矩阵、`frame_cost_probe` 的标题机位实跑。
+- 真机触屏、手柄实机手感、真人试玩手感、实体显示器上的帧时间。
+
+输入验收和渲染矩阵没跑完之前，不要把「14 章亲手通关」写成通过。全量测试通过不等于那两件事通过。

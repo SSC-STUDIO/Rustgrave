@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1280,
+    1200
+  ],
+  "cell": [
+    640,
+    400
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        400
+      ],
+      "frame_origin": [
+        20,
+        23
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        9,
+        19,
+        64,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        400
+      ],
+      "frame_origin": [
+        660,
+        23
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        11,
+        18,
+        67,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_2.png",
+      "slot": [
+        0,
+        400,
+        640,
+        800
+      ],
+      "frame_origin": [
+        20,
+        423
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        9,
+        20,
+        65,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_3.png",
+      "slot": [
+        640,
+        400,
+        1280,
+        800
+      ],
+      "frame_origin": [
+        660,
+        423
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        8,
+        19,
+        68,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_4.png",
+      "slot": [
+        0,
+        800,
+        640,
+        1200
+      ],
+      "frame_origin": [
+        20,
+        823
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        7,
+        18,
+        70,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/run/run_5.png",
+      "slot": [
+        640,
+        800,
+        1280,
+        1200
+      ],
+      "frame_origin": [
+        660,
+        823
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        9,
+        21,
+        68,
+        59
+      ]
+    }
+  ]
+}

@@ -47,7 +47,7 @@ var _parried_swing := false
 var _jump_during_swing := false
 var _press_latched_tick: int = -1000
 
-@onready var hitbox: Hitbox = $Hitbox
+@onready var hitbox: Hitbox = get_node_or_null("Hitbox") as Hitbox
 @onready var sword: Node2D = get_node_or_null("../Visual/Sword") as Node2D
 
 
@@ -55,11 +55,12 @@ func _ready() -> void:
 	if sword == null and has_node("Sword"):
 		sword = get_node("Sword")
 	if hitbox == null and has_node("Hitbox"):
-		hitbox = get_node("Hitbox")
+		hitbox = get_node("Hitbox") as Hitbox
 	# Sole deflection path: the swing's active frames acknowledge incoming
 	# projectiles through the hitbox signal plus the idle-frame sweep below.
-	hitbox.area_entered.connect(_on_hitbox_area_entered)
+	# A bare node (unit tests, no child hitbox) still answers parry-window queries.
 	if hitbox:
+		hitbox.area_entered.connect(_on_hitbox_area_entered)
 		hitbox.damage = damage
 		hitbox.team = &"player"
 		hitbox.riposte_eligible = true
@@ -191,7 +192,16 @@ func is_busy() -> bool:
 
 
 func is_parry_window() -> bool:
-	return _state == State.ACTIVE and not _host_locked()
+	if _host_locked():
+		return false
+	if _state == State.ACTIVE:
+		return true
+	# 辅助选项默认 1.0：只有出招中段能弹反，和以前一样。
+	# 调高之后，前摇的末尾也算进窗口（1.5 = 前摇最后一半）。
+	var extra := clampf(float(Settings.value(&"assist_parry", 1.0)), 1.0, 1.5) - 1.0
+	if extra <= 0.0 or _state != State.WINDUP:
+		return false
+	return phase_progress() >= 1.0 - extra
 
 
 ## 本刀是否已经「打实」：造成了伤害或弹反成功。盾面挡下不算。
@@ -340,7 +350,9 @@ func tick(delta: float) -> void:
 ## Parry acknowledgement sampled during idle-phase processing: area-pair data
 ## and space queries are reliable outside the physics callback stack.
 func _process(_delta: float) -> void:
-	if hitbox == null or not is_parry_window():
+	# 辅助选项可以把弹反窗口提前到前摇末尾，那时判定体还没打开。
+	# monitoring 关着时查重叠会报引擎错误，战役验收会因此中止。
+	if hitbox == null or not hitbox.monitoring or not is_parry_window():
 		return
 	for area in hitbox.get_overlapping_areas():
 		_on_hitbox_area_entered(area)

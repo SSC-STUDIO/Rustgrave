@@ -1,0 +1,266 @@
+{
+  "density": 6,
+  "size": [
+    2752,
+    1680
+  ],
+  "cell": [
+    688,
+    560
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_0.png",
+      "slot": [
+        0,
+        0,
+        688,
+        560
+      ],
+      "frame_origin": [
+        20,
+        22
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        40,
+        22,
+        101,
+        77
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_1.png",
+      "slot": [
+        688,
+        0,
+        1376,
+        560
+      ],
+      "frame_origin": [
+        708,
+        22
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        40,
+        26,
+        84,
+        72
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_2.png",
+      "slot": [
+        1376,
+        0,
+        2064,
+        560
+      ],
+      "frame_origin": [
+        1396,
+        22
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        39,
+        30,
+        81,
+        71
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_3.png",
+      "slot": [
+        2064,
+        0,
+        2752,
+        560
+      ],
+      "frame_origin": [
+        2084,
+        22
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        34,
+        35,
+        100,
+        74
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_4.png",
+      "slot": [
+        0,
+        560,
+        688,
+        1120
+      ],
+      "frame_origin": [
+        20,
+        582
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        37,
+        39,
+        101,
+        73
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_5.png",
+      "slot": [
+        688,
+        560,
+        1376,
+        1120
+      ],
+      "frame_origin": [
+        708,
+        582
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        42,
+        39,
+        95,
+        74
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_6.png",
+      "slot": [
+        1376,
+        560,
+        2064,
+        1120
+      ],
+      "frame_origin": [
+        1396,
+        582
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        36,
+        6,
+        92,
+        76
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_7.png",
+      "slot": [
+        2064,
+        560,
+        2752,
+        1120
+      ],
+      "frame_origin": [
+        2084,
+        582
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        3,
+        6,
+        92,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_8.png",
+      "slot": [
+        0,
+        1120,
+        688,
+        1680
+      ],
+      "frame_origin": [
+        20,
+        1142
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        2,
+        6,
+        92,
+        82
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_9.png",
+      "slot": [
+        688,
+        1120,
+        1376,
+        1680
+      ],
+      "frame_origin": [
+        708,
+        1142
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        5,
+        6,
+        92,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/attack/attack_10.png",
+      "slot": [
+        1376,
+        1120,
+        2064,
+        1680
+      ],
+      "frame_origin": [
+        1396,
+        1142
+      ],
+      "size": [
+        108,
+        86
+      ],
+      "bbox": [
+        7,
+        6,
+        92,
+        81
+      ]
+    }
+  ]
+}

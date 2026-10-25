@@ -1,0 +1,36 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    1024
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/hurt/hurt_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        37,
+        42,
+        65,
+        80
+      ]
+    }
+  ]
+}

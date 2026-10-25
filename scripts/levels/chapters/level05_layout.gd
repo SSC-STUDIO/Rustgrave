@@ -276,6 +276,13 @@ func _build_props(host: Node2D) -> void:
 	_stele(host, "SteleChain", STELE_B_POS)
 	waymark(host, SIGN_A_POS, "工坊")
 	waymark(host, SIGN_F_POS, "渣道")
+	# 可破坏道具（M3）：全部在钩锁支路台面上，主线不靠打碎任何东西通过。
+	# 检修龛（NookDeck，顶面 y=152）：遗训碑文西侧一只锈罐。
+	destructible(host, "RustUrnNook", &"rust_urn", Vector2(1476, 152))
+	# 吊装检修台（HoistDeck，顶面 y=240）：奖励位两侧——西端碎铁堆、东端余烬窖
+	# （掉 3 点余烬经验）。
+	destructible(host, "ScrapHeapHoist", &"scrap_heap", Vector2(3572, 240))
+	destructible(host, "EmberCacheHoist", &"ember_cache", Vector2(3640, 240))
 
 
 ## G 吊装下层的奖励位：吊装检修台（钩锁支路）上的一件工坊遗物。

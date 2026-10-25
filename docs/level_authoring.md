@@ -272,3 +272,8 @@ func weather_regions() -> Array:
 
 `PlayerController.add_environment(push, drag)` 是唯一的外力入口（`ForceZone` 每个物理帧写入，
 2 个物理帧没人写就当作离开区域）；不要在别处直接改玩家 `velocity` 来"推"人。
+
+第二章到第十章的专属机关不写在各自的布局常量里。`ChapterLayout.finish()`（level02 在 `build()` 末尾）
+调用 `scripts/levels/chapter_overhaul.gd` 的 `dress()`，往已经测过的地形上追加 1–2 个机关和一只变体敌人。
+落点必须继续满足上面的净空；不要改已被布局测试锁住的地面坐标，也不要往 `Enemies` 里加节点。
+烛光台阶（level04b）平时没有碰撞，骑士走进烛火旁边的感应圈才现形。

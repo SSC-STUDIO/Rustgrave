@@ -36,7 +36,7 @@ func _ready() -> void:
 	_seed = swing_phase * 3.7
 	_body = Sprite2D.new()
 	_body.name = "Body"
-	_body.texture = load(SHEET) as Texture2D
+	_body.texture = DensityTextures.load_texture(SHEET)
 	_body.hframes = 2
 	_body.centered = false
 	_body.offset = Vector2(-FRAME_W * 0.5, 0.0)
@@ -44,7 +44,7 @@ func _ready() -> void:
 	add_child(_body)
 	_halo = Sprite2D.new()
 	_halo.name = "Halo"
-	_halo.texture = load(GLOW) as Texture2D
+	_halo.texture = DensityTextures.load_texture(GLOW)
 	_halo.material = Fx.additive_mat()
 	_halo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_halo.scale = Vector2.ONE * (light_radius * 0.5 / 64.0)
@@ -52,7 +52,7 @@ func _ready() -> void:
 	add_child(_halo)
 	_light = PointLight2D.new()
 	_light.name = "Light"
-	_light.texture = load(GLOW) as Texture2D
+	_light.texture = DensityTextures.load_texture(GLOW)
 	_light.texture_scale = light_radius * 2.0 / 128.0
 	_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_light.shadow_enabled = false

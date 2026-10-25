@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1536,
+    1536
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        43,
+        44,
+        79,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        39,
+        44,
+        79,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_2.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        34,
+        40,
+        109,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_3.png",
+      "slot": [
+        768,
+        512,
+        1536,
+        1024
+      ],
+      "frame_origin": [
+        792,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        31,
+        45,
+        93,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_4.png",
+      "slot": [
+        0,
+        1024,
+        768,
+        1536
+      ],
+      "frame_origin": [
+        24,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        31,
+        45,
+        75,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/attack2/attack2_5.png",
+      "slot": [
+        768,
+        1024,
+        1536,
+        1536
+      ],
+      "frame_origin": [
+        792,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        31,
+        45,
+        74,
+        80
+      ]
+    }
+  ]
+}

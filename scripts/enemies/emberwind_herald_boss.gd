@@ -565,7 +565,7 @@ func _build_visual() -> void:
 	_glow.name = "HeraldGlow"
 	const GLOW := "res://assets/env/glow_soft.png"
 	if ResourceLoader.exists(GLOW):
-		_glow.texture = load(GLOW) as Texture2D
+		_glow.texture = DensityTextures.load_texture(GLOW)
 	_glow.position = Vector2(0.0, -16.0)
 	_glow.scale = Vector2(2.4, 2.0)
 	_glow.z_index = -1

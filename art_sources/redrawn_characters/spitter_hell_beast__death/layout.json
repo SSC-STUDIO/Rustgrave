@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    2400,
+    1984
+  ],
+  "cell": [
+    480,
+    992
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_0.png",
+      "slot": [
+        0,
+        0,
+        480,
+        992
+      ],
+      "frame_origin": [
+        18,
+        16
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        14,
+        106,
+        56,
+        160
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_1.png",
+      "slot": [
+        480,
+        0,
+        960,
+        992
+      ],
+      "frame_origin": [
+        498,
+        16
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        7,
+        112,
+        55,
+        160
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_2.png",
+      "slot": [
+        960,
+        0,
+        1440,
+        992
+      ],
+      "frame_origin": [
+        978,
+        16
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        9,
+        112,
+        58,
+        160
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_3.png",
+      "slot": [
+        1440,
+        0,
+        1920,
+        992
+      ],
+      "frame_origin": [
+        1458,
+        16
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        7,
+        108,
+        59,
+        159
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_4.png",
+      "slot": [
+        1920,
+        0,
+        2400,
+        992
+      ],
+      "frame_origin": [
+        1938,
+        16
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        0,
+        0,
+        69,
+        159
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/death/death_5.png",
+      "slot": [
+        0,
+        992,
+        480,
+        1984
+      ],
+      "frame_origin": [
+        18,
+        1008
+      ],
+      "size": [
+        74,
+        160
+      ],
+      "bbox": [
+        6,
+        0,
+        72,
+        159
+      ]
+    }
+  ]
+}

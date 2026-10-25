@@ -1,0 +1,82 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    320,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/crouch/crouch_0.png",
+      "slot": [
+        0,
+        0,
+        320,
+        320
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        48,
+        48
+      ],
+      "bbox": [
+        15,
+        9,
+        43,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/crouch/crouch_1.png",
+      "slot": [
+        320,
+        0,
+        640,
+        320
+      ],
+      "frame_origin": [
+        336,
+        16
+      ],
+      "size": [
+        48,
+        48
+      ],
+      "bbox": [
+        13,
+        16,
+        44,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/crouch/crouch_2.png",
+      "slot": [
+        0,
+        320,
+        320,
+        640
+      ],
+      "frame_origin": [
+        16,
+        336
+      ],
+      "size": [
+        48,
+        48
+      ],
+      "bbox": [
+        12,
+        19,
+        45,
+        48
+      ]
+    }
+  ]
+}

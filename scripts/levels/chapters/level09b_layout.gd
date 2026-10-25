@@ -253,9 +253,10 @@ func _build_decor(host: Node2D) -> void:
 		prop(host, String(key[0]), key[1], 1.0, tint)
 	for bush in BUSHES:
 		foliage(host, "bush_s", bush[0], float(bush[1]), false, DRY_BUSH)
-	# 风口台与灰道边垂下的旧铁链（挂在风口台沿下方，不接地）。
-	for x in [1216.0, 1696.0]:
-		hanging(host, "chain", Vector2(x, -96.0), CHAIN_TINT)
+	# 风口桥两端垂下的旧铁链：挂在 BridgeWest / BridgeEast 的底沿（顶面 -96/-32，
+	# 16 厚，底沿 -80/-16），不接地。旧坐标（x,-96）悬在半空。
+	for pair in [[1208.0, -80.0], [1696.0, -16.0]]:
+		hanging(host, "chain", Vector2(pair[0], pair[1]), CHAIN_TINT)
 
 
 ## 风口桥落石：独立的 BossArena 机关架（不激活、不锁门、不夹相机），

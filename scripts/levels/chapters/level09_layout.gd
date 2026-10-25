@@ -105,6 +105,14 @@ const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
 const REWARD_POS := Vector2(3840, 217)
 const REWARD_KIND := "equipment"
 const REWARD_REF := "iron_blade"
+## ⑨ 东端秘道：出口（4080）东侧的死角里藏一只余烬窖，由一道 rampart 裂石墙封着。
+## 墙底脚坐在 FloorE 台面（320）；墙 64px 高，一跃（≤34）翻不过去，只有重击能开。
+## persist_break=true：秘道墙打碎了就是打碎了，写进战役档（契约：只有秘道墙给 true）。
+const SECRET_WALL_POS := Vector2(4104, 256)
+const SECRET_WALL_SIZE := Vector2(64, 64)
+const SECRET_CACHE_FEET := Vector2(4186, 320)
+## 墙西陪一只锈罐当路标；别贴出口门（4080）——留 32px 净距，别挡交互。
+const SECRET_URN_FEET := Vector2(4040, 320)
 
 ## [name, kind, pos, overrides]
 const ENEMIES: Array = [
@@ -260,6 +268,12 @@ func _build_props(host: Node2D) -> void:
 	_stele(host, "SteleEyrie", STELE_EYRIE_POS)
 	# ⑧ 墙顶箭楼支路的奖励位。
 	_reward(host)
+	# ⑨ 可破坏（M3）：出口东侧死角的秘道墙。重击打碎石墙（persist=true，写档）才
+	#    能够到墙后的余烬窖；墙西一只锈罐作点缀。主路线（出口在墙西 24px）不经过它，
+	#    可破坏物不计入 LevelSanity 台面，秘道可达性不靠体检担保。
+	breakable(host, "SecretWallEast", SECRET_WALL_POS, SECRET_WALL_SIZE, "rampart", true)
+	destructible(host, "SecretEmberCache", &"ember_cache", SECRET_CACHE_FEET)
+	destructible(host, "SecretRustUrn", &"rust_urn", SECRET_URN_FEET)
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 

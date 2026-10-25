@@ -1,0 +1,82 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    336,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_death/spirit_death_0.png",
+      "slot": [
+        0,
+        0,
+        336,
+        640
+      ],
+      "frame_origin": [
+        18,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        19,
+        18,
+        29,
+        77
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_death/spirit_death_1.png",
+      "slot": [
+        336,
+        0,
+        672,
+        640
+      ],
+      "frame_origin": [
+        354,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        19,
+        18,
+        27,
+        75
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_death/spirit_death_2.png",
+      "slot": [
+        672,
+        0,
+        1008,
+        640
+      ],
+      "frame_origin": [
+        690,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        21,
+        18,
+        29,
+        32
+      ]
+    }
+  ]
+}

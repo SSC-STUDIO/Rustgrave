@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1248,
+    768
+  ],
+  "cell": [
+    416,
+    224
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        224
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        12,
+        8,
+        50,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        224
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        12,
+        11,
+        51,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        224
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        11,
+        49,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_3.png",
+      "slot": [
+        0,
+        224,
+        416,
+        448
+      ],
+      "frame_origin": [
+        16,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        11,
+        49,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_4.png",
+      "slot": [
+        416,
+        224,
+        832,
+        448
+      ],
+      "frame_origin": [
+        432,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        11,
+        49,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/idle/idle_5.png",
+      "slot": [
+        832,
+        224,
+        1248,
+        448
+      ],
+      "frame_origin": [
+        848,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        9,
+        11,
+        49,
+        32
+      ]
+    }
+  ]
+}

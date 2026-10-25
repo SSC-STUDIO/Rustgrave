@@ -1,0 +1,51 @@
+Rustgrave 贴图放置审计报告
+
+== level01 — res://scenes/levels/Level01_Static.tscn ==
+  [OK]
+
+== level02 — res://scenes/levels/Level02_Undercroft.tscn ==
+  [OK]
+
+== level02b — res://scenes/levels/Level02b_SlagConduit.tscn ==
+  [OK]
+
+== level03 — res://scenes/levels/Level03_RustTown.tscn ==
+  [OK]
+
+== level04 — res://scenes/levels/Level04_Cathedral.tscn ==
+  [OK]
+
+== level04b — res://scenes/levels/Level04b_Crypt.tscn ==
+  [OK]
+
+== level05 — res://scenes/levels/Level05_Workshop.tscn ==
+  [OK]
+
+== level06 — res://scenes/levels/Level06_NightGraveyard.tscn ==
+  [OK]
+
+== level07 — res://scenes/levels/Level07_BellTower.tscn ==
+  [OK]
+
+== level07b — res://scenes/levels/Level07b_BellFoundry.tscn ==
+  [OK]
+
+== level08 — res://scenes/levels/Level08_SlagDepths.tscn ==
+  [OK]
+
+== level09 — res://scenes/levels/Level09_Ramparts.tscn ==
+  [OK]
+
+== level09b — res://scenes/levels/Level09b_EmberwindCliffs.tscn ==
+  [OK]
+
+== level10 — res://scenes/levels/Level10_ForgeCore.tscn ==
+  [OK]
+
+== arena_duel — res://scenes/levels/Arena_Duel.tscn ==
+  [OK]
+
+== title_world — res://scenes/ui/TitleWorld.tscn ==
+  [OK]
+
+TOTAL: 0 findings across 16 scenes (16 whitelisted intentional)

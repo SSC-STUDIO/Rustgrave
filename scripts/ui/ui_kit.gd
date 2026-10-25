@@ -48,7 +48,7 @@ const SCRIM := Color(0.02, 0.01, 0.03)
 static func tex(path: String) -> Texture2D:
 	if not ResourceLoader.exists(path):
 		return null
-	return load(path) as Texture2D
+	return DensityTextures.load_texture(path)
 
 
 ## 主题变体标签。variation 为空则用 Label 基础样式。
@@ -60,6 +60,9 @@ static func label(text: String, variation: StringName = &"",
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if variation != &"":
 		l.theme_type_variation = variation
+	var text_scale := clampf(float(Settings.value(&"text_scale", 1.0)), 0.85, 1.35)
+	if not is_equal_approx(text_scale, 1.0):
+		l.add_theme_font_size_override("font_size", int(round(16.0 * text_scale)))
 	return l
 
 

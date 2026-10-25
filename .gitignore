@@ -32,3 +32,5 @@ build/
 
 # Generated test artifacts and ad-hoc exports do not belong in source control.
 /artifacts/
+/reports/_last_run/
+/reports/shots/

@@ -75,7 +75,7 @@ func _build_visual() -> void:
 	if ResourceLoader.exists(FLY_TEX_PATH):
 		var spr := Sprite2D.new()
 		spr.name = "Body"
-		spr.texture = load(FLY_TEX_PATH) as Texture2D
+		spr.texture = DensityTextures.load_texture(FLY_TEX_PATH)
 		spr.position = Vector2(0, -10)
 		spr.modulate = Palette.RUST_MID.lerp(Color.WHITE, 0.25)
 		add_child(spr)

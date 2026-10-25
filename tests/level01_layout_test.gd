@@ -270,7 +270,7 @@ func test_waymarks_name_the_route() -> void:
 	ok(board != null and text != null)
 	if board == null or text == null:
 		return
-	eq(String(board.texture.resource_path), Level01Static.SIGN_TEX, "1x waymark plank, not the 70px Kenney sign")
+	eq(DensityTextures.source_path(board.texture), Level01Static.SIGN_TEX, "1x waymark plank, not the 70px Kenney sign")
 	eq(board.scale, Vector2.ONE, "plank is drawn at world 1x")
 	almost(board.position.y + float(board.texture.get_height()), 0.0, 0.01, "post foot on the ground line")
 	var plank := Rect2(board.position + Level01Static.SIGN_PLANK.position, Level01Static.SIGN_PLANK.size)
@@ -700,7 +700,7 @@ func test_scene_details_are_grounded_real_props() -> void:
 		ok(spr != null, "%s is a real sprite" % child.name)
 		if spr == null:
 			continue
-		ok(spr.texture != null and String(spr.texture.resource_path) != "",
+		ok(spr.texture != null and DensityTextures.source_path(spr.texture) != "",
 				"%s draws an imported texture, not a shape" % spr.name)
 		eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "%s is nearest-filtered" % spr.name)
 		eq(spr.scale, Vector2.ONE, "%s is drawn at world 1x" % spr.name)

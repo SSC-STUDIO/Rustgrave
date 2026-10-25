@@ -215,6 +215,59 @@ func test_new_game_flow_with_save_confirm_overwrite() -> void:
 
 
 # ===========================================================================
+# 4b. Recall row (a save with an ending): opens the recap page, reversibly and once
+# ===========================================================================
+
+func test_recap_flow_is_reentrant_and_reversible() -> void:
+	var file := FileAccess.open(TEST_SAVE_PATH, FileAccess.WRITE)
+	file.store_string("[meta]\nending=\"keep\"\n[player]\nhp=5\norigin=\"ember_vanguard\"\n")
+	file.close()
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var menu := title.get_node("Menu") as MenuList
+
+	# 狂按回车：总结页只开一份，不叠。
+	for _i in 4:
+		title._on_chosen(TitleScreen.ID_CONTINUE)
+		title.open_recap()
+	await get_tree().process_frame
+	var pages := 0
+	for child in title.get_children():
+		if child.get_script() == TitleScreen.RecapScript:
+			pages += 1
+	eq(pages, 1, "Exactly one recap page exists no matter how often the row is chosen")
+	ok(title.recap_open(), "Recap page is open")
+	ok(not title._started, "Choosing the recall row never starts the game")
+	ok(not menu.active, "Title menu is inactive under the recap page")
+
+	# Esc 关的是总结页，不是游戏。
+	var cancel := InputEventAction.new()
+	cancel.action = &"ui_cancel"
+	cancel.pressed = true
+	title.recap_page()._unhandled_input(cancel)
+	await get_tree().process_frame
+	ok(not title.recap_open(), "Esc closes the recap page")
+	ok(menu.active, "Title menu is active again")
+	ok(SaveData.has_save(), "Save file untouched by opening and closing the page")
+
+	# 再开一次再关：状态可逆，可重复。
+	title.open_recap()
+	ok(title.recap_open(), "Recap page reopens")
+	title.recap_page().close()
+	await get_tree().process_frame
+	ok(menu.active, "Title menu active after the second close")
+
+	# 已经在进关了：总结页不再响应。
+	title._started = true
+	title.open_recap()
+	ok(not title.recap_open(), "No recap page once the game is starting")
+	title._started = false
+
+	title.queue_free()
+	await get_tree().process_frame
+
+
+# ===========================================================================
 # 5. Stress Test: Re-entrancy, Rapid Triggers, and Embark State
 # ===========================================================================
 

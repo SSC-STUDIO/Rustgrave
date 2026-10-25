@@ -3,6 +3,7 @@ extends TestCase
 
 const PROP_SCENE := preload("res://scenes/interactables/DestructibleProp.tscn")
 const Catalog := preload("res://scripts/data/destructible_catalog.gd")
+const ImpactCatalog := preload("res://scripts/data/impact_catalog.gd")
 
 
 func _make_prop(prop_id: StringName, persist: bool = false) -> DestructibleProp:
@@ -95,3 +96,49 @@ func test_session_only_prop_is_not_saved() -> void:
 	ok(not prop.is_in_group(&"persistent"), "persist=false 不写世界状态")
 	eq(prop.get_persistent_state(), {"destroyed": false})
 	prop.free()
+
+
+func test_catalog_definitions_are_complete_and_valid() -> void:
+	for prop_id in Catalog.ids():
+		var def: Dictionary = Catalog.def(prop_id)
+		ok(ImpactCatalog.has_material(StringName(def["material"])),
+				"%s 材质在 ImpactCatalog 内" % prop_id)
+		ok(String(def["texture"]) != "", "%s 有贴图" % prop_id)
+		ok(int(def["max_hp"]) >= 1, "%s 耐久 >= 1" % prop_id)
+		var blast: Variant = def.get("blast", {})
+		if blast is Dictionary and not (blast as Dictionary).is_empty():
+			ok(float((blast as Dictionary).get("radius", 0.0)) > 0.0,
+					"%s 爆破半径 > 0" % prop_id)
+			ok(int((blast as Dictionary).get("damage", 0)) >= 1,
+					"%s 爆破伤害 >= 1" % prop_id)
+
+
+func test_damaged_prop_shows_cracks_before_breaking() -> void:
+	var prop := _make_prop(&"scrap_heap") # 耐久 2
+	ok(not prop.has_cracks(), "完好时无裂纹")
+	var attacker := _make_attacker(&"light")
+	_hit(prop, attacker)
+	await flush(1)
+	ok(not prop.is_destroyed(), "第一击不致命")
+	ok(prop.has_cracks(), "耐久过半损失后挂裂纹覆盖层")
+	prop.free()
+	attacker.free()
+
+
+func test_ember_cache_drops_ember_xp() -> void:
+	SaveData.delete_save()
+	SaveData.ember_xp = 0
+	var prop := _make_prop(&"ember_cache")
+	var health := prop.get_node("Health") as Health
+	var attacker := _make_attacker(&"heavy")
+	# 直接扣到死（绕过 i-frame 等待），掉落仍在 _break 里结算。
+	health.take_damage(99, attacker)
+	await flush(1)
+	ok(not is_instance_valid(prop) or prop.is_queued_for_deletion(), "余烬窖已碎")
+	eq(SaveData.ember_xp, 3, "掉落 3 点余烬经验")
+	var award := EmberProgress.last_award()
+	eq(int(award.get("amount", 0)), 3)
+	eq(StringName(award.get("source", &"")), &"destruction")
+	SaveData.ember_xp = 0
+	SaveData.delete_save()
+	attacker.free()

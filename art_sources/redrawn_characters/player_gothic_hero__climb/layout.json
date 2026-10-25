@@ -1,0 +1,174 @@
+{
+  "density": 6,
+  "size": [
+    2112,
+    1824
+  ],
+  "cell": [
+    704,
+    608
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_0.png",
+      "slot": [
+        0,
+        0,
+        704,
+        608
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        8,
+        56,
+        55,
+        95
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_1.png",
+      "slot": [
+        704,
+        0,
+        1408,
+        608
+      ],
+      "frame_origin": [
+        720,
+        16
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        25,
+        46,
+        67,
+        87
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_2.png",
+      "slot": [
+        1408,
+        0,
+        2112,
+        608
+      ],
+      "frame_origin": [
+        1424,
+        16
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        33,
+        34,
+        71,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_3.png",
+      "slot": [
+        0,
+        608,
+        704,
+        1216
+      ],
+      "frame_origin": [
+        16,
+        624
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        39,
+        38,
+        77,
+        77
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_4.png",
+      "slot": [
+        704,
+        608,
+        1408,
+        1216
+      ],
+      "frame_origin": [
+        720,
+        624
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        47,
+        32,
+        81,
+        72
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_5.png",
+      "slot": [
+        1408,
+        608,
+        2112,
+        1216
+      ],
+      "frame_origin": [
+        1424,
+        624
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        49,
+        22,
+        89,
+        63
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/climb/climb_6.png",
+      "slot": [
+        0,
+        1216,
+        704,
+        1824
+      ],
+      "frame_origin": [
+        16,
+        1232
+      ],
+      "size": [
+        112,
+        96
+      ],
+      "bbox": [
+        67,
+        19,
+        100,
+        48
+      ]
+    }
+  ]
+}

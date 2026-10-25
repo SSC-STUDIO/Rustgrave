@@ -1,0 +1,174 @@
+{
+  "density": 6,
+  "size": [
+    1664,
+    1024
+  ],
+  "cell": [
+    416,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/ghost/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        512
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        20,
+        19,
+        44,
+        61
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        512
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        18,
+        21,
+        46,
+        62
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        512
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        19,
+        22,
+        45,
+        64
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_3.png",
+      "slot": [
+        1248,
+        0,
+        1664,
+        512
+      ],
+      "frame_origin": [
+        1264,
+        16
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        20,
+        23,
+        44,
+        65
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_4.png",
+      "slot": [
+        0,
+        512,
+        416,
+        1024
+      ],
+      "frame_origin": [
+        16,
+        528
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        20,
+        24,
+        44,
+        66
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_5.png",
+      "slot": [
+        416,
+        512,
+        832,
+        1024
+      ],
+      "frame_origin": [
+        432,
+        528
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        19,
+        21,
+        44,
+        65
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/idle/idle_6.png",
+      "slot": [
+        832,
+        512,
+        1248,
+        1024
+      ],
+      "frame_origin": [
+        848,
+        528
+      ],
+      "size": [
+        64,
+        80
+      ],
+      "bbox": [
+        19,
+        20,
+        44,
+        63
+      ]
+    }
+  ]
+}

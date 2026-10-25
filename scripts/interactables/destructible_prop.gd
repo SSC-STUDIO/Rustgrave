@@ -7,6 +7,12 @@ extends StaticBody2D
 ## 破坏时：材质打击表现（Fx.impact）+ 碎屑 + 小回血 + 旁白；`persist=true` 时
 ## 把 destroyed 记进世界状态（SaveData.persist_progress）。从不参与必需路线判定：
 ## 关卡只把它们放在支路/角落。
+##
+## M3 升级：
+##   · catalog 带 `blast` 的道具破碎时经 Destruction.spawn_blast 引爆（可连锁）；
+##   · `drops.ember` 经 EmberProgress.award_xp 掉落余烬经验；
+##   · 破坏碎屑沿"远离最后攻击者"方向喷溅；
+##   · HP 降至一半以下时挂程序化裂纹覆盖层（无新美术资源）。
 
 const Catalog := preload("res://scripts/data/destructible_catalog.gd")
 
@@ -24,6 +30,8 @@ var _health: Health
 var _hurtbox: Hurtbox
 var _sprite: Sprite2D
 var _flash_tween: Tween
+var _last_attacker: Node = null
+var _cracks: Node2D = null
 
 
 func _ready() -> void:
@@ -42,7 +50,11 @@ func configure(id: StringName) -> void:
 		# 允许在 add_child 之后再指定：重建一次外观与耐久。
 		_def = Catalog.def(prop_id)
 		hit_material = _resolve_material()
+		_max_hp = int(_def.get("max_hp", 2))
 		_rebuild_visuals()
+		if _health != null and is_instance_valid(_health):
+			_health.max_hp = _max_hp
+			_health.current = _max_hp
 
 
 func _resolve_material() -> StringName:
@@ -79,14 +91,15 @@ func _build() -> void:
 func _rebuild_visuals() -> void:
 	var size: Vector2 = _def.get("size", Vector2(20, 18))
 	for old in get_children():
-		if old is Sprite2D or old is CollisionShape2D:
+		if old is Sprite2D or old is CollisionShape2D or old == _cracks:
 			old.queue_free()
+	_cracks = null
 	_sprite = Sprite2D.new()
 	_sprite.name = "Body"
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var tex_path: String = _def.get("texture", "")
 	if ResourceLoader.exists(tex_path):
-		var tex := load(tex_path) as Texture2D
+		var tex := DensityTextures.load_texture(tex_path)
 		if tex != null:
 			_sprite.texture = tex
 			var region: Rect2 = _def.get("region", Rect2())
@@ -108,9 +121,58 @@ func _rebuild_visuals() -> void:
 	_sprite.z_index = 1
 
 
-func _on_hurt(_amount: int, _attacker: Node) -> void:
-	# 命中瞬间只做白闪；材质打击/碎屑留到真正破碎那一下，避免同一刀两套特效。
+func _on_hurt(_amount: int, attacker: Node) -> void:
+	_last_attacker = attacker
+	# 命中瞬间只做白闪；hurt 信号先于扣血发出，受损反馈推迟到本帧结算后再评。
 	_flash()
+	_after_hit.call_deferred()
+
+
+## 扣血结算后评估：未致命才补材质反馈；HP 过半损失挂裂纹；致命由 _break 统一表现。
+func _after_hit() -> void:
+	if _destroyed or _health == null or not is_instance_valid(_health):
+		return
+	if _health.current <= 0:
+		return
+	var point := global_position + Vector2(0.0, -8.0)
+	if _last_attacker is Node2D and is_instance_valid(_last_attacker):
+		point = (_last_attacker as Node2D).global_position
+	Fx.impact(hit_material, point, Vector2.UP, &"light")
+	if _health.current <= ceili(_max_hp * 0.5):
+		_show_cracks()
+
+
+## 受损过半：程序化裂纹覆盖层（1px 深色折线，确定性伪随机，不新增贴图）。
+func _show_cracks() -> void:
+	if _cracks != null and is_instance_valid(_cracks):
+		return
+	if _sprite == null or not is_instance_valid(_sprite):
+		return
+	var size: Vector2 = _def.get("size", Vector2(20, 18))
+	_cracks = Node2D.new()
+	_cracks.name = "Cracks"
+	_cracks.z_index = 2
+	var seed_value := int(hash(String(prop_id)))
+	for i in 3:
+		seed_value = int(seed_value * 1103515245 + 12345) & 0x7fffffff
+		var line := Line2D.new()
+		line.width = 1.0
+		line.default_color = Color(0.12, 0.08, 0.06, 0.85)
+		var x := -size.x * 0.5 + float(seed_value % maxi(4, int(size.x)))
+		seed_value = int(seed_value * 1103515245 + 12345) & 0x7fffffff
+		var y := -size.y + float(seed_value % maxi(4, int(size.y * 0.5)))
+		line.points = PackedVector2Array([
+			Vector2(x, y),
+			Vector2(x + 3.0, y + size.y * 0.25),
+			Vector2(x - 1.0, y + size.y * 0.5),
+		])
+		_cracks.add_child(line)
+	add_child(_cracks)
+
+
+## 测试/诊断：裂纹覆盖层是否已挂上。
+func has_cracks() -> bool:
+	return _cracks != null and is_instance_valid(_cracks)
 
 
 func _flash() -> void:
@@ -135,17 +197,36 @@ func _break() -> void:
 		_hurtbox.set_deferred("monitoring", false)
 	if _sprite != null:
 		_sprite.visible = false
+	if _cracks != null and is_instance_valid(_cracks):
+		_cracks.queue_free()
 	if is_instance_valid(_health):
 		_health.queue_free()
 	var center := global_position + Vector2(0.0, -8.0)
-	Fx.impact(hit_material, center, Vector2.UP, &"heavy")
-	Fx.burst(&"rust" if hit_material == &"metal" else &"dirt", center)
+	# 定向碎屑：远离最后攻击者；无攻击者（读档/脚本）保持向上。
+	var away := Vector2.UP
+	if _last_attacker is Node2D and is_instance_valid(_last_attacker):
+		var delta: Vector2 = center - (_last_attacker as Node2D).global_position
+		if delta.length_squared() > 1.0:
+			away = delta.normalized()
+	Fx.impact(hit_material, center, away, &"heavy")
+	Fx.burst(&"rust" if hit_material == &"metal" else &"dirt", center, away.angle())
+	# 爆破罐：破碎即引爆（中性爆破源，可连锁；每帧连锁上限见 Destruction）。
+	var blast: Variant = _def.get("blast", {})
+	if blast is Dictionary and not (blast as Dictionary).is_empty():
+		Destruction.spawn_blast(self, center, float((blast as Dictionary).get("radius", 40.0)),
+				maxi(1, int((blast as Dictionary).get("damage", 1))), hit_material)
 	var player := get_tree().get_first_node_in_group(&"player") as Node
 	var heal := int(_def.get("heal", 1))
 	if player != null and heal > 0 and "health" in player:
 		var player_health: Health = player.get(&"health") as Health
 		if player_health != null:
 			player_health.heal(heal)
+	# M3 掉落：余烬经验（EmberProgress 是 autoload，award_xp 静态可调）。
+	var drops: Variant = _def.get("drops", {})
+	if drops is Dictionary:
+		var ember := int((drops as Dictionary).get("ember", 0))
+		if ember > 0:
+			EmberProgress.award_xp(ember, &"destruction")
 	var line := String(_def.get("announce", ""))
 	if line != "":
 		GameEvents.announcement.emit(line)

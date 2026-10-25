@@ -61,7 +61,7 @@ func test_three_tracks_with_stable_ids_and_names() -> void:
 
 func test_unlock_gate_needs_level07_or_an_ending() -> void:
 	eq(Catalog.unlocked(), false, "新档不开放试炼")
-	ok("第七章" in Catalog.unlock_requirement(), "提示写清解锁条件")
+	ok("玖章" in Catalog.unlock_requirement(), "提示用钟楼的章号（玖），不写旧的第七章")
 	SaveData.mark_flag("level07_done")
 	eq(Catalog.unlocked(), true, "通关第七章解锁")
 	SaveData.flags = PackedStringArray()

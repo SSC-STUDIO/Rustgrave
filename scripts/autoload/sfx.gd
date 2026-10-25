@@ -86,6 +86,21 @@ const LIBRARY := {
 	&"forge_pulse": "res://assets/audio/sfx/forge_pulse.wav",
 	&"drip": "res://assets/audio/sfx/drip_a.wav",
 	&"gear_creak": "res://assets/audio/sfx/gear_creak_a.wav",
+	# 机关专用键：还没有单独采样时先指向已经在库里的声音。
+	# HazardFx 会优先用这些键；文件一换，机关不用改代码。
+	&"hazard_steam_warn": "res://assets/audio/sfx/gear_creak_a.wav",
+	&"hazard_steam": "res://assets/audio/sfx/drip_a.wav",
+	&"hazard_flame_warn": "res://assets/audio/sfx/nest_light.wav",
+	&"hazard_flame": "res://assets/audio/sfx/skull_flame.wav",
+	&"hazard_slag_warn": "res://assets/audio/sfx/drip_a.wav",
+	&"hazard_slag": "res://assets/audio/sfx/drip_b.wav",
+	&"hazard_bell_warn": "res://assets/audio/sfx/gear_creak_b.wav",
+	&"hazard_bell": "res://assets/audio/sfx/bell_toll.wav",
+	&"hazard_shock_warn": "res://assets/audio/sfx/forge_pulse.wav",
+	&"hazard_shock": "res://assets/audio/sfx/forge_pulse.wav",
+	&"hazard_collapse_warn": "res://assets/audio/sfx/gear_creak_a.wav",
+	&"hazard_collapse": "res://assets/audio/sfx/land_heavy.wav",
+	&"hazard_pendulum": "res://assets/audio/sfx/swing_heavy_a.wav",
 	# --- UI ---
 	&"ui_pause": "res://assets/audio/sfx/ui_pause.wav",
 	&"ui_tick": "res://assets/audio/sfx/ui_tick.wav",
@@ -170,9 +185,12 @@ const AMBIENCE := {
 	&"bed_forge": "res://assets/audio/ambience/bed_forge.ogg",
 	&"bed_workshop": "res://assets/audio/ambience/bed_workshop.ogg",
 	&"bed_core": "res://assets/audio/ambience/bed_core.ogg",
+	&"bed_title": "res://assets/audio/ambience/bed_forge.ogg",
 }
 
-const BED_KEYS: Array[StringName] = [&"bed_wind", &"bed_hall", &"bed_forge", &"bed_workshop", &"bed_core"]
+const BED_KEYS: Array[StringName] = [
+	&"bed_wind", &"bed_hall", &"bed_forge", &"bed_workshop", &"bed_core", &"bed_title",
+]
 
 const AMBIENCE_LEVEL := {
 	&"rain": 0.28,
@@ -185,6 +203,8 @@ const AMBIENCE_LEVEL := {
 	&"bed_forge": 0.45,
 	&"bed_workshop": 0.6,
 	&"bed_core": 0.55,
+	# 标题炉厅：同一条锻床，音量跟床身走，不另开一条 LIBRARY 一次性音。
+	&"bed_title": 0.45,
 }
 
 ## Music theme -> { bed key: 0..1 target }. Themes not listed (title, graveyard) keep only
@@ -388,6 +408,20 @@ func set_theme_bed(theme: StringName) -> void:
 
 func bed_theme() -> StringName:
 	return _bed_theme
+
+
+var _title_bed := false
+
+
+## 标题炉厅的环境床。离开标题时只撤掉自己铺上的那一层。
+func set_title_bed(on: bool) -> void:
+	if on:
+		_title_bed = true
+		# "forge" 不是音乐主题，set_theme_bed 会把目标清空。标题床单独叠在当前主题上。
+		_bed_target[&"bed_title"] = 0.85
+	elif _title_bed:
+		_title_bed = false
+		_bed_target.erase(&"bed_title")
 
 
 # --- pure helpers (static, unit-tested) -------------------------------------

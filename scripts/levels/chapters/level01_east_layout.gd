@@ -163,8 +163,8 @@ const DECOR_ROWS := [
 	["statue", 3004.0, NAVE_Y, Color.WHITE],
 	["rubble_dry", 2780.0, NAVE_Y, Color.WHITE],
 	["bones", 2890.0, NAVE_Y, Color.WHITE],
-	# 竞技场前后的栏杆与碎石。
-	["balustrade", 3204.0, NAVE_Y, DUSK_STONE],
+	# 竞技场前后的栏杆与碎石。西侧栏杆归 level01_east_wing.gd 的 3176 那段
+	# （「退到炉棚前，让出右火膛」），这里不再重种——3204 的旧行是重复种植。
 	["rubble_dry_b", 3236.0, NAVE_Y, Color.WHITE],
 	["rubble_dry_c", 3610.0, NAVE_Y, Color.WHITE],
 ]
@@ -333,7 +333,7 @@ func _facade(host: Node2D, key: String, feet: Vector2, region: Rect2, tint: Colo
 	var path := PropCatalog.path_for(key, theme())
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	var spr := Sprite2D.new()

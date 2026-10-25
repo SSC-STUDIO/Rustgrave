@@ -19,7 +19,7 @@ var _frame_count := 1
 ## cells hold a frame, `period` the rotation (degrees) the frames span.
 func setup(path: String, columns: int, rows: int, frames: int, period: float,
 		deg_per_second: float, start_degrees: float = 0.0) -> bool:
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return false
 	texture = tex

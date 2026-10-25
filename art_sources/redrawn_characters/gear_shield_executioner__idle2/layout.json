@@ -1,0 +1,197 @@
+{
+  "density": 6,
+  "size": [
+    2560,
+    1280
+  ],
+  "cell": [
+    640,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        640
+      ],
+      "frame_origin": [
+        20,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        640
+      ],
+      "frame_origin": [
+        660,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_2.png",
+      "slot": [
+        1280,
+        0,
+        1920,
+        640
+      ],
+      "frame_origin": [
+        1300,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        79,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_3.png",
+      "slot": [
+        1920,
+        0,
+        2560,
+        640
+      ],
+      "frame_origin": [
+        1940,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        79,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_4.png",
+      "slot": [
+        0,
+        640,
+        640,
+        1280
+      ],
+      "frame_origin": [
+        20,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_5.png",
+      "slot": [
+        640,
+        640,
+        1280,
+        1280
+      ],
+      "frame_origin": [
+        660,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        81
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_6.png",
+      "slot": [
+        1280,
+        640,
+        1920,
+        1280
+      ],
+      "frame_origin": [
+        1300,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        79,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/idle2/idle2_7.png",
+      "slot": [
+        1920,
+        640,
+        2560,
+        1280
+      ],
+      "frame_origin": [
+        1940,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        20,
+        79,
+        83
+      ]
+    }
+  ]
+}

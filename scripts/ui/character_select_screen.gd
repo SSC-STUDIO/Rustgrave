@@ -1,19 +1,18 @@
 class_name CharacterSelectScreen
 extends CanvasLayer
-## CharacterSelectScreen: Modal interface for choosing character origin and starting loadout.
-## Complies strictly with tests/modal_screens_test.gd invariants:
-##   - Built on CanvasLayer (layer = 8)
-##   - Uses Modal.build(self, ...) shell (ModalRoot/Card, ModalRoot/Veil, ModalRoot/ModalEmbers)
-##   - Card width < 1180.0, veil alpha < 0.8
+## CharacterSelectScreen: 身份与启程配装（开局前的角色选择弹窗）。
+## Test contracts kept as-is:
+##   - CanvasLayer (layer 8), Modal.build(self, ...) shell (ModalRoot/Card, ModalRoot/Veil, ModalRoot/ModalEmbers)
+##   - Card 1120x700 (width < 1180), veil alpha < 0.8, Footer/Row/CancelButton + EmbarkButton
+##   - Body/MainVBox/Columns/RightColumn/GearPlaque/Content/TrinketTabs (three trinket buttons)
+##   - AppearanceStrip / SkinRow / RuneRow / SkinBtn_<id> / RuneBtn_<id> (find_child)
 ##
-## Three-column layout:
-##   - Left: 3 Origin Selector Tabs/Buttons (Ember Vanguard, Scrap Scavenger, Rust Automaton),
-##     displaying title, lore, combat focus description.
-##   - Middle: Dynamic 6-stat preview (Max HP, Attack, Defense, Toxin Resist, Toxin Decay, Speed Multiplier)
-##     calculated dynamically via OriginCatalog.calculate_preview_stats.
-##   - Right: Starting equipment overview (displaying preset weapon & armor names and descriptions)
-##     and Customizable Trinket Picker from [broken_pendant, bone_amulet, toxic_filter_talisman].
-##   - Bottom Action: "点燃启程 (Embark)" button and "取消 (Cancel)" button / Esc hint.
+## Layout (card body is about 1052 x 482):
+##   - Left: three origin portrait cards in a row (glass, chamfered; the selected card lifts 4px with an
+##     ember edge), then the origin lore card, then the appearance strip (skin / rune).
+##   - Right: identity detail (name, combat focus, six stats drawn as segmented pips; exact numbers live
+##     in the hover tooltip) and the starting gear (preset weapon / armour, set resonance, trinkets).
+##   - Footer: cancel (secondary plate) and the embark action (ember-framed primary plate).
 
 signal embark_requested(origin_id: StringName, loadout: Dictionary)
 signal cancelled
@@ -23,6 +22,15 @@ const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Plate := preload("res://scripts/ui/menu_plate.gd")
 const SkinCatalog := preload("res://scripts/data/skin_catalog.gd")
 const RuneCatalog := preload("res://scripts/data/rune_catalog.gd")
+const PassiveCatalog := preload("res://scripts/data/passive_catalog.gd")
+
+const CARD_SIZE := Vector2(1120.0, 700.0)
+## Right column width: enough for the three trinket tabs and the pip labels.
+const RIGHT_W := 408.0
+const COLUMN_GAP := 16
+## Origin card body height (the card itself is LIFT taller so the selected card can rise).
+const CARD_BODY_H := 200.0
+const CARD_LIFT := 4.0
 
 const COLOR_ATTACK := Color("#FFC14A")   # Warm yellow
 const COLOR_DEFENSE := Color("#BAC4CC")  # Iron grey
@@ -30,8 +38,7 @@ const COLOR_TOXIN := Color("#5CE1B6")    # Teal/cyan
 const COLOR_SPEED := Color("#5CB3FF")    # Agility blue
 const COLOR_HP := Color("#76E074")       # Vitality green
 
-## 流派特化行的语义色：与装备面板的 STAT_COLORS 同一套色相语言，
-## 玩家在两个屏之间切换时不用重新学"哪个颜色是哪项数值"。
+## Semantic stat colours shared with the equipment panel (same hue language across both screens).
 const BONUS_COLORS := {
 	&"max_hp": COLOR_HP,
 	&"attack": COLOR_ATTACK,
@@ -41,16 +48,40 @@ const BONUS_COLORS := {
 	&"speed_mult": COLOR_SPEED,
 }
 
-## 数值切换的脉冲：换流派时六行预览数字不是"跳"到新值，而是从旧值淡到
-## 新值并轻微提亮，0.18s 内读完 —— 慢了会拖住连续切换，快了看不出在动。
+## Pip meters: one pip = PIP_UNITS in-game units, PIP_COUNTS pips across. The count is only the
+## drawing scale (a full track is not a game cap); toxin resistance's 80% cap happens to be 8 pips.
+const PIP_UNITS := {
+	&"max_hp": 1.0,
+	&"attack": 1.0,
+	&"defense": 1.0,
+	&"toxin_resist": 0.10,
+	&"toxin_decay": 0.25,
+	&"speed_mult": 0.10,
+}
+const PIP_COUNTS := {
+	&"max_hp": 10,
+	&"attack": 4,
+	&"defense": 5,
+	&"toxin_resist": 8,
+	&"toxin_decay": 4,
+	&"speed_mult": 12,
+}
+const STAT_ROWS := [
+	[&"max_hp", "生命上限", COLOR_HP],
+	[&"attack", "近战攻击", COLOR_ATTACK],
+	[&"defense", "伤害减免", COLOR_DEFENSE],
+	[&"toxin_resist", "毒素抗性", COLOR_TOXIN],
+	[&"toxin_decay", "自然排毒", COLOR_TOXIN],
+	[&"speed_mult", "移动修正", COLOR_SPEED],
+]
+
+## Pulse when a value changes: the pip row lights for 0.18s instead of jumping. Only changed rows pulse.
 const PREVIEW_PULSE := 0.18
-## 脉冲提亮的幅度：>1 的 modulate 在像素画上是"这一行刚刚变了"的信号，
-## 幅度再大会和悬停高亮混在一起。
 const PREVIEW_LIT := Color(1.25, 1.18, 1.06)
 
 var _selected_origin_id: StringName = OriginCatalog.ORIGIN_EMBER_VANGUARD
 var _selected_trinket_id: StringName = OriginCatalog.ALLOWED_TRINKETS[0]
-## 外观选择：皮肤 + 刻印（进入 loadout，启程后写 profile）。
+## Appearance: skin + rune. Both are written into the loadout and persisted after embark.
 var _selected_skin_id: StringName = SkinCatalog.default_for_origin(OriginCatalog.ORIGIN_EMBER_VANGUARD)
 var _selected_rune_id: StringName = &""
 var _skin_picked := false
@@ -59,31 +90,34 @@ var _rune_buttons: Array[Button] = []
 
 var _shell: Dictionary = {}
 var _root: Control
+var _closing := false
 
-# Origin UI Elements
+# Origin cards
 var _origin_buttons: Array[Button] = []
+var _origin_cards: Array = []
 var _origin_title_lbl: Label
 var _origin_focus_lbl: Label
 var _origin_bonuses_lbl: Label
 var _origin_lore_lbl: Label
+var _passive_lbl: Label
 
-# Stat Preview UI Elements
-var _stat_val_labels: Dictionary = {}
-var _stat_detail_labels: Dictionary = {}
+# Stat pips (detail card)
+var _stat_meters: Dictionary = {}   # key -> PipMeter
+var _stat_titles: Dictionary = {}   # key -> String
+var _stat_texts: Dictionary = {}    # key -> last value text (pulse only when it changes)
+
+# Gear summary
+var _weapon_row: Control
+var _weapon_name_lbl: Label
+var _armor_row: Control
+var _armor_name_lbl: Label
 var _synergy_badge_lbl: Label
 
-# Equipment UI Elements
-var _weapon_name_lbl: Label
-var _weapon_desc_lbl: Label
-var _armor_name_lbl: Label
-var _armor_desc_lbl: Label
-
-# Trinket UI Elements
+# Trinket picker
 var _trinket_buttons: Array[Button] = []
-var _trinket_name_lbl: Label
 var _trinket_desc_lbl: Label
 
-# Action Buttons
+# Action buttons
 var _embark_btn: Button
 var _cancel_btn: Button
 
@@ -100,9 +134,9 @@ func _ready() -> void:
 func _build() -> void:
 	_shell = Modal.build(self, {
 		"title": "身 份 与 启 程 配 装",
-		"kicker": "陵 墓 废 土 · 战 斗 流 派",
-		"size": Vector2(1120.0, 700.0),
-		"hint": "方向键/点击 切换流派与信物 · Enter 启程 · Esc 取消",
+		"kicker": "选 择 角 色",
+		"size": CARD_SIZE,
+		"hint": "方向键/点击 切换流派与信物 · Enter 出发 · Esc 取消",
 		"back": "",
 		"veil": 0.60,
 		"embers": true,
@@ -120,29 +154,304 @@ func _build() -> void:
 	var main_vbox := VBoxContainer.new()
 	main_vbox.name = "MainVBox"
 	main_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	main_vbox.add_theme_constant_override("separation", 10)
 	main_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	main_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(main_vbox)
 
-	# Columns row
 	var columns := HBoxContainer.new()
 	columns.name = "Columns"
-	columns.add_theme_constant_override("separation", 14)
+	columns.add_theme_constant_override("separation", COLUMN_GAP)
 	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_vbox.add_child(columns)
 
 	_build_left_column(columns)
-	_build_middle_column(columns)
 	_build_right_column(columns)
-	_build_appearance_strip(main_vbox)
 
 	_build_footer_actions()
 
 
 # ===========================================================================
-# Appearance Strip: skin + rune (v3 loadout decision)
+# Shared glass card: TitleCard body (translucent, same alpha as the modal shell) + padded content
+# ===========================================================================
+
+## Returns the Content VBox of a glass card. The root is a PanelContainer so it reports the content's
+## minimum size to the parent container; the TitleCard is drawn first, the content sits on top.
+static func _glass_card(parent: Control, card_name: String, pad: int, gap: int = 4) -> VBoxContainer:
+	var root := GlassCardRoot.new()
+	root.name = card_name
+	# 内边距放在空样式盒的 content margin 里，所以 Content 是卡片的直接子节点（GearPlaque/Content/...）。
+	var pad_box := StyleBoxEmpty.new()
+	pad_box.content_margin_left = float(pad)
+	pad_box.content_margin_right = float(pad)
+	pad_box.content_margin_top = float(pad)
+	pad_box.content_margin_bottom = float(pad)
+	root.add_theme_stylebox_override("panel", pad_box)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# 卡片本身吃掉点击：空白处不能穿透到外壳的"点卡片外关闭"。
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	parent.add_child(root)
+
+	# 玻璃框体是卡片的第一个子节点，画在内容后面；位置与尺寸由 GlassCardRoot 每帧对齐到卡片矩形。
+	var frame := TitleCard.new()
+	frame.name = "Frame"
+	frame.body_alpha = GlassKit.CARD_ALPHA / TitleCard.FILL.a
+	root.add_child(frame)
+	root.frame = frame
+
+	var content := VBoxContainer.new()
+	content.name = "Content"
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", gap)
+	root.add_child(content)
+	return content
+
+
+# ===========================================================================
+# Left Column: origin portrait cards, lore, appearance strip
+# ===========================================================================
+
+func _build_left_column(parent: Control) -> void:
+	var col := VBoxContainer.new()
+	col.name = "LeftColumn"
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 10)
+	parent.add_child(col)
+
+	col.add_child(GlassKit.kicker("选 择 流 派"))
+	_build_origin_cards(col)
+	_build_lore_card(col)
+	_build_appearance_strip(col)
+
+
+func _build_origin_cards(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	row.name = "OriginCards"
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 12)
+	parent.add_child(row)
+
+	var group := ButtonGroup.new()
+	for orig_id in OriginCatalog.get_all_origin_ids():
+		var origin := OriginCatalog.get_origin(orig_id)
+		var skin_id := SkinCatalog.default_for_origin(orig_id)
+		var card := OriginCard.new()
+		card.name = "Card_" + String(orig_id)
+		card.setup(orig_id, origin.title, origin.combat_focus, _portrait_for(skin_id),
+				SkinCatalog.tint_of(skin_id), CARD_BODY_H, CARD_LIFT)
+		row.add_child(card)
+		var btn := card.button
+		btn.name = "OriginBtn_" + String(orig_id)
+		btn.toggle_mode = true
+		btn.button_group = group
+		btn.pressed.connect(_on_origin_button_pressed.bind(orig_id))
+		btn.mouse_entered.connect(btn.grab_focus)
+		_origin_buttons.append(btn)
+		_origin_cards.append(card)
+
+
+## The card portrait is the skin's idle frame (the same art the player character uses).
+static func _portrait_for(skin_id: StringName) -> Texture2D:
+	var frames := SkinCatalog.frames_for(skin_id, &"idle")
+	return frames[0] if not frames.is_empty() else null
+
+
+func _build_lore_card(parent: Control) -> void:
+	var box := _glass_card(parent, "LorePlaque", 12, 4)
+
+	_origin_lore_lbl = UiKit.label("", &"BodyLabel")
+	_origin_lore_lbl.name = "OriginLore"
+	_origin_lore_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_origin_lore_lbl.modulate = Color(1.0, 1.0, 1.0, 0.86)
+	_origin_lore_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(_origin_lore_lbl)
+
+	# 流派特化与被动：两条都是这个流派自带的效果，放在一起读。
+	_origin_bonuses_lbl = UiKit.label("", &"FootnoteLabel")
+	_origin_bonuses_lbl.name = "OriginBonuses"
+	_origin_bonuses_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_origin_bonuses_lbl.modulate = UiKit.EMBER_ASH
+	box.add_child(_origin_bonuses_lbl)
+
+	_passive_lbl = UiKit.label("", &"FootnoteLabel")
+	_passive_lbl.name = "OriginPassive"
+	_passive_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_passive_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.9)
+	box.add_child(_passive_lbl)
+
+
+# ===========================================================================
+# Right Column: identity detail (pips) + starting gear & trinkets
+# ===========================================================================
+
+func _build_right_column(parent: Control) -> void:
+	var col := VBoxContainer.new()
+	col.name = "RightColumn"
+	col.custom_minimum_size = Vector2(RIGHT_W, 0.0)
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 10)
+	parent.add_child(col)
+
+	col.add_child(GlassKit.kicker("身 份 详 情"))
+	_build_detail_card(col)
+	_build_gear_card(col)
+
+
+func _build_detail_card(parent: Control) -> void:
+	var box := _glass_card(parent, "DetailPlaque", 14, 4)
+
+	_origin_title_lbl = UiKit.label("", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_origin_title_lbl.name = "OriginTitle"
+	_origin_title_lbl.modulate = UiKit.EMBER
+	box.add_child(_origin_title_lbl)
+
+	_origin_focus_lbl = UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_origin_focus_lbl.name = "OriginFocus"
+	_origin_focus_lbl.modulate = COLOR_DEFENSE
+	box.add_child(_origin_focus_lbl)
+
+	box.add_child(GlassKit.rule(180.0))
+
+	for spec in STAT_ROWS:
+		var key: StringName = spec[0]
+		var title: String = spec[1]
+		var color: Color = spec[2]
+
+		var row := HBoxContainer.new()
+		row.name = "Row_" + String(key)
+		row.add_theme_constant_override("separation", 10)
+		box.add_child(row)
+
+		var name_lbl := UiKit.label(title, &"TinyStrongLabel")
+		name_lbl.name = "Name"
+		name_lbl.custom_minimum_size = Vector2(84.0, 0.0)
+		name_lbl.modulate = Color(color.r, color.g, color.b, 0.9)
+		row.add_child(name_lbl)
+
+		var meter := PipMeter.new()
+		meter.name = "Pips"
+		meter.set_scale_for(PIP_UNITS[key], PIP_COUNTS[key], color)
+		row.add_child(meter)
+		_stat_meters[key] = meter
+		_stat_titles[key] = title
+
+
+func _build_gear_card(parent: Control) -> void:
+	var box := _glass_card(parent, "GearPlaque", 14, 3)
+
+	# 预设武器 / 护甲：名字上屏，描述与属性放进悬停提示（这里只留能一眼读完的内容）。
+	_weapon_row = _equip_row(box, "WeaponRow", "[ 预设武器 ]", COLOR_ATTACK)
+	_weapon_name_lbl = _weapon_row.get_meta(&"name_label") as Label
+	_armor_row = _equip_row(box, "ArmorRow", "[ 预设护甲 ]", COLOR_DEFENSE)
+	_armor_name_lbl = _armor_row.get_meta(&"name_label") as Label
+
+	_synergy_badge_lbl = UiKit.label("套装共鸣: 无", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_synergy_badge_lbl.name = "SynergyBadge"
+	_synergy_badge_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_synergy_badge_lbl.modulate = UiKit.EMBER
+	box.add_child(_synergy_badge_lbl)
+
+	box.add_child(GlassKit.rule(120.0))
+
+	var t_header := UiKit.label("[ 随身信物 · 自由选取 ]", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	t_header.name = "TrinketHeader"
+	t_header.modulate = COLOR_TOXIN
+	box.add_child(t_header)
+
+	var trinket_tabs := HBoxContainer.new()
+	trinket_tabs.name = "TrinketTabs"
+	trinket_tabs.add_theme_constant_override("separation", 6)
+	trinket_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(trinket_tabs)
+
+	var trinket_specs := [
+		[&"broken_pendant", "破损挂坠"],
+		[&"bone_amulet", "白骨护符"],
+		[&"toxic_filter_talisman", "滤毒符印"],
+	]
+
+	var t_group := ButtonGroup.new()
+	for spec in trinket_specs:
+		var t_id: StringName = spec[0]
+		var t_title: String = spec[1]
+		var btn := Button.new()
+		btn.name = "TrinketBtn_" + String(t_id)
+		btn.text = t_title
+		_style_compact_tab(btn, 13)
+		btn.toggle_mode = true
+		btn.button_group = t_group
+		btn.focus_mode = Control.FOCUS_ALL
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0.0, 32.0)
+		btn.pressed.connect(_on_trinket_button_pressed.bind(t_id))
+		btn.mouse_entered.connect(btn.grab_focus)
+		trinket_tabs.add_child(btn)
+		_trinket_buttons.append(btn)
+
+	# 信物的名字已经亮在上面的选中页签里，这里只留描述（高度要让给数值与装备）。
+	_trinket_desc_lbl = UiKit.label("", &"FootnoteLabel")
+	_trinket_desc_lbl.name = "TrinketDesc"
+	_trinket_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trinket_desc_lbl.modulate = UiKit.ASH
+	box.add_child(_trinket_desc_lbl)
+
+
+## One equipment line: a tag on the left, the item name on the right. The row carries the item's full
+## tooltip (description and stat lines) through its meta, so hovering explains without crowding the card.
+func _equip_row(parent: Control, row_name: String, tag: String, color: Color) -> Control:
+	var row := HBoxContainer.new()
+	row.name = row_name
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+	var tag_lbl := UiKit.label(tag, &"TinyStrongLabel")
+	tag_lbl.name = "Tag"
+	tag_lbl.custom_minimum_size = Vector2(84.0, 0.0)
+	tag_lbl.modulate = color
+	row.add_child(tag_lbl)
+	var name_lbl := UiKit.label("", &"SubHeadLabel")
+	name_lbl.name = "ItemName"
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.modulate = UiKit.EMBER
+	row.add_child(name_lbl)
+	row.set_meta(&"name_label", name_lbl)
+	return row
+
+
+func _style_compact_tab(btn: Button, font_size: int = 14) -> void:
+	btn.theme_type_variation = &"TabButton"
+	btn.add_theme_font_size_override("font_size", font_size)
+	btn.add_theme_color_override("font_color", Color("#E4DCCC"))
+	btn.add_theme_color_override("font_hover_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_focus_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_pressed_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_hover_pressed_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_disabled_color", Color("#5E574F"))
+	btn.add_theme_constant_override("outline_size", 2)
+	btn.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
+
+	var states := {
+		"normal": Plate.State.NORMAL,
+		"hover": Plate.State.SELECTED,
+		"pressed": Plate.State.SELECTED,
+		"hover_pressed": Plate.State.SELECTED,
+		"focus": Plate.State.SELECTED,
+		"disabled": Plate.State.DISABLED,
+	}
+	for s_name in states:
+		var sb := Plate.style_box(Plate.Shape.TAG, states[s_name])
+		sb.content_margin_left = 6.0
+		sb.content_margin_right = 6.0
+		sb.content_margin_top = 4.0
+		sb.content_margin_bottom = 4.0
+		btn.add_theme_stylebox_override(s_name, sb)
+
+
+# ===========================================================================
+# Appearance Strip: skin + rune (v3 loadout decision), at the bottom of the left column
 # ===========================================================================
 
 func _build_appearance_strip(parent: Control) -> void:
@@ -152,12 +461,14 @@ func _build_appearance_strip(parent: Control) -> void:
 	strip.add_theme_constant_override("separation", 4)
 	strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(strip)
+
 	var skin_row := HBoxContainer.new()
 	skin_row.name = "SkinRow"
 	skin_row.add_theme_constant_override("separation", 6)
 	skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strip.add_child(skin_row)
 	var tag := UiKit.label("[ 外 观 ]", &"TinyStrongLabel")
+	tag.custom_minimum_size = Vector2(72.0, 0.0)
 	tag.modulate = UiKit.EMBER
 	skin_row.add_child(tag)
 	for skin_id in SkinCatalog.ids():
@@ -172,12 +483,14 @@ func _build_appearance_strip(parent: Control) -> void:
 		btn.mouse_entered.connect(btn.grab_focus)
 		skin_row.add_child(btn)
 		_skin_buttons.append(btn)
+
 	var rune_row := HBoxContainer.new()
 	rune_row.name = "RuneRow"
 	rune_row.add_theme_constant_override("separation", 6)
 	rune_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strip.add_child(rune_row)
 	var rune_tag := UiKit.label("[ 刻 印 ]", &"TinyStrongLabel")
+	rune_tag.custom_minimum_size = Vector2(72.0, 0.0)
 	rune_tag.modulate = Color("#5CE1B6")
 	rune_row.add_child(rune_tag)
 	var rune_ids: Array[StringName] = [&""]
@@ -196,6 +509,7 @@ func _build_appearance_strip(parent: Control) -> void:
 		rune_row.add_child(btn)
 		_rune_buttons.append(btn)
 	_sync_appearance_buttons()
+
 
 func _sync_appearance_buttons() -> void:
 	for i in _skin_buttons.size():
@@ -245,345 +559,7 @@ func get_selected_rune_id() -> StringName:
 
 
 # ===========================================================================
-# Left Column: Origin Selection & Lore
-# ===========================================================================
-
-func _build_left_column(parent: Control) -> void:
-	var col := VBoxContainer.new()
-	col.name = "LeftColumn"
-	col.custom_minimum_size = Vector2(330.0, 0.0)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 8)
-	parent.add_child(col)
-
-	var header := UiKit.label("【 骑 士 身 份 】", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	header.modulate = UiKit.EMBER
-	col.add_child(header)
-
-	# 3 Origin Selector Tabs/Buttons
-	var tabs_box := HBoxContainer.new()
-	tabs_box.name = "OriginTabs"
-	tabs_box.add_theme_constant_override("separation", 6)
-	tabs_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(tabs_box)
-
-	var origin_specs := [
-		[OriginCatalog.ORIGIN_EMBER_VANGUARD, "余烬重骑"],
-		[OriginCatalog.ORIGIN_SCRAP_SCAVENGER, "废料剑客"],
-		[OriginCatalog.ORIGIN_RUST_AUTOMATON, "锈械学者"],
-	]
-
-	var group := ButtonGroup.new()
-	for spec in origin_specs:
-		var orig_id: StringName = spec[0]
-		var title_text: String = spec[1]
-		var btn := Button.new()
-		btn.name = "OriginBtn_" + String(orig_id)
-		btn.text = title_text
-		_style_compact_tab(btn, 14)
-		btn.toggle_mode = true
-		btn.button_group = group
-		btn.focus_mode = Control.FOCUS_ALL
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0.0, 34.0)
-		btn.pressed.connect(_on_origin_button_pressed.bind(orig_id))
-		btn.mouse_entered.connect(btn.grab_focus)
-		tabs_box.add_child(btn)
-		_origin_buttons.append(btn)
-
-	# Origin Details Plaque
-	var plaque := UiKit.panel(&"StonePanel")
-	plaque.name = "OriginDetailsPlaque"
-	plaque.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(plaque)
-
-	var plaque_box := VBoxContainer.new()
-	plaque_box.name = "Content"
-	plaque_box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	plaque_box.add_theme_constant_override("separation", 8)
-	plaque.add_child(plaque_box)
-
-	# 身份剑：竖在铭牌顶上，剑格压住下面的流派名 —— 这柄"挂着的剑"就是
-	# 选中流派的视觉锚，切流派时它不动，动的是剑下面的文字。
-	var title_row := HBoxContainer.new()
-	title_row.name = "TitleRow"
-	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	title_row.add_theme_constant_override("separation", 8)
-	plaque_box.add_child(title_row)
-	title_row.add_child(Ornaments.sword())
-
-	_origin_title_lbl = UiKit.label("余烬重骑", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_origin_title_lbl.name = "OriginTitle"
-	_origin_title_lbl.modulate = UiKit.EMBER
-	_origin_title_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	title_row.add_child(_origin_title_lbl)
-
-	_origin_focus_lbl = UiKit.label("稳固防御与高生存", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_origin_focus_lbl.name = "OriginFocus"
-	_origin_focus_lbl.modulate = COLOR_DEFENSE
-	plaque_box.add_child(_origin_focus_lbl)
-
-	# 流派特化：每项加成按它影响的数值染色（生命绿、攻击黄、减免铁灰、
-	# 毒素青、速度蓝），整行读下来就是一张小数值条，不用逐项对名字。
-	_origin_bonuses_lbl = UiKit.label("流派特化: 生命上限 +1 · 伤害减免 +1", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_origin_bonuses_lbl.name = "OriginBonuses"
-	_origin_bonuses_lbl.modulate = UiKit.EMBER_ASH
-	plaque_box.add_child(_origin_bonuses_lbl)
-
-	var stub := Ornaments.stub_rule(false)
-	stub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	plaque_box.add_child(stub)
-
-	_origin_lore_lbl = UiKit.label("", &"BodyLabel")
-	_origin_lore_lbl.name = "OriginLore"
-	_origin_lore_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_origin_lore_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_origin_lore_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.95)
-	plaque_box.add_child(_origin_lore_lbl)
-
-
-# ===========================================================================
-# Middle Column: Dynamic 6-Stat Preview
-# ===========================================================================
-
-func _build_middle_column(parent: Control) -> void:
-	var col := VBoxContainer.new()
-	col.name = "MiddleColumn"
-	col.custom_minimum_size = Vector2(300.0, 0.0)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 8)
-	parent.add_child(col)
-
-	var header := UiKit.label("【 数 值 联 动 预 览 】", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	header.modulate = UiKit.EMBER
-	col.add_child(header)
-
-	var plaque := UiKit.panel(&"StonePanel")
-	plaque.name = "StatsPlaque"
-	plaque.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(plaque)
-
-	var plaque_box := VBoxContainer.new()
-	plaque_box.name = "Content"
-	plaque_box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	plaque_box.add_theme_constant_override("separation", 4)
-	plaque.add_child(plaque_box)
-
-	var stat_keys := [
-		[&"max_hp", "生命上限", COLOR_HP],
-		[&"attack", "近战攻击", COLOR_ATTACK],
-		[&"defense", "伤害减免", COLOR_DEFENSE],
-		[&"toxin_resist", "毒素抗性", COLOR_TOXIN],
-		[&"toxin_decay", "自然排毒", COLOR_TOXIN],
-		[&"speed_mult", "移动修正", COLOR_SPEED],
-	]
-
-	for item in stat_keys:
-		var key: StringName = item[0]
-		var title: String = item[1]
-		var color: Color = item[2]
-
-		var row := VBoxContainer.new()
-		row.name = "Row_" + String(key)
-		row.add_theme_constant_override("separation", 1)
-		plaque_box.add_child(row)
-
-		var top_line := HBoxContainer.new()
-		top_line.name = "Top"
-		row.add_child(top_line)
-
-		var name_lbl := UiKit.label(title, &"TinyStrongLabel")
-		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		name_lbl.modulate = Color(1.0, 1.0, 1.0, 0.9)
-		top_line.add_child(name_lbl)
-
-		var val_lbl := UiKit.label("0", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-		val_lbl.name = "Val"
-		val_lbl.modulate = color
-		top_line.add_child(val_lbl)
-		_stat_val_labels[key] = val_lbl
-
-		var desc_lbl := UiKit.label("", &"FootnoteLabel")
-		desc_lbl.name = "Desc"
-		desc_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.8)
-		row.add_child(desc_lbl)
-		_stat_detail_labels[key] = desc_lbl
-
-	var stub := Ornaments.stub_rule(false)
-	stub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	plaque_box.add_child(stub)
-
-	_synergy_badge_lbl = UiKit.label("套装共鸣: 无", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_synergy_badge_lbl.name = "SynergyBadge"
-	_synergy_badge_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_synergy_badge_lbl.modulate = UiKit.EMBER
-	plaque_box.add_child(_synergy_badge_lbl)
-
-
-# ===========================================================================
-# Right Column: Equipment Overview & Trinket Picker
-# ===========================================================================
-
-func _build_right_column(parent: Control) -> void:
-	var col := VBoxContainer.new()
-	col.name = "RightColumn"
-	col.custom_minimum_size = Vector2(390.0, 0.0)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 8)
-	parent.add_child(col)
-
-	var header := UiKit.label("【 启 程 配 装 与 信 物 】", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	header.modulate = UiKit.EMBER
-	col.add_child(header)
-
-	var plaque := UiKit.panel(&"StonePanel")
-	plaque.name = "GearPlaque"
-	plaque.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(plaque)
-
-	var plaque_box := VBoxContainer.new()
-	plaque_box.name = "Content"
-	plaque_box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	plaque_box.add_theme_constant_override("separation", 6)
-	plaque.add_child(plaque_box)
-
-	# Preset Weapon Box
-	var w_box := VBoxContainer.new()
-	w_box.name = "WeaponBox"
-	w_box.add_theme_constant_override("separation", 2)
-	plaque_box.add_child(w_box)
-
-	var w_slot_row := HBoxContainer.new()
-	w_box.add_child(w_slot_row)
-	var w_tag := UiKit.label("[ 预设武器 ]", &"TinyStrongLabel")
-	w_tag.modulate = COLOR_ATTACK
-	w_slot_row.add_child(w_tag)
-	_weapon_name_lbl = UiKit.label("", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-	_weapon_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_weapon_name_lbl.modulate = UiKit.EMBER
-	w_slot_row.add_child(_weapon_name_lbl)
-
-	_weapon_desc_lbl = UiKit.label("", &"FootnoteLabel")
-	_weapon_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_weapon_desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_weapon_desc_lbl.modulate = UiKit.ASH
-	w_box.add_child(_weapon_desc_lbl)
-
-	# Preset Armor Box
-	var a_box := VBoxContainer.new()
-	a_box.name = "ArmorBox"
-	a_box.add_theme_constant_override("separation", 2)
-	plaque_box.add_child(a_box)
-
-	var a_slot_row := HBoxContainer.new()
-	a_box.add_child(a_slot_row)
-	var a_tag := UiKit.label("[ 预设护甲 ]", &"TinyStrongLabel")
-	a_tag.modulate = COLOR_DEFENSE
-	a_slot_row.add_child(a_tag)
-	_armor_name_lbl = UiKit.label("", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-	_armor_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_armor_name_lbl.modulate = COLOR_DEFENSE
-	a_slot_row.add_child(_armor_name_lbl)
-
-	_armor_desc_lbl = UiKit.label("", &"FootnoteLabel")
-	_armor_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_armor_desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_armor_desc_lbl.modulate = UiKit.ASH
-	a_box.add_child(_armor_desc_lbl)
-
-	var stub := Ornaments.stub_rule(false)
-	stub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	plaque_box.add_child(stub)
-
-	# Trinket Picker Section
-	var t_header := UiKit.label("[ 随身信物 · 自由选取 ]", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	t_header.modulate = COLOR_TOXIN
-	plaque_box.add_child(t_header)
-
-	var trinket_tabs := HBoxContainer.new()
-	trinket_tabs.name = "TrinketTabs"
-	trinket_tabs.add_theme_constant_override("separation", 4)
-	trinket_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plaque_box.add_child(trinket_tabs)
-
-	var trinket_specs := [
-		[&"broken_pendant", "破损挂坠"],
-		[&"bone_amulet", "白骨护符"],
-		[&"toxic_filter_talisman", "滤毒符印"],
-	]
-
-	var t_group := ButtonGroup.new()
-	for spec in trinket_specs:
-		var t_id: StringName = spec[0]
-		var t_title: String = spec[1]
-		var btn := Button.new()
-		btn.name = "TrinketBtn_" + String(t_id)
-		btn.text = t_title
-		_style_compact_tab(btn, 13)
-		btn.toggle_mode = true
-		btn.button_group = t_group
-		btn.focus_mode = Control.FOCUS_ALL
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0.0, 32.0)
-		btn.pressed.connect(_on_trinket_button_pressed.bind(t_id))
-		btn.mouse_entered.connect(btn.grab_focus)
-		trinket_tabs.add_child(btn)
-		_trinket_buttons.append(btn)
-	var t_info_box := VBoxContainer.new()
-	t_info_box.name = "TrinketInfoBox"
-	t_info_box.add_theme_constant_override("separation", 2)
-	t_info_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	plaque_box.add_child(t_info_box)
-
-	_trinket_name_lbl = UiKit.label("", &"SubHeadLabel")
-	_trinket_name_lbl.modulate = COLOR_TOXIN
-	t_info_box.add_child(_trinket_name_lbl)
-
-	_trinket_desc_lbl = UiKit.label("", &"FootnoteLabel")
-	_trinket_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_trinket_desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_trinket_desc_lbl.modulate = UiKit.ASH
-	_trinket_desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	t_info_box.add_child(_trinket_desc_lbl)
-
-
-func _style_compact_tab(btn: Button, font_size: int = 14) -> void:
-	btn.theme_type_variation = &"TabButton"
-	btn.add_theme_font_size_override("font_size", font_size)
-	btn.add_theme_color_override("font_color", Color("#E4DCCC"))
-	btn.add_theme_color_override("font_hover_color", UiKit.EMBER)
-	btn.add_theme_color_override("font_focus_color", UiKit.EMBER)
-	btn.add_theme_color_override("font_pressed_color", UiKit.EMBER)
-	btn.add_theme_color_override("font_hover_pressed_color", UiKit.EMBER)
-	btn.add_theme_color_override("font_disabled_color", Color("#5E574F"))
-	btn.add_theme_constant_override("outline_size", 2)
-	btn.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
-
-	var states := {
-		"normal": Plate.State.NORMAL,
-		"hover": Plate.State.SELECTED,
-		"pressed": Plate.State.SELECTED,
-		"hover_pressed": Plate.State.SELECTED,
-		"focus": Plate.State.SELECTED,
-		"disabled": Plate.State.DISABLED,
-	}
-	for s_name in states:
-		var sb := Plate.style_box(Plate.Shape.TAG, states[s_name])
-		sb.content_margin_left = 6.0
-		sb.content_margin_right = 6.0
-		sb.content_margin_top = 4.0
-		sb.content_margin_bottom = 4.0
-		btn.add_theme_stylebox_override(s_name, sb)
-
-
-# ===========================================================================
-# Footer Action Row (Embedded inside Card's BandPanel)
+# Footer Action Row (embedded inside the modal's footer band)
 # ===========================================================================
 
 func _build_footer_actions() -> void:
@@ -604,22 +580,47 @@ func _build_footer_actions() -> void:
 	_cancel_btn = Button.new()
 	_cancel_btn.name = "CancelButton"
 	_cancel_btn.text = "取 消 (Esc)"
-	_cancel_btn.theme_type_variation = &"SettingsButton"
-	_cancel_btn.custom_minimum_size = Vector2(130.0, 36.0)
+	_cancel_btn.theme_type_variation = &"PlateButton"
+	_cancel_btn.custom_minimum_size = Vector2(164.0, 36.0)
 	_cancel_btn.focus_mode = Control.FOCUS_ALL
+	_footer_plate(_cancel_btn, false)
 	_cancel_btn.pressed.connect(cancel)
 	_cancel_btn.mouse_entered.connect(_cancel_btn.grab_focus)
 	footer_row.add_child(_cancel_btn)
 
 	_embark_btn = Button.new()
 	_embark_btn.name = "EmbarkButton"
-	_embark_btn.text = "点 燃 启 程 (Embark)"
-	_embark_btn.theme_type_variation = &"SettingsButton"
-	_embark_btn.custom_minimum_size = Vector2(210.0, 36.0)
+	_embark_btn.text = "出 发 (Embark)"
+	_embark_btn.theme_type_variation = &"PlateButton"
+	_embark_btn.custom_minimum_size = Vector2(236.0, 36.0)
 	_embark_btn.focus_mode = Control.FOCUS_ALL
+	_footer_plate(_embark_btn, true)
 	_embark_btn.pressed.connect(embark)
 	_embark_btn.mouse_entered.connect(_embark_btn.grab_focus)
 	footer_row.add_child(_embark_btn)
+
+
+## Footer plates: the primary action carries the ember ring at rest (the one "go" signal on the
+## screen); the secondary action sits on the dark plate until hovered or focused.
+func _footer_plate(btn: Button, primary: bool) -> void:
+	var rest := Plate.State.SELECTED if primary else Plate.State.NORMAL
+	var states := {
+		"normal": rest,
+		"hover": Plate.State.SELECTED,
+		"pressed": Plate.State.SELECTED,
+		"hover_pressed": Plate.State.SELECTED,
+		"focus": Plate.State.SELECTED,
+		"disabled": Plate.State.DISABLED,
+	}
+	for s_name in states:
+		var sb := Plate.style_box(Plate.Shape.TAG, states[s_name])
+		sb.content_margin_left = 16.0
+		sb.content_margin_right = 16.0
+		btn.add_theme_stylebox_override(s_name, sb)
+	btn.add_theme_color_override("font_color", UiKit.EMBER if primary else Color("#E4DCCC"))
+	btn.add_theme_color_override("font_hover_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_focus_color", UiKit.EMBER)
+	btn.add_theme_color_override("font_pressed_color", UiKit.EMBER)
 
 
 # ===========================================================================
@@ -632,12 +633,14 @@ func _refresh_ui() -> void:
 		_selected_origin_id = OriginCatalog.ORIGIN_EMBER_VANGUARD
 		origin = OriginCatalog.get_origin(_selected_origin_id)
 
-	# 1. Update origin tabs
+	# 1. Origin cards and their toggle buttons
 	var origin_ids := OriginCatalog.get_all_origin_ids()
 	for i in mini(_origin_buttons.size(), origin_ids.size()):
-		_origin_buttons[i].button_pressed = (origin_ids[i] == _selected_origin_id)
+		var is_on := origin_ids[i] == _selected_origin_id
+		_origin_buttons[i].button_pressed = is_on
+		(_origin_cards[i] as OriginCard).set_selected(is_on)
 
-	# 2. Update origin details
+	# 2. Origin details: name, combat focus, lore, bonuses, passive
 	_origin_title_lbl.text = origin.title
 	_origin_focus_lbl.text = "战斗特色: " + origin.combat_focus
 	_origin_lore_lbl.text = origin.lore
@@ -665,43 +668,54 @@ func _refresh_ui() -> void:
 	else:
 		_origin_bonuses_lbl.modulate = UiKit.EMBER_ASH
 
-	# 3. Update equipment info
+	var passive_id := PassiveCatalog.for_origin(_selected_origin_id)
+	if passive_id != &"":
+		_passive_lbl.text = "被动 · %s：%s" % [PassiveCatalog.name_of(passive_id), PassiveCatalog.desc_of(passive_id)]
+	else:
+		_passive_lbl.text = ""
+
+	# 3. Gear: names on the card, full description and stat lines in the hover tooltip
 	var weapon: EquipmentItem = EquipmentCatalog.for_id(origin.default_weapon)
 	var armor: EquipmentItem = EquipmentCatalog.for_id(origin.default_armor)
 	var trinket: EquipmentItem = EquipmentCatalog.for_id(_selected_trinket_id)
 
 	if weapon != null:
 		_weapon_name_lbl.text = weapon.display_name
-		_weapon_desc_lbl.text = weapon.description
+		_weapon_row.tooltip_text = _item_tip(weapon)
 	if armor != null:
 		_armor_name_lbl.text = armor.display_name
-		_armor_desc_lbl.text = armor.description
+		_armor_row.tooltip_text = _item_tip(armor)
 
-	# 4. Update trinket buttons & details
+	# 4. Trinket buttons and details
 	var trinket_pool := OriginCatalog.get_trinket_pool()
 	for i in mini(_trinket_buttons.size(), trinket_pool.size()):
 		_trinket_buttons[i].button_pressed = (trinket_pool[i] == _selected_trinket_id)
 
 	if trinket != null:
-		_trinket_name_lbl.text = trinket.display_name
 		_trinket_desc_lbl.text = trinket.description
 
-	# 5. Calculate and update 6 dynamic preview stats
+	# 5. Six stat pips, recomputed from the same preview the rest of the game uses
 	var w_id: StringName = weapon.id if weapon != null else &""
 	var a_id: StringName = armor.id if armor != null else &""
 	var t_id: StringName = trinket.id if trinket != null else &""
 	var preview := OriginCatalog.calculate_preview_stats(_selected_origin_id, w_id, a_id, t_id)
 
-	# 换流派/换信物时，只有数值变了的行才脉冲 —— 全屏一起闪会像出错，
-	# 只闪变了的行才能读出"哦，这一项被这件装备影响了"。
-	_set_preview(&"max_hp", "%d 点" % int(preview["max_hp"]), "(基础 5 + 身份/装备加成)")
-	_set_preview(&"attack", "+%d" % int(preview["attack"]), "(挥砍与弹反攻击力加成)")
-	_set_preview(&"defense", "%d 点" % int(preview["defense"]), "(受击直接伤害减免)")
-	_set_preview(&"toxin_resist", "%d%%" % int(round(float(preview["toxin_resist"]) * 100.0)), "(延缓毒槽累积，上限 80%)")
-	_set_preview(&"toxin_decay", "+%.2f/s" % float(preview["toxin_decay"]), "(离开毒雾后的排毒加速)")
-	_set_preview(&"speed_mult", "%d%%" % int(round(float(preview["speed_mult"]) * 100.0)), "(奔跑与无敌帧冲刺倍率)")
+	_set_preview(&"max_hp", float(preview["max_hp"]), "%d 点" % int(preview["max_hp"]),
+			"(基础 5 + 身份/装备加成)")
+	_set_preview(&"attack", float(preview["attack"]), "+%d" % int(preview["attack"]),
+			"(挥砍与弹反攻击力加成)")
+	_set_preview(&"defense", float(preview["defense"]), "%d 点" % int(preview["defense"]),
+			"(受击直接伤害减免)")
+	_set_preview(&"toxin_resist", float(preview["toxin_resist"]),
+			"%d%%" % int(round(float(preview["toxin_resist"]) * 100.0)),
+			"(延缓毒槽累积，上限 80%)")
+	_set_preview(&"toxin_decay", float(preview["toxin_decay"]),
+			"+%.2f/s" % float(preview["toxin_decay"]), "(离开毒雾后的排毒加速)")
+	_set_preview(&"speed_mult", float(preview["speed_mult"]),
+			"%d%%" % int(round(float(preview["speed_mult"]) * 100.0)),
+			"(奔跑与无敌帧冲刺倍率)")
 
-	# 6. Update synergy indicator
+	# 6. Set resonance line
 	var synergies: Array = preview.get("synergies", [])
 	if synergies.size() > 0:
 		var syn_names: Array[String] = []
@@ -714,25 +728,29 @@ func _refresh_ui() -> void:
 		_synergy_badge_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.7)
 
 
-## 写一行预览值：文本变化时给数字一个 0.18s 的提亮脉冲。
-## 明细行只写文本，它比数值长、脉冲会让整行发糊。
-func _set_preview(key: StringName, val_text: String, desc_text: String) -> void:
-	var val_lbl := _stat_val_labels.get(key) as Label
-	var desc_lbl := _stat_detail_labels.get(key) as Label
-	if val_lbl == null or desc_lbl == null:
+static func _item_tip(item: EquipmentItem) -> String:
+	var lines := item.get_stat_lines()
+	var stat_text := " · ".join(lines) if not lines.is_empty() else "基础装备"
+	return "%s · %s\n%s" % [item.display_name, stat_text, item.description]
+
+
+## Writes one pip row: the pips move to the new value, the tooltip carries the exact number, and the
+## row pulses only when its value text changed.
+func _set_preview(key: StringName, pip_value: float, val_text: String, desc_text: String) -> void:
+	var meter := _stat_meters.get(key) as PipMeter
+	if meter == null:
 		return
-	var changed := val_lbl.text != val_text
-	val_lbl.text = val_text
-	desc_lbl.text = desc_text
+	meter.value = pip_value
+	meter.queue_redraw()
+	meter.tooltip_text = "%s  %s\n%s" % [String(_stat_titles.get(key, "")), val_text, desc_text]
+	var changed := String(_stat_texts.get(key, "")) != val_text
+	_stat_texts[key] = val_text
 	if not changed or not is_inside_tree():
 		return
-	# 脉冲用 modulate 叠加：>1 的倍率提亮后回到本色，和悬停高亮同一个语言，
-	# 只是这里自动播完，不需要玩家停在上面。
-	var base: Color = val_lbl.modulate
 	var tween := create_tween()
-	tween.tween_property(val_lbl, "modulate", PREVIEW_LIT, PREVIEW_PULSE * 0.45) \
+	tween.tween_property(meter, "modulate", PREVIEW_LIT, PREVIEW_PULSE * 0.45) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(val_lbl, "modulate", base, PREVIEW_PULSE * 0.55) \
+	tween.tween_property(meter, "modulate", Color.WHITE, PREVIEW_PULSE * 0.55) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
@@ -812,9 +830,6 @@ func _setup_focus_chain() -> void:
 			_cancel_btn.focus_neighbor_top = _origin_buttons[0].get_path()
 		if not _trinket_buttons.is_empty():
 			_embark_btn.focus_neighbor_top = _trinket_buttons[0].get_path()
-
-
-var _closing := false
 
 
 func close() -> void:
@@ -913,3 +928,288 @@ func get_preview_stats() -> Dictionary:
 		loadout["armor"],
 		loadout["trinket"]
 	)
+
+
+# ===========================================================================
+# Inner widgets
+# ===========================================================================
+
+## Origin portrait card. Painted here (chamfered glass, 2px steps), with the portrait, name and combat
+## focus on top and a transparent button over the whole body. Selecting lifts the body by LIFT pixels.
+class OriginCard extends Control:
+	const EDGE := Color("#4A2A18")
+	const EMBER := Color("#FFC14A")
+	const FILL := Color(0.055, 0.04, 0.075, 0.82)
+
+	var origin_id: StringName = &""
+	var button: Button
+	var _body: Control
+	var _portrait: Portrait
+	var _name: Label
+	var _focus: Label
+	var _tint := Color.WHITE
+	var _body_h := 224.0
+	var _lift := 4.0
+	var _selected := false
+	var _hot := false
+	var _tween: Tween = null
+
+	func setup(id: StringName, title: String, focus_text: String, tex: Texture2D, tint: Color,
+			body_h: float, lift: float) -> void:
+		origin_id = id
+		_tint = tint
+		_body_h = body_h
+		_lift = lift
+		custom_minimum_size = Vector2(0.0, body_h + lift)
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		_body = Control.new()
+		_body.name = "Body"
+		_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_body.anchor_left = 0.0
+		_body.anchor_right = 1.0
+		_body.anchor_top = 0.0
+		_body.anchor_bottom = 0.0
+		add_child(_body)
+		_apply_lift(lift)
+
+		var margin := MarginContainer.new()
+		margin.name = "Margin"
+		margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+		margin.add_theme_constant_override("margin_left", 14)
+		margin.add_theme_constant_override("margin_right", 14)
+		margin.add_theme_constant_override("margin_top", 14)
+		margin.add_theme_constant_override("margin_bottom", 12)
+		_body.add_child(margin)
+
+		var col := VBoxContainer.new()
+		col.name = "Content"
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_theme_constant_override("separation", 6)
+		margin.add_child(col)
+
+		_portrait = Portrait.new()
+		_portrait.name = "Portrait"
+		_portrait.set_art(tex)
+		_portrait.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_portrait.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_portrait.custom_minimum_size = Vector2(0.0, 110.0)
+		col.add_child(_portrait)
+
+		_name = UiKit.label(title, &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
+		_name.name = "Name"
+		col.add_child(_name)
+
+		_focus = UiKit.label(focus_text, &"TinyLabel", HORIZONTAL_ALIGNMENT_CENTER)
+		_focus.name = "Focus"
+		col.add_child(_focus)
+
+		button = Button.new()
+		button.name = "Hit"
+		button.flat = true
+		button.focus_mode = Control.FOCUS_ALL
+		button.set_anchors_preset(Control.PRESET_FULL_RECT)
+		for state in ["normal", "hover", "pressed", "focus", "hover_pressed", "disabled"]:
+			button.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+		_body.add_child(button)
+		button.focus_entered.connect(_on_focus_changed.bind(true))
+		button.focus_exited.connect(_on_focus_changed.bind(false))
+		# 鼠标悬停已经经由 grab_focus 走同一条焦点路径，这里不再单独接 mouse 信号。
+		set_selected(false)
+
+	func set_selected(on: bool) -> void:
+		_selected = on
+		_name.modulate = EMBER if on else Color(EMBER.r, EMBER.g, EMBER.b, 0.72)
+		_portrait.tint = _tint if on else Color(_tint.r * 0.6, _tint.g * 0.6, _tint.b * 0.66, 1.0)
+		_animate_lift(0.0 if on else _lift)
+		queue_redraw()
+
+	func _on_focus_changed(focused: bool) -> void:
+		_hot = focused
+		queue_redraw()
+
+	func _animate_lift(target: float) -> void:
+		if _tween != null and _tween.is_valid():
+			_tween.kill()
+		if not is_inside_tree():
+			_apply_lift(target)
+			return
+		_tween = create_tween()
+		_tween.tween_method(_apply_lift, _current_lift(), target, 0.12) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	func _current_lift() -> float:
+		return _body.offset_top if _body != null else _lift
+
+	## Moves the card body vertically (integer pixels, so the pixel art stays on the 2px grid).
+	func _apply_lift(y: float) -> void:
+		var py := roundf(y)
+		if _body == null:
+			return
+		_body.offset_top = py
+		_body.offset_bottom = py + _body_h
+		queue_redraw()
+
+	func _draw() -> void:
+		if _body == null:
+			return
+		var w := size.x
+		var y0 := _body.offset_top
+		var h := _body_h
+		var lit := _selected or _hot
+		var edge := EMBER if lit else EDGE
+		var line := 2.0 if _selected else 1.0
+		# 落影
+		draw_rect(Rect2(6.0, y0 + 6.0, w - 6.0, h - 2.0), Color(0.0, 0.0, 0.0, 0.30))
+		# 本体：四角各切 6px，2px 阶梯
+		draw_rect(Rect2(6.0, y0, w - 12.0, h), FILL)
+		draw_rect(Rect2(2.0, y0 + 2.0, w - 4.0, h - 4.0), FILL)
+		draw_rect(Rect2(0.0, y0 + 6.0, w, h - 12.0), FILL)
+		if _selected:
+			# 选中：卡顶的余烬底光，三级阶梯向下淡出（不用渐变，保持像素感）
+			for step in 3:
+				draw_rect(Rect2(6.0, y0 + 2.0 + float(step) * 8.0, w - 12.0, 8.0),
+						Color(EMBER.r, EMBER.g, EMBER.b, 0.08 - 0.025 * float(step)))
+		# 描边：直边 + 切角的阶梯小段
+		draw_rect(Rect2(6.0, y0, w - 12.0, line), edge)
+		draw_rect(Rect2(6.0, y0 + h - line, w - 12.0, line), edge)
+		draw_rect(Rect2(0.0, y0 + 6.0, line, h - 12.0), edge)
+		draw_rect(Rect2(w - line, y0 + 6.0, line, h - 12.0), edge)
+		draw_rect(Rect2(2.0, y0 + 2.0, 4.0, line), edge)
+		draw_rect(Rect2(2.0, y0 + 2.0, line, 4.0), edge)
+		draw_rect(Rect2(w - 6.0, y0 + 2.0, 4.0, line), edge)
+		draw_rect(Rect2(w - 2.0 - line, y0 + 2.0, line, 4.0), edge)
+		draw_rect(Rect2(2.0, y0 + h - 2.0 - line, 4.0, line), edge)
+		draw_rect(Rect2(2.0, y0 + h - 6.0, line, 4.0), edge)
+		draw_rect(Rect2(w - 6.0, y0 + h - 2.0 - line, 4.0, line), edge)
+		draw_rect(Rect2(w - 2.0 - line, y0 + h - 6.0, line, 4.0), edge)
+		if _selected:
+			# 顶边一道亮线：选中卡独有的余烬标记
+			draw_rect(Rect2(12.0, y0, w - 24.0, 2.0), EMBER)
+
+
+## Portrait: the drawn pixels of the idle frame (transparent margins cropped away), scaled by a whole
+## number and centred, so the three characters read at a similar figure height. Missing art falls back
+## to a diamond seal.
+class Portrait extends Control:
+	const MAX_SCALE := 5.0
+	var texture: Texture2D = null
+	var tint := Color.WHITE
+	var _crop := Rect2()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+	static var _crops: Dictionary = {}
+
+	func set_art(tex: Texture2D) -> void:
+		texture = tex
+		_crop = Rect2()
+		if tex != null:
+			var key := tex.get_instance_id()
+			if not _crops.has(key):
+				_crops[key] = _opaque_bounds(tex)
+			_crop = _crops[key]
+		queue_redraw()
+
+	## Bounding box of every pixel with some alpha. Falls back to the whole texture when the art cannot be
+	## read or has no alpha, and to the texture size when the box is too small to be the figure.
+	static func _opaque_bounds(tex: Texture2D) -> Rect2:
+		var logical := tex.get_size()
+		var whole := Rect2(Vector2.ZERO, logical)
+		var img := tex.get_image()
+		if img == null:
+			return whole
+		if img.is_compressed():
+			img.decompress()
+		# The loader may hand back a higher-density companion image; scan its pixels, then map the
+		# box into the texture's logical size (the space draw_texture_rect_region reads).
+		var w := img.get_width()
+		var h := img.get_height()
+		var x0 := w
+		var y0 := h
+		var x1 := -1
+		var y1 := -1
+		for y in h:
+			for x in w:
+				if img.get_pixel(x, y).a > 0.02:
+					x0 = mini(x0, x)
+					x1 = maxi(x1, x)
+					y0 = mini(y0, y)
+					y1 = maxi(y1, y)
+		if x1 < 0 or (x1 - x0) < 4 or (y1 - y0) < 4 or w <= 0 or h <= 0:
+			return whole
+		var sx := logical.x / float(w)
+		var sy := logical.y / float(h)
+		var lx0 := floorf(float(x0) * sx)
+		var ly0 := floorf(float(y0) * sy)
+		var lx1 := ceilf(float(x1 + 1) * sx)
+		var ly1 := ceilf(float(y1 + 1) * sy)
+		return Rect2(lx0, ly0, lx1 - lx0, ly1 - ly0)
+
+	func _draw() -> void:
+		if texture == null or _crop.size.x <= 0.0 or _crop.size.y <= 0.0:
+			GlassKit.diamond(self, Vector2(floorf(size.x * 0.5), floorf(size.y * 0.5)), 18.0,
+					Color(tint.r, tint.g, tint.b, 0.6))
+			return
+		var k := maxf(1.0, floorf(minf(size.x / _crop.size.x, size.y / _crop.size.y)))
+		k = minf(k, MAX_SCALE)
+		var dw := _crop.size.x * k
+		var dh := _crop.size.y * k
+		var x := floorf((size.x - dw) * 0.5)
+		var y := floorf((size.y - dh) * 0.5)
+		draw_texture_rect_region(texture, Rect2(x, y, dw, dh), _crop, tint)
+
+
+## Segmented pip meter: COUNT segments, each worth UNIT. A partly filled segment is drawn to the 2px grid.
+class PipMeter extends Control:
+	const GAP := 3.0
+	const TRACK := Color("#241C22")
+	var value := 0.0
+	var unit := 1.0
+	var count := 1
+	var color := Color.WHITE
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_PASS
+		custom_minimum_size = Vector2(0.0, 8.0)
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	func set_scale_for(u: float, n: int, c: Color) -> void:
+		unit = u
+		count = n
+		color = c
+		queue_redraw()
+
+	func _draw() -> void:
+		var h := size.y
+		var seg := (size.x - GAP * float(count - 1)) / float(count)
+		for i in count:
+			var x := floorf(float(i) * (seg + GAP))
+			var w := floorf(seg)
+			draw_rect(Rect2(x, 0.0, w, h), TRACK)
+			var frac := clampf(value / unit - float(i), 0.0, 1.0)
+			if frac >= 0.999:
+				draw_rect(Rect2(x, 0.0, w, h), color)
+			elif frac > 0.0:
+				var fw := floorf(w * frac / 2.0) * 2.0
+				if fw > 0.0:
+					draw_rect(Rect2(x, 0.0, fw, h), color)
+
+
+## 玻璃卡根节点：面板容器（负责尺寸与内边距），每帧把背后的玻璃框体（置顶、脱离容器排版）
+## 对齐到自己的矩形上，框体画在内容后面。
+class GlassCardRoot extends PanelContainer:
+	var frame: Control = null
+
+	func _process(_delta: float) -> void:
+		if frame == null or not is_instance_valid(frame):
+			return
+		if frame.global_position != global_position:
+			frame.global_position = global_position
+		if frame.size != size:
+			frame.size = size

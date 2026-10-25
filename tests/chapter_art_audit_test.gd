@@ -78,7 +78,7 @@ func _has_prop_key(spr: Sprite2D) -> bool:
 
 ## 「贴纸方块」：几乎填满画布 + 四角都不透明。
 func _is_sticker(tex: Texture2D) -> bool:
-	var img := tex.get_image()
+	var img := DensityTextures.logical_image(tex)
 	if img == null:
 		return false
 	if img.is_compressed():
@@ -100,7 +100,7 @@ func _is_sticker(tex: Texture2D) -> bool:
 
 ## 贴图最后几行里有多少行「几乎没有内容」——用来抓脚点踩空（可见底边比画布高）。
 func _sparse_bottom_rows(tex: Texture2D, rows: int) -> int:
-	var img := tex.get_image()
+	var img := DensityTextures.logical_image(tex)
 	if img == null:
 		return 0
 	if img.is_compressed():
@@ -154,7 +154,7 @@ func test_every_planted_prop_is_catalog_theme_allowed_one_x_and_grounded() -> vo
 			if not PropCatalog.allowed(theme_id, key):
 				flagged.append("%s: '%s' not in theme '%s'" % [level_id, key, theme_id])
 			var path := PropCatalog.path_for(key, theme_id)
-			if spr.texture == null or String(spr.texture.resource_path) != path:
+			if spr.texture == null or DensityTextures.source_path(spr.texture) != path:
 				flagged.append("%s: '%s' does not draw its family variant" % [level_id, key])
 			var scale: Vector2 = spr.scale
 			if not (is_equal_approx(scale.x, 1.0) and is_equal_approx(scale.y, 1.0)):
@@ -192,7 +192,7 @@ func test_no_terrain_tile_texture_is_planted_as_decor() -> void:
 				continue
 			for spr in _sprites_with(layer, func(spr: Sprite2D) -> bool: return _has_prop_key(spr)):
 				checked += 1
-				var hit := _banned_texture(String((spr as Sprite2D).texture.resource_path))
+				var hit := _banned_texture(DensityTextures.source_path((spr as Sprite2D).texture))
 				if hit != "":
 					flagged.append("%s: %s" % [level_id, hit])
 		var layout: ChapterLayout = built["layout"]
@@ -210,7 +210,7 @@ func test_no_terrain_tile_texture_is_planted_as_decor() -> void:
 			if layer == null:
 				continue
 			for spr in _sprites_with(layer, func(spr: Sprite2D) -> bool: return true):
-				var path := String((spr as Sprite2D).texture.resource_path)
+				var path := DensityTextures.source_path((spr as Sprite2D).texture)
 				if path == "":
 					continue
 				checked += 1
@@ -225,7 +225,7 @@ func test_no_terrain_tile_texture_is_planted_as_decor() -> void:
 ## -------------------------------------- C. 目标 HUD 文本必须来自 ChapterText --
 
 func test_goal_and_exit_labels_come_from_chapter_text() -> void:
-	# level01 是旧章：它没有出口门（通关靠残芯复燃后的过场），ChapterText 里
+	# level01 是旧章：它没有出口门（通关靠把火种放上炉座后的过场），ChapterText 里
 	# exit_label 合法地留空，HUD 只走 objective 行。其余 13 章必须有出口门名，
 	# 否则 ObjectiveTracker 的「目标 · 前往X」会退回占位/空串。
 	const LEGACY_NO_EXIT := ["level01"]

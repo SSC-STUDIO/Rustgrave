@@ -297,7 +297,7 @@ func test_near_silhouette_plants_only_foliage() -> void:
 			spr = child.get_child(0) as Sprite2D
 		if spr == null or spr.texture == null:
 			continue
-		var path := String(spr.texture.resource_path)
+		var path := DensityTextures.source_path(spr.texture)
 		if path != "" and not Level01Env.is_foliage(path):
 			hard += 1
 		ok(Level01Env.find_sway(child) == null or Level01Env.is_foliage(path),

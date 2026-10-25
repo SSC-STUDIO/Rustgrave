@@ -208,8 +208,13 @@ static func unlocked() -> bool:
 	return SaveData.has_flag("game_complete")
 
 
+## 玩家看见的章号（玖），不是关卡 id 里的 07。14 章重编后 level07 是钟楼。
+static func unlock_chapter_label() -> String:
+	return "%s章" % ChapterText.number_of(UNLOCK_CHAPTER)
+
+
 static func unlock_requirement() -> String:
-	return "通关第七章，或走完任一结局后解锁"
+	return "通关%s，或走完任一结局后解锁" % unlock_chapter_label()
 
 
 ## 章节完成旗标（沿用 StoryFlow.DONE_FLAGS，不另造一套）。

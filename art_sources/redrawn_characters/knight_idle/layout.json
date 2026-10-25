@@ -1,0 +1,243 @@
+{
+  "density": 6,
+  "size": [
+    2304,
+    2048
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_2.png",
+      "slot": [
+        1536,
+        0,
+        2304,
+        512
+      ],
+      "frame_origin": [
+        1560,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_3.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_4.png",
+      "slot": [
+        768,
+        512,
+        1536,
+        1024
+      ],
+      "frame_origin": [
+        792,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_5.png",
+      "slot": [
+        1536,
+        512,
+        2304,
+        1024
+      ],
+      "frame_origin": [
+        1560,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_6.png",
+      "slot": [
+        0,
+        1024,
+        768,
+        1536
+      ],
+      "frame_origin": [
+        24,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_7.png",
+      "slot": [
+        768,
+        1024,
+        1536,
+        1536
+      ],
+      "frame_origin": [
+        792,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_8.png",
+      "slot": [
+        1536,
+        1024,
+        2304,
+        1536
+      ],
+      "frame_origin": [
+        1560,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/idle/idle_9.png",
+      "slot": [
+        0,
+        1536,
+        768,
+        2048
+      ],
+      "frame_origin": [
+        24,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        43,
+        64,
+        80
+      ]
+    }
+  ]
+}

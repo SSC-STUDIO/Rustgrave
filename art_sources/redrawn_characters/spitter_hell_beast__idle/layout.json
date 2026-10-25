@@ -1,0 +1,128 @@
+{
+  "density": 6,
+  "size": [
+    1296,
+    896
+  ],
+  "cell": [
+    432,
+    448
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/spitter_hell_beast/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        432,
+        448
+      ],
+      "frame_origin": [
+        18,
+        23
+      ],
+      "size": [
+        66,
+        67
+      ],
+      "bbox": [
+        8,
+        13,
+        66,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/idle/idle_1.png",
+      "slot": [
+        432,
+        0,
+        864,
+        448
+      ],
+      "frame_origin": [
+        450,
+        23
+      ],
+      "size": [
+        66,
+        67
+      ],
+      "bbox": [
+        0,
+        14,
+        66,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/idle/idle_2.png",
+      "slot": [
+        864,
+        0,
+        1296,
+        448
+      ],
+      "frame_origin": [
+        882,
+        23
+      ],
+      "size": [
+        66,
+        67
+      ],
+      "bbox": [
+        0,
+        16,
+        66,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/idle/idle_3.png",
+      "slot": [
+        0,
+        448,
+        432,
+        896
+      ],
+      "frame_origin": [
+        18,
+        471
+      ],
+      "size": [
+        66,
+        67
+      ],
+      "bbox": [
+        0,
+        16,
+        66,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/idle/idle_4.png",
+      "slot": [
+        432,
+        448,
+        864,
+        896
+      ],
+      "frame_origin": [
+        450,
+        471
+      ],
+      "size": [
+        66,
+        67
+      ],
+      "bbox": [
+        0,
+        14,
+        60,
+        67
+      ]
+    }
+  ]
+}

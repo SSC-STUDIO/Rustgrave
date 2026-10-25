@@ -1,10 +1,13 @@
 class_name ForgeHeart
 extends Interactable
-## 锻炉残芯：熄灭写入 ending 并回标题。复燃不写结局，只答应往下走。
+## 锻炉炉座（第一章的终点）：熄火写入 ending 并播结局分镜后回标题；续火不写结局，
+## 只是把火种续上、带它往下走。ID 保持 rekindle / snuff（存档、音乐和测试都认这两个）。
 
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const ID_REKINDLE := &"rekindle"
 const ID_SNUFF := &"snuff"
+const CHOICE_TITLE := "炉 座 前"
+const CHOICE_HINT := "续火：带它下去。熄火：名字没路走，你也散成铁。"
 
 var unlocked: bool = false
 var _choosing := false
@@ -15,7 +18,7 @@ var _glow: WorldLight
 
 func _ready() -> void:
 	super._ready()
-	prompt = "E 把残芯放上炉座"
+	prompt = "E 把火种放上炉座"
 	ensure_sprite("res://assets/env/bg_altar_cut.png", Vector2(36, 40), Vector2(-10, -8), Palette.EMBER)
 	_ensure_light()
 	if SaveData.has_flag("boss_dead"):
@@ -97,16 +100,15 @@ func _open_choice() -> void:
 	root.add_child(frame)
 	var column := VBoxContainer.new()
 	frame.add_child(column)
-	column.add_child(UiKit.label("炉 心 还 在 跳", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.label(CHOICE_TITLE, &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	column.add_child(UiKit.divider())
-	column.add_child(UiKit.label("复燃会唤醒整座陵墓。熄灭，连你一并散掉。",
-			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.label(CHOICE_HINT, &"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	_menu = MenuList.new()
 	_menu.add_theme_constant_override("separation", 12)
 	column.add_child(_menu)
-	# 复燃是默认项（燕尾板），熄灭是不可逆的第三层（只剩四只角标）。
-	_menu.compact(_menu.add_item(ID_REKINDLE, "复 燃", false, MenuItem.Kind.SECONDARY))
-	_menu.compact(_menu.add_item(ID_SNUFF, "熄 灭", false, MenuItem.Kind.GHOST))
+	# 续火是默认项（燕尾板），熄火是不可逆的第三层（只剩四只角标）。
+	_menu.compact(_menu.add_item(ID_REKINDLE, "续 火", false, MenuItem.Kind.SECONDARY))
+	_menu.compact(_menu.add_item(ID_SNUFF, "熄 火", false, MenuItem.Kind.GHOST))
 	_menu.chosen.connect(_on_chosen)
 	get_tree().paused = true
 
@@ -127,30 +129,33 @@ func _on_chosen(id: StringName) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		SaveData.save_game(GameContext.world_scene_path(player), player)
+	Director.play(choice_steps(kind))
+	await Director.finished
+	if kind == "snuff":
+		# 结局分镜 / 滚动字幕的「看过」旗标是播完才点上的，上面那次存档里还没有；补写一次，
+		# 故事页才回放得出这个结局（续火那条路由 LevelExit.travel 自己会存）。
+		SaveData.persist_story(player if is_instance_valid(player) else null)
 	if kind == "rekindle":
-		# 复燃不是结局：答应把剑里的人带到炉心再问一次。不写入 ending。
-		Director.play([
-			{"kind": "lock"},
-			{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
-			{"kind": "fx", "id": "ember_rise", "seconds": 0.8},
-			{"kind": "caption", "text": "不是拯救。", "hold": 1.4},
-			{"kind": "caption", "text": "点亮它，再收进剑里，带下去。", "hold": 2.2},
-			{"kind": "wait", "seconds": 0.2},
-			{"kind": "unlock"},
-		])
-		await Director.finished
 		if player is Player:
 			LevelExit.travel(GameContext.LEVEL02_PATH, Level02Undercroft.ENTRY_SPAWN, player as Player)
 		else:
 			Director.fade_to(GameContext.LEVEL02_PATH)
 		return
-	Director.play([
-		{"kind": "lock"},
-		{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
-		{"kind": "fx", "id": "ash_fall", "seconds": 0.9},
-		{"kind": "caption", "text": "余烬落回炉灰。你没问到答案。", "hold": 2.2},
-		{"kind": "wait", "seconds": 0.2},
-		{"kind": "unlock"},
-	])
-	await Director.finished
 	Director.fade_to(TITLE_PATH)
+
+
+## 选完后的 Director 步骤（纯构造，测试直接读）。
+## 续火 = 一句两行字幕，不是结局；熄火 = 结局分镜 + 滚动字幕。
+static func choice_steps(kind: String) -> Array:
+	if kind == "rekindle":
+		var steps: Array = [
+			{"kind": "lock"},
+			{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
+			{"kind": "fx", "id": "ember_rise", "seconds": 0.8},
+		]
+		for line in ChapterText.exit_captions_of("level01"):
+			steps.append({"kind": "caption", "text": String(line), "hold": 2.0})
+		steps.append({"kind": "wait", "seconds": 0.2})
+		steps.append({"kind": "unlock"})
+		return steps
+	return LevelExit.ending_play_steps(ChapterText.ending_lines_of("snuff"), "ash_fall", "snuff")

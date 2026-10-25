@@ -193,13 +193,13 @@ func test_arena_is_one_flat_run_with_only_end_perches() -> void:
 			var r := (child as ToxinPool).surface_rect()
 			ok(not _overlaps_arena(r.position.x, r.end.x), "%s stays out of the arena" % child.name)
 	# Background columns or forge beams never imply an extra landing surface.
-	var support_textures := [load(ChapterLayout.DECOR["column"]), load(ChapterLayout.DECOR["beam"])]
+	var support_paths := [ChapterLayout.DECOR["column"], ChapterLayout.DECOR["beam"]]
 	for node in host.get_node("Decor").get_children():
 		if not node.is_in_group("grounded"):
 			continue
 		var feet: Vector2 = node.get_meta("feet")
 		if feet.x > LAYOUT.ARENA_X0 + 48.0 and feet.x < LAYOUT.ARENA_X1 - 48.0:
-			ok(node is Sprite2D and (node as Sprite2D).texture in support_textures,
+			ok(node is Sprite2D and DensityTextures.source_path((node as Sprite2D).texture) in support_paths,
 					"grounded decor at %.0f inside the arena is a background support" % feet.x)
 	ok(LAYOUT.BOSS_POS.x > LAYOUT.ARENA_X0 + 200.0 and LAYOUT.BOSS_POS.x < LAYOUT.ARENA_X1 - 200.0, "the Nightmare waits well inside the arena")
 	almost(LAYOUT.BOSS_POS.y, 320.0, 0.01, "the Nightmare stands on the arena floor")
@@ -244,8 +244,8 @@ func test_exit_is_the_ending_door() -> void:
 	eq(exit.door_label, "炉心门")
 	eq(exit.locked_prompt, "梦魇还在喘。门不开。")
 	ok(exit.ending_choice, "the forge door asks instead of walking through")
-	eq(exit.give_captions.size(), 3, "giving the sword has three lines")
-	eq(exit.keep_captions.size(), 3, "keeping the fire has three lines")
+	eq(exit.give_captions.size(), 5, "returning the fire has five lines")
+	eq(exit.keep_captions.size(), 5, "keeping the furnace has five lines")
 	ok(String(exit.give_captions[exit.give_captions.size() - 1]).contains("完"), "giving the sword closes the book")
 	ok(String(exit.keep_captions[exit.keep_captions.size() - 1]).contains("完"), "keeping the fire closes the book")
 	ok(exit.is_locked(), "locked while the Nightmare lives")
@@ -272,11 +272,11 @@ func test_exit_is_the_ending_door() -> void:
 		ok(_standing_on(rects, feet), "the altar stands on FloorHall")
 		ok(absf(feet.x - exit.position.x) < 160.0, "the forge altar stands beside the ending door")
 		ok(feet.x > LAYOUT.ARENA_X1 - 64.0, "the altar belongs to the ending, not the arena")
-		var altar_tex := load(ChapterLayout.DECOR["altar"]) as Texture2D
+		var altar_path: String = ChapterLayout.DECOR["altar"]
 		var strips := 0
 		var crown_broken := false
 		for strip in altar.get_children():
-			if strip is Sprite2D and (strip as Sprite2D).texture == altar_tex:
+			if strip is Sprite2D and DensityTextures.source_path((strip as Sprite2D).texture) == altar_path:
 				strips += 1
 				if (strip as Sprite2D).position.y > 0.0:
 					crown_broken = true
@@ -340,7 +340,7 @@ func test_vigil_deck_is_an_optional_ending_lore_branch() -> void:
 	ok(deck.position.y - anchor.position.y <= LevelSanity.HOOK_LAND_BELOW, "deck is a tether drop under the anchor")
 	ok(_standing_on(_rects(host), LevelSanity.feet_of(stele), 0.5), "stele stands on the vigil deck")
 	ok(String(stele.lore_title).begins_with("炉心铭"), "vigil stele belongs to the forge-core inscriptions")
-	ok(String(stele.lore_text).contains("送剑") and String(stele.lore_text).contains("守火"),
+	ok(String(stele.lore_text).contains("还火") and String(stele.lore_text).contains("守炉"),
 			"it names the two choices behind the door")
 	var feet := LevelSanity.feet_of(stele)
 	ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false),

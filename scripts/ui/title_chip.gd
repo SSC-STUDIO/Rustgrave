@@ -33,8 +33,8 @@ func _ready() -> void:
 	add_child(_tag)
 	_value = UiKit.label(value_text, &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	_value.name = "Value"
-	_value.position = Vector2(30.0, 0.0)
-	_value.size = Vector2(CHIP_SIZE.x - 38.0, CHIP_SIZE.y)
+	_value.position = Vector2(34.0, 0.0)
+	_value.size = Vector2(CHIP_SIZE.x - 42.0, CHIP_SIZE.y)
 	_value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_value.clip_text = true
 	_value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -62,7 +62,18 @@ func _apply() -> void:
 func _draw() -> void:
 	var w := size.x
 	var h := size.y
-	draw_rect(Rect2(0.0, 0.0, w, h), FILL)
-	draw_rect(Rect2(0.0, 0.0, w, 1.0), EDGE_LIT if lit else EDGE)
-	draw_rect(Rect2(0.0, h - 1.0, w, 1.0), EDGE_LIT if lit else EDGE)
-	draw_rect(Rect2(0.0, 0.0, 3.0, h), STRIPE_LIT if lit else STRIPE)
+	# 阶梯切角（2px 栅格）：芯片与档案卡、铁条用同一种边角语汇。
+	draw_rect(Rect2(2.0, 0.0, w - 4.0, h), FILL)
+	draw_rect(Rect2(0.0, 2.0, w, h - 4.0), FILL)
+	var edge := EDGE_LIT if lit else EDGE
+	draw_rect(Rect2(2.0, 0.0, w - 4.0, 1.0), edge)
+	draw_rect(Rect2(2.0, h - 1.0, w - 4.0, 1.0), edge)
+	draw_rect(Rect2(0.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
+	draw_rect(Rect2(w - 1.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
+	# 顶光 / 底影：一点钢板厚度。
+	draw_rect(Rect2(3.0, 1.0, w - 6.0, 1.0), Color(0.9, 0.7, 0.5, 0.06))
+	draw_rect(Rect2(3.0, h - 2.0, w - 6.0, 1.0), Color(0.0, 0.0, 0.0, 0.22))
+	draw_rect(Rect2(0.0, 2.0, 3.0, h - 4.0), STRIPE_LIT if lit else STRIPE)
+	# 标签和值之间一道 1px 内分隔，四枚芯片看起来像同一套仪表。
+	draw_rect(Rect2(28.0, 6.0, 1.0, h - 12.0),
+			Color(EDGE.r, EDGE.g, EDGE.b, 0.9))

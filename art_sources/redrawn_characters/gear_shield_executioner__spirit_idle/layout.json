@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    336,
+    336
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_idle/spirit_idle_0.png",
+      "slot": [
+        0,
+        0,
+        336,
+        336
+      ],
+      "frame_origin": [
+        18,
+        18
+      ],
+      "size": [
+        50,
+        50
+      ],
+      "bbox": [
+        19,
+        18,
+        29,
+        38
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_idle/spirit_idle_1.png",
+      "slot": [
+        336,
+        0,
+        672,
+        336
+      ],
+      "frame_origin": [
+        354,
+        18
+      ],
+      "size": [
+        50,
+        50
+      ],
+      "bbox": [
+        19,
+        18,
+        29,
+        38
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_idle/spirit_idle_2.png",
+      "slot": [
+        0,
+        336,
+        336,
+        672
+      ],
+      "frame_origin": [
+        18,
+        354
+      ],
+      "size": [
+        50,
+        50
+      ],
+      "bbox": [
+        19,
+        18,
+        29,
+        38
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_idle/spirit_idle_3.png",
+      "slot": [
+        336,
+        336,
+        672,
+        672
+      ],
+      "frame_origin": [
+        354,
+        354
+      ],
+      "size": [
+        50,
+        50
+      ],
+      "bbox": [
+        19,
+        18,
+        29,
+        38
+      ]
+    }
+  ]
+}

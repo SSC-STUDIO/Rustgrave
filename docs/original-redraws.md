@@ -32,7 +32,30 @@ Verification: full alpha-mask, dimension and hash checks in Python;
 all theme layers. Render fixtures and comparisons are under
 `screenshots/acceptance/native-scenery-redraw`.
 
-This is an incremental batch. The other prepared reference edits and missing
-character actions remain pending. The selected image service returned code 400,
+The character batch adds 351 frames across all 12 character folders (the separate
+enemy-death effect folder is outside this batch). It preserves original masks,
+palettes, canvases and frame sequences. One scale is shared across each action;
+partial neighbouring poses at cell edges cannot determine the scale.
+
+The normalized flying-demon idle action uses the original-referenced drawing of
+the same creature/action at its larger source size. Five cemetery-hero attack
+frames transfer drawn material patches from that hero's completed idle redraw
+onto their original attack poses. These are explicitly recorded as reuse/material
+transfer, rather than additional service generations.
+
+Character drawings/layouts/prompts are in `art_sources/redrawn_characters`. A
+completed action can be rebuilt without network access:
+
+```powershell
+python tools/redraw_character_pipeline.py knight_idle --work art_sources/redrawn_characters
+```
+
+`transfer_material_details("player_cemetery_hero", "attack")` reproduces the five
+material-transfer frames once that character's idle frames have been built.
+`redrawn_character_test` verifies the animation route and authored masks;
+`density_textures_test` and `player_skin_test` verify texture/skin compatibility.
+
+This is an incremental batch. The other prepared scenery reference edits remain
+pending. The selected image service returned code 400,
 "API account balance insufficient or no permission", so further submissions
 were stopped. These ungenerated assets are not counted as completed redraws.
