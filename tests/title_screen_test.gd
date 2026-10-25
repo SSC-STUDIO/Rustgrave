@@ -326,11 +326,10 @@ func test_dossier_shows_profile_summary_with_a_save() -> void:
 	ok(title.find_child("DossierTrials", true, false) is Label, "试炼记录行存在")
 	ok(title.find_child("DossierArena", true, false) is Label, "竞技场记录行存在")
 	ok(title.find_child("DossierChapter", true, false) is Label, "上次行程行存在")
-	# 收起时的小数据片读同一份数据
-	var chip_rank := title.find_child("ChipRank", true, false) as TitleChip
-	ok(chip_rank != null and chip_rank.value_text == "4", "阶位数据片显示 4")
-	var chip_skin := title.find_child("ChipSkin", true, false) as TitleChip
-	ok(chip_skin != null and chip_skin.value_text.contains("哥特猎手"), "外观数据片显示当前外观")
+	ok(title.find_child("ChipRank", true, false) == null, "阶位不再折在标题上")
+	ok(title.find_child("ChipSkin", true, false) == null, "外观不再折在标题上")
+	var count := title.find_child("JourneyCount", true, false) as Label
+	ok(count != null and count.text.contains("/"), "短注写着通关数：%s" % (count.text if count != null else ""))
 	title.queue_free()
 	await get_tree().process_frame
 	SaveData.delete_save()
@@ -351,9 +350,8 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	ok(trials != null and trials.text.contains("未踏足"))
 	var arena := title.find_child("DossierArena", true, false) as Label
 	ok(arena != null and arena.text == "胜 0 场", "没有胜场键时档案记胜 0 场")
-	var chip_arena := title.find_child("ChipArena", true, false) as TitleChip
-	ok(chip_arena != null and chip_arena.value_text == "胜 0 场" and not chip_arena.lit,
-			"竞芯片缺胜场时显示胜0场")
+	ok(title.find_child("ChipArena", true, false) == null, "竞技场不再折成芯片")
+	ok(title.find_child("ChipTrials", true, false) == null, "试炼不再折成芯片")
 	var legacy := ConfigFile.new()
 	legacy.set_value("meta", "best_score", 90)
 	legacy.set_value("meta", "runs", 3)
@@ -362,20 +360,14 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	await get_tree().process_frame
 	title = await _open_title()
 	arena = title.find_child("DossierArena", true, false) as Label
-	chip_arena = title.find_child("ChipArena", true, false) as TitleChip
 	ok(arena != null and arena.text == "胜 0 场", "旧档没有 wins 键时按 0 场")
-	ok(chip_arena != null and chip_arena.value_text == "胜 0 场" and not chip_arena.lit,
-			"旧档没有 wins 键时芯片不亮")
 	legacy.set_value("meta", "wins", 7)
 	legacy.save(arena_path)
 	title.queue_free()
 	await get_tree().process_frame
 	title = await _open_title()
 	arena = title.find_child("DossierArena", true, false) as Label
-	chip_arena = title.find_child("ChipArena", true, false) as TitleChip
 	ok(arena != null and arena.text == "胜 7 场", "档案显示胜场")
-	ok(chip_arena != null and chip_arena.value_text == "胜 7 场" and chip_arena.lit,
-			"竞芯片亮起并显示胜场")
 	var chapter := title.find_child("JourneyChapter", true, false) as Label
 	ok(chapter != null and chapter.text.contains("尚无旅程"), "旅程列的章节行有占位")
 	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
@@ -389,21 +381,46 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	ArenaRun.use_default_file()
 
 
-## 有存档时刻度按进度点亮，当前章搏动（用真的存档文件，走 TitleWorld.peek_save 那条路）。
-## 结局摘要两行停在章节标尺左侧，底边也让开标尺，不能再和壹贰叁叠在一起。
-func test_journey_summary_stops_clear_of_the_ruler() -> void:
+## 右侧是一条短注：计数、章名、横着的 14 格、回看。没有竖排数字，也没有折叠芯片。
+func test_journey_note_is_a_short_horizontal_rail() -> void:
 	var title: TitleScreen = await _open_title()
-	var recap := title.find_child("JourneyRecap", true, false) as Label
+	var column := title.find_child("JourneyColumn", true, false) as Control
 	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
-	ok(recap != null and gauge != null, "摘要和标尺都在")
-	if recap != null and gauge != null:
-		ok(recap.position.x + recap.size.x <= TitleGauge.INK_LEFT - 8.0 + 0.01,
-				"摘要右端 %.1f 停在标尺墨线 %.1f 左侧至少 8px" % [recap.position.x + recap.size.x, TitleGauge.INK_LEFT])
-		ok(recap.position.y + recap.size.y <= gauge.position.y - 6.0,
-				"摘要底边在标尺顶之上")
-		eq(recap.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "超出用省略号")
-		ok(recap.clip_contents, "摘要裁在自己的矩形里")
-		ok(recap.max_lines_visible == 2, "摘要最多两行")
+	var chapter := title.find_child("JourneyChapter", true, false) as Label
+	var button := title.find_child("RecapButton", true, false) as Control
+	ok(column != null and gauge != null and chapter != null and button != null, "短注的四件都在")
+	if column != null:
+		almost(column.size.y, TitleScreen.JOURNEY_H, 0.5, "旅程列收成一条短注")
+		ok(column.size.y < 160.0, "不再是铺满右侧的长列")
+	if gauge != null and chapter != null and button != null:
+		ok(gauge.horizontal, "刻度是横轨")
+		ok(gauge.position.y > chapter.position.y, "横轨在章名下面")
+		ok(button.position.y > gauge.position.y, "回看在横轨下面")
+	ok(title.get_node_or_null("Inscription/EpitaphRow/EpitaphBacking") == null, "墓志没有底板")
+	ok(title.get_node_or_null("Inscription/EpitaphRow/EpitaphRule") == null, "墓志没有顶线")
+	ok(title.get_node_or_null("Inscription/EpitaphRow/EpitaphNail") == null, "墓志没有钉子")
+	ok(title.find_child("EpitaphShade", true, false) != null, "字后面留一块软暗斑")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 没停在「继续旅程」上时短注是淡的；停上去才亮，并且跟着厅灯呼吸。
+func test_continue_focus_brightens_the_journey_note() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var menu := title.get_node("Menu") as MenuList
+	var ink := title.find_child("JourneyInk", true, false) as CanvasItem
+	ok(ink != null, "短注有自己的一层墨")
+	if ink == null:
+		title.queue_free()
+		return
+	menu.select(6, false)
+	await get_tree().process_frame
+	var dim: float = ink.modulate.a
+	menu.select(1, false)
+	await get_tree().process_frame
+	ok(ink.modulate.a > dim + 0.25, "继续旅程把短注点亮 (%.2f -> %.2f)" % [dim, ink.modulate.a])
+	ok(ink.modulate.a <= 1.0, "亮不过满")
 	title.queue_free()
 	await get_tree().process_frame
 

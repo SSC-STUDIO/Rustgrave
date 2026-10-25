@@ -1,7 +1,7 @@
 extends Node
 ## 标题屏布局度量：把 TitleScreen 实例化后打印每个有名块在 1280x720 设计空间里的矩形、
 ## 相互是否重叠、与屏幕边缘 / 中线的关系，再按 1920x1080 与 21:9 窗口各量一遍物理像素。
-## 替代肉眼截图审查的几何探针（v3 版式：左下铁条菜单 / 右侧旅程列 / 底部墓志 + 页脚）。
+## 替代肉眼截图审查的几何探针（灯标版式：左下刻字菜单 / 右侧短注 / 底部墓志 + 页脚）。
 ##   godot --headless --path . res://scenes/tools/TitleMetrics.tscn
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")

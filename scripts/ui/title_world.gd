@@ -489,6 +489,22 @@ func _build() -> void:
 	add_child(void_rect)
 
 	_layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	# 字标在 UI 层，点光进不了这个视口。字标底下用一张加色光斑假一盏灯，不占 8 盏预算。
+	var logo_wash := Sprite2D.new()
+	logo_wash.name = "LogoWash"
+	logo_wash.texture = _tex("glow.png")
+	logo_wash.centered = true
+	logo_wash.position = Vector2(320.0, 46.0)
+	logo_wash.scale = Vector2(2.2, 0.72)
+	logo_wash.z_index = 3
+	logo_wash.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	var wash_mat := CanvasItemMaterial.new()
+	wash_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	wash_mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	logo_wash.material = wash_mat
+	logo_wash.modulate = Color(1.0, 0.72, 0.38, 0.20)
+	add_child(logo_wash)
+	_register(logo_wash, logo_wash.position, -0.12, logo_wash.position)
 	# 比厅尾墙再远一档（视差更大），雾和远窗才跟墙错开。
 	var haze := FarHazeScript.new()
 	haze.name = "FarHaze"
@@ -1454,6 +1470,13 @@ func node_count() -> int:
 
 func lantern_count() -> int:
 	return _lanterns.size()
+
+
+## 和吊灯同一档 12fps 的呼吸，给标题短注用。不是新的 PointLight2D。
+func lantern_pulse() -> float:
+	var step := int(_t * 12.0)
+	var n := sin(float(step) * 1.7) * 0.6 + sin(float(step) * 4.3) * 0.4
+	return 0.88 + 0.12 * clampf(0.5 + 0.5 * n, 0.0, 1.0)
 
 
 func lit_lanterns() -> int:

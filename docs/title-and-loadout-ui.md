@@ -87,10 +87,9 @@
   总结页等仍用铁条的菜单：选中条右移 4px、条外一圈炉温光晕。禁用行（未解锁的试炼）悬停时页脚交代解锁条件；
   页脚说明换行走交叉淡入淡出；副题两侧有余烬菱形饰（`SubtitleFlanks`）；字标锻入收尾有一道落锤白热；
   墓志句垫柔和底衬、顶部一道锈线（右端余烬钉）；菜单落位用 `TRANS_BACK` 带回弹。
-- **旅程列** `JourneyColumn`（x=1000..1208，y=188..608）：`JourneyHeader` / `JourneyCount`（`04 / 14`）、
-  当前章名 `JourneyChapter`（`ChapterText.title_of`）与前情 `JourneyRecap`（`recap_of`）、
-  `JourneyGauge`（`TitleGauge`：14 个章节刻度，已通关亮、当前搏动，幕界有短横与 醒/债/铸/炉）、
-  四枚数据片 `ChipRank / ChipSkin / ChipTrials / ChipArena`（`TitleChip`）。
+- **旅程短注** `JourneyColumn`（x=1000..1208，y=188..280，高 92）：`JourneyHeader` / `JourneyCount`（`04 / 14`）、
+  当前章名 `JourneyChapter`、横向 `JourneyGauge`（14 格，跟吊灯一起呼吸）、`RecapButton`（回看余烬）。
+  平时淡，焦点在「继续旅程」上才亮。阶位 / 外观 / 试炼 / 竞技场不折在标题上。
 - **档案卡**：悬停旅程列或按 **Tab** 展开（再按 Tab / 移开收起）。节点名沿用旧版：`DossierWrap`（`TitleCard`）→
   `Dossier`（PanelContainer）→ `DossierRank / DossierSkin / DossierTrials / DossierArena / DossierChapter`、
   `DossierRecap`、`TrialLockHint`（未解锁时）、`DossierHint`、`DossierFoot`。平时收起（不可见，但节点与文字都在）。
@@ -174,7 +173,7 @@
 
 ## 1. 标题屏：右侧「行程档案」（已被 v3 取代）
 
-> **已被 v3 取代**：v3 改为右侧 `JourneyColumn`（14 格章节刻度 `TitleGauge` + 当前章前情 + 4 枚数据片 `TitleChip`），悬停或按 `Tab` 展开完整档案卡 `DossierWrap/Dossier`，详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
+> **已被灯标短注取代**：右侧是一条淡的 `JourneyColumn`（横向 14 格 + 章名 + 回看），悬停或按 `Tab` 才展开完整档案卡 `DossierWrap/Dossier`。详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
 
 `title_screen.gd` 在原有"字标 + 左侧铁架 + 墓志/署名带"之外新增 `Dossier` 石板（右侧，StonePanel）：
 

@@ -88,8 +88,8 @@
 
 ## 8. 验收
 
-- `tests/title_screen_test.gd`：标题屏铁架位置、三档顺序、不越过 keyart 中线、
-  异形板尺寸与缓存。
+- `tests/title_screen_test.gd`：标题屏刻字菜单位置、三档顺序、不越过 keyart 中线、
+  吊灯光标、右侧短注，以及异形板尺寸与缓存（暂停等屏仍用板，不在标题上）。
 - `tests/modal_screens_test.gd`：每块二级界面都是"卡片 + 可见压暗背景"，
   卡片装得进设计分辨率、两侧留出底下那层、余烬在场，设置标签页吃 TAG 板样式盒。
 - 截图：`screenshots/peek/title-final/`、`screenshots/peek/ui-modal/`。

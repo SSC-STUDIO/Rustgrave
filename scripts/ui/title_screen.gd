@@ -138,11 +138,14 @@ const RAIL_X := 72.0
 const RAIL_TOP := 254.0
 const GROUP_GAP := 16.0
 const QUIT_CENTER_Y := 640.0
-## 右侧旅程列。
+## 右侧一条短注，不是一整列仪表。高只要放下计数、章名、14 格横轨和「回看余烬」。
 const JOURNEY_X := 1000.0
 const JOURNEY_Y := 188.0
 const JOURNEY_W := 208.0
-const JOURNEY_H := 420.0
+const JOURNEY_H := 92.0
+## 没停在「继续旅程」上时，这条注就这么淡。停上去才亮满。
+const JOURNEY_DIM := 0.36
+const JOURNEY_LIT := 0.92
 ## 展开的档案卡（收起时停在右侧 CARD_SLIDE 处不可见，展开时滑回）。
 const CARD_RECT := Rect2(820.0, 184.0, 388.0, 424.0)
 const CARD_SLIDE := 24.0
@@ -160,6 +163,8 @@ const MENU_LAND := 0.26
 const EPITAPH_CHAR := 0.085
 const EPITAPH_HOLD := 5.5
 const EPITAPH_FADE := 0.7
+## 墓志最亮也只到这里，字停在炉影里，不跟菜单抢。
+const EPITAPH_PEAK := 0.58
 ## 离开锈墓：吊灯一盏盏熄灭 → 只剩巨剑剪影 → 留一句墓志才退出。任何按键/点击都能立刻跳到退出。
 const QUIT_ROW_STAGGER := 0.055
 const QUIT_RAIL_FADE := 0.30
@@ -235,11 +240,11 @@ var _ui_sparks: TitleSparks
 
 # journey column
 var _journey: Control
+## 淡入淡出和「继续」高亮都打在这一层上，不跟开屏那层 JourneyColumn 的 alpha 抢。
+var _journey_ink: Control
 var _gauge: TitleGauge
-var _chips: Dictionary = {}
 var _journey_count: Label
 var _journey_chapter: Label
-var _journey_recap: Label
 ## 通关后的「回看余烬」总结页（ember_recap.gd）；菜单「继续」行在有结局时也打开它。
 var _recap
 var _continue_opens_recap := false
@@ -257,7 +262,7 @@ var _card_tween: Tween
 
 # epitaph typewriter
 var _epitaph: Label
-var _ep_backing: ColorRect
+var _ep_shade: TextureRect
 var _ep_lines: PackedStringArray = []
 var _ep_index := 0
 var _ep_phase := 0            # 0 idle, 1 typing, 2 holding, 3 fading
@@ -327,26 +332,15 @@ func _build_backdrop() -> void:
 	add_child(_keyart)
 	if live_scene_enabled:
 		_build_live_world()
-		# 字标和菜单需要一点暗，但不要把厅切成四块。灯自己会把选中的字照亮。
-		add_child(UiKit.scrim(0.42, 0.0, 0.32))
-		add_child(UiKit.scrim_side(0.20, 440.0))
-		var right_scrim := UiKit.scrim_side(0.24, 320.0)
-		right_scrim.flip_h = true
-		right_scrim.anchor_left = 1.0
-		right_scrim.anchor_right = 1.0
-		right_scrim.offset_left = -320.0
-		right_scrim.offset_right = 0.0
-		add_child(right_scrim)
+		# 一层软暗角：顶和底轻轻收住，中间留给骑士。不再用左右硬遮罩和四角框。
+		add_child(_soft_vignette())
 		return
 	_keyart.texture = UiKit.tex(KEYART_PATH)
-	# 旧版静态 keyart 的氛围：上下压暗 + 骑士光影 + 余烬 + 角饰。
-	add_child(UiKit.scrim(0.74, 0.26, 0.90))
-	add_child(UiKit.scrim_side(0.42, 780.0))
+	add_child(_soft_vignette())
 	_knight_light = KnightLightScript.new()
 	add_child(_knight_light)
 	add_child(UiKit.EmberField.build(Rect2(Vector2.ZERO, Vector2(1280, 720)),
 			EMBERS_RISING, EMBERS_FALLING))
-	UiKit.corner_brackets(self, CORNER_INSET, BAND_HEIGHT + CORNER_INSET)
 
 
 ## The live scene: a 640x360 SubViewport (same recipe as GamePresentation's world) holding
@@ -496,7 +490,8 @@ func _pack(node: Control) -> void:
 
 # ------------------------------------------------------------------ journey ----
 
-## 右侧旅程列：章节标尺 + 四枚小数据片；悬停 / Tab 展开完整档案卡。
+## 右侧一条短注：旅程计数、章名、14 格横轨、回看。平时很淡，焦点在「继续旅程」上才亮。
+## 阶位 / 外观 / 试炼 / 竞技场只留在 Tab 展开的档案里。
 func _build_journey() -> void:
 	_journey = Control.new()
 	_journey.name = "JourneyColumn"
@@ -505,88 +500,54 @@ func _build_journey() -> void:
 	_journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_journey)
 
+	_journey_ink = Control.new()
+	_journey_ink.name = "JourneyInk"
+	_journey_ink.position = Vector2.ZERO
+	_journey_ink.size = Vector2(JOURNEY_W, JOURNEY_H)
+	_journey_ink.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_journey_ink.modulate.a = JOURNEY_DIM
+	_journey.add_child(_journey_ink)
+
 	var header := UiKit.label("旅 程", &"TinyStrongLabel")
 	header.name = "JourneyHeader"
-	header.modulate = UiKit.EMBER
+	header.modulate = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.72)
 	header.position = Vector2(0.0, 0.0)
-	header.size = Vector2(120.0, 16.0)
-	_journey.add_child(header)
+	header.size = Vector2(72.0, 16.0)
+	_journey_ink.add_child(header)
 	_journey_count = UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	_journey_count.name = "JourneyCount"
-	_journey_count.position = Vector2(JOURNEY_W - 90.0, 0.0)
-	_journey_count.size = Vector2(90.0, 16.0)
-	_journey.add_child(_journey_count)
+	_journey_count.position = Vector2(JOURNEY_W - 88.0, 0.0)
+	_journey_count.size = Vector2(88.0, 16.0)
+	_journey_ink.add_child(_journey_count)
 	_journey_chapter = UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_LEFT)
 	_journey_chapter.name = "JourneyChapter"
-	_journey_chapter.position = Vector2(0.0, 20.0)
+	_journey_chapter.position = Vector2(0.0, 16.0)
 	_journey_chapter.size = Vector2(JOURNEY_W, 16.0)
 	_journey_chapter.clip_text = true
 	_journey_chapter.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_journey.add_child(_journey_chapter)
-	# 版式细节：标题下压一道锈线，列左侧一根细导引线（和菜单架的脊/芯片左侧条同语汇）。
-	var head_rule := ColorRect.new()
-	head_rule.name = "JourneyRule"
-	head_rule.position = Vector2(0.0, 17.0)
-	head_rule.size = Vector2(JOURNEY_W, 1.0)
-	head_rule.color = Color(0.42, 0.26, 0.16, 0.55)
-	head_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_journey.add_child(head_rule)
-	var guide := ColorRect.new()
-	guide.name = "JourneyGuide"
-	guide.position = Vector2(-10.0, 8.0)
-	guide.size = Vector2(1.0, JOURNEY_H - 16.0)
-	guide.color = Color(0.42, 0.26, 0.16, 0.12)
-	guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_journey.add_child(guide)
-
-	_journey_recap = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_LEFT)
-	_journey_recap.name = "JourneyRecap"
-	# 两行摘要停在标尺墨线左侧 8px，底边也让开标尺顶，避免「守炉：…」盖住壹贰叁。
-	var recap_w := TitleGauge.INK_LEFT - 8.0
-	_journey_recap.position = Vector2(0.0, 36.0)
-	_journey_recap.size = Vector2(recap_w, 34.0)
-	_journey_recap.custom_minimum_size = Vector2(recap_w, 34.0)
-	_journey_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	_journey_recap.max_lines_visible = 2
-	_journey_recap.clip_text = true
-	_journey_recap.clip_contents = true
-	_journey_recap.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_journey_recap.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_journey.add_child(_journey_recap)
+	_journey_ink.add_child(_journey_chapter)
 
 	_gauge = TitleGauge.new()
 	_gauge.name = "JourneyGauge"
-	_gauge.position = Vector2(0.0, 78.0)
-	_journey.add_child(_gauge)
+	_gauge.use_horizontal()
+	_gauge.position = Vector2(0.0, 38.0)
+	_journey_ink.add_child(_gauge)
 
-	var chip_y := 78.0 + _gauge.custom_minimum_size.y + 8.0
-	var specs := [["Rank", "阶", 0, 0], ["Skin", "装", 1, 0], ["Trials", "试", 0, 1], ["Arena", "竞", 1, 1]]
-	for spec in specs:
-		var chip := TitleChip.new()
-		chip.name = "Chip" + String(spec[0])
-		chip.tag_text = String(spec[1])
-		chip.position = Vector2(float(spec[2]) * (TitleChip.CHIP_SIZE.x + 12.0),
-				chip_y + float(spec[3]) * (TitleChip.CHIP_SIZE.y + 6.0))
-		_journey.add_child(chip)
-		_chips[String(spec[0])] = chip
-
-	# 回看余烬：和上方的数据芯片同一种语汇（深底、锈边、左侧色条、切角），做成一条
-	# 与芯片同高的横条。外观由 RecapStrip 自绘；Button 只负责焦点、点击与导航。
+	# 回看余烬收进这条注里。Button 负责点击；字由 RecapStrip 画，12px。
 	var recap := Button.new()
 	recap.name = "RecapButton"
 	recap.flat = true
 	recap.text = ""
 	recap.focus_mode = Control.FOCUS_ALL
-	recap.position = Vector2(0.0, chip_y + TitleChip.CHIP_SIZE.y * 2.0 + 16.0)
+	recap.position = Vector2(0.0, 58.0)
 	recap.custom_minimum_size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
 	recap.size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
 	recap.pressed.connect(open_recap)
-	# 悬停 / 聚焦时页脚说明跟着写，左缘迸一小簇火星；离开恢复菜单那行的说明。
 	recap.mouse_entered.connect(_on_recap_attention.bind(true))
 	recap.focus_entered.connect(_on_recap_attention.bind(true))
 	recap.mouse_exited.connect(_on_recap_attention.bind(false))
 	recap.focus_exited.connect(_on_recap_attention.bind(false))
-	_journey.add_child(recap)
+	_journey_ink.add_child(recap)
 	var strip := RecapStrip.new()
 	strip.name = "Strip"
 	strip.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -599,6 +560,33 @@ func _build_journey() -> void:
 
 	_build_dossier_card()
 	_refresh_dossier()
+
+
+## 顶底一层很软的纵向渐变。中间是透的，左右不再压一块硬遮罩。
+func _soft_vignette() -> TextureRect:
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.18, 0.46, 0.72, 1.0])
+	grad.colors = PackedColorArray([
+		Color(0.02, 0.012, 0.02, 0.20),
+		Color(0.02, 0.012, 0.02, 0.03),
+		Color(0.02, 0.012, 0.02, 0.0),
+		Color(0.02, 0.012, 0.02, 0.05),
+		Color(0.02, 0.012, 0.02, 0.26),
+	])
+	var gt := GradientTexture2D.new()
+	gt.gradient = grad
+	gt.width = 4
+	gt.height = 256
+	gt.fill_from = Vector2(0.0, 0.0)
+	gt.fill_to = Vector2(0.0, 1.0)
+	var shade := TextureRect.new()
+	shade.name = "SoftVignette"
+	shade.texture = gt
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	shade.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return shade
 
 
 ## 展开的完整档案：与旧版同名的节点（Dossier / DossierRank / ...），平时收起。
@@ -755,19 +743,15 @@ func _refresh_dossier() -> void:
 	_dossier_values["Chapter"].text = chapter_text
 	_dossier_recap.text = recap
 
-	# collapsed column: chips + chapter line
+	# 收起的短注只留计数、章名和 14 格。阶位那些在档案卡里。
 	var cleared := int(_look.get("cleared", 0))
 	_journey_count.text = "%02d / %02d" % [cleared, ChapterText.order().size()]
-	_journey_chapter.text = chapter_text if (has_save or ending != "") else "尚无旅程 · 尚未点燃"
-	_journey_recap.text = recap
-	_journey_recap.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.95)
+	_journey_chapter.text = chapter_text if (has_save or ending != "") else "尚无旅程"
+	var cold := not has_save and ending == ""
+	_journey_chapter.modulate = Color(0.45, 0.42, 0.40, 0.7) if cold else Color(0.86, 0.78, 0.68, 0.9)
 	var done: Array[bool] = []
 	done.assign(_look.get("done", []))
 	_gauge.set_journey(done, int(_look.get("chapter_index", -1)) if ending == "" else -1)
-	(_chips["Rank"] as TitleChip).set_chip("阶", str(rank) if has_save else "—", has_save)
-	(_chips["Skin"] as TitleChip).set_chip("装", skin_name, has_save)
-	(_chips["Trials"] as TitleChip).set_chip("试", str(trial_count) if trial_count > 0 else "—", trial_count > 0)
-	(_chips["Arena"] as TitleChip).set_chip("竞", "胜 %d 场" % arena_wins, arena_wins > 0)
 
 
 ## 结局的短名（取自结局概述冒号前的几个字：还火 / 守炉 / 熄火）。
@@ -795,28 +779,28 @@ func _build_inscription() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	strip.add_child(row)
 
-	# 铭文条的一道顶线，右端一粒余烬钉：给这行字一个"刻在碑上"的锚点。
-	var rule := ColorRect.new()
-	rule.name = "EpitaphRule"
-	rule.position = Vector2(0.0, 0.0)
-	rule.size = Vector2(EPITAPH_RECT.size.x, 1.0)
-	rule.color = Color(0.42, 0.26, 0.16, 0.5)
-	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(rule)
-	var nail := ColorRect.new()
-	nail.name = "EpitaphNail"
-	nail.position = Vector2(EPITAPH_RECT.size.x - 3.0, -1.0)
-	nail.size = Vector2(3.0, 3.0)
-	nail.color = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.8)
-	nail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(nail)
-
-	# 几乎不垫底：这句话是刻在桥面上的，不是一块牌子。只留一点暗，字才不会被火星吃掉。
-	_ep_backing = ColorRect.new()
-	_ep_backing.name = "EpitaphBacking"
-	_ep_backing.color = Color(0.02, 0.01, 0.03, 0.10)
-	_ep_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(_ep_backing)
+	# 炉影里一块软暗斑，没有线、没有钉、没有底板。字淡淡地停在它上面。
+	_ep_shade = TextureRect.new()
+	_ep_shade.name = "EpitaphShade"
+	_ep_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ep_shade.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_ep_shade.stretch_mode = TextureRect.STRETCH_SCALE
+	var spot := Gradient.new()
+	spot.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	spot.colors = PackedColorArray([
+		Color(0.02, 0.01, 0.015, 0.42),
+		Color(0.02, 0.01, 0.015, 0.16),
+		Color(0.02, 0.01, 0.015, 0.0),
+	])
+	var spot_tex := GradientTexture2D.new()
+	spot_tex.gradient = spot
+	spot_tex.width = 128
+	spot_tex.height = 64
+	spot_tex.fill = GradientTexture2D.FILL_RADIAL
+	spot_tex.fill_from = Vector2(0.62, 0.42)
+	spot_tex.fill_to = Vector2(1.15, 0.95)
+	_ep_shade.texture = spot_tex
+	row.add_child(_ep_shade)
 
 	_ep_lines = PackedStringArray([EPITAPH])
 	for line in ChapterText.TITLE_LINES:
@@ -840,7 +824,7 @@ func _build_chrome() -> void:
 	add_child(band)
 	var rule := ColorRect.new()
 	rule.name = "FooterRule"
-	rule.color = Color(0.23, 0.125, 0.07, 0.32)
+	rule.color = Color(0.23, 0.125, 0.07, 0.12)
 	rule.position = Vector2(0.0, 0.0)
 	rule.size = Vector2(FOOTER_RECT.size.x, 1.0)
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -851,7 +835,7 @@ func _build_chrome() -> void:
 	credits.position = Vector2(0.0, 6.0)
 	credits.size = Vector2(FOOTER_RECT.size.x - 420.0, 20.0)
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.9)
+	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.32)
 	band.add_child(credits)
 	# 页脚右侧染成余烬色：页脚里只有这一行是"给玩家的话"——焦点停在哪一行，
 	# 就用一句话说明它是什么（MENU_HINTS）；没有焦点时是操作提示。
@@ -1106,6 +1090,8 @@ func _process(delta: float) -> void:
 		if _quitting:
 			_lamp.douse()
 		_lamp.advance(delta, _menu)
+	if not _quitting:
+		_pulse_journey()
 	if _quitting or _intro_playing:
 		# 退场/开屏动画期间字标 / keyart 的呼吸会让位给 tween，
 		# 否则 _process 会和 tween 抢同一个 modulate 属性。
@@ -1179,7 +1165,7 @@ func _update_epitaph(delta: float) -> void:
 	match _ep_phase:
 		1:
 			# 新句先轻轻亮起，再开始打字；换行不再硬切。
-			_epitaph.modulate.a = smoothstep(0.0, 1.0,
+			_epitaph.modulate.a = EPITAPH_PEAK * smoothstep(0.0, 1.0,
 					clampf(_ep_t / 0.22, 0.0, 1.0))
 			var shown := int(_ep_t / EPITAPH_CHAR)
 			_epitaph.visible_characters = shown
@@ -1192,14 +1178,14 @@ func _update_epitaph(delta: float) -> void:
 				_ep_phase = 3
 				_ep_t = 0.0
 		3:
-			_epitaph.modulate.a = 1.0 - smoothstep(0.0, 1.0,
-				clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0))
+			_epitaph.modulate.a = EPITAPH_PEAK * (1.0 - smoothstep(0.0, 1.0,
+				clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0)))
 			if _ep_t >= EPITAPH_FADE:
 				_ep_index = (_ep_index + 1) % _ep_lines.size()
 				_epitaph.text = _ep_lines[_ep_index]
 				_fit_epitaph()
 				_epitaph.visible_characters = 0
-				_epitaph.modulate.a = 1.0
+				_epitaph.modulate.a = EPITAPH_PEAK
 				_ep_phase = 1
 				_ep_t = 0.0
 
@@ -1217,10 +1203,11 @@ func _fit_epitaph() -> void:
 	_epitaph.custom_minimum_size = Vector2(use, EPITAPH_RECT.size.y)
 	_epitaph.size = Vector2(use, EPITAPH_RECT.size.y)
 	_epitaph.position = Vector2(max_w - use, 0.0)
-	if _ep_backing != null:
-		# 底衬比字稍宽一点、比行高稍薄一点，压在字的正后方。
-		_ep_backing.position = Vector2(max_w - use - 8.0, 5.0)
-		_ep_backing.size = Vector2(use + 8.0, EPITAPH_RECT.size.y - 10.0)
+	_epitaph.modulate = Color(0.78, 0.72, 0.66, _epitaph.modulate.a)
+	if _ep_shade != null:
+		# 暗斑比字宽，并往右下偏进炉影，不给字加框。
+		_ep_shade.position = Vector2(max_w - use - 36.0, -8.0)
+		_ep_shade.size = Vector2(use + 72.0, 52.0)
 
 
 ## 当前打字机的那一行（测试读）。
@@ -1230,9 +1217,23 @@ func epitaph_line() -> String:
 
 # ------------------------------------------------------------------ choices -----
 
+## 短注跟着厅里 14 盏吊灯一起呼吸；焦点在「继续旅程」上才从淡变亮。
+func _pulse_journey() -> void:
+	if _journey_ink == null or _menu == null or _dossier_open:
+		return
+	var pulse := 1.0
+	if _world != null:
+		pulse = _world.lantern_pulse()
+	var base := JOURNEY_LIT if _menu.selected_id() == ID_CONTINUE else JOURNEY_DIM
+	_journey_ink.modulate.a = base * pulse
+	if _gauge != null:
+		_gauge.set_lantern_pulse(pulse)
+
+
 func _on_focus_changed(id: StringName) -> void:
 	if _quitting or _started or _menu == null:
 		return
+	_pulse_journey()
 	var idx := _menu.item_ids().find(id)
 	var items := _menu.items()
 	if idx < 0 or idx >= items.size():
@@ -1267,7 +1268,7 @@ func _on_recap_attention(over: bool) -> void:
 	if over:
 		_set_footer_hint(RECAP_HINT)
 		if _ui_ready and not _intro_playing and _ui_sparks != null:
-			var recap := _journey.get_node_or_null("RecapButton") as Control
+			var recap := _journey.find_child("RecapButton", true, false) as Control
 			if recap != null:
 				var r := _local_rect(recap)
 				_ui_sparks.burst(Vector2(r.position.x + 4.0, r.position.y + r.size.y * 0.5) * 0.5,

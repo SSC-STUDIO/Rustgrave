@@ -52,6 +52,8 @@ var _stream_bot := 0.0
 var _landed := false
 var _splash_t := 0.0
 var _pours := 0
+## 铁水刚落到河面时的一闪，自己熄掉。
+var _impact_flash := 0.0
 ## 烘焙的坩埚姿态帧（缺图时为 null，_draw 不画铁体）。
 var _cup_tex: Texture2D
 
@@ -92,6 +94,8 @@ func _duration(which: int) -> float:
 
 
 func _step(dt: float) -> void:
+	if _impact_flash > 0.0:
+		_impact_flash = maxf(0.0, _impact_flash - dt * 2.4)
 	var sp := speed()
 	if sp <= 0.0:
 		return
@@ -112,6 +116,7 @@ func _step(dt: float) -> void:
 			_stream_bot = minf(_stream_bot + STREAM_SPEED * d, stream_max())
 			if not _landed and _stream_bot >= stream_max():
 				_landed = true
+				_impact_flash = 1.0
 				_pours += 1
 				_splash_t = 0.0
 				poured.emit(impact_point())
@@ -166,8 +171,8 @@ func impact_point() -> Vector2:
 
 ## 倾倒时的口沿：坩埚绕吊点转了 90°，铁水从口沿出去，不是从吊点笔直掉下来。
 const LIP_LOCAL := Vector2(8.0, 15.0)
-## 中段往右鼓。口沿在吊点右侧，先横着送出去，再落回熔河，厅里才看得出是一道弧。
-const ARC_BULGE := 34.0
+## 中段往右鼓，但收着：弧还在，不扫过桥上的骑士。
+const ARC_BULGE := 18.0
 
 
 func lip_point() -> Vector2:
@@ -246,7 +251,27 @@ func _draw() -> void:
 	_draw_stream()
 
 
-## 铁水沿弧落下：口沿粗、落下变细、下段断成液滴；落到河面溅起一圈并在河上留一圈涟漪。
+## 白热 → 余烬 → 暗红，越靠近河面越冷、越细。
+func _metal(u: float) -> Color:
+	var k := clampf(u, 0.0, 1.0)
+	var col := HOT_CORE
+	if k < 0.22:
+		col = HOT_CORE.lerp(HOT, k / 0.22)
+	elif k < 0.62:
+		col = HOT.lerp(HOT_DEEP, (k - 0.22) / 0.40)
+	else:
+		col = HOT_DEEP.lerp(Color(0.42, 0.08, 0.04), (k - 0.62) / 0.38)
+	# 穿过近景桥带时压暗，铁水留在厅的深处，不切断骑士。
+	return em(col)
+
+
+func _stream_depth(y: float) -> float:
+	if y > 228.0 and y < 286.0:
+		return 0.32
+	return 1.0
+
+
+## 铁水沿弧落下：口沿粗、落下变细、下段断成液滴；落到河面溅起冠、涟漪和一缕汽。
 func _draw_stream() -> void:
 	if _stream_bot <= _stream_top:
 		return
@@ -254,40 +279,55 @@ func _draw_stream() -> void:
 	var u0 := _stream_top / span
 	var u1 := _stream_bot / span
 	var prev := stream_point(u0)
-	var steps := 26
+	var steps := 28
 	for i in steps:
 		var k := float(i + 1) / float(steps)
 		var u := lerpf(u0, u1, k)
 		var p := stream_point(u)
-		var broken := u > 0.9 and (i % 2 == 0)
-		if not broken:
+		var drop := u > 0.72 and (i % 3 == 0)
+		if not drop:
 			var mid := ((prev + p) * 0.5).round()
-			var w := 6.0 if u < 0.35 else (4.0 if u < 0.7 else 2.0)
-			draw_rect(Rect2(mid.x - w * 0.5 - 1.0, mid.y - 1.0, w + 2.0, 3.0), em(HOT_DEEP))
-			draw_rect(Rect2(mid.x - 1.0, mid.y - 1.0, 2.0, 3.0), em(HOT_CORE if u < 0.25 else HOT))
+			var w := lerpf(6.0, 2.0, u)
+			var col := _metal(u)
+			col.a *= _stream_depth(mid.y)
+			draw_rect(Rect2(mid.x - w * 0.5 - 1.0, mid.y - 1.0, w + 2.0, 3.0), col)
+			var core := _metal(u * 0.65)
+			core.a *= _stream_depth(mid.y)
+			draw_rect(Rect2(mid.x - 1.0, mid.y - 1.0, 2.0, 3.0), core)
+		elif u > 0.72:
+			var drip := stream_point(minf(u + 0.04, 1.0))
+			var side := 3.0 if i % 2 == 0 else -3.0
+			var bit := _metal(u)
+			bit.a *= 0.85 * _stream_depth(drip.y)
+			draw_rect(Rect2(roundf(drip.x + side), roundf(drip.y + 2.0), 2.0, 2.0), bit)
 		prev = p
-	var lead := stream_point(u1)
-	var n := int(_t * 14.0)
-	for k in 4:
-		var jx := roundf(sin(float(n + k) * 1.7) * (2.0 + float(k)))
-		var jy := roundf(float((n + k) % 4) + float(k))
-		draw_rect(Rect2(lead.x + jx, lead.y + jy, 2.0, 2.0), em(HOT))
 	if _landed:
-		_draw_splash(lead)
+		_draw_splash(stream_point(u1))
 
 
 func _draw_splash(at: Vector2) -> void:
 	var step := int(_t * 12.0)
-	for k in 7:
-		var ang := float(k) / 7.0 * PI
-		var reach := 3.0 + float(step % 6) + float(k % 3)
-		var px := roundf(at.x + cos(ang) * reach)
-		var py := roundf(at.y - sin(ang) * reach * 0.75)
-		draw_rect(Rect2(px, py, 2.0, 2.0), em(HOT_CORE))
-	var ripple := 6.0 + float(step % 10) * 1.5
 	var hit := impact_point()
+	# 溅起的冠：朝上的半圈，根部白热、外沿转红。冠跟在铁水末端，涟漪留在河面。
+	for k in 9:
+		var ang := float(k) / 8.0 * PI
+		var reach := 4.0 + float(step % 5) + float(k % 3)
+		var px := roundf(at.x + cos(ang) * reach)
+		var py := roundf(at.y - sin(ang) * reach * 0.85)
+		var spark := HOT_CORE.lerp(HOT_DEEP, float(k) / 8.0)
+		draw_rect(Rect2(px, py, 2.0, 2.0), em(spark))
+	var ripple := 8.0 + float(step % 12) * 1.5
 	draw_rect(Rect2(roundf(hit.x - ripple), hit.y, ripple * 2.0, 1.0), em(HOT))
-	draw_rect(Rect2(roundf(hit.x - ripple * 0.5), hit.y + 2.0, ripple, 1.0), em(HOT_DEEP))
+	draw_rect(Rect2(roundf(hit.x - ripple * 1.35), hit.y + 3.0, ripple * 2.7, 1.0),
+			em(Color(HOT_DEEP.r, HOT_DEEP.g, HOT_DEEP.b, 0.55)))
+	# 汽：从落点往上飘的淡斑，整像素。
+	for s in 4:
+		var age := fmod(_t * 0.35 + float(s) * 0.27, 1.0)
+		var sx := roundf(hit.x + sin(float(s) * 2.1 + _t) * 6.0)
+		var sy := roundf(hit.y - 4.0 - age * 18.0)
+		var steam := Color(0.75, 0.72, 0.68, (1.0 - age) * 0.28)
+		draw_rect(Rect2(sx, sy, 2.0, 2.0), em(steam))
+		draw_rect(Rect2(sx + 2.0, sy - 1.0, 1.0, 1.0), em(steam))
 
 
 func _draw_overlay() -> void:
@@ -306,8 +346,11 @@ func _draw_overlay() -> void:
 		_glow_at(stream_point(u0), 16.0, Color(1.0, 0.92, 0.7, 0.35 * h))
 		if _landed:
 			var flick := 0.8 + 0.2 * sin(_t * 31.0)
-			_glow_at(impact_point() + Vector2(0.0, -2.0), 96.0, Color(1.0, 0.55, 0.18, 0.62 * h * flick))
-			_glow_at(impact_point() + Vector2(0.0, -6.0), 28.0, Color(1.0, 0.95, 0.7, 0.45 * h * flick))
+			_glow_at(impact_point() + Vector2(0.0, -2.0), 72.0, Color(1.0, 0.55, 0.18, 0.40 * h * flick))
+			_glow_at(impact_point() + Vector2(0.0, -6.0), 22.0, Color(1.0, 0.95, 0.7, 0.28 * h * flick))
+		if _impact_flash > 0.01:
+			_glow_at(impact_point(), 120.0 + 40.0 * _impact_flash,
+					Color(1.0, 0.82, 0.45, 0.55 * h * _impact_flash))
 
 
 # --- 测试 / 工具用 ------------------------------------------------------------

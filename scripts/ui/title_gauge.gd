@@ -1,9 +1,10 @@
 class_name TitleGauge
 extends Control
-## The title screen's journey gauge: 14 chapter ticks along a thin vertical rod.
-## Cleared chapters are lit ember diamonds, the current one pulses, the rest are cold
-## iron. Act boundaries (醒 / 债 / 铸 / 炉 = chapters 1-3, 4-7, 8-11, 12-14) get a
-## short bar and the act's glyph. Drawn in 1px/2px rects, redrawn at the pulse rate.
+## The title screen's journey gauge: 14 chapter cells.
+## Default is the old vertical rod (act names beside it). The title note calls
+## `use_horizontal()` and gets one faint rail instead: lit cells, a pulsing current
+## cell, and a tick at each act start. No stacked numerals.
+## Act boundaries (醒 / 债 / 铸 / 炉 = chapters 1-3, 4-7, 8-11, 12-14).
 
 const TICKS := 14
 const SPACING := 19.0
@@ -14,6 +15,9 @@ const ROD_X := 196.0
 const INK_LEFT := 146.0
 const ACT_STARTS := [0, 3, 7, 11]
 const PULSE_FPS := 8.0
+## Horizontal rail: one cell per hall lantern. 14 × 14px fits the 208px note.
+const H_PITCH := 14.0
+const LANTERN_FPS := 12.0
 const COL_ROD := Color("#4A2A18")
 const COL_ROD_LIT := Color("#A0522D")
 const COL_EMBER := Color("#FFC14A")
@@ -28,6 +32,9 @@ var _numerals: PackedStringArray = []
 var _acts: PackedStringArray = []
 var _t := 0.0
 var _step := -1
+## Title note sets this. The vertical rod ignores it.
+var horizontal := false
+var _lantern_pulse := 1.0
 
 
 func _init() -> void:
@@ -42,6 +49,23 @@ func _ready() -> void:
 		_acts.append(String(act["name"]))
 	for i in TICKS:
 		_done.append(false)
+
+
+## The title's short note: a horizontal 14-cell rail, not a column of numerals.
+func use_horizontal() -> void:
+	horizontal = true
+	custom_minimum_size = Vector2(4.0 + float(TICKS - 1) * H_PITCH + 8.0, 16.0)
+	size = custom_minimum_size
+
+
+## 0..1 brightness shared with the hall lanterns (TitleWorld.lantern_pulse).
+func set_lantern_pulse(amount: float) -> void:
+	var next := clampf(amount, 0.0, 1.0)
+	if is_equal_approx(_lantern_pulse, next):
+		return
+	_lantern_pulse = next
+	if horizontal:
+		queue_redraw()
 
 
 ## `done` = per-chapter cleared flags (14), `current` = saved chapter index or -1.
@@ -67,18 +91,24 @@ func lit_count() -> int:
 
 ## Centre of tick `i` in this control's coordinates.
 func tick_position(i: int) -> Vector2:
+	if horizontal:
+		return Vector2(4.0 + float(i) * H_PITCH, 8.0)
 	return Vector2(ROD_X, TOP + 6.0 + float(i) * SPACING)
 
 
 func _process(delta: float) -> void:
 	_t += delta
-	var step := int(_t * PULSE_FPS)
-	if step != _step and _current >= 0:
+	var fps := LANTERN_FPS if horizontal else PULSE_FPS
+	var step := int(_t * fps)
+	if step != _step and (horizontal or _current >= 0):
 		_step = step
 		queue_redraw()
 
 
 func _draw() -> void:
+	if horizontal:
+		_draw_horizontal()
+		return
 	var last := TOP + 6.0 + float(TICKS - 1) * SPACING
 	draw_rect(Rect2(ROD_X - 1.0, TOP - 4.0, 2.0, last - TOP + 12.0), COL_ROD)
 	var lit_to := -1
@@ -138,6 +168,40 @@ func _draw() -> void:
 			col.a = 0.9 if is_now else (0.7 if is_done else 0.38)
 			draw_string(font, Vector2(ROD_X - 24.0, c.y + 4.0), _numerals[i], HORIZONTAL_ALIGNMENT_RIGHT, 20.0,
 					12, col)
+
+
+func _draw_horizontal() -> void:
+	var y := 8.0
+	var x0 := 4.0
+	var span := float(TICKS - 1) * H_PITCH
+	draw_rect(Rect2(x0, y, span, 1.0), COL_ROD)
+	var lit_to := -1
+	for i in _done.size():
+		if _done[i]:
+			lit_to = i
+	if lit_to > 0:
+		draw_rect(Rect2(x0, y, float(lit_to) * H_PITCH, 1.0),
+				Color(COL_ROD_LIT.r, COL_ROD_LIT.g, COL_ROD_LIT.b, 0.85 * _lantern_pulse))
+	for a in ACT_STARTS.size():
+		var i: int = ACT_STARTS[a]
+		if i <= 0:
+			continue
+		var x := x0 + float(i) * H_PITCH
+		draw_rect(Rect2(x, y - 4.0, 1.0, 9.0), COL_ROD)
+	for i in TICKS:
+		var c := tick_position(i)
+		var is_done := i < _done.size() and _done[i]
+		var is_now := i == _current
+		var hot := COL_EMBER
+		hot.a = 0.55 + 0.45 * _lantern_pulse
+		if is_now:
+			var pulse := 0.65 + 0.35 * _lantern_pulse
+			draw_rect(Rect2(c.x - 4.0, c.y - 4.0, 8.0, 8.0), Color(1.0, 0.62, 0.22, 0.16 * pulse))
+			_diamond(c, 3, COL_EMBER.lerp(COL_HOT, pulse - 0.65), Color("#8B4513"))
+		elif is_done:
+			_diamond(c, 2, hot, Color("#8B4513"))
+		else:
+			_diamond(c, 2, Color(COL_COLD.r, COL_COLD.g, COL_COLD.b, 0.55), COL_COLD_EDGE)
 
 
 ## 7x7 pixel diamond (radius 3) with a darker 1px edge.
