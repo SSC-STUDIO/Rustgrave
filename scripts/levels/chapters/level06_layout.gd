@@ -168,7 +168,7 @@ func _build_decor(host: Node2D) -> void:
 
 ## 复用既有苔石填充作背墙；装饰无碰撞，拱口/柱线明确区分两条路线。
 class MausoleumRelief extends Node2D:
-	const FILL := preload("res://assets/env/moss_fill.png")
+	var FILL := ArtTexture.load_texture("res://assets/env/moss_fill.png")
 	func _draw() -> void:
 		draw_texture_rect(FILL, Rect2(0, 0, 1008, 128), true, Color(0.36, 0.35, 0.4))
 		for x in [32, 272, 512, 752]:

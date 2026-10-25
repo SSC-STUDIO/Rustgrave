@@ -19,7 +19,8 @@ func test_original_reliquary_horse_has_independent_art_and_full_moves() -> void:
 		for tex in frames:
 			ok(tex.resource_path.contains("/original_nightmare/"))
 			var im := tex.get_image()
-			eq(im.get_size(), Vector2i(128,96))
+			eq(tex.get_size(), Vector2(128,96))
+			eq(im.get_size(), Vector2i(512,384))
 			ok(im.get_data() != previous, "new drawing has no legacy horse pixels")
 			poses[hash(im.get_data())] = true
 		ok(poses.size() >= 3, "motion in " + action)

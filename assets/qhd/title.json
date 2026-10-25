@@ -1,0 +1,119 @@
+{
+  "res://assets/title/hall_far.png": {
+    "texture": "res://assets/qhd/title/hall_far.png",
+    "logical_size": [
+      704,
+      368
+    ],
+    "physical_size": [
+      2816,
+      1472
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "9dd275e48b7254b20419ee80813b9927f3f4aa2a59923b872e11f4b207ff19e8"
+  },
+  "res://assets/title/hall_mid.png": {
+    "texture": "res://assets/qhd/title/hall_mid.png",
+    "logical_size": [
+      704,
+      368
+    ],
+    "physical_size": [
+      2816,
+      1472
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "f16c546274fad0755ddf9d958f55507401cd6a77a1afb4a0d8d0be8fc3cc1895"
+  },
+  "res://assets/title/roof.png": {
+    "texture": "res://assets/qhd/title/roof.png",
+    "logical_size": [
+      704,
+      132
+    ],
+    "physical_size": [
+      2816,
+      528
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "c5f71c4e182824fa09ca3c3032c0515d2a807b8a8be70ecdb5ded00c92b1605e"
+  },
+  "res://assets/title/bridge.png": {
+    "texture": "res://assets/qhd/title/bridge.png",
+    "logical_size": [
+      352,
+      76
+    ],
+    "physical_size": [
+      1408,
+      304
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "86d0fbf65a4ed575233f93a326da8e18847964811d09743314b5c0c3b90f70fb"
+  },
+  "res://assets/title/mass_left.png": {
+    "texture": "res://assets/qhd/title/mass_left.png",
+    "logical_size": [
+      256,
+      376
+    ],
+    "physical_size": [
+      1024,
+      1504
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "3511797f9018d3afe560474231b3a3eff582fe8c6a43c147ebf38551b9889169"
+  },
+  "res://assets/title/mass_right.png": {
+    "texture": "res://assets/qhd/title/mass_right.png",
+    "logical_size": [
+      256,
+      376
+    ],
+    "physical_size": [
+      1024,
+      1504
+    ],
+    "method": "sampled original geometry + physical-pixel joinery",
+    "sha256": "debcff9b686ade5193845d02ab2949079099af0b54c10162a1d3b95172010063"
+  },
+  "res://assets/title/gear_big.png": {
+    "texture": "res://assets/qhd/title/gear_big.png",
+    "logical_size": [
+      1120,
+      560
+    ],
+    "physical_size": [
+      4480,
+      2240
+    ],
+    "method": "original polar gear drawing rasterized at density 4",
+    "sha256": "a99ab377c499c8f9b70ee2f0703823f1970abee993ad4b767136b8e2c4ca6a85"
+  },
+  "res://assets/title/gear_mid.png": {
+    "texture": "res://assets/qhd/title/gear_mid.png",
+    "logical_size": [
+      736,
+      368
+    ],
+    "physical_size": [
+      2944,
+      1472
+    ],
+    "method": "original polar gear drawing rasterized at density 4",
+    "sha256": "2a5699f94288cf11988bf51ecffa97e34e84d682569ef829a56336209c7a2f9a"
+  },
+  "res://assets/title/gear_small.png": {
+    "texture": "res://assets/qhd/title/gear_small.png",
+    "logical_size": [
+      360,
+      240
+    ],
+    "physical_size": [
+      1440,
+      960
+    ],
+    "method": "original polar gear drawing rasterized at density 4",
+    "sha256": "e9c1908ecfeb594903fedcaa29eeeea524f117a5e80f08c9c9e6fc0d75745a27"
+  }
+}

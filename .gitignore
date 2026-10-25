@@ -15,6 +15,7 @@ Desktop.ini
 screenshots/
 .workbuddy/
 tools/__pycache__/
+tools/art/__pycache__/
 # 角色美术下载暂存（原始 zip/切帧脚本/QA 拼图，已含 .gdignore，不入库）
 _downloads/
 

@@ -392,7 +392,7 @@ func _draw_steam() -> void:
 		var a := minf(f * 6.0, 1.0) * (1.0 - f) * 0.9
 		var p := _puff_pos[i]
 		var dest := Rect2(floorf(p.x) - STEAM_SIZE * 0.5, floorf(p.y) - STEAM_SIZE + 6.0, STEAM_SIZE, STEAM_SIZE)
-		draw_texture_rect_region(_steam, dest, Rect2(frame * STEAM_SIZE, 0, STEAM_SIZE, STEAM_SIZE),
+		ArtTexture.draw_region(self, _steam, dest, Rect2(frame * STEAM_SIZE, 0, STEAM_SIZE, STEAM_SIZE),
 				Color(0.88, 0.80, 0.76, a * 0.8))
 
 

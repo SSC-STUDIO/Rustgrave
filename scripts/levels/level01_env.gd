@@ -87,13 +87,15 @@ static func opaque_bottom_px(tex: Texture2D) -> int:
 		img.decompress()
 	var h := img.get_height()
 	var w := img.get_width()
+	var density := float(h) / float(tex.get_height())
 	for y in range(h - 1, -1, -1):
 		for x in w:
 			if img.get_pixel(x, y).a > OPAQUE_ALPHA:
-				_opaque_bottom_cache[key] = y
-				return y
-	_opaque_bottom_cache[key] = maxi(h - 1, 0)
-	return maxi(h - 1, 0)
+				var logical_y := ceili(float(y + 1) / density) - 1
+				_opaque_bottom_cache[key] = logical_y
+				return logical_y
+	_opaque_bottom_cache[key] = maxi(tex.get_height() - 1, 0)
+	return maxi(tex.get_height() - 1, 0)
 
 
 static func sprite_opaque_bottom_y(spr: Sprite2D) -> float:

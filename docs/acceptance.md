@@ -1,5 +1,20 @@
 # Rustgrave 验收记录
 
+## 2026-10-25：原生2.5K素材升级
+
+在v3整合之后，世界保持640×360逻辑尺寸，以最高2560×1440物理分辨率渲染；UI仍用1280×720逻辑尺寸。新增1,166张密度4素材及统一加载适配，具体源稿、派生方式、复现命令和内存限制见 `docs/qhd-art.md`。
+
+- 最终无过滤全量：**1471/1471、29062条断言、0引擎错误**，运行/素材源码 `7ed677ad`；`screenshots/acceptance/qhd/full-tests-verified/summary.json` 为 `passed=true`、`completed=true`、未超时。保留既有防护/锚点warning和退出时3个ObjectDB实例泄漏warning，不声称零warning。
+- 七位独立Boss的459帧从可编辑绘图源码重新栅格化；标题9层建筑/齿轮重新绘制。50张机械道具同时交付1×与QHD原创几何版本，标题字标重新采样字体；其余645张为既有角色、场景、武器和UI素材的细化处理。保留28项低频光照/气氛蒙版或旧Boss兼容素材，不把派生细化说成从零重画。
+- 篝火与标题炉口分别重画8帧火舌、燃料亮芯和固定火根，标题炉口开始播放动画；火星保留为独立粒子层。
+- 图像审计：Boss459/459源码重现、跨Boss零完全重复帧；场景707/707尺寸、SHA256及环境底边检查通过，均区别于最近邻放大。GPU单物理像素采样五项全部通过。
+- 首轮全量发现面板实心四角和机械底部3个空物理像素。绘图源码已修正，原有 `prop_fit` 7/7通过，检查标准未放宽；失败日志保留在 `screenshots/acceptance/qhd/full-tests-final/`。
+- 最终显示矩阵9种尺寸×4夹具=36张，加9张标题；`screenshots/acceptance/display/report.json` 为 `passed=true`、无错误。修正后14章29张QHD机位图全部解码为2560×1440并审阅，索引 `screenshots/acceptance/qhd-chapters-verified/render-manifest.json`。固定机位与摆位只证明构图，不证明通关。
+- QHD正常输入 `screenshots/acceptance/input-20261025-121524-769/rekindle.json` 通过，截图38张均为2560×1440；标题新游戏、第一章Boss、死亡/重载、Continue、进入第二章和地窟存档恢复均通过，辅助1.0/1.0/1.0，1次死亡、0引擎错误。这是首章到第二章的验收；此前完整14章输入证据仍是下节列出的1080p历史轮次。
+- 最终QHD短时性能探针位于 `screenshots/acceptance/qhd/perf-verified/`：标题/第五章活动场景的离屏渲染回调间隔p95分别为2.910/2.801ms，不作为实体屏FPS或最坏战斗性能结论。
+
+4K输出保留QHD世界细节密度上限；离屏截图与固定60Hz加速输入不证明实体显示器FPS或真人手感。源码按完整改动分次提交，证据留在本地ignored目录。
+
 ## 2026-10-25：v3最终整合验收
 
 当前权威结果见 `docs/overhaul-v3.md` 最终门禁表与 `screenshots/acceptance/overhaul-v3/final-evidence-index.json`。下文按日期保留历史失败、局部夹具与旧范围；它们不覆盖本节的新结果。

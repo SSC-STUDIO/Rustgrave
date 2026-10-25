@@ -18,6 +18,14 @@ static func configure_world(viewport: SubViewport, metrics: Dictionary) -> void:
 	if viewport.size != target:
 		viewport.size = target
 
+static func world_input_transform(logical_size: Vector2i, image_rect: Rect2) -> Transform2D:
+	var scale := Vector2(logical_size) / image_rect.size
+	var transform := Transform2D.IDENTITY.scaled(scale)
+	transform.origin = -image_rect.position * scale
+	return transform
+
+
+
 
 static func calculate(window_size: Vector2i, mode: int = DisplayFit.FitMode.INTEGER) -> Dictionary:
 	var physical := Vector2(maxi(window_size.x, 640), maxi(window_size.y, 360))

@@ -45,6 +45,7 @@ static func load_texture(path: String) -> Texture2D:
 	var texture := ImageTexture.create_from_image(image)
 	texture.set_size_override(Vector2i(original.get_size()))
 	texture.set_meta("source_path", path)
+	texture.set_meta("physical_bytes", image.get_data_size())
 	texture.resource_name = original.resource_name
 	# A separate identity avoids replacing the ResourceLoader cache of source art.
 	texture.resource_path = "res://qhd-runtime/" + path.trim_prefix("res://assets/")

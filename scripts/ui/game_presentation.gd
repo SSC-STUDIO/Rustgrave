@@ -105,9 +105,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not rect.has_point(mouse.position):
 			GameContext.suppress_gameplay_input()
 			return
-		var transform := Transform2D.IDENTITY
-		transform = transform.scaled(Vector2(world_viewport.size) / rect.size)
-		transform.origin = -rect.position * transform.get_scale()
+		var metrics := PresentationMetrics.for_window(get_tree().root)
+		var transform := PresentationMetrics.world_input_transform(metrics["world_size"], rect)
 		forwarded = event.xformed_by(transform)
 	world_viewport.push_input(forwarded, true)
 	if world_viewport.is_input_handled():

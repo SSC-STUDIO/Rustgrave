@@ -12,7 +12,8 @@ func test_complete_body_and_segmented_tool_frames() -> void:
 				eq(frames.size(), 4 if action in ["idle", "stagger"] else 6, key + " complete")
 				if not frames.is_empty():
 					var image := frames[0].get_image()
-					eq(image.get_size(), Vector2i(128, 112), key + " canvas")
+					eq(frames[0].get_size(), Vector2(128, 112), key + " logical canvas")
+					eq(image.get_size(), Vector2i(512, 448), key + " physical canvas")
 					almost(image.get_pixel(0, 0).a, 0.0, 0.001, key + " transparent background")
 					ok(image.get_used_rect().has_area(), key + " original visible pixels")
 

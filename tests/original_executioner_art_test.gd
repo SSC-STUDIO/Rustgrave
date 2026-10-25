@@ -19,15 +19,15 @@ func test_original_frames_are_independent_of_the_guard_and_have_binary_alpha() -
 		for texture in frames:
 			ok(texture.resource_path.contains("/original_executioner/"))
 			var img := texture.get_image()
-			eq(img.get_size(), Vector2i(100, 100))
+			eq(texture.get_size(), Vector2(100, 100), "logical canvas")
+			eq(img.get_size(), Vector2i(400, 400), "physical QHD pixels")
 			ok(img.get_data() != guard.get_data(), "independent drawing, not the guard")
 			distinct[hash(img.get_data())] = true
 			var alpha_ok := true
-			for y in img.get_height():
-				for x in img.get_width():
-					var alpha := img.get_pixel(x, y).a
-					if alpha != 0.0 and alpha != 1.0:
-						alpha_ok = false
+			var pixels := img.get_data()
+			for i in range(3, pixels.size(), 4):
+				if pixels[i] != 0 and pixels[i] != 255:
+					alpha_ok = false
 			ok(alpha_ok, "hard pixel transparency")
 		ok(distinct.size() >= 3, action + " contains motion")
 

@@ -480,7 +480,7 @@ func _build_decor(host: Node2D) -> void:
 func _sprite(parent: Node2D, path: String, pos: Vector2, tint: Color, grounded: bool = false) -> void:
 	if not ResourceLoader.exists(path):
 		return
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false

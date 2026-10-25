@@ -12,7 +12,8 @@ func test_original_mechanical_bird_frames_have_motion_and_transparency() -> void
 			var poses := {}
 			for texture in frames:
 				var im := texture.get_image()
-				eq(im.get_size(), Vector2i(192, 144))
+				eq(texture.get_size(), Vector2(192, 144))
+				eq(im.get_size(), Vector2i(768, 576))
 				almost(im.get_pixel(0, 0).a, 0.0, 0.001)
 				ok(im.get_used_rect().has_area())
 				poses[hash(im.get_data())] = true
@@ -58,7 +59,7 @@ func test_real_yank_folds_wings_above_the_floor() -> void:
 	var frames := boss.get_node("Visual/HeraldShell/OriginalHeraldFrames") as FrameAnimSprite
 	eq(frames.current(), "downed", "actual hook window uses folded wings")
 	var used := frames.texture.get_image().get_used_rect()
-	var lowest := float(used.end.y) - 72.0 + frames.position.y
+	var lowest := float(used.end.y) / 4.0 - 72.0 + frames.position.y
 	ok(lowest <= 1.0, "folded hull stays above actual ground; bottom=%f" % lowest)
 	eq(frames.scale, Vector2.ONE, "native authored pixel size")
 	host.queue_free()

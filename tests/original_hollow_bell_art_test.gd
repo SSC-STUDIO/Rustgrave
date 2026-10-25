@@ -12,7 +12,9 @@ func test_complete_original_transparent_frame_sets() -> void:
 			eq(frames.size(), 4 if action in ["idle", "stagger", "hammer"] else 6, key + " frame count")
 			if not frames.is_empty():
 				var image := frames[0].get_image()
-				eq(image.get_size(), Vector2i(40, 64) if action == "hammer" else Vector2i(160, 336), key + " canvas")
+				var logical := Vector2i(40, 64) if action == "hammer" else Vector2i(160, 336)
+				eq(Vector2i(frames[0].get_size()), logical, key + " logical canvas")
+				eq(image.get_size(), logical * 4, key + " physical canvas")
 				almost(image.get_pixel(0, 0).a, 0.0, 0.001, key + " transparent corner")
 				ok(image.get_used_rect().has_area(), key + " visible pixels")
 

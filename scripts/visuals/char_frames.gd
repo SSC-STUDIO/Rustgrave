@@ -6,12 +6,18 @@ class_name CharFrames
 const BASE := "res://assets/characters/"
 
 static var _cache: Dictionary = {}
+const MAX_CACHE_BYTES := 96 * 1024 * 1024
+static var _cache_bytes := 0
+static var _cache_cost: Dictionary = {}
 
 
 static func anim(char_name: String, action: String) -> Array[Texture2D]:
 	var key := char_name + "/" + action
 	if _cache.has(key):
-		return _cache[key]
+		var hit: Array[Texture2D] = _cache[key]
+		_cache.erase(key)
+		_cache[key] = hit
+		return hit
 	var frames: Array[Texture2D] = []
 	var i := 0
 	while true:
@@ -23,7 +29,18 @@ static func anim(char_name: String, action: String) -> Array[Texture2D]:
 			break
 		frames.append(tex)
 		i += 1
-	_cache[key] = frames
+	var cost := 0
+	for texture in frames:
+		cost += int(texture.get_meta("physical_bytes", texture.get_width() * texture.get_height() * 4))
+	while not _cache.is_empty() and _cache_bytes + cost > MAX_CACHE_BYTES:
+		var oldest: String = _cache.keys()[0]
+		_cache_bytes -= int(_cache_cost[oldest])
+		_cache_cost.erase(oldest)
+		_cache.erase(oldest)
+	if cost <= MAX_CACHE_BYTES:
+		_cache[key] = frames
+		_cache_cost[key] = cost
+		_cache_bytes += cost
 	return frames
 
 

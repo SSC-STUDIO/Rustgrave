@@ -384,11 +384,11 @@ func _setup_kenney_sprite() -> void:
 	_sprite_root.position = KENNEY_SPRITE_OFFSET
 	_sprite_root.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual.add_child(_sprite_root)
-	_sprites["stand"] = load(P_STAND_PATH) as Texture2D
+	_sprites["stand"] = ArtTexture.load_texture(P_STAND_PATH)
 	if ResourceLoader.exists(P_JUMP_PATH):
-		_sprites["jump"] = load(P_JUMP_PATH) as Texture2D
+		_sprites["jump"] = ArtTexture.load_texture(P_JUMP_PATH)
 	if ResourceLoader.exists(P_HURT_PATH):
-		_sprites["hurt"] = load(P_HURT_PATH) as Texture2D
+		_sprites["hurt"] = ArtTexture.load_texture(P_HURT_PATH)
 	_sprite_root.texture = _sprites["stand"]
 	_sprite_root.modulate = Color(1, 1, 1, 1)
 

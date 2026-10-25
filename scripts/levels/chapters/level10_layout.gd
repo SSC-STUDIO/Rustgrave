@@ -218,7 +218,7 @@ func _altar(host: Node2D, feet: Vector2, tint: Color, node_name: String) -> Node
 	var path: String = DECOR["altar"]
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	var root := Node2D.new()
 	root.name = node_name
 	root.position = Vector2(feet.x - float(tex.get_width()) * 0.5, feet.y - float(tex.get_height()))

@@ -133,8 +133,11 @@ func test_wind_push_and_updraft_zones() -> void:
 	if zone != null:
 		ok(float(zone.get("flow")) != 0.0, "推力区有方向")
 		player.global_position = zone.global_position
-		await flush(6)
-		ok(absf(player.velocity.x) > 5.0, "站进风推区被推着走（vx=%.1f）" % player.velocity.x)
+		# WindZone applies its force on idle frames. Cold QHD texture uploads can
+		# make several physics ticks run before the next idle update; wait for the
+		# real force outcome instead of assuming six physics ticks include one.
+		var pushed := await wait_until(func() -> bool: return absf(player.velocity.x) > 5.0, 60)
+		ok(pushed, "站进风推区被推着走（vx=%.1f）" % player.velocity.x)
 	# 上升气流：三阶段才有，这里直接验证二阶段的区域与 lift。
 	boss.health.take_damage(10, player)
 	boss.call("_tick_state", 1.3)

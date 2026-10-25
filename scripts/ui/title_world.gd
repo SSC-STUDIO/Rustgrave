@@ -910,7 +910,7 @@ func _place_knight(skin: StringName, x: float, seated: bool = false) -> void:
 	var anim := FrameAnimSprite.new()
 	anim.name = "KnightSprite"
 	if seated:
-		var pose := load("res://assets/title/seated_%s.png" % SkinCatalog.folder_of(skin)) as Texture2D
+		var pose := ArtTexture.load_texture("res://assets/title/seated_%s.png" % SkinCatalog.folder_of(skin))
 		anim.register("seated", [pose], 1.0, true, Vector2(0, -24))
 		anim.play("seated")
 		_occluder(_knight, "KnightShadow", Rect2(-7, -29, 17, 28))
@@ -1094,6 +1094,8 @@ func _apply_parallax(force: bool) -> void:
 
 
 func _animate_actors(delta: float) -> void:
+	if _mouth != null:
+		_mouth.frame = int(_t * 12.0) % 8
 	if _knight != null and is_instance_valid(_knight):
 		var sword := _knight.get_node_or_null("Visual/Greatsword") as Greatsword
 		if sword != null:
