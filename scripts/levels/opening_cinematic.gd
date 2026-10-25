@@ -1,60 +1,60 @@
 class_name OpeningCinematic
 extends RefCounted
-## 新游戏开场（约 44 秒，随时可跳过）。只在第一章醒来之前播一次，和醒来是同一条剧本。
-## 继续、读档、死亡重进、已经醒过都不重播。不写结局。
+## 新游戏开场（序章分镜 + 关内醒来，随时可跳过）。只在第一章醒来之前播一次，和醒来是
+## 同一条剧本。继续、读档、死亡重进、已经醒过都不重播。不写结局。
 ## opening_seen 与 wake 在整段结束或跳过时一起点上；abort 两点都不点。
 ##
-## 前 3 分钟的可读性由这一段铺：每个专名第一次出现就地解释（文本在
-## ChapterText.OPENING），其余是画面钉字幕的短句。分镜（秒，按步骤估算 ~44）：
-##   0.0  处境  你趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
-##   2.8  「剑先锈了。核里还有人。」
-##   5.0  专名四拍  镜头退后到巢与坟  「那座誓叫炉约：烧名字换灯，立了二百年。」
-##        「立誓的那批人，叫守炉人。」「守炉人造过很多具净化偶——刮锈的人偶。」
-##        「你不是被选中的；你是最后一具，自己先锈透了。」（坟群依次冒灰）
-##  13.0  伊尔两拍  「伊尔从渣里捡回你，嵌核进剑，点亮你。」
-##        「你听见的是回声——她封进核之前的话。」
-##  16.5  名字  「名字刻在剑上，烧进铁里，人就回不来。」
-##  19.0  时间线四拍  「炉心是城下的大炉膛，一百年前熄了。」→「残芯是炉心最后一口火封成的核。」
-##        →「最后一百年，灯靠残芯当灯芯。」→「灯越来越暗。她把核从座上取下。」
-##  26.0  异象  地下一声钟，镜头沿走廊往东推  「钟响了一声。底下有人在数。」
-##  29.3  目标两拍  走廊尽头空炉座的光跳两下，刽子手立在门后
-##        「带剑里的残芯到炉心，替名字问火一句。」「这火该不该还？」
-##  33.4  阻碍  「刽子手守着炉座。他发过誓。」
-##  35.4  章节卡（2.6 秒）；镜头在卡下切回你
-##  38.0  交还操作；脚边火星与巢边余火先响，队列清空后底部一行移动提示，第一次输入后消失
-##  45.0  全段预算（按步骤估算 ~44）
+## v3 的分工：**世界观交给序章分镜**（storyboards.gd 的 prologue，8 个镜头约 40 秒：炉约、
+## 名字、炉心、火种、守炉人、伊尔、你、代价，每个专名第一次出现就地解释），**关内只留
+## 「醒来、认出声音、知道去哪、看见要打谁」**七拍（文本在 ChapterText.OPENING）。
+## 序章是步骤 0（board 步骤）：逐句推进、按住 Enter 跳过整段；序章之后关内部分一次 Enter 跳过。
 ##
-## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「核里有人」靠火星从剑背
+## 关内部分的分镜（秒，按步骤估算 ~23）：
+##   0.0  你趴在冷余烬巢旁，锈片剥落，死亡动画倒放撑起身体，剑杵进地里
+##   2.8  处境  「伊尔：醒醒，余烬骑士。火种快灭了。」
+##   5.0  镜头退后到巢与坟  「伊尔：我就封在你背上这把剑里。」
+##        「伊尔：你听见的，是我封进火种之前说的话。」（坟群依次冒灰）
+##  10.5  异象  地下一声钟，镜头沿走廊往东推  「钟声又响了。底下有人在数名字。」
+##  13.0  目标  走廊尽头空炉座的光跳两下  「伊尔：把火种送回炉心，城底的大炉。」
+##        「伊尔：炉座是石台。先去续一口火。」
+##  16.5  阻碍  刽子手立在门后  「刽子手守着炉座，谁碰谁死。」
+##  18.5  章节卡（2.6 秒）；镜头在卡下切回你
+##  21.0  交还操作；脚边火星与巢边余火先响，队列清空后底部一行移动提示，第一次输入后消失
+##
+## 演出原则：同一信息尽量用画面讲，字幕只补画面说不了的。「剑里有人」靠火星从剑背
 ## 应声而起（bell_ring fx），「坟在数人」靠每座坟依次冒灰（grave_answer），「炉座空着」
 ## 靠镜头推近时空炉座的光（heart_pulse + glow），「目标」则让刽子手真的立在门后 ——
-## 玩家先看见他要打谁，字幕才落到「问火一句」。钟声在走廊尽头先应一次
+## 玩家先看见他要打谁，字幕才落到「谁碰谁死」。钟声在走廊尽头先应一次
 ## （_heart_echo），把坟群和炉座说成同一个地方；交接不是又一段字幕，是巢边余火、
 ## 脚边火星和一次真正的输入解锁。
-## 用到的 Director 步骤：lock unlock wait tableau caption cam_focus cam_release
+## 用到的 Director 步骤：lock unlock wait tableau caption board cam_focus cam_release
 ## letterbox sfx fx。新 fx id：rust_flake plant bell_ring。
 
 const FLAG := "opening_seen"
 const WAKE_FLAG := "wake"
+## 序章分镜的 id（storyboards.gd）。
+const PROLOGUE_ID := "prologue"
 static var CHAPTER: String = ChapterText.title_of("level01")
 const CARD_SECONDS := 2.6
-## 整段（不跳过）的预算。测试按步骤估算，不许超。
-const MAX_SECONDS := 45.0
-## 低于这个时长就说明被删成了幻灯片：前 3 分钟的可读性靠这 45 秒铺。
-const MIN_SECONDS := 40.0
+## 整段（不跳过，含序章分镜）的预算。测试按步骤估算，不许超。
+const MAX_SECONDS := 72.0
+## 低于这个时长就说明被删成了幻灯片：前 3 分钟的可读性靠序章 + 这一段铺。
+const MIN_SECONDS := 50.0
+## 关内部分（不含序章）的预算。
+const MAX_IN_LEVEL_SECONDS := 30.0
 
-## 顺序 = 处境、誓约/守炉人/净化偶（四拍）、伊尔与回声（两拍）、名字、时间线四拍、
-## 异象、目标两拍、阻碍。文本单一源在 ChapterText.OPENING。
+## 顺序 = 处境、剑里的声音、回声、异象、目标、路线、阻碍。文本单一源在 ChapterText.OPENING。
 static var LINES: Array[String] = ChapterText.opening_lines()
 
 const KNIGHT_FALLBACK := Vector2(96, 320)
 const NEST_FALLBACK := Vector2(150, 306)
-## 残芯（Level01EastWing 放它的位置）。刽子手站在它前面的石台上 (3420, 336)。
+## 火种（Level01EastWing 放它的位置）。刽子手站在它前面的石台上 (3420, 336)。
 const HEART := Vector2(3664, 324)
 const GROUND_Y := 320.0
 ## 坟与碑的脚点 x。真实关卡从 GraveDecor / 碑取，取不到才用这一份。
 const GRAVE_XS: Array[float] = [210.0, 360.0, 548.0, 596.0, 690.0, 1020.0, 1496.0, 1580.0, 1636.0]
 const PULLBACK_X := 262.0
-## 走廊现在有 3760px 长：镜头扫到炉厅（相机右界 3760 会把中心夹在 3440），刽子手在中心、残芯在右缘。
+## 走廊现在有 3760px 长：镜头扫到炉厅（相机右界 3760 会把中心夹在 3440），刽子手在中心、火种在右缘。
 const PAN_END_X := 3440.0
 const PAN_SECONDS := 3.4
 const PULLBACK_SECONDS := 2.1
@@ -70,9 +70,9 @@ const PLANTED_SWORD_OFFSET := Vector2(-24.0, 0.0)
 const HOLD_FRAMES := 6
 const RISE_FPS := 8.0
 ## 异象拍的坟声顺序：近的坟先应，越远越迟，最后一笔留给牌坊下的新坟。
-## 眼前目标拍：残芯跳第二下的间隔，和镜头推近的时长对齐。
+## 眼前目标拍：火种跳第二下的间隔，和镜头推近的时长对齐。
 const HEART_SECOND_BEAT := 0.55
-## 走廊尽头的回应时刻（相对 pan 起点）。镜头走到一半多一点时，残芯的暖光
+## 走廊尽头的回应时刻（相对 pan 起点）。镜头走到一半多一点时，火种的暖光
 ## 先在远处亮一下、钟再低低地响一次：底下数人的东西就是镜头要去的地方。
 ## 等到 `_arrive` 再正式跳两下，远处那一下只是先应声。
 const ECHO_AT := 0.58
@@ -124,15 +124,16 @@ static func move_prompt() -> String:
 	]
 
 
-## 处境 → 誓约/守炉人/净化偶（四拍）→ 伊尔与回声（两拍）→ 名字（一拍）→ 时间线/残芯/灯（四拍）
-## → 异象 → 目标（两拍）→ 阻碍 → 章节卡。每个专名第一次出现就带白话。
-## 没有第二段醒来，一次跳过结束整条。带 tag 的步骤由 _on_step 挂上镜头 / 动画 / 坟的回应。
+## 序章分镜（board）→ 处境 → 剑里的声音与回声 → 异象 → 目标与路线 → 阻碍 → 章节卡。
+## 没有第二段醒来，序章之后一次跳过结束整条。带 tag 的步骤由 _on_step 挂上镜头 / 动画 / 坟的回应。
 static func steps() -> Array:
 	var knight: Variant = _knight if _knight != null else KNIGHT_FALLBACK
 	var card := ChapterLevel.chapter_card(CHAPTER, CARD_SECONDS)
 	card["tag"] = "card"
 	return [
 		{"kind": "lock"},
+		# 世界观先交给序章分镜：全屏、逐句，骑士这时已经趴在黑幕后面（try_start 先摆好姿势）。
+		{"kind": "board", "id": PROLOGUE_ID, "skip_all": false},
 		{"kind": "cam_focus", "target": knight, "zoom": ZOOM_CLOSE, "duration": 0.12, "tag": "rouse"},
 		{"kind": "fx", "id": "rust_flake", "target": knight, "seconds": 0.5},
 		{"kind": "sfx", "id": "land", "db": -14.0},
@@ -142,44 +143,24 @@ static func steps() -> Array:
 		{"kind": "wait", "seconds": 1.0},
 		{"kind": "fx", "id": "plant", "target": knight, "seconds": 0.1, "tag": "stand"},
 		{"kind": "sfx", "id": "land", "db": -8.0},
-		# 处境：剑里的火星替「核里还有人」作证，字幕只是钉一下。
+		# 处境：她叫醒你，字幕带说话人名牌。
 		{"kind": "caption", "text": LINES[0], "hold": 1.6},
-		{"kind": "wait", "seconds": 0.3},
-		# 专名首现就地解释：炉约=二百年前的誓、守炉人=立誓那批人、净化偶=刮锈人偶。
-		{"kind": "caption", "text": LINES[1], "hold": 1.4},
-		{"kind": "caption", "text": LINES[2], "hold": 1.2},
-		{"kind": "caption", "text": LINES[3], "hold": 1.0, "tag": "pullback"},
-		# 镜头退到坟群：你也不过是其中一座。
-		{"kind": "caption", "text": LINES[4], "hold": 1.3, "tag": "grave_row"},
-		{"kind": "wait", "seconds": 0.5},
-		# 动机与回声：她只求你带她问一次；你听见的是她封进核之前的回声。
-		{"kind": "caption", "text": LINES[5], "hold": 1.5},
-		{"kind": "caption", "text": LINES[6], "hold": 1.4},
-		{"kind": "wait", "seconds": 0.3},
-		# 名字：刻在剑上、烧进铁里就回不来。
-		{"kind": "caption", "text": LINES[7], "hold": 1.4},
-		{"kind": "wait", "seconds": 0.5},
-		# 时间线四拍：炉心 → 残芯 → 灯靠残芯当灯芯 → 如今灯暗、她把核取下。
-		{"kind": "caption", "text": LINES[8], "hold": 1.4, "tag": "world"},
-		{"kind": "caption", "text": LINES[9], "hold": 1.0},
-		{"kind": "caption", "text": LINES[10], "hold": 1.2},
-		{"kind": "caption", "text": LINES[11], "hold": 1.3},
+		# 剑里的声音：镜头退到巢与坟，火星从剑背应声而起；回声一句说清「你听到的是什么」。
+		{"kind": "caption", "text": LINES[1], "hold": 1.4, "tag": "pullback"},
+		{"kind": "caption", "text": LINES[2], "hold": 1.4, "tag": "grave_row"},
 		{"kind": "wait", "seconds": 0.5},
 		# 异象：地下一声钟，镜头沿着坟群往东推。
 		{"kind": "sfx", "id": "bell_toll", "tag": "toll"},
 		{"kind": "fx", "id": "bell_ring", "target": knight, "seconds": 0.0},
-		{"kind": "caption", "text": LINES[12], "hold": 1.3, "tag": "anomaly"},
+		{"kind": "caption", "text": LINES[3], "hold": 1.3, "tag": "anomaly"},
 		{"kind": "wait", "seconds": 0.8},
-		# 代价：还火的人自己也要进炉（送剑=你散成铁），在目标之前钉住。
-		{"kind": "caption", "text": LINES[13], "hold": 1.5},
-		{"kind": "wait", "seconds": 0.3},
-		# 目标两拍：把残芯带到炉心，替名字问火一句「这火该不该还？」。
-		# 这一拍带 line_forge，截图夹具按 tag 认它，不按第几句认。
-		{"kind": "caption", "text": LINES[14], "hold": 1.5, "tag": "line_forge"},
-		{"kind": "caption", "text": LINES[15], "hold": 1.3},
+		# 目标两拍：把火种送回炉心（城底的大炉）；炉座是石台，先去续一口火。
+		# 第一拍带 line_forge，截图夹具按 tag 认它，不按第几句认。
+		{"kind": "caption", "text": LINES[4], "hold": 1.5, "tag": "line_forge"},
+		{"kind": "caption", "text": LINES[5], "hold": 1.4},
 		{"kind": "wait", "seconds": 0.3},
 		# 阻碍：玩家先看见刽子手立在门后，字幕才说他守着什么。
-		{"kind": "caption", "text": LINES[16], "hold": 1.4, "tag": "obstacle"},
+		{"kind": "caption", "text": LINES[6], "hold": 1.4, "tag": "obstacle"},
 		{"kind": "wait", "seconds": 0.3},
 		card,
 		{"kind": "tableau", "id": "world"},
@@ -418,7 +399,7 @@ static func _grave_row_answer(world: Node) -> void:
 		beat.tween_callback(Director.play_fx.bind("grave_answer", Vector2(x, GROUND_Y)))
 
 
-## 异象 + 目标：钟声落下，镜头沿走廊匀速往东，坟一座座冒灰回应；到头时残芯跳两下。
+## 异象 + 目标：钟声落下，镜头沿走廊匀速往东，坟一座座冒灰回应；到头时火种跳两下。
 static func _begin_pan() -> void:
 	var cam := _camera()
 	if cam == null or not is_instance_valid(_dolly):
@@ -436,7 +417,7 @@ static func _begin_pan() -> void:
 	_pan.tween_property(_dolly, "global_position", to, PAN_SECONDS) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# 世界悬念：队伍走到一半，走廊尽头先应一声。不是目标灯在闪，是「数人」的
-	# 那口钟在底下应了 —— 同一条钟声把坟群和残芯连成一个地方。
+	# 那口钟在底下应了 —— 同一条钟声把坟群和火种连成一个地方。
 	_echo = _dolly.create_tween()
 	_echo.tween_interval(PAN_SECONDS * ECHO_AT)
 	_echo.tween_callback(_heart_echo)
@@ -473,7 +454,7 @@ static func _heart_echo() -> void:
 static func _grave_answers(x: float) -> void:
 	Director.play_fx("grave_answer", Vector2(x, GROUND_Y))
 
-## 镜头到头：残芯的光跳两下（还没点燃，只是有东西在下面醒着），镜头缓缓推近。
+## 镜头到头：火种的光跳两下（还没点燃，只是有东西在下面醒着），镜头缓缓推近。
 ## 门后立着刽子手的剪影：目标先被看见，字幕「你得把他们带下去」才有落点。
 static func _arrive() -> void:
 	var cam := _camera()

@@ -1,0 +1,174 @@
+{
+  "density": 6,
+  "size": [
+    1664,
+    832
+  ],
+  "cell": [
+    416,
+    416
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/ghost/vanish/vanish_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        416
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        20,
+        20,
+        44,
+        62
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        416
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        17,
+        25,
+        47,
+        55
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        416
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        15,
+        23,
+        44,
+        49
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_3.png",
+      "slot": [
+        1248,
+        0,
+        1664,
+        416
+      ],
+      "frame_origin": [
+        1264,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        25,
+        27,
+        40,
+        44
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_4.png",
+      "slot": [
+        0,
+        416,
+        416,
+        832
+      ],
+      "frame_origin": [
+        16,
+        432
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        28,
+        30,
+        38,
+        42
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_5.png",
+      "slot": [
+        416,
+        416,
+        832,
+        832
+      ],
+      "frame_origin": [
+        432,
+        432
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        24,
+        28,
+        44,
+        46
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/vanish/vanish_6.png",
+      "slot": [
+        832,
+        416,
+        1248,
+        832
+      ],
+      "frame_origin": [
+        848,
+        432
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        25,
+        26,
+        42,
+        44
+      ]
+    }
+  ]
+}

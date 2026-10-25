@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/forge_near.png",
+  "source_sha256": "3fdc636e4d03d01fe4d3f41df87f764791a8226a57c703204cee963dd7e4f576",
+  "density": 12,
+  "size": [
+    3264,
+    1248
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3264,
+    1248
+  ],
+  "logical_size": [
+    272,
+    104
+  ],
+  "variants": [
+    "assets/env/backdrop/forge_near.png"
+  ]
+}

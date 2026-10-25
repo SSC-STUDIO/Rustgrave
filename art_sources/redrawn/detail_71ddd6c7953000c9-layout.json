@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/bg_wall_window_cut.png",
+  "source_sha256": "91636cdb401721d640b765aa80258a93ac772d9e0b4cd6efd71a77b9b9e38b37",
+  "density": 12,
+  "size": [
+    1920,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    1920,
+    2304
+  ],
+  "logical_size": [
+    160,
+    192
+  ],
+  "variants": [
+    "assets/env/bg_wall_window_cut.png"
+  ]
+}

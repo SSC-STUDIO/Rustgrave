@@ -79,7 +79,7 @@ func _ready() -> void:
 		_puff_age[i] = 1.0
 		_puff_life[i] = 1.0
 	if ResourceLoader.exists(STEAM_SHEET):
-		_steam = load(STEAM_SHEET) as Texture2D
+		_steam = DensityTextures.load_texture(STEAM_SHEET)
 
 
 ## 0..1 densities per kind (embers, ash, dust, specks). Bursts are always available.

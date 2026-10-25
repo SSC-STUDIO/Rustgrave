@@ -1,0 +1,23 @@
+{
+  "source": "assets/env/backdrop/forge_mid.png",
+  "source_sha256": "0b1130eace4879fbd70764437d89cdb9f6992ad1d7af948a290057c6bbd9002a",
+  "density": 12,
+  "size": [
+    3264,
+    1808
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3264,
+    1800
+  ],
+  "logical_size": [
+    272,
+    150
+  ],
+  "variants": [
+    "assets/env/backdrop/forge_mid.png",
+    "assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0001_buildings.png"
+  ]
+}

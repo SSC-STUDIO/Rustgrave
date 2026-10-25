@@ -9,7 +9,8 @@ extends Node
 ##
 ## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff     (default: all)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
-## --shots     boot,idle,focus,all  (default: idle,focus; 'boot' adds the intro frames)
+## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
+##             'dossier' pins the journey dossier card open, 'recap' opens the recap page)
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
@@ -193,6 +194,16 @@ func _variant(variant: String, size: Vector2i) -> void:
 				menu.select(pick, false)
 				await get_tree().create_timer(0.45).timeout
 				await _shot(variant, "focus_%s" % String(ids[pick]), size)
+	if _shots.has("dossier"):
+		title.set("_dossier_pinned", true)
+		title._set_dossier_open(true)
+		await get_tree().create_timer(0.5).timeout
+		await _shot(variant, "dossier", size)
+	if _shots.has("recap"):
+		title.open_recap()
+		await get_tree().create_timer(0.6).timeout
+		await _shot(variant, "recap", size)
+		title.recap_page().dismiss()
 	title.queue_free()
 	await _frames(3)
 

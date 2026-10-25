@@ -1,0 +1,128 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    448,
+    224
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/scrapper_hell_hound/run/run_0.png",
+      "slot": [
+        0,
+        0,
+        448,
+        224
+      ],
+      "frame_origin": [
+        23,
+        16
+      ],
+      "size": [
+        67,
+        32
+      ],
+      "bbox": [
+        13,
+        3,
+        58,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/run/run_1.png",
+      "slot": [
+        448,
+        0,
+        896,
+        224
+      ],
+      "frame_origin": [
+        471,
+        16
+      ],
+      "size": [
+        67,
+        32
+      ],
+      "bbox": [
+        14,
+        10,
+        58,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/run/run_2.png",
+      "slot": [
+        0,
+        224,
+        448,
+        448
+      ],
+      "frame_origin": [
+        23,
+        240
+      ],
+      "size": [
+        67,
+        32
+      ],
+      "bbox": [
+        14,
+        6,
+        58,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/run/run_3.png",
+      "slot": [
+        448,
+        224,
+        896,
+        448
+      ],
+      "frame_origin": [
+        471,
+        240
+      ],
+      "size": [
+        67,
+        32
+      ],
+      "bbox": [
+        14,
+        7,
+        57,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/run/run_4.png",
+      "slot": [
+        0,
+        448,
+        448,
+        672
+      ],
+      "frame_origin": [
+        23,
+        464
+      ],
+      "size": [
+        67,
+        32
+      ],
+      "bbox": [
+        13,
+        6,
+        58,
+        32
+      ]
+    }
+  ]
+}

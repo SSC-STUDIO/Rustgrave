@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/column_big.png",
+  "source_sha256": "4226de3ccdf1bd9ac4dd3c56f59f8b832d6125a43fe65119792a0ea61d49337a",
+  "density": 12,
+  "size": [
+    1376,
+    2288
+  ],
+  "image_bounds": [
+    0,
+    0,
+    1368,
+    2280
+  ],
+  "logical_size": [
+    114,
+    190
+  ],
+  "variants": [
+    "assets/env/column_big.png"
+  ]
+}

@@ -23,6 +23,13 @@ const TAB_DISPLAY := 1
 const TAB_KEYS := 2
 const TAB_ASSIST := 3
 const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位", "辅 助"]
+## 每页一句说明，写在外壳的底部提示带上（不再是页内脚注，页内只留仪表行）。
+const TAB_HINTS: Array[String] = [
+	"拖动即时生效 · 松手后自动写入 · 主音量同时压住音乐与氛围的上限",
+	"震动 / 闪光强度同时作用于战斗反馈与过场演出 · 三种缩放共用一条整数画布",
+	"回车改键 · 键盘与手柄按键 / 轴都能改 · 冲突自动互换 · 方向键 / K / 鼠标 / 触控保持原样",
+	"100% 是现在的平衡 · 受伤 / 毒素调低更轻松 · 弹反窗口调高更宽容",
+]
 
 const STEP := 5.0
 const SAVE_DELAY := 0.5
@@ -40,6 +47,36 @@ const BUS_NAMES := {
 	&"Ambience": "氛围",
 }
 
+## 数值读数框：嵌在行尾的小仪表舱（暗底 + 锈线框 + 顶光底影），滑条百分比、
+## 开关状态、键帽都坐在同一种舱里，整页读起来是一套仪表。
+class ReadoutCell:
+	extends Control
+
+	## 开状态的舱描一道余烬边（布尔开关用；数值舱保持锈色）。
+	var lit := false:
+		set(value):
+			lit = value
+			queue_redraw()
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(88.0, 30.0)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		draw_rect(Rect2(1.0, 0.0, w - 2.0, h), Color(0.03, 0.022, 0.05, 0.85))
+		draw_rect(Rect2(0.0, 1.0, w, h - 2.0), Color(0.03, 0.022, 0.05, 0.85))
+		var edge := Color(0.62, 0.40, 0.18, 0.9) if lit else Color(0.42, 0.26, 0.16, 0.8)
+		draw_rect(Rect2(1.0, 0.0, w - 2.0, 1.0), edge)
+		draw_rect(Rect2(1.0, h - 1.0, w - 2.0, 1.0), edge)
+		draw_rect(Rect2(0.0, 1.0, 1.0, h - 2.0), edge)
+		draw_rect(Rect2(w - 1.0, 1.0, 1.0, h - 2.0), edge)
+		# 顶光 / 底影：一点舱室深度
+		draw_rect(Rect2(2.0, 1.0, w - 4.0, 1.0), Color(0.9, 0.7, 0.5, 0.07))
+		draw_rect(Rect2(2.0, h - 2.0, w - 4.0, 1.0), Color(0.0, 0.0, 0.0, 0.3))
+
 ## 提示开关等没有专属接口的选项走 Settings.value；键名与各系统约定一致。
 const OPT_FULLSCREEN := &"fullscreen"
 const OPT_SMOOTHING := &"pixel_smoothing"
@@ -51,14 +88,18 @@ var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _tab_buttons: Array[Button] = []
 var _pages: Array[Control] = []
 var _tab := TAB_AUDIO
-var _notice: Label
+## 瞬时消息（改键结果等）写进外壳的底部提示带，盖过该页的常驻说明几秒。
+var _hint: Label
+var _notice_text := ""
 var _back: Button
 var _reset_keys: Button
-var _viewport_label: Label
 
 var _sliders: Dictionary = {}       # id(StringName) -> HSlider
 var _value_labels: Dictionary = {}  # id -> Label
 var _row_bgs: Dictionary = {}       # id -> Panel
+var _row_accents: Dictionary = {}   # id -> ColorRect（左缘灯口）
+var _value_cells: Dictionary = {}   # id -> ReadoutCell（读数舱）
+var _value_flash: Dictionary = {}   # id -> 剩余闪光 1..0（滑条值刚变时读数亮一下）
 var _toggles: Dictionary = {}       # id -> Button
 var _key_buttons: Dictionary = {}   # action -> Button
 var _key_caps: Dictionary = {}      # action -> Label
@@ -92,19 +133,21 @@ func _build() -> void:
 	# 弹窗卡片：背景只压暗、不铺黑；标题带与底部提示带由外壳统一给。
 	_shell = Modal.build(self, {
 		"title": "设 置",
-		"size": Vector2(900.0, 640.0),
-		"hint": "↑↓ 选择 · ←→ 调整 · Enter 确认",
+		"kicker": "锻 炉 仪 表",
+		"size": Vector2(900.0, 700.0),
+		"hint": TAB_HINTS[TAB_AUDIO],
 		"back": "Esc 返回",
 	})
 	_root = _shell["root"] as Control
 	_root.theme = UiKit.extras_theme()
+	_hint = _shell["hint"] as Label
 	# 设置页点空白处不关闭：误触会丢掉正在拖的滑条 / 改键，只走 Esc 与"返回"。
 	var body := _shell["body"] as Control
 
 	var column := VBoxContainer.new()
 	column.name = "Column"
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.add_theme_constant_override("separation", 8)
+	column.add_theme_constant_override("separation", 6)
 	body.add_child(column)
 
 	var tabs := HBoxContainer.new()
@@ -126,6 +169,18 @@ func _build() -> void:
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
+		# 当前页标签底下压着一根余烬短棒：换页时亮过去，和标题屏的灯口同一语汇。
+		var ember_bar := ColorRect.new()
+		ember_bar.name = "EmberBar"
+		ember_bar.color = UiKit.EMBER
+		ember_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		ember_bar.offset_left = 18.0
+		ember_bar.offset_right = -18.0
+		ember_bar.offset_top = -4.0
+		ember_bar.offset_bottom = -1.0
+		ember_bar.modulate.a = 0.0
+		ember_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tab.add_child(ember_bar)
 		tabs.add_child(tab)
 		_tab_buttons.append(tab)
 
@@ -140,11 +195,7 @@ func _build() -> void:
 	_pages.append(_build_keys_page(host))
 	_pages.append(_build_assist_page(host))
 
-	_notice = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_notice.name = "Notice"
-	_notice.custom_minimum_size = Vector2(0.0, 18.0)
-	column.add_child(_notice)
-
+	# 瞬时消息直接写外壳的提示带（_say / _apply_hint），页内不再单开一行。
 	var footer := HBoxContainer.new()
 	footer.name = "Footer"
 	footer.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -242,8 +293,6 @@ func _build_audio_page(host: Control) -> Control:
 		if AudioServer.get_bus_index(bus) < 0:
 			continue
 		page.add_child(_slider_row(bus, String(BUS_NAMES.get(bus, String(bus)))))
-	page.add_child(_page_note("拖动即时生效 · 松手后自动写入设置文件"))
-	page.add_child(_page_note("主音量同时压住音乐与氛围的上限"))
 	return page
 
 
@@ -256,11 +305,6 @@ func _build_display_page(host: Control) -> Control:
 	page.add_child(_toggle_row(OPT_SMOOTHING, "像 素 平 滑"))
 	page.add_child(_slider_row(&"shake", "震 屏 强 度"))
 	page.add_child(_slider_row(&"flash", "闪 光 强 度"))
-	page.add_child(_toggle_row(HintService.SETTING_ENABLED, "教 学 提 示"))
-	_viewport_label = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_viewport_label.name = "ViewportInfo"
-	page.add_child(_viewport_label)
-	page.add_child(_page_note("震动 / 闪光强度同时作用于战斗反馈与过场演出"))
 	return page
 
 
@@ -301,12 +345,11 @@ func _on_display_selected(index: int, id: StringName) -> void:
 			DisplayFit.apply_fit_mode(index as DisplayFit.FitMode, null, true)
 		&"vsync":
 			DisplayFit.apply_vsync(index == 1)
-	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 func _build_assist_page(host: Control) -> Control:
 	var page := _page(host, "AssistPage")
+	page.add_child(_toggle_row(HintService.SETTING_ENABLED, "教 学 提 示"))
 	for spec in [[&"assist_incoming", "受 伤 倍 率"], [&"assist_parry", "弹 反 窗 口"],
 			[&"assist_toxin", "毒 素 速 率"], [&"subtitle_speed", "字 幕 速 度"],
 			[&"text_scale", "文 本 缩 放"]]:
@@ -316,7 +359,6 @@ func _build_assist_page(host: Control) -> Control:
 		slider.min_value = limits.x * 100.0
 		slider.max_value = limits.y * 100.0
 		page.add_child(row)
-	page.add_child(_page_note("100% 保持原有平衡 · 受伤 / 毒素调低更轻松，弹反调高更宽容"))
 	return page
 
 
@@ -340,16 +382,10 @@ func _build_keys_page(host: Control) -> Control:
 			var spacer := Control.new()
 			spacer.custom_minimum_size = Vector2(KEY_COLUMN_WIDTH, 0.0)
 			grid.add_child(spacer)
-	var note := UiKit.label("支持键盘与手柄按键/轴改键 · 方向键、K、鼠标与触控保持原样",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	page.add_child(note)
 	return page
 
 
 ## 行底（Panel）+ 内容。焦点 / 悬停时行底换成"选中"贴图，名字变琥珀色。
-## 页面底部的 12px 脚注：让页面下半屏有东西可看，也顺手解释这一页在改什么。
-func _page_note(text: String) -> Label:
-	return UiKit.label(text, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _row_bg() -> Panel:
@@ -381,6 +417,73 @@ func _name_label(text: String, width: float) -> Label:
 	return label
 
 
+## 行左缘的灯口：常态是暗锈，焦点 / 悬停时烧成余烬色（标题屏铁条的同一语汇）。
+func _row_accent(row: Control, id: StringName) -> void:
+	var accent := ColorRect.new()
+	accent.name = "Accent"
+	accent.color = Color(0.42, 0.26, 0.16, 0.7)
+	accent.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	accent.offset_left = 6.0
+	accent.offset_right = 9.0
+	accent.offset_top = 12.0
+	accent.offset_bottom = -12.0
+	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(accent)
+	_row_accents[id] = accent
+
+
+## 行尾的读数舱：数值 / 状态 / 键帽都装进同一种暗舱，页面读起来是一套仪表。
+## 长文本（分辨率、缩放模式）会把舱撑到文字的实际宽度，往左吃掉行内的弹性空当。
+func _readout_cell(id: StringName, value: Label) -> Control:
+	var cell := ReadoutCell.new()
+	cell.name = "Cell"
+	value.set_anchors_preset(Control.PRESET_FULL_RECT)
+	value.offset_left = 6.0
+	value.offset_right = -6.0
+	value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cell.add_child(value)
+	_value_cells[id] = cell
+	return cell
+
+
+## 读数舱按文字实际宽度撑开（分辨率 / 缩放模式这类长值）。
+func _fit_cell(id: StringName) -> void:
+	var cell := _value_cells.get(id) as Control
+	var label := _value_labels.get(id) as Label
+	if cell == null or label == null:
+		return
+	var font := label.get_theme_font(&"font")
+	var font_size := label.get_theme_font_size(&"font_size")
+	if font == null:
+		return
+	var w := font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	cell.custom_minimum_size.x = maxf(88.0, ceilf(w) + 16.0)
+
+
+## 滑条轨道下的刻度：每 10% 一道细刻，1/4 处一道主刻（仪表感，也为拖动手感给参照）。
+func _slider_ticks(row: Control) -> void:
+	var ticks := Control.new()
+	ticks.name = "Ticks"
+	ticks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 轨道区间由行布局常量推出：Content 左右各让 20，名字列 170 + 间距 14，
+	# 读数舱 88 + 间距 14；垂直方向压在轨道的中线上。
+	var x0 := 20.0 + 170.0 + 14.0
+	var x1 := ROW_WIDTH - 20.0 - 88.0 - 14.0
+	ticks.position = Vector2(x0, 0.0)
+	ticks.size = Vector2(x1 - x0, UiKit.TOUCH_MIN)
+	row.add_child(ticks)
+	ticks.draw.connect(func() -> void:
+		# 轨道贴图盖在中线（y≈26）上：刻度从轨道下沿垂下来，像仪表的标尺。
+		for i in 11:
+			var f := float(i) / 10.0
+			var x: float = roundf(4.0 + f * (ticks.size.x - 8.0))
+			var major := i % 5 == 0
+			var h := 6.0 if major else 3.0
+			var col := Color(0.60, 0.38, 0.20, 0.6) if major else Color(0.42, 0.26, 0.16, 0.5)
+			ticks.draw_rect(Rect2(x, 30.0, 1.0, h), col))
+	ticks.queue_redraw()
+
+
 func _slider_row(id: StringName, title: String) -> Control:
 	var row := Control.new()
 	row.name = "Row_%s" % String(id)
@@ -389,6 +492,7 @@ func _slider_row(id: StringName, title: String) -> Control:
 	var bg := _row_bg()
 	row.add_child(bg)
 	_row_bgs[id] = bg
+	_row_accent(row, id)
 	var content := _row_content(row)
 	content.add_child(_name_label(title, 170.0))
 	var slider := HSlider.new()
@@ -408,15 +512,15 @@ func _slider_row(id: StringName, title: String) -> Control:
 	content.add_child(slider)
 	var value := UiKit.label("100%", &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	value.name = "Value"
-	value.custom_minimum_size = Vector2(76.0, 0.0)
 	value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	content.add_child(value)
+	content.add_child(_readout_cell(id, value))
+	_slider_ticks(row)
 	_sliders[id] = slider
 	_value_labels[id] = value
 	return row
 
 
-## 整行就是一个按钮：名字在左，当前值在右。
+## 整行就是一个按钮：名字在左，当前值在右（值坐在读数舱里）。
 func _button_row(id: StringName, title: String, width: float) -> Button:
 	var button := Button.new()
 	button.theme_type_variation = &"SettingsButton"
@@ -424,6 +528,7 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 	button.custom_minimum_size = Vector2(width, UiKit.TOUCH_MIN)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.mouse_entered.connect(button.grab_focus)
+	_row_accent(button, id)
 	var content := _row_content(button)
 	content.add_child(_name_label(title, 190.0 if width > 600.0 else 170.0))
 	var spacer := Control.new()
@@ -433,7 +538,7 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 	var value := UiKit.label("", &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	value.name = "Value"
 	value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	content.add_child(value)
+	content.add_child(_readout_cell(id, value))
 	return button
 
 
@@ -443,14 +548,21 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 func _paint_toggle(label: Label, on: bool) -> void:
 	label.text = "开" if on else "关"
 	label.modulate = UiKit.EMBER if on else Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.75)
+	# 开状态的读数舱描一道余烬边：整页扫一眼就知道哪几项开着。
+	var cell := label.get_parent() as ReadoutCell
+	if cell != null:
+		cell.lit = on
 
 
 func _toggle_row(id: StringName, title: String) -> Control:
 	var button := _button_row(id, title, ROW_WIDTH)
 	button.name = "Toggle_%s" % String(id)
 	button.pressed.connect(_on_toggle_pressed.bind(id))
+	# 开关行和滑条行一样：焦点 / 悬停点亮左缘灯口。
+	button.focus_entered.connect(_set_row_focus.bind(id, true))
+	button.focus_exited.connect(_set_row_focus.bind(id, false))
 	_toggles[id] = button
-	_value_labels[id] = button.get_node("Content/Value")
+	_value_labels[id] = button.get_node("Content/Cell/Value")
 	return button
 
 
@@ -463,7 +575,7 @@ func _key_row(action: StringName) -> Control:
 	button.focus_entered.connect(_set_row_focus.bind(action, true))
 	button.focus_exited.connect(_set_row_focus.bind(action, false))
 	_key_buttons[action] = button
-	_key_caps[action] = button.get_node("Content/Value")
+	_key_caps[action] = button.get_node("Content/Cell/Value")
 	return button
 
 
@@ -475,8 +587,6 @@ func _sync_all() -> void:
 	for id in _toggles:
 		_sync_toggle(id)
 	_sync_keys()
-	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 func _slider_percent(id: StringName) -> float:
@@ -485,6 +595,8 @@ func _slider_percent(id: StringName) -> float:
 			return Settings.shake_scale * 100.0
 		&"flash":
 			return Settings.flash_scale * 100.0
+		&"assist_incoming", &"assist_parry", &"assist_toxin", &"subtitle_speed", &"text_scale":
+			return float(Settings.value(id, 1.0)) * 100.0
 		_:
 			return Settings.assist(id) * 100.0 if Settings.ASSIST_LIMITS.has(id) else Settings.volume_percent(id)
 
@@ -508,8 +620,9 @@ func _toggle_state(id: StringName) -> bool:
 
 func _sync_toggle(id: StringName) -> void:
 	var label := _value_labels.get(id) as Label
-	if label != null:
-		_paint_toggle(label, _toggle_state(id))
+	if label == null:
+		return
+	_paint_toggle(label, _toggle_state(id))
 
 
 func _sync_keys() -> void:
@@ -533,9 +646,14 @@ func _sync_keys() -> void:
 				var normal := _row_bgs.get(action) as Panel
 				if normal != null:
 					normal.theme_type_variation = &"SettingsRowNormal"
+		# 键帽文字长度会变（"按下新按键…" 比 "J" 长得多）：读数舱跟着文字走。
+		_fit_cell(action)
 
 
 func _set_row_focus(id: StringName, focused: bool) -> void:
+	var accent := _row_accents.get(id) as ColorRect
+	if accent != null:
+		accent.color = UiKit.EMBER if focused else Color(0.42, 0.26, 0.16, 0.7)
 	var bg := _row_bgs.get(id) as Panel
 	if bg != null:
 		bg.theme_type_variation = &"SettingsRowFocused" if focused else &"SettingsRowNormal"
@@ -581,11 +699,35 @@ func _show_page(index: int) -> void:
 		_pages[i].visible = i == _tab
 		_pages[i].get_parent().visible = i == _tab
 		_tab_buttons[i].set_pressed_no_signal(false)
+		_set_tab_ember(i, i == _tab)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
 	_reset_keys.visible = _tab == TAB_KEYS
 	_wire_page_tail()
-	if _viewport_label != null and _tab == TAB_DISPLAY:
-		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
+	_apply_hint()
+
+
+## 底部提示带：有瞬时消息时盖着消息，平时写当前页的那句说明。
+func _apply_hint() -> void:
+	if _hint == null:
+		return
+	if _notice_text != "":
+		_hint.text = _notice_text
+	else:
+		_hint.text = TAB_HINTS[_tab]
+
+
+## 标签下的余烬短棒：当前页亮起（快入慢出），其余熄掉。headless / 构建期直接落位。
+func _set_tab_ember(i: int, on: bool) -> void:
+	var bar := _tab_buttons[i].get_node_or_null("EmberBar") as CanvasItem
+	if bar == null:
+		return
+	var target := 1.0 if on else 0.0
+	if _building or DisplayServer.get_name() == "headless" or not is_inside_tree():
+		bar.modulate.a = target
+		return
+	var tw := create_tween()
+	tw.tween_property(bar, "modulate:a", target, 0.22 if on else 0.12) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 ## 当前页第一个能拿焦点的控件。
@@ -614,7 +756,7 @@ func open() -> void:
 		return
 	_closing = false
 	_cancel_capture()
-	_notice.text = ""
+	_notice_text = ""
 	_sync_all()
 	_show_page(TAB_AUDIO)
 	visible = true
@@ -665,12 +807,29 @@ func _process(delta: float) -> void:
 	if _notice_left > 0.0:
 		_notice_left -= delta
 		if _notice_left <= 0.0 and _capturing == &"":
-			_notice.text = ""
+			_notice_text = ""
+			if _hint != null:
+				_hint.modulate = Color.WHITE
+			_apply_hint()
+	# 读数闪光衰减（只在滑条值刚变过时才逐帧跑）。
+	if not _value_flash.is_empty():
+		var done: Array = []
+		for id in _value_flash:
+			var left: float = maxf(0.0, float(_value_flash[id]) - delta * 2.6)
+			_value_flash[id] = left
+			var label := _value_labels.get(id) as Label
+			if label != null:
+				label.modulate = Color.WHITE.lerp(UiKit.EMBER, left)
+			if left <= 0.0:
+				done.append(id)
+		for id in done:
+			_value_flash.erase(id)
 
 
 func _say(text: String) -> void:
-	_notice.text = text
+	_notice_text = text
 	_notice_left = NOTICE_HOLD
+	_apply_hint()
 
 
 # --- 滑条 / 开关 ---------------------------------------------------------------
@@ -683,12 +842,16 @@ func _on_slider_changed(value: float, id: StringName) -> void:
 			Settings.set_shake_scale(value / 100.0, false)
 		&"flash":
 			Settings.set_flash_scale(value / 100.0, false)
+		&"assist_incoming", &"assist_parry", &"assist_toxin", &"subtitle_speed", &"text_scale":
+			Settings.set_value(id, clampf(value / 100.0, 0.5, 1.5), false)
 		_:
 			if Settings.ASSIST_LIMITS.has(id):
 				Settings.set_value(id, value / 100.0, false)
 			else:
 				Settings.set_volume_percent(id, value, false)
 	(_value_labels[id] as Label).text = "%d%%" % int(round(value))
+	# 读数舱亮一下：值刚变的那一下读数烧成余烬色，随后慢慢退回去。
+	_value_flash[id] = 1.0
 	_mark_dirty()
 	if _tick_cool <= 0.0:
 		_tick_cool = TICK_INTERVAL
@@ -711,8 +874,6 @@ func _on_toggle_pressed(id: StringName) -> void:
 		_:
 			Settings.set_value(id, not bool(Settings.value(id, true)))
 	_sync_toggle(id)
-	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 	UiKit.sfx(&"ui_select")
 
 
@@ -735,6 +896,9 @@ func begin_capture(action: StringName) -> void:
 	_capturing = action
 	_sync_keys()
 	_say("按下「%s」的新按键 · Esc 取消" % KeyLabels.action_name(action))
+	# 抓键期间提示带烧成余烬色：整屏只有这一处在等输入，必须一眼能找到。
+	if _hint != null:
+		_hint.modulate = UiKit.EMBER
 	_notice_left = 0.0  # 抓键期间提示常驻，直到完成或取消
 
 
@@ -743,7 +907,10 @@ func _cancel_capture() -> void:
 		return
 	_capturing = &""
 	_sync_keys()
-	_notice.text = ""
+	_notice_text = ""
+	if _hint != null:
+		_hint.modulate = Color.WHITE
+	_apply_hint()
 
 
 ## 抓键入口：返回 true 表示这个事件被改键流程吃掉了。测试可以直接喂 InputEventKey / 手柄按键或轴。
@@ -875,7 +1042,7 @@ func key_cap_text(action: StringName) -> String:
 
 
 func notice_text() -> String:
-	return _notice.text
+	return _notice_text
 
 
 func back_button() -> Button:

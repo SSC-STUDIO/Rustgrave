@@ -147,13 +147,40 @@ func _add_pause_button() -> void:
 	_pad.add_child(pause_btn)
 
 
+## 触控钮的铁框：menu_plate 的 TAG 板只改着色透明度（与弹窗卡同一个 GlassKit.CARD_ALPHA）。
+## TouchKey = 冷铁环；TouchKeyDown = 余烬环（按下即亮，松开回到冷铁）。
+static var _keys: Theme
+
+
+static func key_theme() -> Theme:
+	if _keys == null:
+		_keys = Theme.new()
+		_keys.set_type_variation(&"TouchKey", &"Panel")
+		_keys.set_stylebox("panel", &"TouchKey", _key_box(UiKit.Plate.State.NORMAL))
+		_keys.set_type_variation(&"TouchKeyDown", &"Panel")
+		_keys.set_stylebox("panel", &"TouchKeyDown", _key_box(UiKit.Plate.State.SELECTED))
+	return _keys
+
+
+static func _key_box(state: int) -> StyleBoxTexture:
+	var box := UiKit.Plate.style_box(UiKit.Plate.Shape.TAG, state)
+	box.modulate_color = Color(1.0, 1.0, 1.0, GlassKit.CARD_ALPHA)
+	# 按钮整块都是字的底：内容边距归零，字由 FULL_RECT 的 KeyCapLabel 居中。
+	box.content_margin_left = 0.0
+	box.content_margin_right = 0.0
+	box.content_margin_top = 0.0
+	box.content_margin_bottom = 0.0
+	return box
+
+
 func _make_button(action: StringName, caption: String, size: float,
 		tap_release: bool, is_pause: bool = false) -> Control:
 	var wrap := Panel.new()
 	wrap.name = "Btn_%s" % (String(action) if action != &"" else "pause")
 	wrap.custom_minimum_size = Vector2(size, size)
 	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
-	wrap.theme_type_variation = &"MenuRowNormal"
+	wrap.theme = key_theme()
+	wrap.theme_type_variation = &"TouchKey"
 	wrap.focus_mode = Control.FOCUS_NONE
 	# Tools / tests find a button by what it does, not by its caption.
 	wrap.set_meta("action", action)
@@ -232,7 +259,7 @@ func _flash_look(wrap: Control) -> void:
 			_set_pressed_look(wrap, false))
 
 func _set_pressed_look(wrap: Control, down: bool) -> void:
-	wrap.theme_type_variation = &"MenuRowSelected" if down else &"MenuRowNormal"
+	wrap.theme_type_variation = &"TouchKeyDown" if down else &"TouchKey"
 	wrap.modulate = Color(1.15, 0.95, 0.7) if down else Color.WHITE
 
 

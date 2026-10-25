@@ -1,20 +1,24 @@
 class_name ChapterTransition
 extends Node
-## 章间间幕执行器（contract §1.3）：进下一章时**一次**的承接演出。
+## 章间分镜执行器（contract §1.3）：进下一章时**一次**的承接演出。
 ##
-## 数据全在 StoryFlow（13 条边界）+ ChapterText（exit_captions/objective）；这里只负责
-## 「什么时候播、怎么收」。口语约定：
+## 数据全在 StoryFlow（13 条边界）+ Storyboards（每条边界一段分镜）；这里只负责
+## 「什么时候播、怎么收」。画面由全屏分镜播放器（Director 的 board 步骤）出，这个节点里的
+## 几何布景 StagingArt 只在某条边界没有分镜时作字幕版兜底。口语约定：
 ##   · 一次：旗标 `interlude_<from>_seen`（SaveData 剧情旗标），“跳过也算看过”；
 ##   · 可跳过：Director.play(..., true) —— Enter / 点“跳过”都结束整段；
-##   · 暂停冻结：Director.suspend()/tree.paused 时布景 age 停走（process 里 return）；
+##   · 暂停冻结：Director.suspend()/tree.paused 时分镜与兜底布景都停走；
 ##   · 死亡读档不重播：旗标在**开演时**点上，死亡打断也算看过（与开场 abort 语义不同，
-##     见 docs/story.md / contract §1.3）；abort 掉、从未开演的间幕不算看过；
+##     见 docs/story.md / contract §1.3）；读档会把旗标回卷到上一次存档，所以同时记进
+##     StoryStage 的本会话记忆（StoryStage.once）；abort 掉、从未开演的间幕不算看过；
+##   · 只在战役里播：回火试炼 / 余烬竞技场里 live() 为假，不出章间分镜 / 章节卡 / 遮罩；
 ##   · 切场硬复位：每次 chapter_started 先 reset_view()：布景、队列、遮幅全收；
 ##   · 不写未完成章节旗标：只写自己的 interlude 旗标。
 ##
 ## 播完/跳过后 ChapterLevel 的章节卡与醒来句照常接上（它们排在 Director 队列后面）。
 ## 在测试跑里默认 inert（Director.is_test_runner()）；story_flow_test 用 test_enabled 打开。
 
+const Boards := preload("res://scripts/data/storyboards.gd")
 const OVERLAY_LAYER := 9
 const SCRIM := Color(0.028, 0.018, 0.035, 0.82)
 const PALE := Color("f5dfbd")
@@ -26,6 +30,7 @@ var test_enabled := false
 var _overlay: CanvasLayer
 var _art: StagingArt
 var _staging: String = ""
+var _board_id: String = ""
 var _playing := false
 var _pending_to: String = ""
 var _flag: String = ""
@@ -50,11 +55,30 @@ func _on_director_finished() -> void:
 		_playing = false
 		_flag = ""
 		_staging = ""
+		_board_id = ""
 		_hide_staging()
 
 
+## 章间只在战役里播：回火试炼和余烬竞技场没有「上一章 → 下一章」，这两种模式里不许出现
+## 章间分镜 / 章节卡 / 几何遮罩（遮罩曾经卡在屏幕上）。测试跑器里默认 inert。
 func live() -> bool:
+	if _autoload_active("TrialRun") or _autoload_active("ArenaRun"):
+		return false
 	return test_enabled or not Director.is_test_runner()
+
+
+## active() 是静态函数。实例上的 has_method / call 在 GDScript 4.x 里对 static 不稳定，
+## 会把「正在竞技场」误判成 false，章间遮罩就会盖上来。节点在才直接调；
+## 测试跑器没挂这个 autoload 时当作不在该模式。
+func _autoload_active(which: String) -> bool:
+	var tree := get_tree() if is_inside_tree() else Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return false
+	if tree.root.get_node_or_null(which) == null:
+		return false
+	if which == "ArenaRun":
+		return ArenaRun.active()
+	return TrialRun.active()
 
 
 func is_playing() -> bool:
@@ -63,6 +87,11 @@ func is_playing() -> bool:
 
 func staging() -> String:
 	return _staging
+
+
+## 正在播的分镜 id（没在播 / 走字幕兜底时为空）。
+func board_id() -> String:
+	return _board_id
 
 
 ## 布景动画时钟（测试读它验「暂停冻结」）。
@@ -80,10 +109,18 @@ func _on_chapter_started(level_id: String) -> void:
 	var edge := StoryFlow.edge_into(level_id)
 	if edge.is_empty():
 		return
-	if SaveData.has_flag(StoryFlow.interlude_flag(String(edge["from"]))):
+	if _seen_before(StoryFlow.interlude_flag(String(edge["from"]))):
 		return
 	_pending_to = level_id
 	call_deferred("_start_arrival")
+
+
+## 看过没有：存档旗标是真相；本会话记忆只补死亡读档的缺口（读档把旗标回卷到上一次存档，
+## 刚看完的章间不能因此再播）。和 StoryStage.once 同一口径：只在真实一局里（wake 已点）才认。
+func _seen_before(flag: String) -> bool:
+	if SaveData.has_flag(flag):
+		return true
+	return StoryStage.seen_this_session(flag) and SaveData.has_flag("wake")
 
 
 ## 章节卡/醒来句由 ChapterLevel 用 call_deferred("_wake") 排；这里也 defer，
@@ -93,11 +130,14 @@ func _start_arrival() -> void:
 		return
 	var to := _pending_to
 	_pending_to = ""
+	# 排到下一帧再开演之前模式可能变了（竞技场 / 试炼已经接管）：再认一次。
+	if not live():
+		return
 	var edge := StoryFlow.edge_into(to)
 	if edge.is_empty():
 		return
 	var flag := StoryFlow.interlude_flag(String(edge["from"]))
-	if SaveData.has_flag(flag):
+	if _seen_before(flag):
 		return
 	_play_edge(edge, to, flag)
 
@@ -117,16 +157,35 @@ func _play_edge(edge: Dictionary, to_id: String, flag: String) -> void:
 	var steps := StoryFlow.arrival_steps(to_id)
 	if steps.is_empty():
 		return
+	var id := StoryFlow.board_id(String(edge["from"]))
 	_playing = true
 	_flag = flag
-	_show_staging(StoryFlow.staging_of(edge))
+	if Boards.has(id):
+		# 分镜自己有画面（插图或实时拼的布景），这里不再叠几何布景。
+		_board_id = id
+	else:
+		_board_id = ""
+		steps = fallback_steps(edge)
+		_show_staging(StoryFlow.staging_of(edge))
 	Director.play_when_clear(steps, true, func() -> void: _mark_seen(flag))
+
+
+## 没有分镜时的字幕版：lock → 这条边界的全部台词 → unlock（配几何布景）。
+func fallback_steps(edge: Dictionary) -> Array:
+	var steps: Array = [{"kind": "lock"}]
+	for line in StoryFlow.lines_of(edge):
+		steps.append({"kind": "caption", "text": line, "hold": 2.4})
+	steps.append({"kind": "unlock"})
+	return steps
 
 
 ## 开演才点旗：被 abort 掉、从未开演的间幕不算看过；开演后死亡打断也算看过
 ## （“死亡读档不重播”）。只写自己的间幕旗标，绝不写章节完成旗标。
 func _mark_seen(flag: String) -> void:
-	if flag != "":
+	if flag == "":
+		return
+	# StoryStage.once 同时点存档旗标和本会话记忆（死亡读档回卷旗标后靠后者不重播）。
+	if not StoryStage.once(flag):
 		SaveData.mark_flag(flag)
 
 
@@ -138,6 +197,7 @@ func _on_script_finished() -> void:
 	_playing = false
 	_flag = ""
 	_staging = ""
+	_board_id = ""
 	_hide_staging()
 
 
@@ -158,6 +218,7 @@ func reset_view() -> void:
 	_playing = false
 	_flag = ""
 	_staging = ""
+	_board_id = ""
 	_hide_staging()
 
 

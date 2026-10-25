@@ -115,3 +115,76 @@ func test_session_only_slab_is_not_persistent() -> void:
 	var slab := _make_slab(Vector2(64, 32), false)
 	ok(not slab.is_in_group(&"persistent"), "默认会话内破坏、重载恢复")
 	slab.free()
+
+
+func test_chunk_size_16_gives_finer_grid() -> void:
+	var slab := SLAB_SCENE.instantiate() as BreakableTerrain
+	slab.size = Vector2(32, 32)
+	slab.skin = "stone"
+	slab.chunk_size = 16
+	add_child(slab)
+	eq(slab.chunk_count(), 4, "32x32 / 16px -> 2x2 四块")
+	slab.free()
+	var default_slab := _make_slab(Vector2(32, 32))
+	eq(default_slab.chunk_count(), 1, "默认 32px 只有一块")
+	default_slab.free()
+
+
+func test_damage_area_breaks_chunks_in_radius() -> void:
+	var slab := _make_slab(Vector2(64, 32))
+	# 面杀伤覆盖整块板：两块全碎，返回碎块数。
+	var broken := slab.damage_area(slab.global_position + Vector2(32, 16), 60.0, 2)
+	eq(broken, 2, "半径内两块全碎")
+	ok(slab.is_destroyed())
+	slab.free()
+	await flush(2)
+	var partial := _make_slab(Vector2(64, 32))
+	var hit := partial.damage_area(partial.global_position + Vector2(16, 16), 24.0, 2)
+	eq(hit, 1, "只有半径内的块碎")
+	ok(partial.is_chunk_broken(0))
+	ok(not partial.is_chunk_broken(1), "半径外完好")
+	partial.free()
+
+
+func test_support_collapse_drops_unsupported_chunks() -> void:
+	var slab := _make_slab(Vector2(32, 64))
+	eq(slab.chunk_count(), 2, "1 列 2 行")
+	var announcements: Array[String] = []
+	var on_line := func(text: String) -> void: announcements.append(text)
+	GameEvents.announcement.connect(on_line)
+	# 打碎底块（row 1）：顶块失去支撑，连锁塌落。
+	ok(slab.damage_chunk(1, 2), "底块被打碎")
+	eq(slab.broken_chunks(), 2, "顶块失去支撑跟着塌落")
+	ok(slab.is_destroyed())
+	eq(announcements.size(), 1, "全碎旁白仍只播一次")
+	GameEvents.announcement.disconnect(on_line)
+	slab.free()
+	await flush(2)
+
+
+func test_support_collapse_can_be_disabled() -> void:
+	var slab := _make_slab(Vector2(32, 64))
+	slab.support_collapse = false
+	ok(slab.damage_chunk(1, 2), "底块被打碎")
+	eq(slab.broken_chunks(), 1, "关闭支撑塌落：顶块还在")
+	ok(not slab.is_chunk_broken(0))
+	slab.free()
+	await flush(2)
+
+
+func test_restore_replays_collapsed_state_quietly() -> void:
+	var slab := _make_slab(Vector2(32, 64), true)
+	slab.damage_chunk(1, 2)
+	var state: Array = slab.get_persistent_state().get("broken", [])
+	eq(state.size(), 2, "塌落结果写进持久状态")
+	var announcements: Array[String] = []
+	var on_line := func(text: String) -> void: announcements.append(text)
+	GameEvents.announcement.connect(on_line)
+	var restored := _make_slab(Vector2(32, 64), true)
+	restored.apply_persistent_state({"broken": state})
+	await flush(2)
+	eq(restored.broken_chunks(), 2, "读档恢复含塌落块")
+	eq(announcements.size(), 0, "恢复全程安静")
+	GameEvents.announcement.disconnect(on_line)
+	restored.free()
+	slab.free()

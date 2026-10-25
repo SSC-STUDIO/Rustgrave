@@ -62,20 +62,20 @@ func test_stone_skin_paves_flagstones_over_cemetery_earth() -> void:
 			if not by_row.has(row):
 				by_row[row] = []
 			(by_row[row] as Array).append(spr)
-			ok(not spr.texture.resource_path.contains("float_"), "stone never uses hovering slabs")
-			ok(not spr.texture.resource_path.contains("tile_top"), "stone has no grass cap")
+			ok(not DensityTextures.source_path(spr.texture).contains("float_"), "stone never uses hovering slabs")
+			ok(not DensityTextures.source_path(spr.texture).contains("tile_top"), "stone has no grass cap")
 	eq(by_row.size(), 4, "64px tall floor paints four rows")
 	for row in [0, 1]:
 		for spr in by_row.get(row, []):
 			var s := spr as Sprite2D
-			ok(s.texture.resource_path.contains("slab_"), "row %d is cut from a church slab" % row)
+			ok(DensityTextures.source_path(s.texture).contains("slab_"), "row %d is cut from a church slab" % row)
 			ok(s.region_enabled, "flagstone tiles are 16px regions of the 48px slab")
 			almost(s.region_rect.position.y, row * 16.0, 0.01, "row %d samples its own band of the slab" % row)
 			almost(s.region_rect.size.x, 16.0, 0.01)
 			eq(s.scale, Vector2.ONE, "slab art is already world 1x")
 	for spr in by_row.get(2, []):
 		var s := spr as Sprite2D
-		ok(not s.texture.resource_path.contains("slab_"), "under the paving the cemetery earth returns")
+		ok(not DensityTextures.source_path(s.texture).contains("slab_"), "under the paving the cemetery earth returns")
 		ok(s.modulate.r < 0.95, "earth under the flagstones sinks darker")
 	var col: CollisionShape2D
 	for child in plat.get_children():
@@ -112,6 +112,6 @@ func test_ground_skin_does_not_use_float_tiles() -> void:
 	for child in plat.get_children():
 		if child is Sprite2D:
 			sprites += 1
-			ok(not child.texture.resource_path.contains("float_"),
-					"ground used float tile %s" % child.texture.resource_path)
+			ok(not DensityTextures.source_path(child.texture).contains("float_"),
+					"ground used float tile %s" % DensityTextures.source_path(child.texture))
 	ok(sprites >= 1, "ground skin still paints tiles")

@@ -2,6 +2,8 @@ class_name Hurtbox
 extends Area2D
 ## Receives melee and projectile hits. Team string prevents friendly fire.
 
+const ArenaCatalog := preload("res://scripts/data/arena_catalog.gd")
+
 signal hurt(amount: int, attacker: Node)
 
 @export var team: StringName = &"player"
@@ -88,6 +90,8 @@ func _on_area_entered(area: Area2D) -> void:
 			return
 		if _is_owner_invincible():
 			return
+		if _arena_depth_blocked(projectile):
+			return
 		receive_hit(projectile.damage, projectile)
 		projectile.queue_free()
 		return
@@ -101,6 +105,8 @@ func _on_area_entered(area: Area2D) -> void:
 			return
 		if _is_owner_invincible():
 			return
+		if _arena_depth_blocked(box):
+			return
 		box.already_hit.append(self)
 		receive_hit(box.damage, box)
 
@@ -111,4 +117,24 @@ func _is_owner_invincible() -> bool:
 	var body := get_parent()
 	if body is Player:
 		return (body as Player).is_invincible()
+	return false
+
+
+func _arena_depth_blocked(attacker: Node) -> bool:
+	if not ArenaRun.active():
+		return false
+	var body := get_parent()
+	if body == null or attacker == null:
+		return false
+	if not _arena_participant(body) and not _arena_participant(attacker):
+		return false
+	return not ArenaCatalog.depths_touch(attacker, body)
+
+
+func _arena_participant(node: Node) -> bool:
+	var cursor: Node = node
+	while cursor != null:
+		if cursor.is_in_group("arena_unit") or cursor.is_in_group("arena_plane") or cursor.is_in_group("arena_bolt"):
+			return true
+		cursor = cursor.get_parent()
 	return false

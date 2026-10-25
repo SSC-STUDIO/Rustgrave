@@ -26,7 +26,7 @@ func test_flame_uses_looping_strip() -> void:
 		return
 	ok(flame.texture != null, "flame has a texture")
 	if flame.texture != null:
-		eq(String(flame.texture.resource_path), "res://assets/fx/shrine_flame.png")
+		eq(DensityTextures.source_path(flame.texture), "res://assets/fx/shrine_flame.png")
 	eq(flame.hframes, 8, "8-frame strip")
 	eq(flame.vframes, 1)
 	eq(flame.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
@@ -112,7 +112,7 @@ func test_collision_unchanged_by_flame() -> void:
 	var fill := nest.get_node_or_null("Fill") as Sprite2D
 	ok(fill != null, "brazier sprite still named Fill")
 	if fill != null and fill.texture != null:
-		eq(String(fill.texture.resource_path), "res://assets/env/ember_nest.png")
+		eq(DensityTextures.source_path(fill.texture), "res://assets/env/ember_nest.png")
 		ok(fill.texture.get_width() >= 44, "nest is a readable brazier, not 18px rubble")
 		eq(fill.scale, Vector2.ONE, "world 1x: brazier is authored at size, never squeezed")
 		eq(fill.position, EmberNest.BASE_OFFSET)

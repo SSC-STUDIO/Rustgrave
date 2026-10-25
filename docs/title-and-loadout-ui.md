@@ -34,8 +34,8 @@
   | `MassLeft` / `MassRight` (+1.0) | 近景机械山体：边缘朝厅内一侧带暖色边光；右山体里是炉门（自发光、随炉温变暗） |
   | `Glow`（CanvasLayer，不受环境光影响） | 远景浮尘、余烬 / 飘灰 / 蒸汽、暗角、闪光 |
 
-  灯 ≤ 8（`PitLight`、`ShaftLight`、`ForgeLight` + 5 盏吊灯，`ForgeLight` 在"守火"里兼作余烬巢的光、
-  在"熄灭"里挪到桥心变成那一点将熄的红光），节点约 60 个（上限 250）。
+  灯 ≤ 8（`PitLight`、`ShaftLight`、`ForgeLight` + 5 盏吊灯，`ForgeLight` 在"守炉"里兼作余烬巢的光、
+  在"熄火"里挪到桥心变成那一点将熄的红光），节点约 60 个（上限 250）。
 - 摄像机：自带 `Camera2D`（呼吸 ±1px / 7s，整数）。鼠标视差是**绕骑士平面的轨道视差**：
   `位置 = 基准 − 鼠标位移 × 深度`，再 `round()` 成整数像素——骑士不动，近景向一边、远景向另一边。
   没动过鼠标时指针居中（截图 / 测试可重复）。
@@ -53,9 +53,9 @@
 |---|---|---|
 | `cold` | 无存档 | 冷炉：偏冷偏暗、吊灯全暗、炉门与熔河只剩暗红、齿轮几乎不转、不冒汽，余烬将熄 |
 | `journey` | 有存档、无结局 | 按**幕**调色（第 1–3 / 4–7 / 8–11 / 12–14 章 → `act1..act4`：由冷青渐暖到炉红，炉火、齿轮、余烬、蒸汽逐幕加强）；亮灯数 = `ceil(通关章数×5/14)`（通关 0 章 → 0 盏）；"通关"= 章节完成旗标（`StoryFlow.DONE_FLAGS`）或位于存档章节之前 |
-| `give`（送剑） | 结局 | 炉火稳而暖、灯全亮且不闪；骑士不在了，桥上只剩一把插地的巨剑和几粒飘着的锈屑 |
-| `keep`（守火） | 结局 | 骑士站在桥的炉口端朝火里看，余烬巢点着；整体更暖更亮 |
-| `snuff`（熄灭） | 结局 | 灯全暗、炉与齿轮熄了；骑士不在，桥心只剩一点将熄的红光 |
+| `give`（还火） | 结局 | 炉火稳而暖、灯全亮且不闪；骑士不在了，桥上只剩一把插地的巨剑和几粒飘着的锈屑 |
+| `keep`（守炉） | 结局 | 骑士站在桥的炉口端朝火里看，余烬巢点着；整体更暖更亮 |
+| `snuff`（熄火） | 结局 | 灯全暗、炉与齿轮熄了；骑士不在，桥心只剩一点将熄的红光 |
 
 没见过的结局 id 按 `give`（已完成）处理。`TitleWorld.forced_state`（静态）可强制某个状态（截图工具 / 测试）。
 `TitleWorld.configure(state)` 搭好之后也能切换变体（旧演员被收走）。
@@ -70,7 +70,23 @@
   行动（点燃余烬 / 继续旅程）· 模式（回火试炼 / 余烬竞技场）· 系统（设置 / 操作说明）· 离开；
   组间距 16。`RAIL_X=72`、`RAIL_TOP=254`，"离开"行中心 y=640。回火试炼未解锁时条的右端有一行小字"第七章后解锁"。
   聚焦（键盘 / 悬停）：条上迸一簇火星（`UiSparks`，`TitleSparks` 放大两倍落在 2px 栅格上）+
-  场景吊灯一闪、镜头整体推 1–2px（`TitleWorld.nudge`）。
+  场景吊灯一闪、镜头整体推 1–2px（`TitleWorld.nudge`）+ 这一行在炉厅里自己的反应
+  （`TitleWorld.react_to`：炉火一涌 / 锻锤敲一下 / 火盆加亮 / 云影放缓 / 破旗一掀 / 魂光升起，见
+  [`title-live-scene.md`](./title-live-scene.md) §6.3）。
+  有结局的存档里第二行写作「回看余烬」，选中**打开总结页**（`ember_recap.gd`，OrnatePanel 卡片 + `MenuList`）：
+  继续旅程 / 重温序章 / 重温结局（`Boards.replay_list`，回放时总结页先藏起来、播完恢复）/ 余烬竞技场 /
+  回火试炼（未解锁置灰）/ 返回 / 再入某章（已通关章节按 `StoryFlow.DONE_FLAGS` 数；从该章入口出生点出发）。
+  旅程列里的「回看余烬」按钮（`RecapButton`）随时打开同一页（悬停 / 聚焦时页脚写它的说明、左缘迸火星）。
+  按钮外观是 `RecapStrip` 自绘的铁条（与旅程列的 `TitleChip` 同一套深底、锈边、左色条、削角；聚焦时边与色条烧成余烬色）。
+  总结页是半透明玻璃卡（`CARD_ALPHA = 0.78`，外壳与档案板同一透明度），打开时标题菜单淡出 0.22s、关闭时淡回：
+  左列是铁条菜单（题头「行程入口」，可滚动，与上方题头同一条左缘）；右侧是**旅程档案板**（`DossierCard`，题头「旅程档案」）：
+  结局印记（`SealMark`，颜色随结局：还火金 / 守炉橙 / 熄火灰紫，没有结局是暗铜空章）→ 结局标题 → 前情 → 章节刻度条
+  （`ChapterRail`，每章一粒菱形，已通关烧成余烬，幕间立竖线）→ 已过章数 → 结局三格（看过的亮出名字，没见过的写「？？」）。
+  前情不再放在滚动区里：列表滚动时它不跟着走，章节行不会被它顶到折叠线以下。
+  打磨细节：选中的铁条整体右移 4px（缓动回弹）、条外一圈炉温光晕、削角尖一粒余烬、光标整像素轻摆；
+  确认时条身扫过一道白热闪光（`MenuItem.flash()`）；禁用行（未解锁的试炼）悬停时页脚交代解锁条件；
+  页脚说明换行走交叉淡入淡出；副题两侧有余烬菱形饰（`SubtitleFlanks`）；字标锻入收尾有一道落锤白热；
+  墓志句垫柔和底衬、顶部一道锈线（右端余烬钉）；菜单落位用 `TRANS_BACK` 带回弹。
 - **旅程列** `JourneyColumn`（x=1000..1208，y=188..608）：`JourneyHeader` / `JourneyCount`（`04 / 14`）、
   当前章名 `JourneyChapter`（`ChapterText.title_of`）与前情 `JourneyRecap`（`recap_of`）、
   `JourneyGauge`（`TitleGauge`：14 个章节刻度，已通关亮、当前搏动，幕界有短横与 醒/债/铸/炉）、
@@ -79,9 +95,11 @@
   `Dossier`（PanelContainer）→ `DossierRank / DossierSkin / DossierTrials / DossierArena / DossierChapter`、
   `DossierRecap`、`TrialLockHint`（未解锁时）、`DossierHint`、`DossierFoot`。平时收起（不可见，但节点与文字都在）。
 - **墓志** `Inscription/EpitaphRow/Epitaph`：底部一行，**慢速打字机轮换**（每字 0.085s、停 5.5s、淡出换句），
-  第一句永远是 `EPITAPH`，其余取 `ChapterText.OPENING`（situation / lamp / question）。右端对齐到右边距，
+  第一句永远是 `EPITAPH`，其余取 `ChapterText.TITLE_LINES`。右端对齐到右边距，
   与"离开"行同一条中心线（y=640）。
-- **页脚** `CreditBand`：署名靠左、操作提示靠右，一行小字，没有底板。`UpdateNotice`（有新版本时）在页脚上方。
+- **页脚** `CreditBand`：署名靠左，右侧 `FooterHint` 随菜单焦点写**当前行的一句说明**
+  （`TitleScreen.MENU_HINTS`，每句 ≤ 24 字，例如竞技场行「余烬竞技场 · 3v3 推线，摧毁敌方水晶」；没有焦点时回落为操作提示），
+  一行小字，没有底板。`UpdateNotice`（有新版本时）在页脚上方。
 - 不重叠保证：`tests/title_screen_test.gd` 在 1280×720 / 1920×1080 / 2560×1080（非 16:9）三种窗口里，
   把每个窗口的 UI 变换套上，量 `Masthead / Subtitle / Menu / JourneyColumn / Epitaph / CreditBand /
   UpdateNotice` 的物理像素：两两不重叠、都落在内容矩形里；展开的档案卡不压字标 / 菜单 / 墓志。
@@ -120,7 +138,14 @@
   节点 `Menu`（七个 `MenuItem`，id 与档位不变）、`Keyart`、`Masthead`、`MastheadColumn`、`Inscription/EpitaphRow/Epitaph`、
   `Dossier*`、`TrialLockHint`、`QuitCaption`、`ConfirmMenu`、`OverwriteConfirm`、`WindowBackdrop/Black`、
   `CreditBand`、`BootCurtain`。继续格默认选中（有存档时）。
-- 新增只读句柄：`world()`、`look()`、`design_rect(control)`、`dossier_open()`、`epitaph_line()`。
+- 新增只读句柄：`world()`、`look()`、`design_rect(control)`、`dossier_open()`、`epitaph_line()`、
+  `recap_page()`、`recap_open()`、`footer_hint_text()`；静态 `TitleScreen.hint_for(id)`、
+  `TitleScreen.chapter_entry_spawn(chapter_id)`（再入某章的落点：第一、二章用 `ENTRY_SPAWN_OVERRIDES`，
+  其余读各章 layout 的 `entry_spawn()`；`tests/title_screen_test.gd` 对照源常量防漂移）。
+- 暂停菜单（`PauseMenu`）新增第七格「故 事」（`ID_STORY`，紧跟在「地图」后面）：`journal_screen.gd` 的覆盖层，
+  四页——现在（所在章节 + 现在要做什么 + 前情）/ 人物 / 名词 / 重看（`Boards.replay_list(存档旗标)`，只列看过的，
+  选一项回放；回放时本页与暂停卡片先藏起来，播完恢复，不写「看过」旗标）。人物与名词只列已出场的（`ChapterText.CAST_FIRST_CHAPTER` / `TERM_FIRST_CHAPTER`）。←→ 或手柄肩键切页，↑↓ 滚动 / 选择，Esc 返回。
+  没通关任何一章用 `StoryFlow.RECAP_FALLBACK`；标题回看页与故事页共用 `board_replay.gd` 接线。
 - 资产生成：`python tools/gen_title_assets.py`（可带子集名，如 `gears hall`）→ `assets/title/*.png`；
   工具库 `tools/title_px.py`、场景层 `tools/gen_title_hall.py`。新增 / 重生成 PNG 之后要跑一次
   `godot --headless --path . --import`。

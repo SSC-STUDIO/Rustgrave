@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1216,
+    960
+  ],
+  "cell": [
+    608,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_0.png",
+      "slot": [
+        0,
+        0,
+        608,
+        320
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        31,
+        9,
+        59,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_1.png",
+      "slot": [
+        608,
+        0,
+        1216,
+        320
+      ],
+      "frame_origin": [
+        624,
+        16
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        21,
+        14,
+        55,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_2.png",
+      "slot": [
+        0,
+        320,
+        608,
+        640
+      ],
+      "frame_origin": [
+        16,
+        336
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        12,
+        9,
+        93,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_3.png",
+      "slot": [
+        608,
+        320,
+        1216,
+        640
+      ],
+      "frame_origin": [
+        624,
+        336
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        18,
+        9,
+        82,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_4.png",
+      "slot": [
+        0,
+        640,
+        608,
+        960
+      ],
+      "frame_origin": [
+        16,
+        656
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        25,
+        9,
+        61,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/attack/attack_5.png",
+      "slot": [
+        608,
+        640,
+        1216,
+        960
+      ],
+      "frame_origin": [
+        624,
+        656
+      ],
+      "size": [
+        96,
+        48
+      ],
+      "bbox": [
+        30,
+        9,
+        61,
+        48
+      ]
+    }
+  ]
+}

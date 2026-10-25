@@ -6,6 +6,11 @@ extends Interactable
 const DOOR_TEX := "res://assets/env/moss_door.png"
 const DOOR_SIZE := Vector2(48, 64)
 const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
+const Storyboards := preload("res://scripts/data/storyboards.gd")
+## 炉心门前的选择：标题 + 两句各自的代价（选之前就说清，不靠猜）。
+const CHOICE_TITLE := "炉 心 门 前"
+const CHOICE_GIVE_HINT := "还火：名字走，你也散成铁。"
+const CHOICE_KEEP_HINT := "守炉：你留下，名字也留下。"
 
 @export var target_scene: String = ""
 @export var spawn: Vector2 = Vector2.ZERO
@@ -16,7 +21,8 @@ const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 ## 需要先点亮的旗标（例如 Boss 死亡）；没点亮时门锁着，只给提示。
 @export var requires_flag: String = ""
 @export var locked_prompt: String = "门还锁着"
-## 炉心之门：打开送剑 / 守火，而不是直接播 captions。
+## 炉心之门：打开还火 / 守炉两个选择，而不是直接播 captions。
+## 选完播结局分镜 + 滚动字幕；give_captions / keep_captions 是没有分镜时的字幕兜底。
 @export var ending_choice: bool = false
 @export var give_captions: PackedStringArray = []
 @export var keep_captions: PackedStringArray = []
@@ -64,7 +70,7 @@ func interact(actor: Node) -> void:
 	_play_and_leave(captions, actor as Player, "")
 
 
-## 菜单和测试都走这里。默认项是送剑（give）。
+## 菜单和测试都走这里。默认项是还火（give）。
 func confirm_ending(id: StringName) -> void:
 	if _used or not ending_choice:
 		return
@@ -77,7 +83,7 @@ func confirm_ending(id: StringName) -> void:
 	GameEvents.ending_chosen.emit(StringName(kind))
 	var lines := keep_captions if kind == "keep" else give_captions
 	Sfx.play(&"gate")
-	_play_and_leave(lines, _ending_actor, "ash_fall" if kind == "give" else "ember_rise")
+	_play_and_leave(lines, _ending_actor, "ash_fall" if kind == "give" else "ember_rise", kind)
 
 
 func _open_ending_choice(actor: Player) -> void:
@@ -102,16 +108,16 @@ func _open_ending_choice(actor: Player) -> void:
 	root.add_child(frame)
 	var column := VBoxContainer.new()
 	frame.add_child(column)
-	column.add_child(UiKit.label("把 剑 送 进 去", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.label(CHOICE_TITLE, &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	column.add_child(UiKit.divider())
-	column.add_child(UiKit.label("送剑，火会稳。守火，你留下。",
-			&"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.label(CHOICE_GIVE_HINT, &"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
+	column.add_child(UiKit.label(CHOICE_KEEP_HINT, &"DimLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	var menu := MenuList.new()
 	menu.add_theme_constant_override("separation", 12)
 	column.add_child(menu)
-	# 送剑是默认项（燕尾板），守火是留在原地的第三层（四只角标）。
-	menu.compact(menu.add_item(&"give", "送 剑", false, MenuItem.Kind.SECONDARY))
-	menu.compact(menu.add_item(&"keep", "守 火", false, MenuItem.Kind.GHOST))
+	# 还火是默认项（燕尾板），守炉是留在原地的第三层（四只角标）。
+	menu.compact(menu.add_item(&"give", "还 火", false, MenuItem.Kind.SECONDARY))
+	menu.compact(menu.add_item(&"keep", "守 炉", false, MenuItem.Kind.GHOST))
 	menu.chosen.connect(confirm_ending)
 	get_tree().paused = true
 
@@ -128,15 +134,11 @@ func _close_ending_choice() -> void:
 		_layer = null
 
 
-func _play_and_leave(lines: PackedStringArray, player: Player, fx_id: String) -> void:
-	var steps: Array = [{"kind": "lock"}]
-	if fx_id != "":
-		steps.append({"kind": "fx", "id": "heart_pulse", "seconds": 0.55})
-		steps.append({"kind": "fx", "id": fx_id, "seconds": 1.0})
-	for line in lines:
-		steps.append({"kind": "caption", "text": String(line), "hold": 2.2})
-	steps.append({"kind": "wait", "seconds": 0.2})
-	steps.append({"kind": "unlock"})
+## 播完过场后离开。`ending_kind` 非空 = 结局：播结局分镜 + 滚动字幕（字幕兜底只在
+## 分镜库里没有这个结局时才用）；为空 = 普通出口字幕。
+func _play_and_leave(lines: PackedStringArray, player: Player, fx_id: String,
+		ending_kind: String = "") -> void:
+	var steps := ending_play_steps(lines, fx_id, ending_kind)
 	Director.play(steps)
 	await Director.finished
 	if not is_instance_valid(self) or not is_inside_tree():
@@ -149,6 +151,24 @@ func _play_and_leave(lines: PackedStringArray, player: Player, fx_id: String) ->
 		if player != null and is_instance_valid(player):
 			SaveData.save_game(GameContext.world_scene_path(self), player)
 		Director.fade_to(TITLE_PATH)
+
+
+## 出口 / 结局的 Director 步骤（纯构造，测试直接读）。结局走分镜 + 滚动字幕；没有对应分镜
+## 或不是结局时退回字幕。
+static func ending_play_steps(lines: PackedStringArray, fx_id: String,
+		ending_kind: String = "") -> Array:
+	var steps: Array = [{"kind": "lock"}]
+	if fx_id != "":
+		steps.append({"kind": "fx", "id": "heart_pulse", "seconds": 0.55})
+		steps.append({"kind": "fx", "id": fx_id, "seconds": 1.0})
+	if ending_kind != "" and Storyboards.has("ending_%s" % ending_kind):
+		steps.append_array(StoryFlow.ending_steps(ending_kind))
+	else:
+		for line in lines:
+			steps.append({"kind": "caption", "text": String(line), "hold": 2.2})
+	steps.append({"kind": "wait", "seconds": 0.2})
+	steps.append({"kind": "unlock"})
+	return steps
 
 
 ## Shared by every exit (and the forge heart): save into the next level with

@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1088,
+    768
+  ],
+  "cell": [
+    272,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        272,
+        320
+      ],
+      "frame_origin": [
+        22,
+        16
+      ],
+      "size": [
+        38,
+        48
+      ],
+      "bbox": [
+        5,
+        8,
+        34,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/idle/idle_1.png",
+      "slot": [
+        272,
+        0,
+        544,
+        320
+      ],
+      "frame_origin": [
+        294,
+        16
+      ],
+      "size": [
+        38,
+        48
+      ],
+      "bbox": [
+        6,
+        7,
+        34,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/idle/idle_2.png",
+      "slot": [
+        544,
+        0,
+        816,
+        320
+      ],
+      "frame_origin": [
+        566,
+        16
+      ],
+      "size": [
+        38,
+        48
+      ],
+      "bbox": [
+        5,
+        8,
+        34,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/idle/idle_3.png",
+      "slot": [
+        816,
+        0,
+        1088,
+        320
+      ],
+      "frame_origin": [
+        838,
+        16
+      ],
+      "size": [
+        38,
+        48
+      ],
+      "bbox": [
+        5,
+        9,
+        33,
+        48
+      ]
+    }
+  ]
+}

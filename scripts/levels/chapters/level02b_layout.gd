@@ -365,7 +365,7 @@ func _restyle_lift(deck: Node2D, tone: Color) -> void:
 			path = LIFT_CAP_LEFT
 		elif x + world >= width - 0.01:
 			path = LIFT_CAP_RIGHT
-		var tex := load(path) as Texture2D
+		var tex := DensityTextures.load_texture(path)
 		if tex != null:
 			var spr := Sprite2D.new()
 			spr.texture = tex
@@ -391,6 +391,15 @@ func _build_props(host: Node2D) -> void:
 	destructible(host, "PumpCacheTop", &"scrap_heap", Vector2(2496, 136))
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
+	# 可破坏道具（M3）：全部在支路台面/角落，主线不靠打碎任何东西通过。
+	# 爆破罐连锁演示：抽水井检修走道（PumpCatwalk，顶面 y=136）上两只相距 34px
+	# （< 44 引爆半径），打碎一只连锁引爆另一只。
+	destructible(host, "BlastUrnCatwalkA", &"blast_urn", Vector2(2466, 136))
+	destructible(host, "BlastUrnCatwalkB", &"blast_urn", Vector2(2500, 136))
+	# 绞盘架支路（CapstanGallery，顶面 y=120，只有钩锁够得到）：碑文西侧一只锈罐，
+	# 装备奖励位东侧一只余烬窖（掉 3 点余烬经验）。
+	destructible(host, "RustUrnCapstan", &"rust_urn", Vector2(1480, 120))
+	destructible(host, "EmberCacheCapstan", &"ember_cache", Vector2(1554, 120))
 
 
 func _build_hazards(host: Node2D) -> void:

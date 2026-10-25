@@ -42,7 +42,7 @@ const ARENA_HEARTH_HOT_ENERGY := 1.05
 const ARENA_HEARTH_RADIUS := 96.0
 const ARENA_HEARTH_COLOR := Color(1.0, 0.62, 0.33)
 const ARENA_HEARTH_HOT_COLOR := Color(1.0, 0.36, 0.14)
-## 死亡后舞台灯熄掉：交接镜头只剩残芯自己的 HeartLight 在亮。
+## 死亡后舞台灯熄掉：交接镜头只剩火种自己的 HeartLight 在亮。
 const ARENA_DEAD_SCALE := 0.0
 ## 中央暖池：半径有上限，不把整块东翼石板刷白。
 const ARENA_POOL_POS := Vector2(ARENA_CENTER_X, STAGE_Y - 20.0)
@@ -255,10 +255,11 @@ func _decorate_cathedral(host: Node2D) -> void:
 
 	# 石台两端的残石：以前这里是 48×48 的地台铺石板（平顶方块），
 	# 单独立在墓地行里读不懂；换成有轮廓的碎石，和旁边的 rubble_b 同一族。
+	# rubble_b 的脚要落在 EastFloor 顶面（352）：STAGE_Y-30 会让它悬 6px。
 	_plant_env_sprite(decor, "res://assets/env/rubble_c.png",
 			Vector2(3262.0, STAGE_Y - 30.0), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	_plant_env_sprite(decor, "res://assets/env/rubble_b.png",
-			Vector2(3552.0, STAGE_Y - 30.0), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
+			Vector2(3552.0, STAGE_Y - 24.0), Vector2(1, 1), Color(0.7, 0.65, 0.75, 0.9))
 	# 矮烟囱：32×96，脚在石板路上，顶不穿过女墙。放在拱门西侧，不挡刽子手的斧。
 	_plant_env_sprite(decor, "res://assets/env/gh_furnace.png",
 			Vector2(BOSS_GATE_POS.x - 56.0, NAVE_Y - 96.0), Vector2(1, 1), Color(0.78, 0.62, 0.48, 0.95))
@@ -272,7 +273,7 @@ func _plant_balustrade(parent: Node2D, feet: Vector2) -> void:
 	const PATH := "res://assets/env/balustrade.png"
 	if not ResourceLoader.exists(PATH):
 		return
-	var tex := load(PATH) as Texture2D
+	var tex := DensityTextures.load_texture(PATH)
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false
@@ -287,7 +288,7 @@ func _plant_env_sprite(parent: Node2D, path: String, pos: Vector2, scl: Vector2 
 	if not ResourceLoader.exists(path):
 		return null
 	var spr := Sprite2D.new()
-	spr.texture = load(path) as Texture2D
+	spr.texture = DensityTextures.load_texture(path)
 	spr.centered = false
 	spr.position = pos
 	spr.scale = scl
@@ -302,7 +303,7 @@ func _plant_env_sprite(parent: Node2D, path: String, pos: Vector2, scl: Vector2 
 func _plant_ruin_plate(parent: Node2D, path: String, pos: Vector2, scl: Vector2 = Vector2.ONE, tint: Color = Color.WHITE) -> Node2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	var root := Node2D.new()
@@ -327,7 +328,7 @@ func _plant_torch(parent: Node2D, pos: Vector2) -> void:
 
 ## feet is the bottom-centre. Returns the top-left that puts the texture there.
 func _plate_topleft(path: String, feet: Vector2, scale: float) -> Vector2:
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	var w := float(tex.get_width()) * scale
 	var h := float(tex.get_height()) * scale
 	return Vector2(feet.x - w * 0.5, feet.y - h)
@@ -335,7 +336,7 @@ func _plate_topleft(path: String, feet: Vector2, scale: float) -> Vector2:
 
 ## Keep an authored left edge: the foot x is the centre of that span.
 func _plate_feet(path: String, left_x: float, feet_y: float, scale: float) -> Vector2:
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	return Vector2(left_x + float(tex.get_width()) * scale * 0.5, feet_y)
 
 
@@ -503,7 +504,7 @@ func _plant_arena_glow(parent: Node2D) -> void:
 		return
 	var spr := Sprite2D.new()
 	spr.name = "ArenaGlow"
-	spr.texture = load(ARENA_GLOW_TEX) as Texture2D
+	spr.texture = DensityTextures.load_texture(ARENA_GLOW_TEX)
 	spr.centered = true
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.position = Vector2(ARENA_CENTER_X, STAGE_Y - 104.0)
@@ -585,7 +586,7 @@ func _set_arena_heat(value: float) -> void:
 	_arena_heat = clampf(value, 0.0, 1.0)
 
 
-## 倒地：竞技场暗下去，交接镜头只剩残芯的 HeartLight 在亮。
+## 倒地：竞技场暗下去，交接镜头只剩火种的 HeartLight 在亮。
 func _dim_arena_lights() -> void:
 	if _arena_dead:
 		return
@@ -726,7 +727,7 @@ func _on_boss_gate(body: Node) -> void:
 
 
 func _on_boss_slain() -> void:
-	# Boss 一倒，舞台灯先暗下去；残芯的 HeartLight 和新解锁的可交互性才是下一拍的焦点。
+	# Boss 一倒，舞台灯先暗下去；火种的 HeartLight 和新解锁的可交互性才是下一拍的焦点。
 	# 喷火口先收刀（boss_slain 之后过场会锁住玩家，机关时间线随之冻结）。
 	_silence_vents()
 	_dim_arena_lights()

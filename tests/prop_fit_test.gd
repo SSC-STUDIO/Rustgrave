@@ -56,7 +56,7 @@ func _texture(path: String) -> Texture2D:
 func _is_sticker(tex: Texture2D) -> bool:
 	if tex == null:
 		return false
-	var img := tex.get_image()
+	var img := DensityTextures.logical_image(tex)
 	if img == null:
 		return false
 	if img.is_compressed():
@@ -162,8 +162,8 @@ func test_planted_props_are_allowed_grounded_and_integer_scaled() -> void:
 			ok(spr.texture != null, "%s: '%s' has a texture" % [level_id, key])
 			if spr.texture != null:
 				# 允许键名解析成族变体（贴纸感就是这样清掉的）。
-				ok(String(spr.texture.resource_path) == path,
-						"%s: '%s' draws its theme variant (%s)" % [level_id, key, spr.texture.resource_path.get_file()])
+				ok(DensityTextures.source_path(spr.texture) == path,
+						"%s: '%s' draws its theme variant (%s)" % [level_id, key, DensityTextures.source_path(spr.texture).get_file()])
 			if spr.is_in_group("grounded"):
 				ok(spr.has_meta("feet"), "%s: '%s' records its feet" % [level_id, key])
 				if spr.has_meta("feet"):
@@ -217,7 +217,7 @@ func test_grounded_set_dressing_reaches_the_ground() -> void:
 				var sparse := _sparse_bottom_rows(spr.texture, 3)
 				if sparse > SPARSE_ROWS_MAX:
 					flagged.append("%s/%s → %s (%d sparse bottom rows)" % [
-							level_id, key, spr.texture.resource_path.get_file(), sparse])
+							level_id, key, DensityTextures.source_path(spr.texture).get_file(), sparse])
 		layout.free()
 		host.free()
 	ok(flagged.is_empty(), "grounded props visibly touch the ground: %s" % ", ".join(flagged))
@@ -226,7 +226,7 @@ func test_grounded_set_dressing_reaches_the_ground() -> void:
 
 ## 底部 `rows` 行里有几行「不透明像素 < 2」（= 内容已经空了的透明/稀疏底边）。
 func _sparse_bottom_rows(tex: Texture2D, rows: int) -> int:
-	var img := tex.get_image()
+	var img := DensityTextures.logical_image(tex)
 	if img == null:
 		return 0
 	if img.is_compressed():
@@ -321,7 +321,7 @@ func test_decor_never_uses_terrain_slab_tiles() -> void:
 			for spr in _decor_sprites(decor):
 				if spr.texture == null:
 					continue
-				var path: String = spr.texture.resource_path
+				var path: String = DensityTextures.source_path(spr.texture)
 				checked += 1
 				ok(not _is_terrain_art(path),
 						"%s: '%s' draws a prop, not terrain (%s)" % [
@@ -343,7 +343,7 @@ func test_slab_decor_variants_are_fractured() -> void:
 		if tex == null:
 			continue
 		checked += 1
-		var img := tex.get_image()
+		var img := DensityTextures.logical_image(tex)
 		if img.is_compressed():
 			img.decompress()
 		var w := img.get_width()

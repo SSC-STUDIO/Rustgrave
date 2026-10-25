@@ -60,7 +60,7 @@ func _ready() -> void:
 func _ensure_flame() -> void:
 	if _flame != null or not ResourceLoader.exists(FLAME_PATH):
 		return
-	var tex := load(FLAME_PATH) as Texture2D
+	var tex := DensityTextures.load_texture(FLAME_PATH)
 	if tex == null:
 		return
 	var spr := Sprite2D.new()
@@ -87,7 +87,7 @@ func _ensure_flame() -> void:
 func _ensure_coals() -> void:
 	if _coals != null or not ResourceLoader.exists(COALS_PATH):
 		return
-	var tex := load(COALS_PATH) as Texture2D
+	var tex := DensityTextures.load_texture(COALS_PATH)
 	if tex == null:
 		return
 	var spr := Sprite2D.new()
@@ -148,7 +148,7 @@ func _spawn_spark() -> void:
 		return
 	if _sparks.get_child_count() >= 3:
 		return
-	var sheet := load(SPARK_PATH) as Texture2D
+	var sheet := DensityTextures.load_texture(SPARK_PATH)
 	if sheet == null:
 		return
 	_sparks.add_child(NestSpark.new(sheet, WorldClock.rain_opacity() >= 0.35))
@@ -173,7 +173,7 @@ func _ensure_halo() -> void:
 	var spr := Sprite2D.new()
 	spr.name = "Halo"
 	if ResourceLoader.exists(HALO_PATH):
-		spr.texture = load(HALO_PATH) as Texture2D
+		spr.texture = DensityTextures.load_texture(HALO_PATH)
 	spr.centered = true
 	spr.position = FLAME_BASE + Vector2(0, -10)
 	spr.z_index = 0

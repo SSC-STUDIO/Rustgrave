@@ -1,0 +1,243 @@
+{
+  "density": 6,
+  "size": [
+    2304,
+    2048
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        43,
+        43,
+        70,
+        79
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        45,
+        44,
+        69,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_2.png",
+      "slot": [
+        1536,
+        0,
+        2304,
+        512
+      ],
+      "frame_origin": [
+        1560,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        50,
+        44,
+        66,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_3.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        47,
+        43,
+        64,
+        79
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_4.png",
+      "slot": [
+        768,
+        512,
+        1536,
+        1024
+      ],
+      "frame_origin": [
+        792,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        44,
+        42,
+        68,
+        76
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_5.png",
+      "slot": [
+        1536,
+        512,
+        2304,
+        1024
+      ],
+      "frame_origin": [
+        1560,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        41,
+        43,
+        69,
+        78
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_6.png",
+      "slot": [
+        0,
+        1024,
+        768,
+        1536
+      ],
+      "frame_origin": [
+        24,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        44,
+        44,
+        68,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_7.png",
+      "slot": [
+        768,
+        1024,
+        1536,
+        1536
+      ],
+      "frame_origin": [
+        792,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        47,
+        44,
+        63,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_8.png",
+      "slot": [
+        1536,
+        1024,
+        2304,
+        1536
+      ],
+      "frame_origin": [
+        1560,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        47,
+        43,
+        63,
+        79
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/run/run_9.png",
+      "slot": [
+        0,
+        1536,
+        768,
+        2048
+      ],
+      "frame_origin": [
+        24,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        43,
+        42,
+        68,
+        76
+      ]
+    }
+  ]
+}

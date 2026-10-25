@@ -297,7 +297,7 @@ func _harmonize_fill(node: Node, key: String) -> void:
 	var path: String = PropCatalog.path_for(key, theme())
 	if path == String(DECOR[key]) or not ResourceLoader.exists(path):
 		return
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex != null:
 		fill.texture = tex
 
@@ -617,7 +617,7 @@ func prop(host: Node2D, key_or_path: String, feet: Vector2, scale_k: float = 1.0
 	var path := PropCatalog.path_for(key_or_path, theme())
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	var spr := Sprite2D.new()
@@ -676,7 +676,7 @@ func hanging(host: Node2D, key_or_path: String, top: Vector2, tint: Color = Colo
 	var path := PropCatalog.path_for(key_or_path, theme())
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	var spr := Sprite2D.new()
@@ -709,7 +709,7 @@ func waymark(host: Node2D, feet: Vector2, text: String) -> Node2D:
 	if ResourceLoader.exists(SIGN_TEX):
 		var spr := Sprite2D.new()
 		spr.name = "Board"
-		spr.texture = load(SIGN_TEX) as Texture2D
+		spr.texture = DensityTextures.load_texture(SIGN_TEX)
 		spr.centered = false
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		spr.position = origin
@@ -730,8 +730,12 @@ func waymark(host: Node2D, feet: Vector2, text: String) -> Node2D:
 	return root
 
 
+const _OVERHAUL := preload("res://scripts/levels/chapter_overhaul.gd")
+
+
 ## 整关气氛区（室内主题）+ 背景。build() 末尾调一次。
 func finish(host: Node2D) -> void:
+	_OVERHAUL.dress(self, host)
 	var backdrop := ThemeBackdrop.new()
 	backdrop.name = "Backdrop"
 	host.add_child(backdrop)

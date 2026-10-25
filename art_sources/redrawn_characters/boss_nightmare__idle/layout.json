@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1600,
+    1216
+  ],
+  "cell": [
+    800,
+    608
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/boss_nightmare/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        800,
+        608
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        128,
+        96
+      ],
+      "bbox": [
+        15,
+        15,
+        106,
+        96
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/idle/idle_1.png",
+      "slot": [
+        800,
+        0,
+        1600,
+        608
+      ],
+      "frame_origin": [
+        816,
+        16
+      ],
+      "size": [
+        128,
+        96
+      ],
+      "bbox": [
+        15,
+        14,
+        115,
+        96
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/idle/idle_2.png",
+      "slot": [
+        0,
+        608,
+        800,
+        1216
+      ],
+      "frame_origin": [
+        16,
+        624
+      ],
+      "size": [
+        128,
+        96
+      ],
+      "bbox": [
+        15,
+        10,
+        108,
+        96
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/idle/idle_3.png",
+      "slot": [
+        800,
+        608,
+        1600,
+        1216
+      ],
+      "frame_origin": [
+        816,
+        624
+      ],
+      "size": [
+        128,
+        96
+      ],
+      "bbox": [
+        15,
+        7,
+        108,
+        96
+      ]
+    }
+  ]
+}

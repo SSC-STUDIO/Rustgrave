@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/wall_clouds.png",
+  "source_sha256": "da934a1399fd449770b5d49e646d783fcffec82735fc775c00175071f3cb51d0",
+  "density": 12,
+  "size": [
+    3072,
+    2112
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3072,
+    2112
+  ],
+  "logical_size": [
+    256,
+    176
+  ],
+  "variants": [
+    "assets/env/backdrop/wall_clouds.png"
+  ]
+}

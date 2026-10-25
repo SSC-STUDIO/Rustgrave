@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1632,
+    1024
+  ],
+  "cell": [
+    544,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_0.png",
+      "slot": [
+        0,
+        0,
+        544,
+        512
+      ],
+      "frame_origin": [
+        20,
+        16
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        9,
+        40,
+        56,
+        79
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_1.png",
+      "slot": [
+        544,
+        0,
+        1088,
+        512
+      ],
+      "frame_origin": [
+        564,
+        16
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        16,
+        29,
+        59,
+        70
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_2.png",
+      "slot": [
+        1088,
+        0,
+        1632,
+        512
+      ],
+      "frame_origin": [
+        1108,
+        16
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        19,
+        18,
+        57,
+        51
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_3.png",
+      "slot": [
+        0,
+        512,
+        544,
+        1024
+      ],
+      "frame_origin": [
+        20,
+        528
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        15,
+        11,
+        52,
+        45
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_4.png",
+      "slot": [
+        544,
+        512,
+        1088,
+        1024
+      ],
+      "frame_origin": [
+        564,
+        528
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        15,
+        0,
+        79,
+        46
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/jump_attack/jump_attack_5.png",
+      "slot": [
+        1088,
+        512,
+        1632,
+        1024
+      ],
+      "frame_origin": [
+        1108,
+        528
+      ],
+      "size": [
+        84,
+        80
+      ],
+      "bbox": [
+        20,
+        11,
+        50,
+        49
+      ]
+    }
+  ]
+}

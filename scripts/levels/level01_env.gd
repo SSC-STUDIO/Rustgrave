@@ -74,12 +74,13 @@ static func is_foliage(path: String) -> bool:
 static func opaque_bottom_px(tex: Texture2D) -> int:
 	if tex == null:
 		return 0
-	var key := tex.resource_path
+	var key := DensityTextures.source_path(tex)
 	if key == "":
 		key = "rid:%d" % tex.get_instance_id()
 	if _opaque_bottom_cache.has(key):
 		return int(_opaque_bottom_cache[key])
-	var img := tex.get_image()
+	# Scan in authored world units, even when the backing image has QHD texels.
+	var img := DensityTextures.logical_image(tex)
 	if img == null:
 		return maxi(tex.get_height() - 1, 0)
 	if img.is_compressed():
@@ -116,7 +117,7 @@ static func find_sway(host: Node) -> WindSway:
 static func plant(parent: Node2D, path: String, feet: Vector2, scale: float, tint: Color = Color.WHITE, shed_leaves: bool = false) -> Sprite2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	return plant_texture(parent, tex, path, feet, scale, tint, shed_leaves)

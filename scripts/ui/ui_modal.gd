@@ -4,7 +4,7 @@ extends RefCounted
 ## 目标是"从底下那层弹出来的一张卡片"，而不是一整页黑板：
 ##   · 背景只压暗到还看得见后面的程度（纱幕 + 上下渐变），标题屏的 keyart 或暂停
 ##     菜单会留在卡片四周；四周再飘一点余烬，静止画面不至于一片死色。
-##   · 内容卡是主题里的花边面板，尺寸有上限、居中悬浮；卡片内部固定三段：
+##   · 内容卡是主题里的花边面板，半透明（GlassKit.glass），尺寸有上限、居中悬浮；卡片内部固定三段：
 ##     标题带（小字 kicker + 大标题 + 铆钉横线）、内容区、底部锈色提示带。
 ##   · 开屏只做 0.16s 的透明度淡入，不做缩放 —— 像素字体一旦被非整数倍缩放就糊。
 ##
@@ -58,6 +58,9 @@ static func build(host: CanvasLayer, opts: Dictionary) -> Dictionary:
 	var size: Vector2 = opts.get("size", Vector2(960.0, 600.0))
 	card.custom_minimum_size = size
 	root.add_child(card)
+	# 卡片默认半透明（GlassKit）：场景的光从后面透出来。opts.glass = false 才回到实心花边板。
+	if bool(opts.get("glass", true)):
+		GlassKit.glass(card)
 
 	var content := VBoxContainer.new()
 	content.name = "Content"

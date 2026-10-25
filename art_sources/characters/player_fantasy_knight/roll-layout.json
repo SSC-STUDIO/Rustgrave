@@ -1,0 +1,289 @@
+{
+  "density": 6,
+  "size": [
+    2304,
+    2048
+  ],
+  "cell": [
+    768,
+    512
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_0.png",
+      "slot": [
+        0,
+        0,
+        768,
+        512
+      ],
+      "frame_origin": [
+        24,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        51,
+        42,
+        73,
+        78
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_1.png",
+      "slot": [
+        768,
+        0,
+        1536,
+        512
+      ],
+      "frame_origin": [
+        792,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        44,
+        47,
+        79,
+        74
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_2.png",
+      "slot": [
+        1536,
+        0,
+        2304,
+        512
+      ],
+      "frame_origin": [
+        1560,
+        16
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        44,
+        49,
+        83,
+        71
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_3.png",
+      "slot": [
+        0,
+        512,
+        768,
+        1024
+      ],
+      "frame_origin": [
+        24,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        43,
+        50,
+        84,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_4.png",
+      "slot": [
+        768,
+        512,
+        1536,
+        1024
+      ],
+      "frame_origin": [
+        792,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        43,
+        50,
+        83,
+        67
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_5.png",
+      "slot": [
+        1536,
+        512,
+        2304,
+        1024
+      ],
+      "frame_origin": [
+        1560,
+        528
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        42,
+        51,
+        84,
+        72
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_6.png",
+      "slot": [
+        0,
+        1024,
+        768,
+        1536
+      ],
+      "frame_origin": [
+        24,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        48,
+        49,
+        74,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_7.png",
+      "slot": [
+        768,
+        1024,
+        1536,
+        1536
+      ],
+      "frame_origin": [
+        792,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        54,
+        54,
+        75,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_8.png",
+      "slot": [
+        1536,
+        1024,
+        2304,
+        1536
+      ],
+      "frame_origin": [
+        1560,
+        1040
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        56,
+        59,
+        79,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_9.png",
+      "slot": [
+        0,
+        1536,
+        768,
+        2048
+      ],
+      "frame_origin": [
+        24,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        50,
+        61,
+        74,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_10.png",
+      "slot": [
+        768,
+        1536,
+        1536,
+        2048
+      ],
+      "frame_origin": [
+        792,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        50,
+        53,
+        70,
+        80
+      ]
+    },
+    {
+      "source": "assets/characters/player_fantasy_knight/roll/roll_11.png",
+      "slot": [
+        1536,
+        1536,
+        2304,
+        2048
+      ],
+      "frame_origin": [
+        1560,
+        1552
+      ],
+      "size": [
+        120,
+        80
+      ],
+      "bbox": [
+        46,
+        48,
+        71,
+        80
+      ]
+    }
+  ]
+}

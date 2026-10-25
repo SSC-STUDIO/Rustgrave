@@ -120,9 +120,19 @@ func _shield() -> void:
 	var guard := await _fixture(400, preload("res://scenes/enemies/GearShieldEnemy.tscn"), 500) as GearShieldEnemy
 	var opened := false
 	var damaged := false
+	# The shield's state on the last frame it could be read. A punish that kills it frees
+	# the node, so a death inside the opening is judged from this, not from `guard`.
+	var last_state := -1
 	for frame in 900:
-		if not is_instance_valid(guard) or _knight.health.current <= 0:
+		if not is_instance_valid(guard):
+			# Killing the shield during its opening is a valid punish too.
+			if opened and last_state == GearShieldEnemy.State.STAGGER:
+				damaged = true
+				await _capture("shield_punished")
 			break
+		if _knight.health.current <= 0:
+			break
+		last_state = guard._state
 		_set_action(&"attack", false)
 		if not opened:
 			for area in find_children("*", "Area2D", true, false):

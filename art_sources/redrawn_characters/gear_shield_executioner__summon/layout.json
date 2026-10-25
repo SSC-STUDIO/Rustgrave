@@ -1,0 +1,128 @@
+{
+  "density": 6,
+  "size": [
+    1920,
+    1280
+  ],
+  "cell": [
+    640,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/summon/summon_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        640
+      ],
+      "frame_origin": [
+        20,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/summon/summon_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        640
+      ],
+      "frame_origin": [
+        660,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        16,
+        82,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/summon/summon_2.png",
+      "slot": [
+        1280,
+        0,
+        1920,
+        640
+      ],
+      "frame_origin": [
+        1300,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        10,
+        87,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/summon/summon_3.png",
+      "slot": [
+        0,
+        640,
+        640,
+        1280
+      ],
+      "frame_origin": [
+        20,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        14,
+        89,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/summon/summon_4.png",
+      "slot": [
+        640,
+        640,
+        1280,
+        1280
+      ],
+      "frame_origin": [
+        660,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        16,
+        82,
+        83
+      ]
+    }
+  ]
+}

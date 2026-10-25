@@ -1,10 +1,10 @@
 class_name ControlsPanel
 extends CanvasLayer
-## 操作说明面板：华丽边框 + 键位表。标题屏与暂停菜单共用，
-## 也是原先挤在 HUD 右上角那行操作提示的新家。
+## 操作说明面板：四段键位做成 2×2 的玻璃键位卡，每张卡一个小题头，下面每行左边是动作，
+## 右边是一排键帽（KeyCapPanel）。标题屏与暂停菜单共用，也是原先挤在 HUD 右上角那行操作提示的新家。
 ##
 ## 键名全部取自 Settings（经 KeyLabels），玩家在设置里改键后这里自动跟随：
-## 每次 open() 和每次 Settings 发出 &"keys" 变更时重写键位列。
+## 每次 open() 和每次 Settings 发出 &"keys" 变更时重写键帽。
 ##
 ## 之所以是 CanvasLayer 而不是 Control：这个面板生成时就是隐藏的，而隐藏的
 ## Control 不会被排版（子节点的锚点算在 0x0 的父矩形上，面板会缩在左上角）。
@@ -15,6 +15,10 @@ signal closed
 
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+## 压暗到 0.76：这一层通常盖在暂停菜单上，底下的卡片要压到看不出字来，玻璃卡才不会透出串行。
+const VEIL := 0.76
+const CARD_GAP_H := 16
+const CARD_GAP_V := 12
 
 ## 键位表：[键位模板, 说明]。{action} 在显示时换成当前绑定；{attack2} 是挥砍的备用键
 ## （K，Settings 不改它），移动行的箭头同理由 KeyLabels.extra_keys 补在后面。
@@ -33,8 +37,8 @@ const ROWS: Array[Array] = [
 	["Esc", "暂停 / 返回"],
 	["触控板", "手机/平板：左移右移 · 右斩跳冲互 · 上钩/1/2 · Ⅱ暂停"],
 ]
-## 分组：{起始行, 组名}。11 行摊成移动 / 战斗 / 交互与剑核 / 系统四段，
-## 比一堵 11 行的键位墙好扫；行序就是这个分组顺序，key_text(index) 仍按行号取。
+## 分组：{起始行, 组名}。12 行摊成移动 / 战斗 / 交互与剑核 / 系统四张卡（2×2），
+## 行序就是这个分组顺序，key_text(index) 仍按行号取。
 const GROUPS: Array[Dictionary] = [
 	{"start": 0, "count": 4, "title": "移 动"},
 	{"start": 4, "count": 3, "title": "战 斗"},
@@ -46,7 +50,8 @@ var _root: Control
 var _shell: Dictionary = {}
 var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _scroll: ScrollContainer
-var _key_labels: Array[Label] = []
+## 每行键帽列（HBox）：refresh() 时按当前绑定重排。下标 = ROWS 的行号。
+var _chip_boxes: Array[HBoxContainer] = []
 
 
 func _ready() -> void:
@@ -68,6 +73,7 @@ func _build() -> void:
 		"size": Vector2(900.0, 620.0),
 		"hint": "↑↓ 滚动",
 		"back": "Esc / 回车 返回",
+		"veil": VEIL,
 	})
 	_root = _shell["root"] as Control
 	_root.theme = UiKit.extras_theme()
@@ -86,53 +92,21 @@ func _build() -> void:
 
 	var column := VBoxContainer.new()
 	column.name = "Column"
-	column.alignment = BoxContainer.ALIGNMENT_BEGIN
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 6)
+	column.add_theme_constant_override("separation", 12)
 	_scroll.add_child(column)
 
+	var grid := GridContainer.new()
+	grid.name = "Grid"
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", CARD_GAP_H)
+	grid.add_theme_constant_override("v_separation", CARD_GAP_V)
+	column.add_child(grid)
+	_chip_boxes.resize(ROWS.size())
 	for group in GROUPS:
-		if int(group["start"]) > 0:
-			var air := Control.new()
-			air.custom_minimum_size = Vector2(0.0, 8.0)
-			column.add_child(air)
-		# 每组是一只居中的小方块：标题横线正好压在键位列的宽度上，
-		# 不会出现"标题贴左墙、键位表居中"的错位。
-		var block := VBoxContainer.new()
-		block.name = "Block_" + String(group["title"]).replace(" ", "")
-		block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		block.add_theme_constant_override("separation", 2)
-		column.add_child(block)
-		block.add_child(_group_header(String(group["title"])))
-		var grid := GridContainer.new()
-		grid.name = "Grid_" + String(group["title"]).replace(" ", "")
-		grid.columns = 2
-		grid.add_theme_constant_override("v_separation", 2)
-		grid.add_theme_constant_override("h_separation", 24)
-		block.add_child(grid)
-		var start_index := int(group["start"])
-		for i in range(start_index, start_index + int(group["count"])):
-			var row: Array = ROWS[i]
-			# 键名列装进一块小铁牌（KeyCapPanel）：键名读起来才像"一个键"，
-			# 而不是一串和说明等权重的文字。牌宽 250 让左右两栏对齐。
-			var key_plate := UiKit.panel(&"KeyCapPanel")
-			key_plate.custom_minimum_size = Vector2(250.0, 30.0)
-			key_plate.size_flags_horizontal = Control.SIZE_SHRINK_END
-			var key := UiKit.label(String(row[0]), &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
-			key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			key_plate.add_child(key)
-			grid.add_child(key_plate)
-			_key_labels.append(key)
-			var desc := UiKit.label(String(row[1]), &"BodyLabel")
-			desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			grid.add_child(desc)
+		grid.add_child(_group_card(group))
 
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0.0, 8.0)
-	column.add_child(spacer)
-	var rule := UiKit.divider()
-	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	column.add_child(rule)
 	column.add_child(UiKit.label("弹反不是单独的格挡键 —— 巨剑的判定帧打中弹丸就会把它打回去",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	column.add_child(UiKit.label("键位可在 设置 → 键位 里修改",
@@ -140,12 +114,47 @@ func _build() -> void:
 	refresh()
 
 
-## 分段标题：12px 小字 + 一道锈色发丝线，把 11 行键位墙切成四段。
+## 一张键位卡：玻璃铁框底 + 小题头 + 各行（动作 | 键帽）。
+func _group_card(group: Dictionary) -> Control:
+	var title := String(group["title"])
+	var card := PanelContainer.new()
+	card.name = "Card_" + title.replace(" ", "")
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var glass := _glass_card()
+	if glass != null:
+		card.add_theme_stylebox_override(&"panel", glass)
+	var inner := VBoxContainer.new()
+	inner.name = "Inner"
+	inner.add_theme_constant_override("separation", 2)
+	card.add_child(inner)
+	inner.add_child(_group_header(title))
+	var start_index := int(group["start"])
+	for i in range(start_index, start_index + int(group["count"])):
+		inner.add_child(_key_row(i))
+	return card
+
+
+## 键位卡底：主题的铁框板（HintPanel），复制一份压成卡片透明度，内边距收紧到键位列的宽度。
+static func _glass_card() -> StyleBox:
+	var base := UiKit.extras_theme().get_stylebox(&"panel", &"HintPanel") as StyleBoxTexture
+	if base == null:
+		return null
+	var box := base.duplicate() as StyleBoxTexture
+	box.modulate_color = Color(1.0, 1.0, 1.0, GlassKit.CARD_ALPHA)
+	box.content_margin_left = 16.0
+	box.content_margin_top = 8.0
+	box.content_margin_right = 16.0
+	box.content_margin_bottom = 8.0
+	return box
+
+
+## 卡片题头：GlassKit 的 kicker（12px 余烬小字）+ 一道锈色发丝线，和故事页、暂停页的题头同一语汇。
 func _group_header(title: String) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "Group_" + title.replace(" ", "")
 	row.add_theme_constant_override("separation", 10)
-	var label := UiKit.label(title, &"TinyStrongLabel")
+	var label := GlassKit.kicker(title)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(label)
 	var rule := Ornaments.stub_rule(false)
@@ -155,14 +164,77 @@ func _group_header(title: String) -> Control:
 	return row
 
 
-## 把键位列重写成当前绑定（含备用键）。公开：测试与改键后直接调用。
+## 一行：左边是动作说明，右边是键帽列（每个键一枚小铁牌，右对齐）。
+## 说明用 12px（TinyHintLabel）：键帽是这张卡的主角，24px 的说明在 900 宽的卡里每行会折成三四行，
+## 四张卡放不进 620 高；12px 说明配 24px 键帽，和键位表的读法一致，行高也压得下来。
+func _key_row(index: int) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "Row%d" % index
+	row.add_theme_constant_override("separation", 10)
+	var action := UiKit.label(String(ROWS[index][1]), &"TinyHintLabel")
+	action.name = "Action"
+	action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	action.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(action)
+	var chips := HBoxContainer.new()
+	chips.name = "Keys"
+	chips.size_flags_horizontal = Control.SIZE_SHRINK_END
+	chips.alignment = BoxContainer.ALIGNMENT_END
+	chips.add_theme_constant_override("separation", 4)
+	row.add_child(chips)
+	_chip_boxes[index] = chips
+	return row
+
+
+func _chip(text: String) -> Control:
+	var plate := UiKit.panel(&"KeyCapPanel")
+	plate.name = "Chip"
+	var key := UiKit.label(text, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	plate.add_child(key)
+	return plate
+
+
+## 把键帽列重写成当前绑定（含备用键）。公开：测试与改键后直接调用。
 func refresh() -> void:
-	for i in _key_labels.size():
-		_key_labels[i].text = key_text(i)
+	for i in _chip_boxes.size():
+		var box := _chip_boxes[i]
+		if box == null:
+			continue
+		for old in box.get_children():
+			box.remove_child(old)
+			old.queue_free()
+		for text in key_chips(i):
+			box.add_child(_chip(text))
 
 
-## 第 i 行的键位文字。
+## 第 i 行的键位文字（整段，和设置页键帽同一个出口）。
 func key_text(index: int) -> String:
+	var template := _template(index)
+	var text := KeyLabels.format(template)
+	var arrows := _arrows_for(template)
+	if arrows != "":
+		text += "  " + arrows
+	return text
+
+
+## 第 i 行的键帽列：每个键一枚（"A / D" + 备用箭头 → A、D、←、→）。
+func key_chips(index: int) -> PackedStringArray:
+	var template := _template(index)
+	var out := PackedStringArray()
+	for part in KeyLabels.format(template).split(" / "):
+		var chip := String(part).strip_edges()
+		if chip != "":
+			out.append(chip)
+	var arrows := _arrows_for(template)
+	if arrows != "":
+		out.append_array(arrows.split("/"))
+	return out
+
+
+## 模板里的 {attack2} 换成挥砍的备用键；没有备用键就把这一段去掉。
+func _template(index: int) -> String:
 	var template := String(ROWS[index][0])
 	if template.begins_with("{attack2}"):
 		var alt := KeyLabels.extra_keys(&"attack")
@@ -170,11 +242,7 @@ func key_text(index: int) -> String:
 			template = template.replace("{attack2} / ", "")
 		else:
 			template = template.replace("{attack2}", alt[0])
-	var text := KeyLabels.format(template)
-	var arrows := _arrows_for(template)
-	if arrows != "":
-		text += "  " + arrows
-	return text
+	return template
 
 
 ## 移动行的备用键（←/→，Settings 不改它们）补在后面。

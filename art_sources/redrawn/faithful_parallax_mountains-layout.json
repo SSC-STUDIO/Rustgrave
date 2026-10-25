@@ -1,0 +1,18 @@
+{
+  "source": "assets/env/parallax_mountains.png",
+  "density": 8,
+  "size": [
+    1536,
+    1440
+  ],
+  "image_bounds": [
+    0,
+    0,
+    1536,
+    1432
+  ],
+  "logical_size": [
+    192,
+    179
+  ]
+}

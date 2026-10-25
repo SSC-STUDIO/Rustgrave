@@ -1,0 +1,82 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    160,
+    128
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/spitter_hell_beast/projectile/projectile_0.png",
+      "slot": [
+        0,
+        0,
+        160,
+        128
+      ],
+      "frame_origin": [
+        23,
+        16
+      ],
+      "size": [
+        19,
+        16
+      ],
+      "bbox": [
+        2,
+        4,
+        18,
+        12
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/projectile/projectile_1.png",
+      "slot": [
+        0,
+        128,
+        160,
+        256
+      ],
+      "frame_origin": [
+        23,
+        144
+      ],
+      "size": [
+        19,
+        16
+      ],
+      "bbox": [
+        2,
+        3,
+        18,
+        12
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/projectile/projectile_2.png",
+      "slot": [
+        0,
+        256,
+        160,
+        384
+      ],
+      "frame_origin": [
+        23,
+        272
+      ],
+      "size": [
+        19,
+        16
+      ],
+      "bbox": [
+        2,
+        4,
+        17,
+        11
+      ]
+    }
+  ]
+}

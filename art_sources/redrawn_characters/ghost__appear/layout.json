@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    1248,
+    768
+  ],
+  "cell": [
+    416,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/ghost/appear/appear_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        320
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        32,
+        30,
+        39,
+        39
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/appear/appear_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        320
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        33,
+        21,
+        46,
+        41
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/appear/appear_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        320
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        23,
+        12,
+        50,
+        42
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/appear/appear_3.png",
+      "slot": [
+        0,
+        320,
+        416,
+        640
+      ],
+      "frame_origin": [
+        16,
+        336
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        19,
+        3,
+        52,
+        41
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/appear/appear_4.png",
+      "slot": [
+        416,
+        320,
+        832,
+        640
+      ],
+      "frame_origin": [
+        432,
+        336
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        17,
+        3,
+        52,
+        44
+      ]
+    },
+    {
+      "source": "assets/characters/ghost/appear/appear_5.png",
+      "slot": [
+        832,
+        320,
+        1248,
+        640
+      ],
+      "frame_origin": [
+        848,
+        336
+      ],
+      "size": [
+        64,
+        48
+      ],
+      "bbox": [
+        20,
+        4,
+        44,
+        46
+      ]
+    }
+  ]
+}

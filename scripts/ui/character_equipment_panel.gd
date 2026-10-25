@@ -3,6 +3,13 @@ extends CanvasLayer
 ## Character Attributes & Equipment Inventory UI Panel (Milestone 4).
 ## Displays core character attributes, active set synergies, 3 equipped slots,
 ## 16-slot bag grid, and an interactive item inspection tooltip box.
+##
+## Layout (card 1060x646, body about 992x442):
+##   - Left: identity card (origin title, six attribute rows, set resonance).
+##   - Right (wider, 1 : 0.62 against the attribute card): the three worn slots as equal chamfered tiles
+##     in a row, the 4x4 bag with rarity-coloured stripes, and the inspector card: name, the stat change
+##     against the item it replaces (ember for gains, rust for losses), description and the equip /
+##     unequip button. The row keeps the focus graph pinned by tests (see _setup_focus_neighbors).
 
 signal opened()
 signal closed()
@@ -34,9 +41,27 @@ const STAT_COLORS := {
 ## 空槽 / 空格位的占位色：比 FootnoteLabel 的灰再压暗一档，与"有货"的琥珀
 ## 形成对比，空状态不抢眼但有存在感。
 const SLOT_EMPTY := Color(0.42, 0.40, 0.38, 0.75)
+## 部位标题的色：与 STAT_COLORS 同一套色相（武器=攻击黄、护甲=防御灰、饰品=毒素青）。
+const SLOT_COLORS := {
+	&"weapon": Color("#FFC14A"),
+	&"armor": Color("#BAC4CC"),
+	&"trinket": Color("#5CE1B6"),
+}
+## 稀有度的边色：普通用铁灰，稀有用魔蓝，史诗用紫。余烬金只留给选中与增益。
+const RARITY_COLORS := {
+	&"common": Color("#8A8680"),
+	&"rare": Color("#5CB3FF"),
+	&"epic": Color("#C98BFF"),
+}
+## 属性减少用锈色（比锈板 RUST_MID 提亮一档，暗底上读得清）。
+const RUST_TEXT := Color("#D0704A")
+const DELTA_KEYS: Array[StringName] = [&"attack", &"defense", &"max_hp", &"toxin_resist", &"toxin_decay", &"speed_mult"]
 
 const MAX_BAG_CAPACITY: int = 16
 const TAB_HOLD_THRESHOLD: float = 0.22
+const ATTR_W := 360.0
+const SLOT_H := 52.0
+const BAG_CELL_H := 36.0
 
 var is_open: bool = false
 var _managed_tree_pause: bool = false
@@ -56,15 +81,20 @@ var _synergies_container: VBoxContainer = null
 var _slot_buttons: Dictionary = {} # slot -> Button
 var _slot_labels: Dictionary = {}  # slot -> { "title": Label, "name": Label, "stat": Label }
 var _bag_buttons: Array[Button] = []
+var _bag_labels: Array = []        # per bag cell: { "name": Label, "meta": Label, "stripe": ColorRect }
 var _bag_capacity_label: Label = null
+var _slot_tweens: Dictionary = {}  # slot -> Tween（同一格只留一条高亮补间，后来的换掉前一条）
+var _bag_tweens: Dictionary = {}   # bag index -> Tween
 
-# Tooltip / Inspector
+# Inspector
 var _tooltip_name: Label = null
 var _tooltip_type_set: Label = null
 var _tooltip_stats: Label = null
 var _tooltip_desc: Label = null
 var _tooltip_action_hint: Label = null
 var _tooltip_action_btn: Button = null
+var _delta_header: Label = null
+var _delta_box: VBoxContainer = null
 
 # Inspected State
 var _inspected_item: Variant = null
@@ -265,7 +295,7 @@ func _build() -> void:
 	var main_split := HBoxContainer.new()
 	main_split.name = "MainSplit"
 	main_split.set_anchors_preset(Control.PRESET_FULL_RECT)
-	main_split.add_theme_constant_override("separation", 18)
+	main_split.add_theme_constant_override("separation", 16)
 	main_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	main_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(main_split)
@@ -275,37 +305,75 @@ func _build() -> void:
 	_setup_focus_neighbors()
 
 
+## Glass card: a PanelContainer (so it reports its content's minimum size) whose TitleCard body is drawn
+## first and whose padded content VBox sits on top. Returns the content VBox; the root is its card.
+static func _glass_card(parent: Control, card_name: String, pad: int, gap: int = 4, min_w: float = 0.0, stretch: float = 1.0) -> VBoxContainer:
+	var root := GlassCardRoot.new()
+	root.name = card_name
+	# 内边距放在空样式盒的 content margin 里：Content 是卡片的直接子节点。
+	var pad_box := StyleBoxEmpty.new()
+	pad_box.content_margin_left = float(pad)
+	pad_box.content_margin_right = float(pad)
+	pad_box.content_margin_top = float(pad)
+	pad_box.content_margin_bottom = float(pad)
+	root.add_theme_stylebox_override("panel", pad_box)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_stretch_ratio = stretch
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.custom_minimum_size = Vector2(min_w, 0.0)
+	# 卡片本身吃掉点击：空白处不能穿透到外壳的"点卡片外关闭"。
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	parent.add_child(root)
+
+	# 玻璃框体是卡片的第一个子节点，画在内容后面；位置与尺寸由 GlassCardRoot 每帧对齐到卡片矩形。
+	var frame := TitleCard.new()
+	frame.name = "Frame"
+	frame.body_alpha = GlassKit.CARD_ALPHA / TitleCard.FILL.a
+	root.add_child(frame)
+	root.frame = frame
+
+	var content := VBoxContainer.new()
+	content.name = "Content"
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", gap)
+	root.add_child(content)
+	return content
+
+
+## Chamfered tile: the TAG plate (both ends chamfered, gold rings when focused or hovered), with the
+## content margins set for a small tile instead of a full menu button.
+static func _tile_style(btn: Button, pad_x: float, pad_y: float) -> void:
+	var states := {
+		"normal": Plate.State.NORMAL,
+		"hover": Plate.State.SELECTED,
+		"pressed": Plate.State.SELECTED,
+		"hover_pressed": Plate.State.SELECTED,
+		"focus": Plate.State.SELECTED,
+		"disabled": Plate.State.DISABLED,
+	}
+	for s_name in states:
+		var sb := Plate.style_box(Plate.Shape.TAG, states[s_name])
+		sb.content_margin_left = pad_x
+		sb.content_margin_right = pad_x
+		sb.content_margin_top = pad_y
+		sb.content_margin_bottom = pad_y
+		btn.add_theme_stylebox_override(s_name, sb)
+
+
 func _build_left_attributes(parent: Control) -> void:
-	var plaque := UiKit.panel()
-	plaque.name = "AttributesPlaque"
-	plaque.custom_minimum_size = Vector2(400.0, 0.0)
-	plaque.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	parent.add_child(plaque)
-
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	plaque.add_child(margin)
-
-	var column := VBoxContainer.new()
+	# 属性列窄于背包列（比例 0.62 : 1）：属性是一行行数字，背包要放下装备名。
+	var column := _glass_card(parent, "AttributesPlaque", 12, 2, ATTR_W, 0.62)
 	column.name = "Column"
-	column.add_theme_constant_override("separation", 2)
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(column)
 
-	# 1. Header & Origin Badge
+	# 1. Header: origin badge
 	origin_title_label = UiKit.label(_resolve_origin_title_text(), &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	origin_title_label.name = "OriginTitleLabel"
 	origin_title_label.modulate = UiKit.EMBER
 	column.add_child(origin_title_label)
 
-	var rule := Ornaments.rivet_rule(360.0)
+	var rule := Ornaments.rivet_rule(260.0)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(rule)
 
 	# 2. Attribute Rows
@@ -324,7 +392,7 @@ func _build_left_attributes(parent: Control) -> void:
 
 		var row_container := VBoxContainer.new()
 		row_container.name = "Row_" + String(key)
-		row_container.add_theme_constant_override("separation", 1)
+		row_container.add_theme_constant_override("separation", 0)
 		column.add_child(row_container)
 
 		var top_row := HBoxContainer.new()
@@ -341,7 +409,12 @@ func _build_left_attributes(parent: Control) -> void:
 		val_lbl.modulate = stat_color
 		top_row.add_child(val_lbl)
 
-		var detail_lbl := UiKit.label("", &"FootnoteLabel")
+		# 每行明细只占一行：不自动换行（换行标签会虚报很高的最小高度，把六行属性整体顶出卡片），
+		# 超出的部分省略号收尾，完整文字在悬停提示里。
+		var detail_lbl := UiKit.label("", &"TinyLabel")
+		detail_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		detail_lbl.clip_text = true
+		detail_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		detail_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.85)
 		row_container.add_child(detail_lbl)
 
@@ -352,19 +425,22 @@ func _build_left_attributes(parent: Control) -> void:
 			"name": name_lbl
 		}
 
-	# 3. Divider
-	var rule2 := Ornaments.rivet_rule(360.0)
-	column.add_child(rule2)
-
-	# 4. Set Synergies Container
+	# 3. Set Synergies (scrolls inside the card so a long list can never run under the footer)
 	var syn_header := UiKit.label("套 装 共 鸣", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	column.add_child(syn_header)
 
+	var syn_scroll := ScrollContainer.new()
+	syn_scroll.name = "SynergiesScroll"
+	syn_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	syn_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	syn_scroll.custom_minimum_size = Vector2(0.0, 40.0)
+	column.add_child(syn_scroll)
+
 	_synergies_container = VBoxContainer.new()
 	_synergies_container.name = "SynergiesContainer"
-	_synergies_container.add_theme_constant_override("separation", 4)
-	_synergies_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_synergies_container)
+	_synergies_container.add_theme_constant_override("separation", 3)
+	_synergies_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	syn_scroll.add_child(_synergies_container)
 
 
 func _build_right_inventory(parent: Control) -> void:
@@ -372,45 +448,59 @@ func _build_right_inventory(parent: Control) -> void:
 	column.name = "RightColumn"
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 8)
+	column.add_theme_constant_override("separation", 6)
 	parent.add_child(column)
 
-	# --- Section 1: Equipped Slots ---
-	var slot_header := UiKit.label("已 穿 戴 装 备", &"TinyStrongLabel")
-	column.add_child(slot_header)
+	# --- Section 1: Equipped Slots (paper-doll row: weapon, armour, and a trinket spanning two columns) ---
+	column.add_child(GlassKit.kicker("已 穿 戴 装 备"))
 
 	var slots_hbox := HBoxContainer.new()
 	slots_hbox.name = "SlotsHBox"
-	slots_hbox.add_theme_constant_override("separation", 8)
+	slots_hbox.add_theme_constant_override("separation", 6)
+	slots_hbox.custom_minimum_size = Vector2(0.0, SLOT_H)
 	column.add_child(slots_hbox)
 
 	for slot in SLOTS:
 		var btn := Button.new()
 		btn.name = "Slot_" + String(slot).capitalize()
-		btn.custom_minimum_size = Vector2(178.0, 56.0)
-		btn.theme_type_variation = &"SettingsButton"
+		btn.custom_minimum_size = Vector2(0.0, SLOT_H)
+		btn.theme_type_variation = &"PlateButton"
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_tile_style(btn, 10.0, 4.0)
 		slots_hbox.add_child(btn)
 
 		var btn_box := VBoxContainer.new()
 		btn_box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		btn_box.offset_left = 10.0
+		btn_box.offset_right = -10.0
+		btn_box.offset_top = 4.0
+		btn_box.offset_bottom = -4.0
 		btn_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn_box.alignment = BoxContainer.ALIGNMENT_CENTER
-		btn_box.add_theme_constant_override("separation", 1)
+		btn_box.add_theme_constant_override("separation", 0)
 		btn.add_child(btn_box)
 
-		var slot_title := UiKit.label(_slot_display_name(slot), &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+		var top := HBoxContainer.new()
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn_box.add_child(top)
+
+		var slot_title := UiKit.label(_slot_display_name(slot), &"TinyStrongLabel")
 		slot_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn_box.add_child(slot_title)
+		slot_title.modulate = SLOT_COLORS.get(slot, UiKit.EMBER)
+		top.add_child(slot_title)
 
-		var item_name_lbl := UiKit.label("【 空 】", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
-		item_name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn_box.add_child(item_name_lbl)
-
-		var stat_lbl := UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+		var stat_lbl := UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 		stat_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stat_lbl.modulate = UiKit.EMBER
-		btn_box.add_child(stat_lbl)
+		stat_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stat_lbl.modulate = UiKit.EMBER_ASH
+		stat_lbl.clip_text = true
+		top.add_child(stat_lbl)
+
+		var item_name_lbl := UiKit.label("【 空 】", &"SubHeadLabel")
+		item_name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		item_name_lbl.clip_text = true
+		item_name_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		btn_box.add_child(item_name_lbl)
 
 		_slot_buttons[slot] = btn
 		_slot_labels[slot] = {
@@ -427,7 +517,7 @@ func _build_right_inventory(parent: Control) -> void:
 		btn.focus_exited.connect(func(): _on_slot_blurred(slot))
 		btn.mouse_exited.connect(func(): _on_slot_blurred(slot))
 
-	# --- Section 2: Bag Grid ---
+	# --- Section 2: Bag Grid (4 columns x 4 rows; each cell carries a rarity stripe) ---
 	var bag_header_row := HBoxContainer.new()
 	bag_header_row.name = "BagHeaderRow"
 	column.add_child(bag_header_row)
@@ -446,35 +536,66 @@ func _build_right_inventory(parent: Control) -> void:
 	bag_grid.name = "BagGrid"
 	bag_grid.columns = 4
 	bag_grid.add_theme_constant_override("h_separation", 6)
-	bag_grid.add_theme_constant_override("v_separation", 6)
+	bag_grid.add_theme_constant_override("v_separation", 4)
 	column.add_child(bag_grid)
 
 	for i in MAX_BAG_CAPACITY:
 		var btn := Button.new()
 		btn.name = "BagSlot_%d" % i
-		btn.custom_minimum_size = Vector2(132.0, 52.0)
-		btn.theme_type_variation = &"KeyCapButton"
+		btn.custom_minimum_size = Vector2(0.0, BAG_CELL_H)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.theme_type_variation = &"PlateButton"
 		btn.clip_text = true
+		_tile_style(btn, 12.0, 3.0)
 		bag_grid.add_child(btn)
 
+		var stripe := ColorRect.new()
+		stripe.name = "Stripe"
+		stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stripe.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+		stripe.offset_right = 3.0
+		btn.add_child(stripe)
+
+		var text_box := VBoxContainer.new()
+		text_box.name = "Text"
+		text_box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		text_box.offset_left = 10.0
+		text_box.offset_right = -6.0
+		text_box.offset_top = 2.0
+		text_box.offset_bottom = -2.0
+		text_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		text_box.alignment = BoxContainer.ALIGNMENT_CENTER
+		text_box.add_theme_constant_override("separation", 0)
+		btn.add_child(text_box)
+
+		var name_lbl := UiKit.label("—", &"TinyStrongLabel")
+		name_lbl.name = "ItemName"
+		name_lbl.clip_text = true
+		name_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		text_box.add_child(name_lbl)
+
+		var meta_lbl := UiKit.label("", &"TinyLabel")
+		meta_lbl.name = "ItemMeta"
+		meta_lbl.clip_text = true
+		meta_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		text_box.add_child(meta_lbl)
+
 		_bag_buttons.append(btn)
+		_bag_labels.append({"name": name_lbl, "meta": meta_lbl, "stripe": stripe})
 		btn.pressed.connect(func(): _on_bag_pressed(i))
 		btn.focus_entered.connect(func(): _on_bag_focused(i))
 		btn.mouse_entered.connect(func(): _on_bag_focused(i))
 		btn.focus_exited.connect(func(): _on_bag_blurred(i))
 		btn.mouse_exited.connect(func(): _on_bag_blurred(i))
 
-	# --- Section 3: Tooltip / Inspector Box ---
-	var inspect_panel := UiKit.panel(&"HudPanel")
-	inspect_panel.name = "InspectorBox"
-	inspect_panel.custom_minimum_size = Vector2(0.0, 112.0)
-	column.add_child(inspect_panel)
+	# --- Section 3: Inspector card (name, stat change, description, action) ---
+	var inspect_box := _glass_card(column, "InspectorBox", 10, 0)
 
 	var inspect_hbox := HBoxContainer.new()
 	inspect_hbox.name = "InspectHBox"
-	inspect_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	inspect_hbox.add_theme_constant_override("separation", 12)
-	inspect_panel.add_child(inspect_hbox)
+	inspect_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inspect_hbox.add_theme_constant_override("separation", 14)
+	inspect_box.add_child(inspect_hbox)
 
 	var info_col := VBoxContainer.new()
 	info_col.name = "InfoCol"
@@ -482,39 +603,59 @@ func _build_right_inventory(parent: Control) -> void:
 	info_col.add_theme_constant_override("separation", 2)
 	inspect_hbox.add_child(info_col)
 
-	var name_row := HBoxContainer.new()
-	name_row.name = "NameRow"
-	name_row.add_theme_constant_override("separation", 8)
-	info_col.add_child(name_row)
-
 	_tooltip_name = UiKit.label("【 装备名称 】", &"SubHeadLabel")
 	_tooltip_name.modulate = UiKit.EMBER
-	name_row.add_child(_tooltip_name)
+	_tooltip_name.clip_text = true
+	_tooltip_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	info_col.add_child(_tooltip_name)
 
-	_tooltip_type_set = UiKit.label("部位: —", &"FootnoteLabel")
+	_tooltip_type_set = UiKit.label("部位: —", &"TinyLabel")
 	_tooltip_type_set.modulate = UiKit.ASH
-	name_row.add_child(_tooltip_type_set)
+	_tooltip_type_set.clip_text = true
+	_tooltip_type_set.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	info_col.add_child(_tooltip_type_set)
 
 	_tooltip_stats = UiKit.label("无属性加成", &"TinyStrongLabel")
 	_tooltip_stats.modulate = Color("#7BE382")
 	info_col.add_child(_tooltip_stats)
 
+	# 说明文字给定三行的固定最小高度：自动换行的标签在宽度未定时会虚报一个很高的最小高度，
+	# 把整张检视卡撑出背包列、压到页脚底下（ember_recap.gd 的摘要也是同样处理）。
 	_tooltip_desc = UiKit.label("选择一件装备以检视详细说明。", &"FootnoteLabel")
 	_tooltip_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tooltip_desc.custom_minimum_size = Vector2(360.0, 0.0)
+	_tooltip_desc.custom_minimum_size = Vector2(0.0, 44.0)
+	_tooltip_desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	info_col.add_child(_tooltip_desc)
 
 	_tooltip_action_hint = UiKit.label("", &"FootnoteLabel")
 	_tooltip_action_hint.modulate = UiKit.EMBER_ASH
 	info_col.add_child(_tooltip_action_hint)
 
+	# 属性变化：装上（或卸下）这件后，每一项数值的增减。增益琥珀、减益锈色。
+	var delta_col := VBoxContainer.new()
+	delta_col.name = "DeltaCol"
+	delta_col.custom_minimum_size = Vector2(128.0, 0.0)
+	delta_col.add_theme_constant_override("separation", 2)
+	inspect_hbox.add_child(delta_col)
+
+	_delta_header = UiKit.label("", &"TinyStrongLabel")
+	_delta_header.name = "DeltaHeader"
+	_delta_header.modulate = UiKit.EMBER_ASH
+	delta_col.add_child(_delta_header)
+
+	_delta_box = VBoxContainer.new()
+	_delta_box.name = "DeltaBox"
+	_delta_box.add_theme_constant_override("separation", 2)
+	delta_col.add_child(_delta_box)
+
 	# Direct Touch Action Button
 	_tooltip_action_btn = Button.new()
 	_tooltip_action_btn.name = "ActionButton"
 	_tooltip_action_btn.text = "装 备"
-	_tooltip_action_btn.theme_type_variation = &"SettingsButton"
-	_tooltip_action_btn.custom_minimum_size = Vector2(92.0, 52.0)
+	_tooltip_action_btn.theme_type_variation = &"PlateButton"
+	_tooltip_action_btn.custom_minimum_size = Vector2(96.0, 52.0)
 	_tooltip_action_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_tile_style(_tooltip_action_btn, 10.0, 4.0)
 	_tooltip_action_btn.visible = false
 	_tooltip_action_btn.pressed.connect(_on_action_btn_pressed)
 	inspect_hbox.add_child(_tooltip_action_btn)
@@ -765,6 +906,7 @@ func _refresh_attributes() -> void:
 
 		if synergies.is_empty():
 			var empty_lbl := UiKit.label("当前未激活套装效果 (穿戴同名套装激活)", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+			empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			empty_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.75)
 			_synergies_container.add_child(empty_lbl)
 		else:
@@ -782,6 +924,7 @@ func _refresh_attributes() -> void:
 				syn_box.add_child(head_lbl)
 
 				var desc_lbl := UiKit.label(s_desc, &"FootnoteLabel")
+				desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				desc_lbl.modulate = Color("#7BE382")
 				syn_box.add_child(desc_lbl)
 
@@ -807,7 +950,7 @@ func _refresh_slots() -> void:
 		if stat_lbl != null:
 			if item != null:
 				var lines := _get_item_stat_lines(item)
-				stat_lbl.text = lines[0] if not lines.is_empty() else ""
+				stat_lbl.text = lines[0] if not lines.is_empty() else "基础"
 			else:
 				stat_lbl.text = ""
 
@@ -822,15 +965,26 @@ func _refresh_bag() -> void:
 
 	for i in MAX_BAG_CAPACITY:
 		var btn: Button = _bag_buttons[i]
+		var refs: Dictionary = _bag_labels[i]
+		var name_lbl: Label = refs["name"]
+		var meta_lbl: Label = refs["meta"]
+		var stripe: ColorRect = refs["stripe"]
 		if i < bag.size():
 			var item: Variant = bag[i]
-			var dname := _get_item_display_name(item)
-			var badge := _slot_badge(_get_item_slot(item))
-			btn.text = "%s%s" % [badge, dname]
-			btn.modulate = _bag_tint(i)
+			var rarity := _get_item_rarity(item)
+			name_lbl.text = "%s%s" % [_slot_badge(_get_item_slot(item)), _get_item_display_name(item)]
+			name_lbl.modulate = Color(0.92, 0.88, 0.80, 1.0)
+			var lines := _get_item_stat_lines(item)
+			meta_lbl.text = lines[0] if not lines.is_empty() else "基础装备"
+			meta_lbl.modulate = RARITY_COLORS.get(rarity, UiKit.ASH)
+			stripe.color = RARITY_COLORS.get(rarity, UiKit.ASH)
+			stripe.visible = true
 		else:
-			btn.text = "—"
-			btn.modulate = _bag_tint(i)
+			name_lbl.text = "—"
+			name_lbl.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.6)
+			meta_lbl.text = ""
+			stripe.visible = false
+		btn.modulate = _bag_tint(i)
 
 
 ## 背包格的基础调制色：有货是本色，空格子压暗 —— 高亮补间回到这个值，
@@ -857,7 +1011,11 @@ func _set_slot_lit(slot: StringName, lit: bool) -> void:
 	var btn := _slot_buttons.get(slot) as Button
 	if btn == null:
 		return
+	var old := _slot_tweens.get(slot) as Tween
+	if old != null and old.is_valid():
+		old.kill()
 	var tween := create_tween()
+	_slot_tweens[slot] = tween
 	if lit:
 		tween.tween_property(btn, "modulate", Color(1.08, 1.04, 0.96), 0.1)
 	else:
@@ -883,7 +1041,11 @@ func _set_bag_lit(bag_idx: int, lit: bool) -> void:
 	if bag_idx < 0 or bag_idx >= _bag_buttons.size():
 		return
 	var btn := _bag_buttons[bag_idx]
+	var old := _bag_tweens.get(bag_idx) as Tween
+	if old != null and old.is_valid():
+		old.kill()
 	var tween := create_tween()
+	_bag_tweens[bag_idx] = tween
 	if lit:
 		tween.tween_property(btn, "modulate", Color(1.08, 1.04, 0.96), 0.1)
 	else:
@@ -908,10 +1070,11 @@ func _inspect_slot(slot: StringName) -> void:
 		_tooltip_desc.text = "可从装备背包中选择同部位装备进行穿戴。"
 		_tooltip_action_hint.text = ""
 		_tooltip_action_btn.visible = false
+		_show_deltas("", [])
 	else:
 		_tooltip_name.text = _get_item_display_name(item)
 		_tooltip_name.modulate = UiKit.EMBER
-		_tooltip_type_set.text = "部位: %s · 套装: %s" % [_slot_display_name(slot), _get_item_set_name(item)]
+		_tooltip_type_set.text = "部位: %s · 套装: %s · %s" % [_slot_display_name(slot), _get_item_set_name(item), _rarity_label(item)]
 		var lines := _get_item_stat_lines(item)
 		_tooltip_stats.text = " · ".join(lines) if not lines.is_empty() else "基础装备"
 		_tooltip_stats.modulate = STAT_COLORS.get(&"attack", Color("#7BE382"))
@@ -919,6 +1082,8 @@ func _inspect_slot(slot: StringName) -> void:
 		_tooltip_action_hint.text = "点击 / Enter: 卸下至背包"
 		_tooltip_action_btn.visible = true
 		_tooltip_action_btn.text = "卸 下"
+		# 卸下会失去这件的全部属性：整块按减益（锈色）列出。
+		_show_deltas("卸 下 后", _delta_rows(item, null, -1.0))
 
 
 func _inspect_bag(bag_idx: int) -> void:
@@ -940,6 +1105,7 @@ func _inspect_bag(bag_idx: int) -> void:
 		_tooltip_desc.text = "在锈墓世界中探索遗迹、翻找废料堆或战胜守卫可获取新装备。"
 		_tooltip_action_hint.text = ""
 		_tooltip_action_btn.visible = false
+		_show_deltas("", [])
 	else:
 		var item_slot := _get_item_slot(item)
 		var equipped_in_slot: Variant = p.equipment.get_equipped(item_slot) if (p != null and "equipment" in p and p.equipment != null) else null
@@ -947,7 +1113,7 @@ func _inspect_bag(bag_idx: int) -> void:
 
 		_tooltip_name.text = _get_item_display_name(item)
 		_tooltip_name.modulate = UiKit.EMBER
-		_tooltip_type_set.text = "部位: %s · 套装: %s" % [_slot_display_name(item_slot), _get_item_set_name(item)]
+		_tooltip_type_set.text = "部位: %s · 套装: %s · %s" % [_slot_display_name(item_slot), _get_item_set_name(item), _rarity_label(item)]
 		var lines := _get_item_stat_lines(item)
 		_tooltip_stats.text = " · ".join(lines) if not lines.is_empty() else "基础装备"
 		_tooltip_stats.modulate = STAT_COLORS.get(&"attack", Color("#7BE382"))
@@ -955,6 +1121,8 @@ func _inspect_bag(bag_idx: int) -> void:
 		_tooltip_action_hint.text = "点击 / Enter: %s至%s槽位" % [action_text, _slot_display_name(item_slot)]
 		_tooltip_action_btn.visible = true
 		_tooltip_action_btn.text = action_text
+		# 穿上会与当前这件相比：增益琥珀、减益锈色。
+		_show_deltas("%s 后" % action_text, _delta_rows(item, equipped_in_slot, 1.0))
 
 
 func _reinspect_current() -> void:
@@ -964,6 +1132,64 @@ func _reinspect_current() -> void:
 		_inspect_bag(_inspected_bag_idx)
 	else:
 		_inspect_slot(SLOT_WEAPON)
+
+
+## Rebuilds the delta column: rows are [text, is_gain] pairs from _delta_rows.
+func _show_deltas(header: String, rows: Array) -> void:
+	_delta_header.text = header
+	for child in _delta_box.get_children():
+		_delta_box.remove_child(child)
+		child.queue_free()
+	if header == "":
+		return
+	if rows.is_empty():
+		var none := UiKit.label("属 性 无 变 化", &"FootnoteLabel")
+		none.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.8)
+		_delta_box.add_child(none)
+		return
+	for row in rows:
+		var line := UiKit.label(String(row[0]), &"TinyStrongLabel")
+		line.modulate = UiKit.EMBER if bool(row[1]) else RUST_TEXT
+		_delta_box.add_child(line)
+
+
+## Stat changes for one item against the item it replaces (or nothing). sign = -1 reads a removal.
+static func _delta_rows(item: Variant, against: Variant, sign: float) -> Array:
+	var rows: Array = []
+	for key in DELTA_KEYS:
+		var d := _stat_of(item, key) * sign - _stat_of(against, key)
+		if absf(d) < 0.0001:
+			continue
+		rows.append([_delta_text(key, d), d > 0.0])
+	return rows
+
+
+static func _stat_of(item: Variant, key: StringName) -> float:
+	if item == null:
+		return 0.0
+	if item is EquipmentItem:
+		return float((item as EquipmentItem).get(key))
+	if item is Dictionary:
+		return float((item as Dictionary).get(key, 0.0))
+	return 0.0
+
+
+## Same labels as EquipmentItem.get_stat_lines(), so a delta reads like the stat line it changes.
+static func _delta_text(key: StringName, d: float) -> String:
+	match key:
+		&"attack":
+			return "攻击力 %+d" % int(roundf(d))
+		&"defense":
+			return "防御力 %+d" % int(roundf(d))
+		&"max_hp":
+			return "生命上限 %+d" % int(roundf(d))
+		&"toxin_resist":
+			return "毒素抗性 %+.0f%%" % (d * 100.0)
+		&"toxin_decay":
+			return "毒素消散 %+.1f/s" % d
+		&"speed_mult":
+			return "移动速度 %+.0f%%" % (d * 100.0)
+	return ""
 
 
 # ===========================================================================
@@ -1096,6 +1322,19 @@ func _get_item_description(item: Variant) -> String:
 		if resolved != null:
 			return resolved.description
 	return ""
+
+
+func _get_item_rarity(item: Variant) -> StringName:
+	if item is EquipmentItem:
+		return item.rarity
+	if item is Dictionary:
+		return StringName(item.get("rarity", &"common"))
+	return &"common"
+
+
+## 稀有度名（普通 / 稀有 / 史诗）取自词缀目录的既有命名。
+func _rarity_label(item: Variant) -> String:
+	return AffixCatalog.rarity_name(_get_item_rarity(item))
 
 
 func _get_item_set_name(item: Variant) -> String:
@@ -1312,3 +1551,17 @@ func _get_stat_tooltip_text(key: StringName, stats: CharacterStats) -> String:
 			return "移动修正 (Speed Multiplier)\n公式: 基础 100%% + 身份 %+.0f%% + 装备 %+.0f%% = %.0f%%\n跑速与冲刺速度倍率；允许范围 10%% ~ 300%%。" % [o_spd * 100.0, gear_spd * 100.0, spd * 100.0]
 		_:
 			return ""
+
+
+## 玻璃卡根节点：面板容器（负责尺寸与内边距），每帧把背后的玻璃框体（置顶、脱离容器排版）
+## 对齐到自己的矩形上，框体画在内容后面。
+class GlassCardRoot extends PanelContainer:
+	var frame: Control = null
+
+	func _process(_delta: float) -> void:
+		if frame == null or not is_instance_valid(frame):
+			return
+		if frame.global_position != global_position:
+			frame.global_position = global_position
+		if frame.size != size:
+			frame.size = size

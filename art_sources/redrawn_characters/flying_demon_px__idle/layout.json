@@ -1,0 +1,151 @@
+{
+  "density": 6,
+  "size": [
+    2976,
+    1792
+  ],
+  "cell": [
+    992,
+    896
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        992,
+        896
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        8,
+        2,
+        68,
+        57
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_1.png",
+      "slot": [
+        992,
+        0,
+        1984,
+        896
+      ],
+      "frame_origin": [
+        1008,
+        16
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        2,
+        16,
+        72,
+        58
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_2.png",
+      "slot": [
+        1984,
+        0,
+        2976,
+        896
+      ],
+      "frame_origin": [
+        2000,
+        16
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        5,
+        16,
+        68,
+        57
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_3.png",
+      "slot": [
+        0,
+        896,
+        992,
+        1792
+      ],
+      "frame_origin": [
+        16,
+        912
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        8,
+        15,
+        53,
+        57
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_4.png",
+      "slot": [
+        992,
+        896,
+        1984,
+        1792
+      ],
+      "frame_origin": [
+        1008,
+        912
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        5,
+        16,
+        68,
+        57
+      ]
+    },
+    {
+      "source": "assets/characters/flying_demon_px/idle/idle_5.png",
+      "slot": [
+        1984,
+        896,
+        2976,
+        1792
+      ],
+      "frame_origin": [
+        2000,
+        912
+      ],
+      "size": [
+        72,
+        65
+      ],
+      "bbox": [
+        2,
+        16,
+        72,
+        57
+      ]
+    }
+  ]
+}

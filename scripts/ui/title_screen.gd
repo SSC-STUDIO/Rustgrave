@@ -10,7 +10,13 @@ extends Control
 ## 副题随后淡入；菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开四组，每行
 ## 52px 触控高度，余烬光标；聚焦时在条上迸火星并让场景轻推一下）；右侧是"旅程标尺"：
 ## 14 个章节刻度（已通关亮、当前搏动）+ 四枚小数据片（阶位 / 外观 / 试炼 / 竞技场），
-## 悬停或按 Tab 展开完整档案；底部是慢速打字机轮换的墓志，署名收成页脚一行。
+## 悬停或按 Tab 展开完整档案；底部是慢速打字机轮换的墓志，署名收成页脚一行，
+## 页脚右侧随菜单焦点写一句当前行的说明（MENU_HINTS）。
+##
+## 菜单每一行聚焦时，炉厅里还有各自的反应（TitleWorld.react_to：炉火一涌 / 锻锤敲一下 /
+## 火盆加亮 / 光柱云影放缓 / 破旗一掀 / 魂光升起），见 docs/title-live-scene.md §6。
+## 有结局时「继续」行写作「回看余烬」，打开 ember_recap.gd 的总结页（继续 / 重温序章与结局 /
+## 再入某章）；旅程列里的「回看余烬」按钮随时打开同一页。
 ##
 ## 动效：开屏（吊灯逐盏点亮 → 字标锻入 → 菜单逐条落位，可被 _skip_intro 一把跳过，
 ## 不是输入门禁）、确认入场（白热闪光 + 镜头前推 + 淡出）、离开（吊灯一盏盏熄灭，
@@ -35,10 +41,94 @@ const TrialRecordsScript := preload("res://scripts/data/trial_records.gd")
 const EmberRankScript := preload("res://scripts/data/ember_rank.gd")
 const ArenaRunScript := preload("res://scripts/autoload/arena_run.gd")
 const SkinCatalogScript := preload("res://scripts/data/skin_catalog.gd")
+## 「回看余烬」总结页（ember_recap.gd，没有 class_name）。
+const RecapScript := preload("res://scripts/ui/ember_recap.gd")
 const TRIAL_MENU := "res://scenes/ui/TrialMenu.tscn"
+## 再入某章的落点：数据驱动章节（level02b 起）读各自 layout 的 entry_spawn()，
+## 走 ChapterLayout.entry_spawn_of（出口门送人过去用的也是它）；用 load() 取而不是类名，
+## 标题不因这条依赖在类缓存没刷新时黑屏。
+const CHAPTER_LAYOUT_PATH := "res://scripts/levels/chapter_layout.gd"
+## 前两章是手写关卡，没有 layout.entry_spawn()：这张表是它们的入口出生点，
+## 数值来自 Level01Static.DEFAULT_SPAWN（第一章起点）与 Level02Layout.ENTRY_SPAWN
+## （从第一章掉进地窟的落点）；tests/title_screen_test.gd 会逐项对照源常量，防止漂移。
+const ENTRY_SPAWN_OVERRIDES := {
+	"level01": Vector2(96.0, 320.0),
+	"level02": Vector2(96.0, 40.0),
+}
+const ENTRY_SPAWN_FALLBACK := Vector2(96.0, 300.0)
 
-## 墓志取「失败的净化偶自己先锈透」。一句，不是台词。
-const EPITAPH := "失败的净化偶，自己先锈透了。"
+## 「回看余烬」条：与 TitleChip 同一套深底、锈边、左侧色条与阶梯切角。
+## 常态暗锈；焦点 / 悬停时边与色条烧成余烬色，右侧箭头旁亮一粒火星。
+class RecapStrip:
+	extends Control
+	const HEIGHT := 26.0
+	const LABEL := "回 看 余 烬"
+	var _lit := false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func set_lit(value: bool) -> void:
+		if _lit == value:
+			return
+		_lit = value
+		queue_redraw()
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var edge := TitleChip.EDGE_LIT if _lit else TitleChip.EDGE
+		draw_rect(Rect2(2.0, 0.0, w - 4.0, h), TitleChip.FILL)
+		draw_rect(Rect2(0.0, 2.0, w, h - 4.0), TitleChip.FILL)
+		draw_rect(Rect2(2.0, 0.0, w - 4.0, 1.0), edge)
+		draw_rect(Rect2(2.0, h - 1.0, w - 4.0, 1.0), edge)
+		draw_rect(Rect2(0.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
+		draw_rect(Rect2(w - 1.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
+		draw_rect(Rect2(3.0, 1.0, w - 6.0, 1.0), Color(0.9, 0.7, 0.5, 0.06))
+		draw_rect(Rect2(3.0, h - 2.0, w - 6.0, 1.0), Color(0.0, 0.0, 0.0, 0.22))
+		# 左侧色条：常态暗铁，点亮烧成余烬。
+		draw_rect(Rect2(0.0, 2.0, 3.0, h - 4.0), TitleChip.STRIPE_LIT if _lit else TitleChip.STRIPE)
+		# 文字左对齐，留出色条的位置。
+		var font := get_theme_default_font()
+		if font != null:
+			var col := UiKit.EMBER if _lit else Color("#E4DCCC")
+			draw_string(font, Vector2(12.0, h * 0.5 + 5.0), LABEL, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
+			# 右侧的小箭头，与文字同色，点亮时是一粒余烬。
+			draw_string(font, Vector2(w - 18.0, h * 0.5 + 5.0), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
+
+## 副题两侧的余烬菱形饰：作为 Subtitle 的子节点画在文字两边，随副题定宽自动对中。
+class SubtitleFlanks:
+	extends Control
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_preset(Control.PRESET_FULL_RECT)
+		offset_left = -30.0
+		offset_right = 30.0
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_RESIZED:
+			queue_redraw()
+
+	func _draw() -> void:
+		var cy := floorf(size.y * 0.5)
+		for cx in [12.0, size.x - 12.0]:
+			var inward := 1.0 if cx < size.x * 0.5 else -1.0
+			# 一道短锈线指向文字，线头一粒 2px 余烬菱形。
+			draw_rect(Rect2(cx - 5.0 if inward < 0.0 else cx + 2.0, cy, 6.0, 1.0),
+					Color(0.42, 0.26, 0.16, 0.8))
+			var c := Vector2(cx, cy - 1.0)
+			for dy in range(-2, 3):
+				var half := 2 - absi(dy)
+				draw_rect(Rect2(c.x - half - 1.0, c.y + dy, 2.0 * half + 3.0, 1.0),
+						Color(0.55, 0.28, 0.10, 0.9))
+			for dy in range(-1, 2):
+				var half := 1 - absi(dy)
+				draw_rect(Rect2(c.x - half, c.y + dy, 2.0 * half + 1.0, 1.0),
+						Color(1.0, 0.76, 0.29, 0.95))
+
+## 墓志取「没用上的人偶自己先锈透」（你就是那个人偶）。一句，不是台词。
+const EPITAPH := "没用上的人偶，自己先锈透了。"
 const FADE_OUT := 0.7
 const LOGO_BREATH_PERIOD := 3.2
 # fallback (static keyart) atmosphere
@@ -65,8 +155,8 @@ const JOURNEY_H := 420.0
 ## 展开的档案卡（收起时停在右侧 CARD_SLIDE 处不可见，展开时滑回）。
 const CARD_RECT := Rect2(820.0, 184.0, 388.0, 424.0)
 const CARD_SLIDE := 24.0
-## 墓志行（与"离开"行同一条中心线）。
-const EPITAPH_RECT := Rect2(688.0, 624.0, 520.0, 32.0)
+## 墓志行（与"离开"行同一条中心线）。右端停在 988，给旅程列里的「回看余烬」留出缝。
+const EPITAPH_RECT := Rect2(584.0, 624.0, 404.0, 32.0)
 const FOOTER_RECT := Rect2(72.0, 688.0, 1136.0, 28.0)
 
 # ---- motion ------------------------------------------------------------------------
@@ -98,6 +188,20 @@ const ID_KEEP := &"keep"
 const ID_OVERWRITE := &"overwrite"
 const ID_UPDATE := &"update"
 
+## 页脚右侧：焦点停在哪一行，就用一句话说明这一行是什么（每句 ≤ 24 字）。
+## 「继续」行在有结局时写作「回看余烬」，说明见 RECAP_HINT。没有说明（或没有焦点）时是 FOOTER_DEFAULT。
+const MENU_HINTS := {
+	ID_NEW: "点燃余烬 · 选出身，开始新的旅程",
+	ID_CONTINUE: "继续旅程 · 回到上次的余烬巢",
+	ID_TRIAL: "回火试炼 · 单场挑战，刷新最佳成绩",
+	ID_ARENA: "余烬竞技场 · 3v3 推线，摧毁敌方水晶",
+	ID_SETTINGS: "设置 · 音量、画面、键位与辅助",
+	ID_CONTROLS: "操作说明 · 当前键位与手柄按键",
+	ID_QUIT: "离开锈墓 · 退出游戏",
+}
+const RECAP_HINT := "回看余烬 · 翻看行程，重温序章与结局"
+const FOOTER_DEFAULT := "↑↓ 选择 · Enter 确认 · Tab 档案"
+
 ## Instance switch (tests set it before add_child); defaults to the USE_LIVE_SCENE const.
 var live_scene_enabled: bool = USE_LIVE_SCENE
 ## 测试开关：置 false 时把退出动画完整走一遍，但不真的结束进程（headless 套件用）。
@@ -115,10 +219,10 @@ var _keyart: TextureRect
 var _masthead: Control
 var _logo: TextureRect
 var _logo_material: ShaderMaterial
+var _logo_flash: ColorRect
 var _subtitle: Label
 var _menu: MenuList
 var _controls: ControlsPanel
-var _recap: CanvasLayer
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
 var _confirm_menu: MenuList
@@ -144,6 +248,14 @@ var _chips: Dictionary = {}
 var _journey_count: Label
 var _journey_chapter: Label
 var _journey_recap: Label
+## 通关后的「回看余烬」总结页（ember_recap.gd）；菜单「继续」行在有结局时也打开它。
+var _recap
+var _continue_opens_recap := false
+## 页脚右侧的一句话说明（焦点在哪行就写哪行）。
+var _footer_hint: Label
+var _hint_tween: Tween
+## 界面搭完之后才置 true：搭菜单时默认选中「继续」那一下焦点不触发场景反应。
+var _ui_ready := false
 var _card: TitleCard
 var _dossier_values: Dictionary = {}
 var _dossier_recap: Label
@@ -153,6 +265,7 @@ var _card_tween: Tween
 
 # epitaph typewriter
 var _epitaph: Label
+var _ep_backing: ColorRect
 var _ep_lines: PackedStringArray = []
 var _ep_index := 0
 var _ep_phase := 0            # 0 idle, 1 typing, 2 holding, 3 fading
@@ -176,7 +289,7 @@ func _ready() -> void:
 	Music.set_theme(&"title")
 	DisplayFit.apply()
 	WorldClock.hold_for_menu()
-	# 音频包若提供了标题环境床（炉厅低鸣），开着它；没有就什么都不做。
+	# 炉厅环境床走 Sfx.set_title_bed（循环床，不进一次性 LIBRARY）。没有这个方法就不开。
 	if Sfx.has_method(&"set_title_bed"):
 		Sfx.call(&"set_title_bed", true)
 	_build_backdrop()
@@ -192,6 +305,7 @@ func _ready() -> void:
 	# 不弹窗、不打断。检查失败/没有新版时保持原样。
 	UpdateService.checked.connect(_on_update_checked)
 	UpdateService.check_async()
+	_ui_ready = true
 	_play_intro()
 
 
@@ -232,6 +346,7 @@ func _build_backdrop() -> void:
 		right_scrim.offset_left = -420.0
 		right_scrim.offset_right = 0.0
 		add_child(right_scrim)
+		UiKit.corner_brackets(self, 12.0, 12.0)
 		return
 	_keyart.texture = UiKit.tex(KEYART_PATH)
 	# 旧版静态 keyart 的氛围：上下压暗 + 骑士光影 + 余烬 + 角饰。
@@ -310,6 +425,21 @@ func _build_masthead() -> void:
 	_subtitle.custom_minimum_size = Vector2(0.0, SUBTITLE_H)
 	_pack(_subtitle)
 	column.add_child(_subtitle)
+	# 副题两侧的余烬菱形饰（随副题定宽对中）。
+	var flanks := SubtitleFlanks.new()
+	flanks.name = "SubtitleFlanks"
+	_subtitle.add_child(flanks)
+
+	# 锻入完成时的落锤闪光：一层加法混合的白热，亮一下就熄。
+	_logo_flash = ColorRect.new()
+	_logo_flash.name = "LogoFlash"
+	_logo_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_logo_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_logo_flash.color = Color(1.0, 0.92, 0.72, 0.0)
+	var blend := CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_logo_flash.material = blend
+	_logo.add_child(_logo_flash)
 
 
 ## 左下菜单：压暗的铁条分四组。行距用空白节点而不是容器 separation。
@@ -326,14 +456,21 @@ func _build_rail() -> void:
 	var has_save := SaveData.has_save()
 	# 行动
 	_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
-	var cont := "回 看 余 烬" if SaveData.peek_ending() != "" else "继 续 旅 程"
+	# 通关过：这一行写「回看余烬」，也就真的打开总结页（总结页里仍有「继续旅程」）。
+	_continue_opens_recap = SaveData.peek_ending() != ""
+	var cont := "回 看 余 烬" if _continue_opens_recap else "继 续 旅 程"
 	_menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY, true)
 	_gap(GROUP_GAP)
 	# 模式
-	var trial_ready := TrialCatalogScript.unlocked()
+	var trial_ready := _trial_ready()
 	var trial_item := _menu.add_item(ID_TRIAL, "回 火 试 炼", not trial_ready, MenuItem.Kind.SECONDARY, true)
 	if not trial_ready:
-		trial_item.set_note("第七章后解锁")
+		trial_item.set_note("%s后解锁" % TrialCatalogScript.unlock_chapter_label())
+		# 禁用行不进键盘导航，但鼠标悬停时页脚仍交代它为什么锁着。
+		trial_item.mouse_entered.connect(
+				func() -> void: _set_footer_hint("回火试炼 · 通关%s后解锁" % TrialCatalogScript.unlock_chapter_label()))
+		trial_item.mouse_exited.connect(
+				func() -> void: if _menu != null: _refresh_footer_hint(_menu.selected_id()))
 	_menu.add_item(ID_ARENA, "余 烬 竞 技 场", false, MenuItem.Kind.SECONDARY, true)
 	_gap(GROUP_GAP)
 	# 系统
@@ -391,13 +528,35 @@ func _build_journey() -> void:
 	_journey_chapter.clip_text = true
 	_journey_chapter.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_journey.add_child(_journey_chapter)
+	# 版式细节：标题下压一道锈线，列左侧一根细导引线（和菜单架的脊/芯片左侧条同语汇）。
+	var head_rule := ColorRect.new()
+	head_rule.name = "JourneyRule"
+	head_rule.position = Vector2(0.0, 17.0)
+	head_rule.size = Vector2(JOURNEY_W, 1.0)
+	head_rule.color = Color(0.42, 0.26, 0.16, 0.55)
+	head_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_journey.add_child(head_rule)
+	var guide := ColorRect.new()
+	guide.name = "JourneyGuide"
+	guide.position = Vector2(-10.0, 8.0)
+	guide.size = Vector2(1.0, JOURNEY_H - 16.0)
+	guide.color = Color(0.42, 0.26, 0.16, 0.30)
+	guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_journey.add_child(guide)
+
 	_journey_recap = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_LEFT)
 	_journey_recap.name = "JourneyRecap"
-	_journey_recap.position = Vector2(0.0, 38.0)
-	_journey_recap.size = Vector2(JOURNEY_W, 30.0)
+	# 两行摘要停在标尺墨线左侧 8px，底边也让开标尺顶，避免「守炉：…」盖住壹贰叁。
+	var recap_w := TitleGauge.INK_LEFT - 8.0
+	_journey_recap.position = Vector2(0.0, 36.0)
+	_journey_recap.size = Vector2(recap_w, 34.0)
+	_journey_recap.custom_minimum_size = Vector2(recap_w, 34.0)
 	_journey_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_journey_recap.max_lines_visible = 2
 	_journey_recap.clip_text = true
+	_journey_recap.clip_contents = true
+	_journey_recap.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_journey_recap.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_journey.add_child(_journey_recap)
 
 	_gauge = TitleGauge.new()
@@ -415,6 +574,33 @@ func _build_journey() -> void:
 				chip_y + float(spec[3]) * (TitleChip.CHIP_SIZE.y + 6.0))
 		_journey.add_child(chip)
 		_chips[String(spec[0])] = chip
+
+	# 回看余烬：和上方的数据芯片同一种语汇（深底、锈边、左侧色条、切角），做成一条
+	# 与芯片同高的横条。外观由 RecapStrip 自绘；Button 只负责焦点、点击与导航。
+	var recap := Button.new()
+	recap.name = "RecapButton"
+	recap.flat = true
+	recap.text = ""
+	recap.focus_mode = Control.FOCUS_ALL
+	recap.position = Vector2(0.0, chip_y + TitleChip.CHIP_SIZE.y * 2.0 + 16.0)
+	recap.custom_minimum_size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
+	recap.size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
+	recap.pressed.connect(open_recap)
+	# 悬停 / 聚焦时页脚说明跟着写，左缘迸一小簇火星；离开恢复菜单那行的说明。
+	recap.mouse_entered.connect(_on_recap_attention.bind(true))
+	recap.focus_entered.connect(_on_recap_attention.bind(true))
+	recap.mouse_exited.connect(_on_recap_attention.bind(false))
+	recap.focus_exited.connect(_on_recap_attention.bind(false))
+	_journey.add_child(recap)
+	var strip := RecapStrip.new()
+	strip.name = "Strip"
+	strip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	recap.add_child(strip)
+	recap.focus_entered.connect(strip.set_lit.bind(true))
+	recap.focus_exited.connect(strip.set_lit.bind(false))
+	recap.mouse_entered.connect(strip.set_lit.bind(true))
+	recap.mouse_exited.connect(strip.set_lit.bind(false))
 
 	_build_dossier_card()
 	_refresh_dossier()
@@ -441,14 +627,16 @@ func _build_dossier_card() -> void:
 	_card.add_child(panel)
 	var box := VBoxContainer.new()
 	box.name = "Content"
-	box.add_theme_constant_override("separation", 10)
+	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	head.modulate = UiKit.EMBER
 	head.name = "DossierHead"
 	box.add_child(head)
+	_dossier_section(box, "成 长")
 	_add_dossier_row(box, "Rank", "余 烬 阶 位")
 	_add_dossier_row(box, "Skin", "当 前 外 观")
+	_dossier_section(box, "旅 程")
 	_add_dossier_row(box, "Trials", "回 火 试 炼")
 	_add_dossier_row(box, "Arena", "余 烬 竞 技 场")
 	_add_dossier_row(box, "Chapter", "上 次 行 程")
@@ -458,8 +646,8 @@ func _build_dossier_card() -> void:
 	_dossier_recap.custom_minimum_size = Vector2(0.0, 44.0)
 	_dossier_recap.modulate = Color(UiKit.EMBER_ASH.r, UiKit.EMBER_ASH.g, UiKit.EMBER_ASH.b, 0.85)
 	box.add_child(_dossier_recap)
-	if not TrialCatalogScript.unlocked():
-		var trial_hint := UiKit.label("通关第七章或任一结局后解锁「回火试炼」", &"FootnoteLabel")
+	if not _trial_ready():
+		var trial_hint := UiKit.label("通关%s或任一结局后解锁「回火试炼」" % TrialCatalogScript.unlock_chapter_label(), &"FootnoteLabel")
 		trial_hint.name = "TrialLockHint"
 		trial_hint.modulate = UiKit.ASH
 		trial_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -479,6 +667,24 @@ func _build_dossier_card() -> void:
 	foot.name = "DossierFoot"
 	foot.modulate = UiKit.ASH
 	box.add_child(foot)
+
+
+## 档案卡的小节标题：琥珀色小字 + 一条渐隐锈线，把"成长/旅程"分开。
+func _dossier_section(parent: VBoxContainer, title: String) -> void:
+	var row := HBoxContainer.new()
+	row.name = "DossierSection" + title
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var lab := UiKit.label(title, &"TinyStrongLabel")
+	lab.modulate = Color(UiKit.EMBER_ASH.r, UiKit.EMBER_ASH.g, UiKit.EMBER_ASH.b, 0.9)
+	row.add_child(lab)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(0.0, 1.0)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rule.color = Color(0.42, 0.26, 0.16, 0.55)
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(rule)
 
 
 func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void:
@@ -536,11 +742,9 @@ func _refresh_dossier() -> void:
 			trial_text = "%d 条记录" % trial_count
 	_dossier_values["Trials"].text = trial_text
 
-	var arena_text := "未踏足"
 	var arena_records: Dictionary = ArenaRunScript.read_records()
-	var arena_runs := int(arena_records.get("runs", 0))
-	if arena_runs > 0:
-		arena_text = "最佳 %d 分 · %d 场" % [int(arena_records.get("best_score", 0)), arena_runs]
+	var arena_wins := int(arena_records.get("wins", 0))
+	var arena_text := "胜 %d 场" % arena_wins
 	_dossier_values["Arena"].text = arena_text
 
 	var chapter_text := "尚无旅程"
@@ -568,11 +772,10 @@ func _refresh_dossier() -> void:
 	(_chips["Rank"] as TitleChip).set_chip("阶", str(rank) if has_save else "—", has_save)
 	(_chips["Skin"] as TitleChip).set_chip("装", skin_name, has_save)
 	(_chips["Trials"] as TitleChip).set_chip("试", str(trial_count) if trial_count > 0 else "—", trial_count > 0)
-	(_chips["Arena"] as TitleChip).set_chip("竞", str(int(arena_records.get("best_score", 0))) if arena_runs > 0 else "—",
-			arena_runs > 0)
+	(_chips["Arena"] as TitleChip).set_chip("竞", "胜 %d 场" % arena_wins, arena_wins > 0)
 
 
-## 结局的短名（取自结局概述冒号前的几个字：送剑 / 守火 / 熄灭残芯）。
+## 结局的短名（取自结局概述冒号前的几个字：还火 / 守炉 / 熄火）。
 func _ending_name(kind: String) -> String:
 	var summary := ChapterText.ending_summary_of(kind)
 	var cut := summary.find("：")
@@ -591,20 +794,40 @@ func _build_inscription() -> void:
 	strip.size = EPITAPH_RECT.size
 	add_child(strip)
 
-	var row := HBoxContainer.new()
+	var row := Control.new()
 	row.name = "EpitaphRow"
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.alignment = BoxContainer.ALIGNMENT_END
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	strip.add_child(row)
 
-	_ep_lines = PackedStringArray([EPITAPH,
-			String(ChapterText.OPENING["situation"]),
-			String(ChapterText.OPENING["lamp"]),
-			String(ChapterText.OPENING["question"])])
-	# Left-aligned, sized to the whole line: a typed prefix then grows to the right while
-	# the finished line still sits flush with the right margin (the row ends at x=1208).
-	_epitaph = UiKit.label(EPITAPH, &"EpitaphLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	# 铭文条的一道顶线，右端一粒余烬钉：给这行字一个"刻在碑上"的锚点。
+	var rule := ColorRect.new()
+	rule.name = "EpitaphRule"
+	rule.position = Vector2(0.0, 0.0)
+	rule.size = Vector2(EPITAPH_RECT.size.x, 1.0)
+	rule.color = Color(0.42, 0.26, 0.16, 0.5)
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(rule)
+	var nail := ColorRect.new()
+	nail.name = "EpitaphNail"
+	nail.position = Vector2(EPITAPH_RECT.size.x - 3.0, -1.0)
+	nail.size = Vector2(3.0, 3.0)
+	nail.color = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.8)
+	nail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(nail)
+
+	# 字背后的柔和底衬：桥面上的栏杆和火星会从字底下穿过，垫一层才读得稳。
+	_ep_backing = ColorRect.new()
+	_ep_backing.name = "EpitaphBacking"
+	_ep_backing.color = Color(0.02, 0.01, 0.03, 0.42)
+	_ep_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_ep_backing)
+
+	_ep_lines = PackedStringArray([EPITAPH])
+	for line in ChapterText.TITLE_LINES:
+		_ep_lines.append(line)
+	# 整句右齐在墓志条里。条本身比旅程列窄一截，字再长也停在条内，不压到「回看余烬」。
+	_epitaph = UiKit.label(EPITAPH, &"EpitaphLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	_epitaph.name = "Epitaph"
 	_epitaph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_pack(_epitaph)
@@ -635,13 +858,20 @@ func _build_chrome() -> void:
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.9)
 	band.add_child(credits)
-	# 操作提示染成余烬色：页脚里只有这一行是"给玩家的指令"。
-	var hint := UiKit.label("↑↓ 选择 · Enter 确认 · Tab 档案", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	# 页脚右侧染成余烬色：页脚里只有这一行是"给玩家的话"——焦点停在哪一行，
+	# 就用一句话说明它是什么（MENU_HINTS）；没有焦点时是操作提示。
+	var hint := UiKit.label(FOOTER_DEFAULT, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	hint.name = "FooterHint"
 	hint.position = Vector2(FOOTER_RECT.size.x - 400.0, 6.0)
 	hint.size = Vector2(400.0, 20.0)
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint.clip_text = true
+	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	hint.modulate = UiKit.EMBER_ASH
 	band.add_child(hint)
+	_footer_hint = hint
+	if _menu != null:
+		_refresh_footer_hint(_menu.selected_id())
 
 	_update_notice = Button.new()
 	_update_notice.name = "UpdateNotice"
@@ -681,11 +911,6 @@ func _build_ui_sparks() -> void:
 # ---------------------------------------------------------------- overlays -----
 
 func _build_overlays() -> void:
-	_recap = load("res://scripts/ui/ember_recap.gd").new() as CanvasLayer
-	_recap.name = "EmberRecap"
-	_recap.layer = 8
-	_recap.closed.connect(func() -> void: _menu.active = true)
-	add_child(_recap)
 	_controls = ControlsPanel.new()
 	_controls.layer = 5
 	_controls.closed.connect(func() -> void: _menu.active = true)
@@ -694,6 +919,7 @@ func _build_overlays() -> void:
 	_settings.layer = 6
 	_settings.closed.connect(func() -> void: _menu.active = true)
 	add_child(_settings)
+	_build_recap_page()
 	_build_confirm()
 	_build_character_select()
 	_update_prompt = UpdatePrompt.new()
@@ -777,6 +1003,7 @@ func _play_intro() -> void:
 	tw.tween_property(_logo_material, "shader_parameter/progress", 1.0, LOGO_TIME) \
 			.set_delay(LOGO_AT).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func() -> void: UiKit.sfx(&"forge_pulse", &"gate")).set_delay(LOGO_AT)
+	tw.tween_callback(_logo_settle_flash).set_delay(LOGO_AT + LOGO_TIME)
 	for k in 5:
 		tw.tween_callback(_logo_spark.bind(0.12 + 0.19 * float(k))) \
 				.set_delay(LOGO_AT + LOGO_TIME * (0.12 + 0.19 * float(k)))
@@ -787,8 +1014,9 @@ func _play_intro() -> void:
 	for i in rows.size():
 		var row := rows[i]
 		tw.tween_property(row, "modulate:a", 1.0, 0.2).set_delay(delay)
+		# TRANS_BACK：落位带一点回弹，像铁条被挂上挂架。
 		tw.tween_property(row, "land", 0.0, MENU_LAND).set_delay(delay) \
-				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		delay += MENU_STAGGER
 	var menu_end := delay + MENU_LAND
 	tw.tween_property(_journey, "modulate:a", 1.0, 0.35).set_delay(MENU_AT + 0.35)
@@ -807,6 +1035,16 @@ func _finish_intro() -> void:
 		_curtain = null
 	_ep_phase = 1
 	_ep_t = 0.0
+
+
+## 锻入收尾：白热在字标上亮一下再熄，像锻锤最后落了一记。
+func _logo_settle_flash() -> void:
+	if _logo_flash == null or not is_instance_valid(_logo_flash):
+		return
+	var tw := create_tween()
+	tw.tween_property(_logo_flash, "color:a", 0.42, 0.05)
+	tw.tween_property(_logo_flash, "color:a", 0.0, 0.32) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
 ## 字标锻入时沿着扫过的前沿迸几粒火星。
@@ -937,6 +1175,9 @@ func _update_epitaph(delta: float) -> void:
 	var line: String = _ep_lines[_ep_index]
 	match _ep_phase:
 		1:
+			# 新句先轻轻亮起，再开始打字；换行不再硬切。
+			_epitaph.modulate.a = smoothstep(0.0, 1.0,
+					clampf(_ep_t / 0.22, 0.0, 1.0))
 			var shown := int(_ep_t / EPITAPH_CHAR)
 			_epitaph.visible_characters = shown
 			if shown >= line.length():
@@ -948,7 +1189,8 @@ func _update_epitaph(delta: float) -> void:
 				_ep_phase = 3
 				_ep_t = 0.0
 		3:
-			_epitaph.modulate.a = 1.0 - clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0)
+			_epitaph.modulate.a = 1.0 - smoothstep(0.0, 1.0,
+				clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0))
 			if _ep_t >= EPITAPH_FADE:
 				_ep_index = (_ep_index + 1) % _ep_lines.size()
 				_epitaph.text = _ep_lines[_ep_index]
@@ -959,14 +1201,23 @@ func _update_epitaph(delta: float) -> void:
 				_ep_t = 0.0
 
 
-## 墓志标签按当前这一行的整句宽度定宽（右端对齐由 HBox 的 END 对齐保证）。
+## 墓志标签按当前这一行的整句定宽，右端贴着墓志条，不超出条的右缘。
 func _fit_epitaph() -> void:
 	var font := _epitaph.get_theme_font(&"font")
 	var font_size := _epitaph.get_theme_font_size(&"font_size")
 	var width := 8.0
 	if font != null:
 		width = font.get_string_size(_epitaph.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	_epitaph.custom_minimum_size = Vector2(minf(ceilf(width) + 8.0, EPITAPH_RECT.size.x), EPITAPH_RECT.size.y)
+	var max_w := EPITAPH_RECT.size.x
+	var use := minf(ceilf(width) + 8.0, max_w)
+	_epitaph.clip_text = true
+	_epitaph.custom_minimum_size = Vector2(use, EPITAPH_RECT.size.y)
+	_epitaph.size = Vector2(use, EPITAPH_RECT.size.y)
+	_epitaph.position = Vector2(max_w - use, 0.0)
+	if _ep_backing != null:
+		# 底衬比字稍宽一点、比行高稍薄一点，压在字的正后方。
+		_ep_backing.position = Vector2(max_w - use - 8.0, 5.0)
+		_ep_backing.size = Vector2(use + 8.0, EPITAPH_RECT.size.y - 10.0)
 
 
 ## 当前打字机的那一行（测试读）。
@@ -984,12 +1235,66 @@ func _on_focus_changed(id: StringName) -> void:
 	if idx < 0 or idx >= items.size():
 		return
 	var item := items[idx] as MenuItem
+	_refresh_footer_hint(id)
 	if _world != null and not _intro_playing:
 		_world.nudge(1.0)
+		# 每一行在炉厅里有自己的反应（炉火一涌 / 锻锤敲一下 / 火盆加亮…），见 TitleWorld.react_to
+		if _ui_ready:
+			_world.react_to(id)
 	if _ui_sparks != null and item != null and not _intro_playing:
 		var r := _local_rect(item)
 		var at := Vector2(r.position.x + MenuItem.STRIP_CURSOR_X + 6.0, r.position.y + r.size.y * 0.5)
 		_ui_sparks.burst(at * 0.5, 8, 62.0)
+
+
+## 页脚右侧的说明：这一行是什么（MENU_HINTS）。「继续」行在有结局时是「回看余烬」。
+## 不认识的 id 返回空串。
+static func hint_for(id: StringName, recap_row: bool = false) -> String:
+	if id == ID_CONTINUE and recap_row:
+		return RECAP_HINT
+	return String(MENU_HINTS.get(id, ""))
+
+
+## 「回看余烬」按钮的悬停 / 聚焦：页脚写它的说明，左缘迸一小簇火星。
+func _on_recap_attention(over: bool) -> void:
+	if _quitting or _started:
+		return
+	if over:
+		_set_footer_hint(RECAP_HINT)
+		if _ui_ready and not _intro_playing and _ui_sparks != null:
+			var recap := _journey.get_node_or_null("RecapButton") as Control
+			if recap != null:
+				var r := _local_rect(recap)
+				_ui_sparks.burst(Vector2(r.position.x + 4.0, r.position.y + r.size.y * 0.5) * 0.5,
+						6, 52.0)
+	elif _menu != null:
+		_refresh_footer_hint(_menu.selected_id())
+
+
+func _refresh_footer_hint(id: StringName) -> void:
+	var text := hint_for(id, _continue_opens_recap)
+	_set_footer_hint(text if text != "" else FOOTER_DEFAULT)
+
+
+## 换页脚说明：淡出 → 换字 → 淡入，不硬切。无显示服务器（headless）时直接写。
+func _set_footer_hint(text: String) -> void:
+	if _footer_hint == null or _footer_hint.text == text:
+		return
+	if DisplayServer.get_name() == "headless" or not is_inside_tree():
+		_footer_hint.text = text
+		return
+	if _hint_tween != null and _hint_tween.is_valid():
+		_hint_tween.kill()
+	_hint_tween = create_tween()
+	_hint_tween.tween_property(_footer_hint, "modulate:a", 0.0, 0.08)
+	_hint_tween.tween_callback(func() -> void: _footer_hint.text = text)
+	_hint_tween.tween_property(_footer_hint, "modulate:a", 1.0, 0.16) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## 页脚右侧现在写的是什么（测试读）。
+func footer_hint_text() -> String:
+	return _footer_hint.text if _footer_hint != null else ""
 
 
 ## 控件在标题屏设计空间里的矩形（与窗口缩放无关：标题屏自己被缩放时
@@ -1022,9 +1327,9 @@ func _on_chosen(id: StringName) -> void:
 				_menu.active = false
 				_char_select.open()
 		ID_CONTINUE:
-			if SaveData.peek_ending() != "":
-				_menu.active = false
-				_recap.open()
+			# 有结局时这一行写的是「回看余烬」：打开总结页，由总结页决定继续 / 重温 / 再入某章。
+			if _continue_opens_recap:
+				open_recap()
 			else:
 				_start(true)
 		ID_TRIAL:
@@ -1060,16 +1365,153 @@ func _start_arena() -> bool:
 	return ArenaRunScript.start()
 
 
-## 确认入场：白热闪光 + 镜头朝骑士前推 + 在选中条上迸一簇火星。随后调用方淡出换关。
+## 「回看余烬」总结页：结局、已过的章数、继续旅程、重温序章 / 结局、模式入口、再入某一章。
+## 有结局时菜单里的「继续」行（写作「回看余烬」）和旅程列的「回看余烬」按钮都打开它。
+## 页面本身见 ember_recap.gd（OrnatePanel 卡片 + MenuList，与其他弹窗一致）。
+func open_recap() -> void:
+	if _started or _quitting or _recap == null:
+		return
+	if _intro_playing:
+		_skip_intro()
+	if _recap.is_open():
+		return
+	_menu.active = false
+	# 总结页是一块半透明的玻璃卡：标题菜单若还亮着，它的文字会从卡片下面透出来。淡出菜单，
+	# 只让场景的光透过去（关闭时再淡回来）。
+	_fade_title_menu(0.0)
+	_recap.open(_recap_info())
+
+
+## 标题菜单的淡入淡出：只动 modulate:a，不碰 active（输入由 active 单独管）。
+func _fade_title_menu(alpha: float) -> void:
+	if _menu == null:
+		return
+	var tw := create_tween()
+	tw.tween_property(_menu, "modulate:a", alpha, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## 标题还没读档时，试炼解锁只在磁盘旗标里。内存空着不能把钟楼之后的存档显示成未解锁。
+func _trial_ready() -> bool:
+	if TrialCatalogScript.unlocked():
+		return true
+	if not SaveData.data.is_empty():
+		return false
+	var flags: PackedStringArray = TitleWorld.peek_save().get("flags", PackedStringArray())
+	return flags.has(TrialCatalogScript.UNLOCK_FLAG) \
+			or flags.has(TrialCatalogScript.chapter_flag(TrialCatalogScript.UNLOCK_CHAPTER)) \
+			or flags.has("game_complete")
+
+
+## 总结页要的数据。旗标取「内存 + 磁盘合并」的那份（标题刚启动时 SaveData.flags 还没读档，
+## 直接读它会把已通关的章全算成 0）。
+func _recap_info() -> Dictionary:
+	var peek := TitleWorld.peek_save()
+	return {
+		"ending": SaveData.peek_ending(),
+		"flags": peek.get("flags", PackedStringArray()),
+		"has_save": bool(peek.get("has_save", false)),
+		"trial_ready": _trial_ready(),
+	}
+
+
+func _build_recap_page() -> void:
+	_recap = RecapScript.new()
+	_recap.layer = 4
+	_recap.closed.connect(_close_recap)
+	_recap.dismissed.connect(_close_recap)
+	_recap.continue_requested.connect(_recap_continue)
+	_recap.arena_requested.connect(_recap_arena)
+	_recap.trial_requested.connect(_recap_trial)
+	_recap.chapter_requested.connect(_reenter_chapter)
+	add_child(_recap)
+
+
+## 总结页关了（Esc / 返回 / 点卡片外）：菜单把输入拿回来。
+func _close_recap() -> void:
+	if _menu != null and not _started and not _quitting:
+		_menu.active = true
+		_fade_title_menu(1.0)
+
+
+## 总结页里的「继续旅程」：和菜单的「继续」行读同一份存档。
+func _recap_continue() -> void:
+	if _started or _quitting:
+		return
+	_recap.dismiss()
+	_start(true)
+
+
+func _recap_arena() -> void:
+	if _started or _quitting:
+		return
+	_recap.dismiss()
+	_on_chosen(ID_ARENA)
+
+
+func _recap_trial() -> void:
+	if _started or _quitting:
+		return
+	_recap.dismiss()
+	_on_chosen(ID_TRIAL)
+
+
+## 再入某章的落点：该章的入口出生点（出口门把人送进这一章时用的同一个点）。
+static func chapter_entry_spawn(id: String) -> Vector2:
+	if ENTRY_SPAWN_OVERRIDES.has(id):
+		return ENTRY_SPAWN_OVERRIDES[id]
+	if ResourceLoader.exists(CHAPTER_LAYOUT_PATH):
+		var script := load(CHAPTER_LAYOUT_PATH) as GDScript
+		if script != null:
+			var spawn: Vector2 = script.call(&"entry_spawn_of", id)
+			return spawn
+	return ENTRY_SPAWN_FALLBACK
+
+
+func _reenter_chapter(id: String) -> void:
+	if _started or _quitting:
+		return
+	var path := String(GameContext.LEVELS.get(id, ""))
+	if path == "" or not GameContext.is_world_scene(path):
+		return
+	_recap.dismiss()
+	_started = true
+	_menu.active = false
+	var spawn := chapter_entry_spawn(id)
+	if not SaveData.data.has("meta") or not SaveData.data["meta"] is Dictionary:
+		SaveData.data["meta"] = {}
+	(SaveData.data["meta"] as Dictionary)["scene"] = path
+	if SaveData.data.has("player") and SaveData.data["player"] is Dictionary:
+		(SaveData.data["player"] as Dictionary)["pos"] = spawn
+	SaveData.pending_spawn = spawn
+	Sfx.play(&"gate")
+	_confirm_effect()
+	Director.fade_to(path, FADE_OUT)
+
+
+## 测试 / 工具：总结页句柄与是否正开着。
+func recap_page():
+	return _recap
+
+
+func recap_open() -> bool:
+	return _recap != null and _recap.is_open()
+
+
+## 确认入场：白热闪光 + 镜头朝骑士前推 + 在选中条上迸一簇火星 + 条身一道白热扫过。
+## 随后调用方淡出换关。
 func _confirm_effect() -> void:
 	if _world != null:
 		_world.enter_push(5.0, 0.55)
-	if _ui_sparks != null and _menu != null:
+	if _menu != null:
 		var items := _menu.items()
 		var idx := _menu.item_ids().find(_menu.selected_id())
 		if idx >= 0 and idx < items.size():
-			var r := _local_rect(items[idx] as Control)
-			_ui_sparks.burst(Vector2(r.position.x + 24.0, r.position.y + r.size.y * 0.5) * 0.5, 14, 90.0)
+			var item := items[idx] as MenuItem
+			var r := _local_rect(item)
+			if _ui_sparks != null:
+				_ui_sparks.burst(Vector2(r.position.x + 24.0, r.position.y + r.size.y * 0.5) * 0.5,
+						14, 90.0)
+			item.flash()
 
 
 func _on_update_checked(status: StringName, _entry: Dictionary) -> void:
@@ -1348,7 +1790,6 @@ func look() -> Dictionary:
 
 
 func _exit_tree() -> void:
-	Sfx.set_title_bed(false)
 	if UpdateService.checked.is_connected(_on_update_checked):
 		UpdateService.checked.disconnect(_on_update_checked)
 	var tree := get_tree()

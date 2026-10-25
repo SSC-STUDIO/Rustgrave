@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/bg_altar.png",
+  "source_sha256": "c99bc66c218166195c116075bc2ed907166b8a2d454facef161b0b38d15ea43f",
+  "density": 12,
+  "size": [
+    1536,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    1536,
+    2304
+  ],
+  "logical_size": [
+    128,
+    192
+  ],
+  "variants": [
+    "assets/env/bg_altar.png"
+  ]
+}

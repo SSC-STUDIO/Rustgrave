@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/machinery_iron.png",
+  "source_sha256": "404490cfe3466867de93fe000f3c76f516f0428b73c2ca236f5ed072cf364274",
+  "density": 6,
+  "size": [
+    3840,
+    1280
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3840,
+    768
+  ],
+  "logical_size": [
+    640,
+    128
+  ],
+  "variants": [
+    "assets/env/backdrop/machinery_iron.png"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    640,
+    400
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_cemetery_hero/crouch/crouch_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        400
+      ],
+      "frame_origin": [
+        20,
+        23
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        9,
+        27,
+        69,
+        59
+      ]
+    }
+  ]
+}

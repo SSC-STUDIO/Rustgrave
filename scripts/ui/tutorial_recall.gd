@@ -3,20 +3,36 @@ extends CanvasLayer
 ## 教程回看：暂停菜单里重读已经出现过的情境提示（键名按当前键位）。
 ## 数据来自 HintService.seen_entries()（本存档旗标 + 内置表 + 关卡作者提示的文案缓存），
 ## 没看过的不列——这里不是剧透清单。挂法与 ControlsPanel 相同。
+##
+## 版式：左列是编号的课程（一 二 三 …，铁条版式；↑↓ 或悬停选中，光标与余烬亮度同菜单），
+## 右边是玻璃课卡：小字「教 程 回 看」、课名（HeadLabel）、正文，以及正文里提到的按键（键帽）。
+## 键名只从正文里认：整词出现才亮成键帽，不凭空补键。
 
 signal closed
 
 const Modal := preload("res://scripts/ui/ui_modal.gd")
 
-const SCROLL_STEP := 56.0
+## 压暗到 0.76：盖在暂停菜单上，底下的左列铁条要压到看不出字来，玻璃课卡才干净。
+const VEIL := 0.76
+const LIST_WIDTH := 304.0
+const CARD_GAP := 24.0
+const ITEM_PREFIX := "lesson_"
+## 正文里会写到、但不在 Settings 绑定表里的固定键名。
+const FIXED_KEYS: Array[String] = ["Tab", "Esc"]
+const NUMERALS: Array[String] = ["〇", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
 
 var _root: Control
 var _shell: Dictionary = {}
 var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
+var _split: HBoxContainer
 var _scroll: ScrollContainer
-var _list: VBoxContainer
+var _menu: MenuList
+var _lesson_title: Label
+var _lesson_body: Label
+var _keys_caption: Label
+var _keys_box: HBoxContainer
 var _empty_box: Control
-var _empty: Label
+var _entries: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -30,8 +46,9 @@ func _build() -> void:
 	_shell = Modal.build(self, {
 		"title": "教 程 回 看",
 		"size": Vector2(880.0, 580.0),
-		"hint": "↑↓ 滚动",
+		"hint": "↑↓ 选择",
 		"back": "Esc / 回车 返回",
+		"veil": VEIL,
 	})
 	_root = _shell["root"] as Control
 	_root.theme = UiKit.extras_theme()
@@ -41,17 +58,48 @@ func _build() -> void:
 			close())
 
 	var body := _shell["body"] as Control
+	_split = HBoxContainer.new()
+	_split.name = "Split"
+	_split.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_split.add_theme_constant_override("separation", int(CARD_GAP))
+	body.add_child(_split)
+
 	_scroll = ScrollContainer.new()
 	_scroll.name = "Scroll"
-	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scroll.custom_minimum_size = Vector2(LIST_WIDTH + 8.0, 0.0)
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	body.add_child(_scroll)
+	_split.add_child(_scroll)
 
-	_list = VBoxContainer.new()
-	_list.name = "List"
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.add_theme_constant_override("separation", 10)
-	_scroll.add_child(_list)
+	var card := PanelContainer.new()
+	card.name = "Card"
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	GlassKit.glass(card)
+	_split.add_child(card)
+	var lesson := VBoxContainer.new()
+	lesson.name = "Lesson"
+	lesson.add_theme_constant_override("separation", 10)
+	card.add_child(lesson)
+	lesson.add_child(GlassKit.kicker("教 程 回 看"))
+	_lesson_title = UiKit.label("", &"HeadLabel")
+	_lesson_title.name = "LessonTitle"
+	lesson.add_child(_lesson_title)
+	lesson.add_child(GlassKit.rule(160.0))
+	_lesson_body = UiKit.label("", &"BodyLabel")
+	_lesson_body.name = "LessonBody"
+	_lesson_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lesson_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_lesson_body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lesson.add_child(_lesson_body)
+	_keys_caption = UiKit.label("涉 及 按 键", &"TinyStrongLabel")
+	_keys_caption.name = "KeysCaption"
+	_keys_caption.modulate = UiKit.EMBER_ASH
+	lesson.add_child(_keys_caption)
+	_keys_box = HBoxContainer.new()
+	_keys_box.name = "Keys"
+	_keys_box.add_theme_constant_override("separation", 8)
+	lesson.add_child(_keys_box)
 
 	# 空态分两层：一句暖白的"还没有可回看的提示"是主答案，下面一行暗脚注
 	# 解释机制何时会出现。整段同字同色时玩家只会扫到"一大片灰"。
@@ -68,56 +116,146 @@ func _build() -> void:
 	empty_head.name = "EmptyHead"
 	empty_head.modulate = Color("#E4DCCC")
 	_empty_box.add_child(empty_head)
-	_empty = UiKit.label("新的机制第一次用得上时，提示会在画面上出现一次，并留在这里。",
+	var empty := UiKit.label("新的机制第一次用得上时，提示会在画面上出现一次，并留在这里。",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
-	_empty.name = "Empty"
-	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_empty.custom_minimum_size = Vector2(560.0, 0.0)
-	_empty.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_empty_box.add_child(_empty)
+	empty.name = "Empty"
+	empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	empty.custom_minimum_size = Vector2(560.0, 0.0)
+	empty.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_empty_box.add_child(empty)
+	refresh()
 
-## 重新读取已看过的提示并重排。
+
+## 重新读取已看过的提示并重排。列表是铁条菜单：每次重建（MenuList 没有删行的接口）。
 func refresh() -> void:
-	for child in _list.get_children():
-		_list.remove_child(child)
-		child.queue_free()
-	var entries := HintService.seen_entries()
+	_entries = HintService.seen_entries()
+	if _menu != null:
+		_scroll.remove_child(_menu)
+		_menu.queue_free()
+	_menu = MenuList.new()
+	_menu.name = "List"
+	_menu.strip_style = true
+	_menu.add_theme_constant_override("separation", 6)
+	_menu.focus_changed.connect(_on_focus_changed)
+	_scroll.add_child(_menu)
+	for i in _entries.size():
+		var item := _menu.add_item(StringName(ITEM_PREFIX + str(i)),
+				"%s  %s" % [_numeral(i + 1), String(_entries[i]["title"])], false,
+				MenuItem.Kind.SECONDARY)
+		item.dark_plate = true
+	var has := not _entries.is_empty()
+	_split.visible = has
 	if _empty_box != null:
-		_empty_box.visible = entries.is_empty()
-	_scroll.visible = not entries.is_empty()
-	for entry in entries:
-		_list.add_child(_make_entry(String(entry["title"]), String(entry["text"])))
+		_empty_box.visible = not has
 	_scroll.scroll_vertical = 0
+	if has:
+		_show_lesson(0)
 
 
 func entry_count() -> int:
-	return _list.get_child_count()
+	return _menu.items().size() if _menu != null else 0
 
 
-func _make_entry(title: String, text: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 20)
-	row.custom_minimum_size = Vector2(0.0, UiKit.TOUCH_MIN * 0.62)
-	var name_label := UiKit.label(title, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_RIGHT)
-	name_label.name = "Title"
-	name_label.custom_minimum_size = Vector2(130.0, 0.0)
-	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	# "场景提示"是关卡作者写的临时提示，排在内置键位表之后 —— 键名染成
-	# 暗铁而不是琥珀，内置条目与作者条目在颜色上就分出了主次两档。
-	name_label.modulate = Color("#B8703E") if title == "场景提示" else UiKit.EMBER
-	row.add_child(name_label)
-	var body := UiKit.label(text, &"BodyLabel")
-	body.name = "Text"
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(body)
-	return row
+## 课卡：课名、正文、正文里提到的键。
+func _show_lesson(index: int) -> void:
+	if index < 0 or index >= _entries.size():
+		return
+	var entry := _entries[index]
+	_lesson_title.text = String(entry["title"])
+	_lesson_body.text = String(entry["text"])
+	_render_keys(String(entry["text"]))
+
+
+func _on_focus_changed(id: StringName) -> void:
+	var index := String(id).trim_prefix(ITEM_PREFIX).to_int()
+	_show_lesson(index)
+	var items := _menu.items()
+	if index >= 0 and index < items.size():
+		_scroll.ensure_control_visible.call_deferred(items[index] as Control)
+
+
+func _render_keys(text: String) -> void:
+	for old in _keys_box.get_children():
+		_keys_box.remove_child(old)
+		old.queue_free()
+	var tokens := keys_in(text)
+	for token in tokens:
+		_keys_box.add_child(_chip(token))
+	_keys_caption.visible = not tokens.is_empty()
+	_keys_box.visible = not tokens.is_empty()
+
+
+func _chip(text: String) -> Control:
+	var plate := UiKit.panel(&"KeyCapPanel")
+	plate.name = "Chip"
+	var key := UiKit.label(text, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	plate.add_child(key)
+	return plate
+
+
+## 正文里出现过的键名（按出现顺序去重）。只认整词：E 不会误中 Esc，1 不会误中 12。
+static func keys_in(text: String) -> Array[String]:
+	var hits: Array = []
+	for token in _key_tokens():
+		var at := text.find(token)
+		while at >= 0:
+			if _whole_word(text, at, token.length()):
+				hits.append([at, token])
+				break
+			at = text.find(token, at + 1)
+	hits.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) < int(b[0]))
+	var out: Array[String] = []
+	for hit in hits:
+		var token := String(hit[1])
+		if not out.has(token):
+			out.append(token)
+	return out
+
+
+## 当前键位表里所有可能出现在正文里的键名：Settings 的绑定 + 备用键 + 固定键。
+static func _key_tokens() -> Array[String]:
+	var out: Array[String] = []
+	for action in Settings.REBINDABLE:
+		_add_token(out, KeyLabels.label(StringName(action)))
+		for extra in KeyLabels.extra_keys(StringName(action)):
+			_add_token(out, extra)
+	for fixed in FIXED_KEYS:
+		_add_token(out, fixed)
+	return out
+
+
+static func _add_token(out: Array[String], token: String) -> void:
+	if token != "" and not out.has(token):
+		out.append(token)
+
+
+static func _whole_word(text: String, at: int, n: int) -> bool:
+	var before := text.unicode_at(at - 1) if at > 0 else 32
+	var after := text.unicode_at(at + n) if at + n < text.length() else 32
+	return not _is_ascii_word(before) and not _is_ascii_word(after)
+
+
+static func _is_ascii_word(c: int) -> bool:
+	return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122)
+
+
+## 一 二 三 …：1..9 用单字，十以上写成「十一」「二十」「二十一」。
+static func _numeral(n: int) -> String:
+	if n < 10:
+		return NUMERALS[n]
+	if n < 100:
+		var tens := n / 10
+		var ones := n % 10
+		var head := "" if tens == 1 else NUMERALS[tens]
+		return head + "十" + ("" if ones == 0 else NUMERALS[ones])
+	return str(n)
 
 
 func open() -> void:
 	refresh()
 	_closing = false
+	_menu.active = true
 	visible = true
 	(_shell.get("play_intro") as Callable).call()
 	GameContext.suppress_gameplay_input()
@@ -128,6 +266,7 @@ func close() -> void:
 	if not visible or _closing:
 		return
 	_closing = true
+	_menu.active = false
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
 	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。
@@ -140,15 +279,10 @@ func close() -> void:
 	)
 
 
-func _unhandled_input(event: InputEvent) -> void:
+## 回车 / Esc 在任何焦点下都是「返回」：放在 _input 里先接，免得列表把回车当成选中。
+func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept"):
 		close()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_down"):
-		_scroll.scroll_vertical += int(SCROLL_STEP)
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_up"):
-		_scroll.scroll_vertical = maxi(0, _scroll.scroll_vertical - int(SCROLL_STEP))
 		get_viewport().set_input_as_handled()

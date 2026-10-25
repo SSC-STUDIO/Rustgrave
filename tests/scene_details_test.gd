@@ -77,7 +77,7 @@ func _body_aabb(node: Node2D) -> Rect2:
 		var spr := child as Sprite2D
 		if spr == null or not spr.visible or spr.texture == null:
 			continue
-		var path := String(spr.texture.resource_path)
+		var path := DensityTextures.source_path(spr.texture)
 		if path == "" or path.contains("glow"):
 			continue
 		var r := _sprite_rect(spr)
@@ -121,7 +121,7 @@ func test_scene_details_are_real_catalog_props() -> void:
 		ok(spr.texture != null, "%s has a texture" % String(spr.name))
 		if spr.texture == null:
 			continue
-		matched.append(String(spr.texture.resource_path))
+		matched.append(DensityTextures.source_path(spr.texture))
 		eq(spr.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "%s is nearest-filtered" % spr.name)
 		eq(spr.scale, Vector2.ONE, "%s is drawn at world 1x" % spr.name)
 	for path in expected:

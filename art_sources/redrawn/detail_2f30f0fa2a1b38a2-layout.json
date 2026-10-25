@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/wall_slate.png",
+  "source_sha256": "38395fb4cccafc608f03b131478d4b1203e0709dce96a1b2dd3e35c633ba84ed",
+  "density": 12,
+  "size": [
+    2304,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    2304,
+    2304
+  ],
+  "logical_size": [
+    192,
+    192
+  ],
+  "variants": [
+    "assets/env/backdrop/wall_slate.png"
+  ]
+}

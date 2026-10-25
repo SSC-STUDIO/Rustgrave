@@ -2,7 +2,7 @@ extends Node2D
 ## 连根火舌用普通混合与自发光；光晕/飞火仍由父节点单独加色。
 ## 两口火共享一个绘制节点，不新建逐帧精灵，也不增加PointLight2D。
 
-const STRIP := preload("res://assets/fx/connected_flame.png")
+static var STRIP: Texture2D = DensityTextures.load_texture("res://assets/fx/connected_flame.png")
 const CELL := Vector2(32.0, 40.0)
 const ROOT := Vector2(16.0, 36.0)
 const FRAMES := 16

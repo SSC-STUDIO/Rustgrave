@@ -1,0 +1,289 @@
+{
+  "density": 6,
+  "size": [
+    3200,
+    1920
+  ],
+  "cell": [
+    640,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        640
+      ],
+      "frame_origin": [
+        20,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        21,
+        79,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        640
+      ],
+      "frame_origin": [
+        660,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        16,
+        82,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_2.png",
+      "slot": [
+        1280,
+        0,
+        1920,
+        640
+      ],
+      "frame_origin": [
+        1300,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        18,
+        64,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_3.png",
+      "slot": [
+        1920,
+        0,
+        2560,
+        640
+      ],
+      "frame_origin": [
+        1940,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        18,
+        64,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_4.png",
+      "slot": [
+        2560,
+        0,
+        3200,
+        640
+      ],
+      "frame_origin": [
+        2580,
+        20
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        27,
+        19,
+        58,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_5.png",
+      "slot": [
+        0,
+        640,
+        640,
+        1280
+      ],
+      "frame_origin": [
+        20,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        27,
+        19,
+        60,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_6.png",
+      "slot": [
+        640,
+        640,
+        1280,
+        1280
+      ],
+      "frame_origin": [
+        660,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        17,
+        19,
+        69,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_7.png",
+      "slot": [
+        1280,
+        640,
+        1920,
+        1280
+      ],
+      "frame_origin": [
+        1300,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        5,
+        19,
+        82,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_8.png",
+      "slot": [
+        1920,
+        640,
+        2560,
+        1280
+      ],
+      "frame_origin": [
+        1940,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        17,
+        19,
+        69,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_9.png",
+      "slot": [
+        2560,
+        640,
+        3200,
+        1280
+      ],
+      "frame_origin": [
+        2580,
+        660
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        27,
+        19,
+        60,
+        83
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_10.png",
+      "slot": [
+        0,
+        1280,
+        640,
+        1920
+      ],
+      "frame_origin": [
+        20,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        27,
+        20,
+        58,
+        84
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/skill/skill_11.png",
+      "slot": [
+        640,
+        1280,
+        1280,
+        1920
+      ],
+      "frame_origin": [
+        660,
+        1300
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "bbox": [
+        34,
+        17,
+        82,
+        84
+      ]
+    }
+  ]
+}

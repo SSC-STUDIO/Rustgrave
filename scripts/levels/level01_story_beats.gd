@@ -93,8 +93,8 @@ func on_boss_gate(body: Node) -> void:
 	], true)
 
 
-## 刽子手跪下：慢放 + 一震，镜头先给跪倒的他，再移到残芯的光上。约 4.6 秒，可跳过。
-## 倒下不是终点：镜头离开他、停在残芯上，玩家已经知道下一站在哪。
+## 刽子手跪下：慢放 + 一震，镜头先给跪倒的他，再移到火种的光上。约 4.6 秒，可跳过。
+## 倒下不是终点：镜头离开他、停在火种上，玩家已经知道下一站在哪。
 func on_boss_slain() -> void:
 	var heart: ForgeHeart = null
 	if _host != null:
@@ -111,7 +111,7 @@ func on_boss_slain() -> void:
 		{"kind": "fx", "id": "slowmo", "ms": 700, "scale": 0.25, "seconds": 0.0},
 		{"kind": "fx", "id": "shake", "px": 5.0, "ms": 400, "seconds": 0.0},
 		{"kind": "cam_focus", "target": _boss, "zoom": 1.3, "duration": 0.4},
-		# 跪着的他留一拍，再让镜头自己走到残芯上 —— 目标的交接全在镜头里。
+		# 跪着的他留一拍，再让镜头自己走到火种上 —— 目标的交接全在镜头里。
 		{"kind": "wait", "seconds": 0.3},
 		{"kind": "cam_focus", "target": heart, "zoom": 1.0, "duration": 0.7},
 		{"kind": "sfx", "id": "forge_pulse"},

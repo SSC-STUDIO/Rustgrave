@@ -1,0 +1,197 @@
+{
+  "density": 6,
+  "size": [
+    2432,
+    1408
+  ],
+  "cell": [
+    608,
+    704
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/fire_skull/fly/fly_0.png",
+      "slot": [
+        0,
+        0,
+        608,
+        704
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        78,
+        104
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_1.png",
+      "slot": [
+        608,
+        0,
+        1216,
+        704
+      ],
+      "frame_origin": [
+        624,
+        16
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        6,
+        20,
+        86,
+        108
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_2.png",
+      "slot": [
+        1216,
+        0,
+        1824,
+        704
+      ],
+      "frame_origin": [
+        1232,
+        16
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        2,
+        9,
+        89,
+        107
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_3.png",
+      "slot": [
+        1824,
+        0,
+        2432,
+        704
+      ],
+      "frame_origin": [
+        1840,
+        16
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        7,
+        24,
+        90,
+        108
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_4.png",
+      "slot": [
+        0,
+        704,
+        608,
+        1408
+      ],
+      "frame_origin": [
+        16,
+        720
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        4,
+        27,
+        91,
+        105
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_5.png",
+      "slot": [
+        608,
+        704,
+        1216,
+        1408
+      ],
+      "frame_origin": [
+        624,
+        720
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        14,
+        31,
+        73,
+        108
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_6.png",
+      "slot": [
+        1216,
+        704,
+        1824,
+        1408
+      ],
+      "frame_origin": [
+        1232,
+        720
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        6,
+        29,
+        83,
+        107
+      ]
+    },
+    {
+      "source": "assets/characters/fire_skull/fly/fly_7.png",
+      "slot": [
+        1824,
+        704,
+        2432,
+        1408
+      ],
+      "frame_origin": [
+        1840,
+        720
+      ],
+      "size": [
+        96,
+        112
+      ],
+      "bbox": [
+        8,
+        26,
+        81,
+        104
+      ]
+    }
+  ]
+}

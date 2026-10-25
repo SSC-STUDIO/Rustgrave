@@ -46,8 +46,8 @@ func test_level01_backdrop_keeps_the_authored_plates_under_the_grade() -> void:
 	ok(fspr != null and fspr.texture != null and mspr != null and mspr.texture != null)
 	if fspr == null or mspr == null:
 		return
-	eq(String(fspr.texture.resource_path), SKY, "the sky is the authored crimson-moon plate")
-	eq(String(mspr.texture.resource_path), MOUNTAINS, "the far range is the authored plate")
+	eq(DensityTextures.source_path(fspr.texture), SKY, "the sky is the authored crimson-moon plate")
+	eq(DensityTextures.source_path(mspr.texture), MOUNTAINS, "the far range is the authored plate")
 	almost(fspr.scale.x, 1.9, 0.001, "authored sky scale untouched")
 	almost(mspr.scale.x, 1.7, 0.001, "authored mountain scale untouched")
 	ok(fspr.material is ShaderMaterial, "the sky carries the phase-3 grade material")
@@ -59,8 +59,8 @@ func test_level01_backdrop_keeps_the_authored_plates_under_the_grade() -> void:
 	var hspr := high.get_node_or_null("Sprite") as Sprite2D
 	var lspr := low.get_node_or_null("Sprite") as Sprite2D
 	if hspr != null and lspr != null:
-		eq(String(hspr.texture.resource_path), CLOUD_HIGH, "the high cloud strip is the authored one")
-		eq(String(lspr.texture.resource_path), CLOUD_LOW, "the low cloud strip is the authored one")
+		eq(DensityTextures.source_path(hspr.texture), CLOUD_HIGH, "the high cloud strip is the authored one")
+		eq(DensityTextures.source_path(lspr.texture), CLOUD_LOW, "the low cloud strip is the authored one")
 
 
 ## The rust-plate atmosphere (HorizonHaze / Moonbeams) is not layered over the grade:
@@ -147,8 +147,8 @@ func test_graveyard_theme_keeps_the_authored_plates_for_later_chapters() -> void
 	ok(far != null and mid != null)
 	if far == null or mid == null:
 		return
-	eq(String(far.texture.resource_path), SKY, "chapter 6's rainy night keeps the authored moon")
-	eq(String(mid.texture.resource_path), MOUNTAINS, "and the authored range")
+	eq(DensityTextures.source_path(far.texture), SKY, "chapter 6's rainy night keeps the authored moon")
+	eq(DensityTextures.source_path(mid.texture), MOUNTAINS, "and the authored range")
 	ok(backdrop.layer < 0, "the backdrop stays behind the play canvas")
 	ok(host.get_node_or_null("ParallaxForeground") is CanvasLayer,
 			"the foreground layer (fog/veil only) rides along with the shared stack")

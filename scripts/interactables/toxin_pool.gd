@@ -191,7 +191,7 @@ func _rebuild_visual() -> void:
 
 func _load_tex(path: String) -> Texture2D:
 	if ResourceLoader.exists(path):
-		return load(path) as Texture2D
+		return DensityTextures.load_texture(path)
 	return null
 
 

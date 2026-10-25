@@ -308,7 +308,7 @@ func _enter_phase_two() -> void:
 
 
 ## 守芯者站在拱门后的灯下，不在门前踱步：Boss 的位置是竞技场构图的中心，
-## 2× 剪影漂到两侧火膛上会把「门 → 他 → 残芯」这条轴读乱。靠近才抬头。
+## 2× 剪影漂到两侧火膛上会把「门 → 他 → 火种」这条轴读乱。靠近才抬头。
 func _tick_patrol(delta: float) -> void:
 	_set_blocking(false)
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
@@ -826,7 +826,7 @@ class BossPresence extends Node2D:
 		var spr := Sprite2D.new()
 		spr.name = glow_name
 		if ResourceLoader.exists(GLOW_PATH):
-			spr.texture = load(GLOW_PATH) as Texture2D
+			spr.texture = DensityTextures.load_texture(GLOW_PATH)
 		spr.centered = true
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		spr.scale = size

@@ -1,0 +1,82 @@
+{
+  "density": 6,
+  "size": [
+    1024,
+    768
+  ],
+  "cell": [
+    336,
+    640
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_appear/spirit_appear_0.png",
+      "slot": [
+        0,
+        0,
+        336,
+        640
+      ],
+      "frame_origin": [
+        18,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        19,
+        31,
+        29,
+        88
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_appear/spirit_appear_1.png",
+      "slot": [
+        336,
+        0,
+        672,
+        640
+      ],
+      "frame_origin": [
+        354,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        19,
+        30,
+        29,
+        88
+      ]
+    },
+    {
+      "source": "assets/characters/gear_shield_executioner/spirit_appear/spirit_appear_2.png",
+      "slot": [
+        672,
+        0,
+        1008,
+        640
+      ],
+      "frame_origin": [
+        690,
+        20
+      ],
+      "size": [
+        50,
+        100
+      ],
+      "bbox": [
+        19,
+        30,
+        29,
+        88
+      ]
+    }
+  ]
+}

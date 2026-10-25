@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/bg_gargoyle_cut.png",
+  "source_sha256": "302a7087422a58c0b40b2a4de4a706741465d34ac0111954bb1cffbc7533a980",
+  "density": 12,
+  "size": [
+    960,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    960,
+    2304
+  ],
+  "logical_size": [
+    80,
+    192
+  ],
+  "variants": [
+    "assets/env/bg_gargoyle_cut.png"
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1280,
+    800
+  ],
+  "cell": [
+    640,
+    400
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_cemetery_hero/idle/idle_0.png",
+      "slot": [
+        0,
+        0,
+        640,
+        400
+      ],
+      "frame_origin": [
+        20,
+        23
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        11,
+        14,
+        65,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/idle/idle_1.png",
+      "slot": [
+        640,
+        0,
+        1280,
+        400
+      ],
+      "frame_origin": [
+        660,
+        23
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        12,
+        14,
+        67,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/idle/idle_2.png",
+      "slot": [
+        0,
+        400,
+        640,
+        800
+      ],
+      "frame_origin": [
+        20,
+        423
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        12,
+        15,
+        69,
+        59
+      ]
+    },
+    {
+      "source": "assets/characters/player_cemetery_hero/idle/idle_3.png",
+      "slot": [
+        640,
+        400,
+        1280,
+        800
+      ],
+      "frame_origin": [
+        660,
+        423
+      ],
+      "size": [
+        100,
+        59
+      ],
+      "bbox": [
+        12,
+        14,
+        67,
+        59
+      ]
+    }
+  ]
+}

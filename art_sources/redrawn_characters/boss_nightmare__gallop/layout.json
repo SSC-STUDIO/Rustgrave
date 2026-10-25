@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1792,
+    1216
+  ],
+  "cell": [
+    896,
+    608
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/boss_nightmare/gallop/gallop_0.png",
+      "slot": [
+        0,
+        0,
+        896,
+        608
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        144,
+        96
+      ],
+      "bbox": [
+        15,
+        23,
+        127,
+        94
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/gallop/gallop_1.png",
+      "slot": [
+        896,
+        0,
+        1792,
+        608
+      ],
+      "frame_origin": [
+        912,
+        16
+      ],
+      "size": [
+        144,
+        96
+      ],
+      "bbox": [
+        15,
+        19,
+        133,
+        96
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/gallop/gallop_2.png",
+      "slot": [
+        0,
+        608,
+        896,
+        1216
+      ],
+      "frame_origin": [
+        16,
+        624
+      ],
+      "size": [
+        144,
+        96
+      ],
+      "bbox": [
+        14,
+        22,
+        121,
+        96
+      ]
+    },
+    {
+      "source": "assets/characters/boss_nightmare/gallop/gallop_3.png",
+      "slot": [
+        896,
+        608,
+        1792,
+        1216
+      ],
+      "frame_origin": [
+        912,
+        624
+      ],
+      "size": [
+        144,
+        96
+      ],
+      "bbox": [
+        14,
+        27,
+        120,
+        96
+      ]
+    }
+  ]
+}

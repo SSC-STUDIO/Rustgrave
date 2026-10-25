@@ -1,0 +1,289 @@
+{
+  "density": 6,
+  "size": [
+    1728,
+    960
+  ],
+  "cell": [
+    432,
+    320
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_0.png",
+      "slot": [
+        0,
+        0,
+        432,
+        320
+      ],
+      "frame_origin": [
+        18,
+        16
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        8,
+        8,
+        55,
+        47
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_1.png",
+      "slot": [
+        432,
+        0,
+        864,
+        320
+      ],
+      "frame_origin": [
+        450,
+        16
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        12,
+        6,
+        52,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_2.png",
+      "slot": [
+        864,
+        0,
+        1296,
+        320
+      ],
+      "frame_origin": [
+        882,
+        16
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        7,
+        8,
+        50,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_3.png",
+      "slot": [
+        1296,
+        0,
+        1728,
+        320
+      ],
+      "frame_origin": [
+        1314,
+        16
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        13,
+        7,
+        50,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_4.png",
+      "slot": [
+        0,
+        320,
+        432,
+        640
+      ],
+      "frame_origin": [
+        18,
+        336
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        15,
+        5,
+        52,
+        47
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_5.png",
+      "slot": [
+        432,
+        320,
+        864,
+        640
+      ],
+      "frame_origin": [
+        450,
+        336
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        8,
+        5,
+        56,
+        41
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_6.png",
+      "slot": [
+        864,
+        320,
+        1296,
+        640
+      ],
+      "frame_origin": [
+        882,
+        336
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        8,
+        8,
+        52,
+        47
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_7.png",
+      "slot": [
+        1296,
+        320,
+        1728,
+        640
+      ],
+      "frame_origin": [
+        1314,
+        336
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        12,
+        6,
+        51,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_8.png",
+      "slot": [
+        0,
+        640,
+        432,
+        960
+      ],
+      "frame_origin": [
+        18,
+        656
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        7,
+        8,
+        50,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_9.png",
+      "slot": [
+        432,
+        640,
+        864,
+        960
+      ],
+      "frame_origin": [
+        450,
+        656
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        13,
+        7,
+        50,
+        48
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_10.png",
+      "slot": [
+        864,
+        640,
+        1296,
+        960
+      ],
+      "frame_origin": [
+        882,
+        656
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        15,
+        5,
+        52,
+        47
+      ]
+    },
+    {
+      "source": "assets/characters/player_gothic_hero/run/run_11.png",
+      "slot": [
+        1296,
+        640,
+        1728,
+        960
+      ],
+      "frame_origin": [
+        1314,
+        656
+      ],
+      "size": [
+        66,
+        48
+      ],
+      "bbox": [
+        8,
+        5,
+        56,
+        41
+      ]
+    }
+  ]
+}

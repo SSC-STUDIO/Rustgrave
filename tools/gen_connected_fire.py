@@ -12,29 +12,80 @@ W,H,COUNT=32,40,16
 BASE=36
 PAL=['#a73520','#d95220','#ed7928','#ffad38','#ffd967','#fff1b4']
 
+def _noise(x, frame_index, salt):
+    n=(x*57+frame_index*131+salt*17)&255
+    n=(n*1103515245+12345)&0x7FFFFFFF
+    return (n%1000)/1000.0
+
+
 def frame(index):
+    """One coal bed, uneven licks. Tips split and die; the root stays joined."""
     phase=index/COUNT*math.tau
-    image=Image.new('RGBA',(W,H))
-    draw=ImageDraw.Draw(image)
-    # Each tongue is rooted at the same coal bed. Scanline widths taper upward;
-    # two harmonics lift/peel the tips without a sheet-wide translation or zoom.
-    tongues=[(15,28,6.2,0.0),(10,20,4.0,2.0),(21,22,4.2,4.1)]
-    for level,color in enumerate(PAL):
-        for center,height,width,offset in tongues:
-            height=round(height+2.0*math.sin(phase+offset)+1.0*math.sin(2*phase-offset))
-            height=max(6,height-level*3)
-            width=max(0.7,width-level*0.85)
-            for rise in range(height+1):
-                q=rise/height
-                sway=(math.sin(phase-q*3.6+offset)*2.6+math.sin(2*phase-q*5.1)*1.0)*q*q
-                curl=2.8*math.sin(phase+offset)*q**3
-                c=center+sway+curl
-                radius=width*(1-q)**0.72
-                if rise==height: radius=0.35
-                left,right=round(c-radius),round(c+radius)
-                draw.line((left,BASE-rise,right,BASE-rise),fill=color)
-    # Small dark notches carve the upper silhouette only, never cut the root.
-    # Body already forms one connected component; sparks are authored separately.
+    # Lean is lopsided: a slow roll plus a quicker hitch, not one smooth sine.
+    lean=2.8*math.sin(phase)+1.2*math.sin(phase*2.0+0.7)
+    third=0.35+0.65*max(0.0, math.sin(phase-0.6))
+    # (center, height, half-width). Heights stay in a flame range; the shape changes, not the size.
+    licks=[
+        (15.0+lean*0.55, 23+4*math.sin(phase+0.2), 4.6),
+        (11.2+1.6*math.sin(phase*1.6+2.1), 13+5*math.sin(phase*0.7+1.4), 2.3),
+        (20.4-lean*0.35, 10+9*third, 1.8),
+    ]
+    heights=[0]*W
+    for center,height,half in licks:
+        height=max(4.0, height)
+        for x in range(W):
+            dist=abs(x+0.5-center)/half
+            if dist>=1.0:
+                continue
+            # Flat foot, pinched tip, then a stair notch so the edge is not a curve.
+            shape=(1.0-dist)**0.4
+            jag=_noise(x, index, 2)*(1.6 if dist>0.35 else 0.2)
+            column=int(round(height*shape-jag))
+            if column>heights[x]:
+                heights[x]=column
+    for x in range(11, 22):
+        heights[x]=max(heights[x], 5+(1 if _noise(x, index, 9)>0.55 else 0))
+    # One notch in the tallest lick, so a tip splits without chopping the whole flame.
+    notch=None
+    notch_n=-1.0
+    for x in range(1, W-1):
+        if heights[x]<16:
+            continue
+        n=_noise(x, index, 5)
+        if n>notch_n:
+            notch_n=n
+            notch=x
+    if notch is not None:
+        heights[notch]=max(10, heights[notch]-2-int(_noise(notch, index, 6)*3))
+    image=Image.new('RGBA', (W, H))
+    pixels=image.load()
+    for x in range(W):
+        column=heights[x]
+        if column<=0:
+            continue
+        for rise in range(column):
+            y=BASE-rise
+            if y<0 or y>=H:
+                continue
+            xx=x
+            q=rise/float(column)
+            left=heights[x-1] if x else 0
+            right=heights[x+1] if x<W-1 else 0
+            edge=rise>=column-1 or rise>left or rise>right
+            if q<0.16:
+                color_index=1 if edge else 2
+            elif q<0.40:
+                color_index=2 if edge else 3
+            elif q<0.66:
+                color_index=3 if edge else 4
+            elif q<0.86:
+                color_index=4 if edge else 5
+            else:
+                color_index=3 if edge else 5
+            if _noise(x, index, rise+11)>0.84 and q>0.28:
+                color_index=max(0, color_index-1)
+            color=PAL[color_index]
+            pixels[xx, y]=(int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16), 255)
     return image
 
 def build_forge():

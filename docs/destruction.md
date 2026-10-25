@@ -88,3 +88,63 @@
 | 辉光 | 与粒子同帧释放 | `ImpactFlash`（0.09s 自毁） |
 
 新增表现一律先走预算池；不允许无上限的 `Node2D` 生成。
+
+## 5. 已落地：M3 破坏系统升级
+
+### 5.1 中性爆破源（新机制）
+
+`scripts/world/destruction.gd`（`class_name Destruction`，纯静态助手）：
+
+- `Destruction.spawn_blast(host, pos, radius, damage = 1, material = &"metal") -> Hitbox`：
+  生成一帧寿命（0.1s）的圆形 Hitbox（layer 8 / mask 32，`team=&"player"`，`blow=&"heavy"`），
+  伤害走标准管线（Hurtbox → block_check → Health）。**这是本段明确声明的唯一新伤害源**。
+  - 敌人（team=&"enemy"）受伤；道具/裂石板（team=&"prop"）受伤 → 爆破罐连锁引爆；
+  - 玩家与 Hitbox 同队被过滤，爆破对玩家的中性伤害由半径内直接 `take_damage`
+    负责（i-frame / assist_incoming 照常生效）。
+  - `blow=&"heavy"` 够到裂石板破坏门槛；半径内面杀伤另走 `damage_area`（见 5.2）。
+  - 表现：`Fx.impact(material, pos, UP, &"finisher")` + `Fx.burst(&"ring")`，全走预算池。
+- 连锁防护：同一进程帧最多 `MAX_CHAIN_PER_FRAME = 4` 次爆破，超出丢弃
+  （道具照碎，不再产生新判定），防密铺爆破罐同帧递归爆鸣。
+- Hitbox 的 `monitoring/layer/mask` 必须在入树后设置（`Hitbox._ready` 会复位，
+  与 `Player._spawn_temp_hitbox` 同款顺序）。
+
+### 5.2 可破坏地形进阶（breakable_terrain.gd）
+
+- `damage_area(center, radius, amount) -> int`：世界坐标圆 → 半径内所有完好块掉耐久，
+  返回碎块数。与 Hurtbox「最近一块」规则互补：单点命中走 `_on_hurt`，范围伤害走这里。
+- `chunk_size: int = 32`（8..64 钳制）：16 = 细碎分块。
+- `support_collapse: bool = true`（**本段明确声明的行为变更**）：列式重力——非底行、
+  正下方块已碎的块失去支撑、连锁塌落。塌落出碎屑但不重复播全碎旁白
+  （`_fully_notified` 保证旁白/慢镜头只发一次）；读档恢复按记录逐块安静还原
+  （塌落结果已含在 `broken` 记录里，不重算）。
+- 受击未碎的块变暗一档（`_dim_chunk`）+ 轻量 `Fx.impact`：不碎也有材质反馈。
+- 整板坍塌是 finisher 级反馈：`Juice.slow_mo(110ms, 0.3, PRIORITY_HIT)` + 加强震动
+  （低优先级，不压弹反/死亡演出；受 Settings.shake_scale 约束）。
+- 破坏碎屑沿「远离最后攻击者」方向喷溅（无攻击者时保持向上）。
+
+### 5.3 道具种类与玩法（destructible_catalog.gd / destructible_prop.gd）
+
+- catalog 新字段（可选，缺省即旧行为）：`blast: {radius, damage}`、`drops: {ember}`。
+- 新道具：`&"blast_urn"` 爆破罐（hp1，破碎引爆半径 44、伤害 1，可连锁）；
+  `&"ember_cache"` 余烬窖（hp2，stone，掉 3 点余烬经验，走 `EmberProgress.award_xp`）。
+- `DestructibleProp.configure()` 现在真正重建耐久（`Health.max_hp/current` 随新定义重置），
+  修正了注释与行为不符的旧缺口。
+- 受损过半挂程序化裂纹覆盖层（1px 深色折线，确定性伪随机，无新美术资源）。
+- 受击未致命补轻量材质反馈（hurt 信号先于扣血发出，评估推迟到 `_after_hit` 延迟帧）。
+
+### 5.4 关卡铺设扩展
+
+- level02b / level05：爆破罐连锁演示位与角落道具（支路/角落，细节见各布局 `_build_props`）。
+- level09：`persist_break=true` 的 rampart 秘道墙，挡支路奖励位。
+- Arena_Duel：边缘装饰性可破坏物（persist=false，不影响竞技场判定）。
+- 放置测试：`tests/destructible_placement_level02b/level05/level09/arena_test.gd`，
+  每个触及关卡断言 `LevelSanity.check` 干净。主线必经路径硬约束不变。
+
+### 5.5 M3 测试
+
+- `tests/destruction_blast_test.gd`：爆破 Hitbox 合规（team/blow/layer/mask/寿命）、
+  地形面杀伤与半径豁免、爆破罐触发与连锁、对玩家的中性伤害、同帧连锁上限、无效宿主拒绝。
+- `tests/breakable_terrain_test.gd` 扩展：16px 分块、damage_area、支撑塌落/关闭、
+  塌落状态持久化与安静恢复。
+- `tests/destructible_prop_test.gd` 扩展：catalog 完整性（材质在 ImpactCatalog 内、
+  blast 字段合法）、裂纹阶段、余烬掉落。

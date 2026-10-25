@@ -91,11 +91,15 @@ var _plate: PanelContainer
 var _hearts_row: HBoxContainer
 var _toxin_bar: ProgressBar
 var _toxin_label: Label
-var _socket_strip: HBoxContainer
+var _socket_strip: PanelContainer
+var _socket_row: HBoxContainer
 var _sockets: Array[Control] = []
 var _pouch_label: Label
 var _socket_label: Label
+var _socket_note: PanelContainer
 var _objective_label: Label
+var _objective_strip: PanelContainer
+var _objective_marks: ObjectiveTracker.Marks
 var _atmos_label: Label
 var _prompt_panel: PanelContainer
 var _prompt_key_panel: PanelContainer
@@ -145,6 +149,10 @@ var _boss_max_hp: int = 1
 ## 右下角技能冷却条（Q/E）。
 var _skill_row: HBoxContainer
 var _skill_labels: Array[Label] = []
+var _skill_chips: Array[PanelContainer] = []
+var _skill_keys: Array[Label] = []
+## 竞技场会话里藏掉战役目标/天气/剑核/横幅，避免和记分条、小地图叠在一起。
+var _arena_chrome := false
 
 
 func _ready() -> void:
@@ -237,7 +245,7 @@ func _build_stat_panel(root: Control) -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stat.add_child(row)
 
-	_plate = UiKit.panel(&"HudPlate")
+	_plate = _glass_panel(&"HudGlassPlate")
 	_plate.name = "Plate"
 	# 触屏没有 Tab：轻点状态带就是"查看"。桌面端不拦截鼠标，免得吃掉挥砍的点击。
 	_plate.mouse_filter = Control.MOUSE_FILTER_STOP if TouchInput.wants_overlay() \
@@ -286,9 +294,14 @@ func _build_stat_panel(root: Control) -> void:
 	label_slot.add_child(_toxin_label)
 
 	# 剑核插座：拿到第一枚锈核之前整条隐藏。
-	_socket_strip = HBoxContainer.new()
+	_socket_strip = _glass_panel(&"HudGlassSockets")
 	_socket_strip.name = "Sockets"
-	_socket_strip.add_theme_constant_override("separation", 4)
+	_socket_row = HBoxContainer.new()
+	_socket_row.name = "SocketRow"
+	_socket_row.add_theme_constant_override("separation", 4)
+	_socket_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_socket_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_socket_strip.add_child(_socket_row)
 	_socket_strip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_socket_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_socket_strip.visible = false
@@ -296,25 +309,102 @@ func _build_stat_panel(root: Control) -> void:
 	for i in 2:
 		var cell := _make_socket(i)
 		_sockets.append(cell)
-		_socket_strip.add_child(cell)
+		_socket_row.add_child(cell)
 	_pouch_label = UiKit.label("袋中 0", &"TinyStrongLabel")
 	_pouch_label.name = "PouchLabel"
 	_pouch_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_pouch_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_pouch_label.visible = false
-	_socket_strip.add_child(_pouch_label)
+	_socket_row.add_child(_pouch_label)
 
+	# 目标条：玻璃铁框 + "目 标" 小标 + 菱形列（一个目标一粒，余烬巢逐个点亮）+ 正文。
+	_objective_strip = _glass_panel(&"HudGlassStrip")
+	_objective_strip.name = "ObjectiveStrip"
+	_objective_strip.modulate.a = 0.0
+	_objective_strip.visible = false
+	_stat.add_child(_objective_strip)
+	var goal_row := HBoxContainer.new()
+	goal_row.name = "GoalRow"
+	goal_row.add_theme_constant_override("separation", 8)
+	goal_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_objective_strip.add_child(goal_row)
+	var kicker := GlassKit.kicker("目 标")
+	kicker.name = "ObjectiveKicker"
+	kicker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	goal_row.add_child(kicker)
+	_objective_marks = ObjectiveTracker.Marks.new()
+	_objective_marks.name = "Marks"
+	goal_row.add_child(_objective_marks)
 	_objective_label = UiKit.label("", &"TinyStrongLabel")
 	_objective_label.name = "ObjectiveLabel"
-	_objective_label.modulate.a = 0.0
 	_objective_label.visible = false
-	_stat.add_child(_objective_label)
+	_objective_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	goal_row.add_child(_objective_label)
+	# 剑核读数：与目标条同一块玻璃铁框，"剑 核" 小标在前，窥视时才淡入。
+	_socket_note = _glass_panel(&"HudGlassStrip")
+	_socket_note.name = "SocketNote"
+	_socket_note.modulate.a = 0.0
+	_socket_note.visible = false
+	_stat.add_child(_socket_note)
+	var core_row := HBoxContainer.new()
+	core_row.name = "CoreRow"
+	core_row.add_theme_constant_override("separation", 8)
+	core_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_socket_note.add_child(core_row)
+	var core_kicker := GlassKit.kicker("剑 核")
+	core_kicker.name = "SocketKicker"
+	core_kicker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	core_row.add_child(core_kicker)
 	_socket_label = UiKit.label("", &"TinyLabel")
 	_socket_label.name = "SocketLabel"
-	_socket_label.modulate.a = 0.0
 	_socket_label.visible = false
-	_stat.add_child(_socket_label)
+	_socket_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	core_row.add_child(_socket_label)
 	_refresh_socket_keys()
+
+
+## 玻璃铁框：menu_plate 的 TAG 板（两端切角 + 四道环 + 抖动内芯）只改着色透明度，
+## 与弹窗卡（GlassKit.glass）同一个 CARD_ALPHA，画面的光从后面透出来。
+## 各条的内边距写在主题变体里（UI 脚本不用 add_theme_stylebox_override，见 ui_kit.gd 的约定）。
+## TAG 板两端各占 16 设计像素的切角与环，内容必须落在它里面。
+static var _glass: Theme
+
+## 变体名 → [横向内边距, 纵向内边距]。
+const GLASS_VARIANTS := {
+	&"HudGlassPlate": [18.0, 8.0],
+	&"HudGlassStrip": [14.0, 4.0],
+	&"HudGlassSockets": [10.0, 6.0],
+	&"HudGlassPrompt": [22.0, 6.0],
+	&"HudGlassChip": [12.0, 2.0],
+}
+
+
+static func glass_theme() -> Theme:
+	if _glass == null:
+		_glass = Theme.new()
+		for variation in GLASS_VARIANTS:
+			var pad: Array = GLASS_VARIANTS[variation]
+			_glass.set_type_variation(variation, &"PanelContainer")
+			_glass.set_stylebox("panel", variation, _glass_box(float(pad[0]), float(pad[1])))
+	return _glass
+
+
+static func _glass_box(pad_x: float, pad_y: float) -> StyleBoxTexture:
+	var box := UiKit.Plate.style_box(UiKit.Plate.Shape.TAG, UiKit.Plate.State.NORMAL)
+	box.modulate_color = Color(1.0, 1.0, 1.0, GlassKit.CARD_ALPHA)
+	box.content_margin_left = pad_x
+	box.content_margin_right = pad_x
+	box.content_margin_top = pad_y
+	box.content_margin_bottom = pad_y
+	return box
+
+
+func _glass_panel(variation: StringName) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.theme = glass_theme()
+	panel.theme_type_variation = variation
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return panel
 
 
 ## 一个插座：26x26 的铁环 + 按核着色的宝石 + 下方一行键名。
@@ -362,7 +452,7 @@ func _build_banner(root: Control) -> void:
 
 
 func _build_boss_bar(root: Control) -> void:
-	_boss_bar_panel = UiKit.panel(&"HudPanel")
+	_boss_bar_panel = _glass_panel(&"HudGlassPlate")
 	_boss_bar_panel.name = "BossBar"
 	_boss_bar_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_boss_bar_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -406,7 +496,7 @@ func _build_boss_bar(root: Control) -> void:
 
 
 func _build_prompt(root: Control) -> void:
-	_prompt_panel = UiKit.panel(&"HudPanel")
+	_prompt_panel = _glass_panel(&"HudGlassPrompt")
 	_prompt_panel.name = "Prompt"
 	_prompt_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_prompt_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -519,6 +609,7 @@ func _process(delta: float) -> void:
 		_vignette.modulate.a = lerpf(VIGNETTE_BREATH_MIN, VIGNETTE_BREATH_MAX,
 				0.5 + 0.5 * sin(TAU * _breath_time / VIGNETTE_BREATH_PERIOD))
 	_update_skill_bar()
+	_apply_arena_chrome()
 
 
 # --- 电影黑边 -----------------------------------------------------------------
@@ -592,9 +683,12 @@ func _tick_reveals(delta: float) -> void:
 	_peek_alpha = move_toward(_peek_alpha, 1.0 if (peek and _cores_owned) else 0.0,
 			delta * REVEAL_SPEED)
 	_atmos_label.modulate.a = _atmos_alpha
-	_objective_label.modulate.a = _objective_alpha
+	# 目标条整块淡入淡出（玻璃底与文字同步）；正文标签的显隐跟着它走。
+	_objective_strip.modulate.a = _objective_alpha
+	_objective_strip.visible = _objective_alpha > 0.01
 	_objective_label.visible = _objective_alpha > 0.01
-	_socket_label.modulate.a = _peek_alpha
+	_socket_note.modulate.a = _peek_alpha
+	_socket_note.visible = _peek_alpha > 0.01
 	_socket_label.visible = _peek_alpha > 0.01
 
 
@@ -613,8 +707,9 @@ func _refresh_objective() -> void:
 		return
 	if not _tracker.has_scanned():
 		_tracker.scan(GameContext.world_root(player))
-	_objective_label.text = _tracker.line(player, _boss_name)
+	_objective_label.text = ObjectiveTracker.body_of(_tracker.line(player, _boss_name))
 	_fit_wrapped(_objective_label, _objective_label.text, OBJECTIVE_MAX_WIDTH)
+	_objective_marks.set_marks(_tracker.marks(player, _boss_name))
 
 
 ## 当前显示的目标行（测试用）。
@@ -925,9 +1020,44 @@ func _checkpoint_notice() -> void:
 		GameEvents.announcement.emit("余烬巢已复位 · 生命与毒素已恢复")
 
 
+## 竞技场进行中：目标、天气、剑核、播报横幅和教学条让开；离开后恢复剑核与横幅。
+func _apply_arena_chrome() -> void:
+	var in_arena := ArenaRun.active()
+	if in_arena and not _arena_chrome and _hints != null:
+		_hints.dismiss()
+	if in_arena:
+		_objective_label.visible = false
+		_objective_strip.visible = false
+		_objective_strip.modulate.a = 0.0
+		_atmos_label.visible = false
+		_atmos_label.modulate.a = 0.0
+		_socket_strip.visible = false
+		_socket_label.visible = false
+		_socket_note.visible = false
+		_socket_note.modulate.a = 0.0
+		_banner.visible = false
+		if _death_overlay != null and _death_overlay.visible:
+			_death_overlay.visible = false
+			_death_overlay.modulate.a = 0.0
+		var plate := _root.get_node_or_null("HintPlate") as CanvasItem
+		if plate != null:
+			plate.visible = false
+	elif _arena_chrome:
+		_banner.visible = true
+		_refresh_cores()
+	_arena_chrome = in_arena
+
+
 func _on_player_died() -> void:
 	# 试炼死亡是"快速重试"：战役死亡幕（余烬熄灭 / 最近余烬巢重燃）不出现，
 	# 状态与重试提示由 TrialRun 的试炼条给（scripts/autoload/trial_run.gd）。
+	# 竞技场同理：死亡那几秒用复活倒计时，不盖战役死亡幕。
+	if ArenaRun.active():
+		if _death_overlay != null:
+			_death_overlay.visible = false
+			_death_overlay.modulate.a = 0.0
+		_sync_prompt()
+		return
 	if TrialRun.active():
 		_sync_prompt()
 		return
@@ -1035,7 +1165,7 @@ func _refresh_cores() -> void:
 	_pouch_label.text = "袋中 %d" % pouch
 	_pouch_label.visible = pouch > 0
 	_socket_strip.visible = _cores_owned
-	_socket_label.text = "剑核  %s" % " · ".join(names)
+	_socket_label.text = " · ".join(names)
 
 
 ## 触屏刘海 / 圆角的安全区（设计单位，已换算到 HUD 层坐标）。桌面与 headless 为零。
@@ -1077,10 +1207,10 @@ func cluster_rect() -> Rect2:
 	var rect := _plate.get_global_rect()
 	if _socket_strip.visible:
 		rect = rect.merge(_socket_strip.get_global_rect())
-	if _objective_label.visible:
-		rect = rect.merge(_objective_label.get_global_rect())
-	if _socket_label.visible:
-		rect = rect.merge(_socket_label.get_global_rect())
+	if _objective_strip.visible:
+		rect = rect.merge(_objective_strip.get_global_rect())
+	if _socket_note.visible:
+		rect = rect.merge(_socket_note.get_global_rect())
 	return rect
 
 
@@ -1163,8 +1293,8 @@ func _build_skill_bar(root: Control) -> void:
 	_skill_row = HBoxContainer.new()
 	_skill_row.name = "SkillBar"
 	_skill_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_skill_row.offset_left = -280.0
-	_skill_row.offset_top = -44.0
+	_skill_row.offset_left = -320.0
+	_skill_row.offset_top = -50.0
 	_skill_row.offset_right = -16.0
 	_skill_row.offset_bottom = -14.0
 	_skill_row.alignment = BoxContainer.ALIGNMENT_END
@@ -1172,11 +1302,30 @@ func _build_skill_bar(root: Control) -> void:
 	_skill_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_skill_row)
 	for slot in 2:
-		var label := UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+		# 技能格：玻璃铁框里一只键帽（键位，与提示条同一块铁牌）+ 技能名 / 冷却读数。
+		var chip := _glass_panel(&"HudGlassChip")
+		chip.name = "Skill%dChip" % slot
+		_skill_row.add_child(chip)
+		var chip_row := HBoxContainer.new()
+		chip_row.add_theme_constant_override("separation", 8)
+		chip_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		chip_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(chip_row)
+		var cap := UiKit.panel(&"KeyCapPanel")
+		cap.name = "Key%d" % slot
+		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip_row.add_child(cap)
+		var cap_label := UiKit.label("", &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+		cap_label.name = "KeyLabel"
+		cap_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		cap.add_child(cap_label)
+		var label := UiKit.label("", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Skill%d" % slot
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_skill_row.add_child(label)
+		chip_row.add_child(label)
+		_skill_chips.append(chip)
+		_skill_keys.append(cap_label)
 		_skill_labels.append(label)
 	_update_skill_bar()
 
@@ -1192,22 +1341,26 @@ func _update_skill_bar() -> void:
 	var states: Array = player.call(&"skill_state")
 	for slot in _skill_labels.size():
 		var label := _skill_labels[slot]
+		var chip := _skill_chips[slot]
 		if slot >= states.size():
 			label.text = ""
+			chip.visible = false
 			continue
+		chip.visible = true
 		var state: Dictionary = states[slot]
 		var key := String(state.get("action", ""))
-		var key_text := KeyLabels.label(StringName(key))
-		var name := String(state.get("name", ""))
+		_skill_keys[slot].text = KeyLabels.label(StringName(key))
+		var skill_name := String(state.get("name", ""))
 		var cd := float(state.get("cooldown", 0.0))
-		if name == "":
-			label.text = "[%s] —" % key_text
-			label.modulate = Color(1.0, 1.0, 1.0, 0.35)
+		# 三档：没有技能 = 暗（键帽 + 破折号）；冷却中 = 半亮带读数；就绪 = 全亮。
+		if skill_name == "":
+			label.text = "—"
+			chip.modulate.a = 0.35
 			continue
 		if cd > 0.05:
-			label.text = "[%s] %s %.1f" % [key_text, name, cd]
-			label.modulate = Color(1.0, 1.0, 1.0, 0.45)
+			label.text = "%s %.1f" % [skill_name, cd]
+			chip.modulate.a = 0.5
 		else:
-			label.text = "[%s] %s" % [key_text, name]
-			label.modulate = Color(1.0, 1.0, 1.0, 0.95)
+			label.text = skill_name
+			chip.modulate.a = 0.95
 

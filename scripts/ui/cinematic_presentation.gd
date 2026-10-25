@@ -32,6 +32,8 @@ var _hint_held: Dictionary = {}
 ## the same name with the new tick. Cleared by defeat and by a hard dismiss (abort).
 var _boss_title := ""
 var _boss_subtitle := ""
+## 名号卡上沿的白话一行（ChapterText.boss_intro）；随名号一起记着，相变重举卡时再画。
+var _boss_kicker := ""
 
 
 func _ready() -> void:
@@ -156,6 +158,7 @@ func show_shot(id: String, title: String = "", subtitle: String = "") -> void:
 	front.age = 0.0
 	front.heading = title
 	front.subheading = subtitle
+	front.kicker = ""
 	# A new encounter starts at phase one; the phase ticks follow from signals.
 	front.phase_marks = 1
 	front.visible = true
@@ -187,6 +190,7 @@ func dismiss(immediate: bool = false) -> void:
 		# phase signal from the old level.
 		_boss_title = ""
 		_boss_subtitle = ""
+		_boss_kicker = ""
 
 
 func _on_step(_index: int, step: Dictionary) -> void:
@@ -211,6 +215,7 @@ func _on_boss_appeared(title: String, current_hp: int, _max_hp: int) -> void:
 	var subtitle := String(parts[1]).strip_edges() if parts.size() > 1 else "守 芯 者"
 	_boss_title = heading
 	_boss_subtitle = subtitle
+	_boss_kicker = _kicker_for_current_level()
 	# A chapter card is a bigger arrival than the encounter: never cover it. The
 	# next boss signal (or the phase reminder) can still raise the name later.
 	if active_shot == "chapter":
@@ -220,14 +225,35 @@ func _on_boss_appeared(title: String, current_hp: int, _max_hp: int) -> void:
 	if active_shot == "boss":
 		front.heading = heading
 		front.subheading = subtitle
+		front.kicker = _boss_kicker
 		front.queue_redraw()
 		return
 	show_shot("boss", heading, subtitle)
+	front.kicker = _boss_kicker
+
+
+## 名号卡上的白话一行：按玩家所在章取 ChapterText.boss_intro（只读文本，不碰 Boss 的名号
+## 字符串和战斗）。不在战役关卡里 / 这一章没有 Boss 介绍就返回空串。
+func _kicker_for_current_level() -> String:
+	var tree := get_tree()
+	if tree == null:
+		return ""
+	var player := tree.get_first_node_in_group("player")
+	if player == null:
+		return ""
+	var world := GameContext.world_root(player)
+	if world == null or not world.is_in_group("game_world"):
+		return ""
+	var level := GameContext.level_id_of(player)
+	if level == "" and world.scene_file_path == GameContext.WORLD_PATH:
+		level = "level01"
+	return ChapterText.boss_intro_of(level)
 
 
 func _on_boss_defeated() -> void:
 	_boss_title = ""
 	_boss_subtitle = ""
+	_boss_kicker = ""
 	if active_shot == "boss":
 		dismiss()
 
@@ -241,6 +267,7 @@ func _on_boss_phase(_boss_name: String, phase: int) -> void:
 		return
 	if active_shot != "boss":
 		show_shot("boss", _boss_title, _boss_subtitle)
+		front.kicker = _boss_kicker
 		_card_left = PHASE_CARD_SECONDS
 	front.phase_marks = maxi(phase, 1)
 	back.phase_marks = maxi(phase, 1)
@@ -271,7 +298,10 @@ func _process(delta: float) -> void:
 		_hint_age += delta
 		# Same rule as the on-screen pad: a forced / mobile / touchscreen session says 点此.
 		var touch := TouchInput.wants_overlay()
-		if Director.skips_whole_script():
+		if Director.board_active():
+			# 分镜自己说 Enter 是「跳过」（章间）还是「下一句」（序章 / 结局）。
+			skip_button.text = Director.board_skip_label(touch)
+		elif Director.skips_whole_script():
 			skip_button.text = skip_label(touch, OpeningCinematic.is_active())
 		else:
 			skip_button.text = "点此继续" if touch else "Enter · 继续"

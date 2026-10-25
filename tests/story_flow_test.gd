@@ -1,14 +1,15 @@
 extends TestCase
-## 章间间幕：13 条边界齐备、开演一次、跳过算看过、暂停冻结、死亡/切场硬复位、
-## 不写未完成章节旗标、结局前后特殊序列、暂停菜单前情提要。
+## 章间分镜：13 条边界齐备、每条边界有一段分镜、开演一次、跳过算看过、暂停冻结、
+## 死亡/切场硬复位、不写未完成章节旗标、结局前后特殊序列、暂停菜单前情提要。
 
+const Boards := preload("res://scripts/data/storyboards.gd")
 const DOC_PATH := "res://docs/story.md"
 const ALLOWED_STAGING: Array[String] = [
 	"door", "water", "canal", "town", "crypt", "workshop", "rain", "bell",
 	"foundry", "slag", "rampart", "wind", "heart",
 ]
 const ALLOWED_STEP_KINDS: Array[String] = [
-	"lock", "unlock", "wait", "tableau", "caption", "cam_focus", "cam_release",
+	"lock", "unlock", "wait", "tableau", "caption", "board", "cam_focus", "cam_release",
 	"letterbox", "sfx", "fx",
 ]
 
@@ -41,6 +42,7 @@ func setup() -> void:
 
 
 func teardown() -> void:
+	Director.test_boards = false
 	Director.abort()
 	Director.resume()
 	Director.choice_hold = false
@@ -110,35 +112,46 @@ func advance_ok() -> void:
 				"interlude flag follows the contract name")
 
 
-func test_arrival_steps_are_lock_captions_unlock() -> void:
+func test_arrival_steps_are_lock_board_unlock() -> void:
 	for edge in StoryFlow.boundaries():
 		var to := String(edge["to"])
+		var from := String(edge["from"])
 		var steps := StoryFlow.arrival_steps(to)
-		ok(not steps.is_empty(), "%s has arrival steps" % to)
+		eq(steps.size(), 3, "%s arrival is lock / board / unlock" % to)
 		eq(String((steps[0] as Dictionary).get("kind", "")), "lock", "%s starts locked" % to)
-		eq(String((steps[steps.size() - 1] as Dictionary).get("kind", "")), "unlock",
-				"%s ends unlocked" % to)
-		var captions: Array[String] = []
+		eq(String((steps[1] as Dictionary).get("kind", "")), "board", "%s plays one storyboard" % to)
+		eq(String((steps[1] as Dictionary).get("id", "")), Boards.interlude_id(from),
+				"%s plays the storyboard of the boundary it crosses" % to)
+		eq(String((steps[2] as Dictionary).get("kind", "")), "unlock", "%s ends unlocked" % to)
 		for raw in steps:
-			var step: Dictionary = raw
-			ok(ALLOWED_STEP_KINDS.has(String(step.get("kind", ""))),
+			ok(ALLOWED_STEP_KINDS.has(String((raw as Dictionary).get("kind", ""))),
 					"%s only uses Director kinds" % to)
-			if String(step.get("kind", "")) == "caption":
-				captions.append(String(step.get("text", "")))
-		var expected: Array[String] = []
-		for line in edge.get("epilogue", []):
-			expected.append(String(line))
-		for line in edge.get("teaser", []):
-			expected.append(String(line))
-		if String(edge.get("special", "")) == "pre_ending":
-			for line in StoryFlow.SPECIALS["pre_ending"]["lines"]:
-				expected.append(String(line))
-		expected.append("目标 · " + ChapterText.objective_of(to))
-		eq(captions, expected, "%s interlude reads epilogue → teaser → objective" % to)
+		# 目标一句不在章间里重复：由章节自己的醒来流程给（只念一遍）。
+		for raw in steps:
+			ok(not String((raw as Dictionary).get("text", "")).begins_with("目标"),
+					"%s interlude does not repeat the objective" % to)
+		ok(Boards.has(Boards.interlude_id(from)), "%s has a storyboard" % from)
 		var seconds := Director.estimate_seconds(steps)
+		eq(seconds, Boards.seconds_of(Boards.interlude_id(from)),
+				"%s estimate is the storyboard's own length" % to)
 		# 终章前要把两个选择的代价说清，所以那条间幕允许更长。
 		var limit := 30.0 if String(edge.get("special", "")) == "pre_ending" else 18.0
 		ok(seconds <= limit, "%s interlude stays a bridge (%.1fs <= %.0f)" % [to, seconds, limit])
+
+
+## 分镜里念的台词 = StoryFlow.lines_of 的顺序（epilogue → teaser →（终章前）代价），
+## 每个镜头有布景，章间每段 2–3 个镜头。
+func test_each_interlude_storyboard_reads_its_boundary_lines() -> void:
+	for edge in StoryFlow.boundaries():
+		var from := String(edge["from"])
+		var id := Boards.interlude_id(from)
+		var shots := Boards.shots(id)
+		var pre_ending := String(edge.get("special", "")) == "pre_ending"
+		eq(shots.size(), 3 if pre_ending else 2, "%s has %s shots" % [id, 3 if pre_ending else 2])
+		for shot in shots:
+			ok(String((shot as Dictionary).get("set", "")) != "", "%s: every shot has a set" % id)
+		eq(Boards.lines_of(id), StoryFlow.lines_of(edge), "%s reads epilogue → teaser (→ cost)" % id)
+		ok(Boards.title_of(id).begins_with("章间"), "%s has a replay title" % id)
 
 
 func test_docs_interludes_match_flow_data() -> void:
@@ -177,7 +190,8 @@ func test_docs_interludes_match_flow_data() -> void:
 func test_interlude_plays_once_and_skip_counts_as_seen() -> void:
 	await _arrive("level02")
 	ok(_transition.is_playing(), "arrival starts the level01→level02 interlude")
-	ok(_transition.staging() == "door", "the staging belongs to the boundary")
+	eq(_transition.board_id(), "interlude_level01", "the storyboard belongs to the boundary")
+	eq(_transition.staging(), "", "a boundary with a storyboard needs no geometric fallback")
 	ok(Director.playing, "the interlude runs through the Director")
 	ok(Director.skips_whole_script(), "one accept skips the whole interlude")
 	ok(SaveData.has_flag("interlude_level01_seen"), "the flag is written when the interlude starts")
@@ -185,7 +199,7 @@ func test_interlude_plays_once_and_skip_counts_as_seen() -> void:
 	ok(not Director.playing, "skip ends the interlude in one press")
 	ok(not Director.is_input_locked(), "skip releases the input lock")
 	await flush(2)
-	eq(_transition.staging(), "", "skip hides the staging art")
+	eq(_transition.board_id(), "", "skip clears the storyboard id")
 	# 再进同一关：旗标在，不重播。
 	await _arrive("level02")
 	ok(not _transition.is_playing(), "an interlude never plays twice")
@@ -215,6 +229,37 @@ func test_chapter_card_and_wake_queue_behind_the_interlude() -> void:
 	ok(SaveData.has_flag("interlude_level01_seen"), "skipping still marks the interlude seen")
 
 
+## 真播放：分镜播放器收到 board 步骤、画出来，一次确认键整段跳过（过了输入宽限之后），
+## 看过的旗标由开演那一刻写下。
+func test_a_live_board_plays_through_the_director_and_skips() -> void:
+	Director.test_boards = true
+	await _arrive("level02")
+	ok(Director.playing and _transition.is_playing(), "the interlude is running")
+	ok(Director.board_active(), "the storyboard player owns the screen")
+	eq(String(Director.board().get("current_id")), "interlude_level01", "it is the boundary's storyboard")
+	ok(Director.board().visible, "the board layer is visible")
+	await get_tree().create_timer(0.6, true, false, true).timeout
+	_accept()
+	ok(await wait_until(func() -> bool: return not Director.playing),
+			"one accept skips the whole interlude")
+	ok(not Director.board_active(), "the board player is done")
+	ok(not Director.is_input_locked(), "input is back")
+	ok(SaveData.has_flag(Boards.seen_flag("interlude_level01")), "the replay list will offer it")
+	ok(SaveData.has_flag("interlude_level01_seen"), "the interlude flag is written")
+
+
+## 没有对应分镜的边界退回字幕版：仍然是 lock → 台词 → unlock，不卡死。
+func test_a_boundary_without_a_storyboard_falls_back_to_captions() -> void:
+	var steps := _transition.fallback_steps(StoryFlow.for_edge("level01"))
+	eq(String((steps[0] as Dictionary).get("kind", "")), "lock", "fallback starts locked")
+	eq(String((steps[steps.size() - 1] as Dictionary).get("kind", "")), "unlock", "fallback ends unlocked")
+	var texts: Array[String] = []
+	for raw in steps:
+		if String((raw as Dictionary).get("kind", "")) == "caption":
+			texts.append(String((raw as Dictionary).get("text", "")))
+	eq(texts, StoryFlow.lines_of(StoryFlow.for_edge("level01")), "the fallback reads the same lines")
+
+
 func test_interlude_writes_no_chapter_flags() -> void:
 	await _arrive("level02")
 	_accept()
@@ -229,23 +274,41 @@ func test_interlude_writes_no_chapter_flags() -> void:
 	eq(SaveData.ending, "", "the interlude never writes an ending")
 
 
-func test_pause_freezes_the_staging_clock() -> void:
+func test_pause_freezes_the_storyboard_clock() -> void:
+	Director.test_boards = true
 	await _arrive("level02")
-	ok(_transition.is_playing())
+	ok(_transition.is_playing() and Director.board_active())
+	await flush(4)
+	var board := Director.board()
+	var before := float(board.call("age"))
+	ok(before > 0.0, "the storyboard runs while the game runs")
+	get_tree().paused = true
+	for _i in 8:
+		await get_tree().process_frame
+	almost(float(board.call("age")), before, 0.001, "tree pause freezes the storyboard clock")
+	get_tree().paused = false
+	for _i in 8:
+		await get_tree().process_frame
+	ok(float(board.call("age")) > before, "unpausing resumes the storyboard clock")
+	Director.abort()
+	_transition.reset_view()
+	await flush(1)
+	ok(not Director.board_active(), "abort stops the storyboard")
+
+
+## 兜底几何布景也在暂停时冻住（没有分镜的边界才会用到它）。
+func test_fallback_staging_art_freezes_on_pause() -> void:
+	_transition._show_staging("door")
 	await flush(4)
 	var before := _transition.staging_age()
-	ok(before > 0.0, "the staging animates while the game runs")
+	ok(before > 0.0, "the fallback staging animates while the game runs")
 	get_tree().paused = true
 	for _i in 8:
 		await get_tree().process_frame
 	almost(_transition.staging_age(), before, 0.001, "tree pause freezes the staging clock")
 	get_tree().paused = false
-	for _i in 8:
-		await get_tree().process_frame
-	ok(_transition.staging_age() > before, "unpausing resumes the staging clock")
-	Director.abort()
 	_transition.reset_view()
-	await flush(1)
+	eq(_transition.staging(), "", "reset hides the fallback staging")
 
 
 func test_death_reload_does_not_replay_but_scene_change_resets() -> void:
@@ -265,6 +328,24 @@ func test_death_reload_does_not_replay_but_scene_change_resets() -> void:
 	_transition.reset_view()
 	eq(_transition.staging(), "")
 	ok(not _transition.is_playing())
+
+
+## 真实的死亡读档会把旗标回卷到上一次存档（章间旗标开演才点、还没存进去）。本会话记忆
+## （StoryStage.once）补上这个缺口；回标题 / 新游戏清掉记忆后，新一局照常播。
+func test_death_reload_with_rewound_flags_still_does_not_replay() -> void:
+	SaveData.mark_flag("wake")
+	await _arrive("level02")
+	ok(_transition.is_playing(), "the first arrival plays the interlude")
+	Director.reset_view()
+	_transition._on_player_died()
+	SaveData.flags.clear()
+	SaveData.mark_flag("wake")
+	ok(not SaveData.has_flag("interlude_level01_seen"), "fixture: the save was rewound past the flag")
+	await _arrive("level02")
+	ok(not _transition.is_playing(), "the session memory stops a death reload from replaying it")
+	StoryStage.forget()
+	await _arrive("level02")
+	ok(_transition.is_playing(), "a new game / the title clears that memory")
 
 
 func test_abort_before_the_script_starts_is_not_seen() -> void:
@@ -290,24 +371,19 @@ func test_pre_ending_and_post_ending_sequences() -> void:
 	eq(StoryFlow.staging_of(edge), "heart", "the pre-ending interlude is staged on the heart")
 	eq(ChapterText.order()[ChapterText.order().size() - 1], String(edge["to"]),
 			"the pre-ending interlude arrives at the final chapter")
-	var steps := StoryFlow.arrival_steps("level10")
-	var texts: Array[String] = []
-	for raw in steps:
-		if String((raw as Dictionary).get("kind", "")) == "caption":
-			texts.append(String((raw as Dictionary).get("text", "")))
+	# 终章前的分镜读出三句：到了 / 还火的代价 / 守炉的代价。
+	var board_lines := Boards.lines_of(Boards.interlude_id("level09b"))
 	for line in StoryFlow.SPECIALS["pre_ending"]["lines"]:
-		ok(texts.has(String(line)), "the pre-ending special line plays: %s" % line)
-	ok(texts[texts.size() - 1].contains("目标"), "the interlude closes on the objective")
-	# M1R4：先问火、门才开；两个选择的代价与结局词面都要能区分。
+		ok(board_lines.has(String(line)), "the pre-ending special line plays: %s" % line)
+	eq(board_lines[board_lines.size() - 1], String(StoryFlow.SPECIALS["pre_ending"]["lines"][2]),
+			"the interlude closes on the cost of keeping")
 	var specials := " ".join(StoryFlow.SPECIALS["pre_ending"]["lines"])
-	ok(specials.contains("先在门外问火") and specials.contains("门才会开"),
-			"the interlude states the order: ask the fire first, then the door opens")
-	ok(specials.contains("送剑") and specials.contains("守火"),
+	ok(specials.contains("还火：") and specials.contains("守炉："),
 			"both choices are named before the final door")
-	ok(specials.contains("名字和伊尔归火") and specials.contains("你散成铁"),
-			"the give cost is stated (names + Yir return, you scatter)")
-	ok(specials.contains("你永留炉边") and specials.contains("城一直半醒"),
-			"the keep cost is stated (you stay forever, the city half-awake)")
+	ok(specials.contains("名字都能走") and specials.contains("散成铁"),
+			"the give cost is stated (names leave, you scatter)")
+	ok(specials.contains("新的守炉人") and specials.contains("城一直半醒"),
+			"the keep cost is stated (you become the next keeper, the city half-awake)")
 
 	for kind in ["give", "keep", "snuff"]:
 		var ending := StoryFlow.post_ending_steps(kind)
@@ -327,10 +403,56 @@ func test_pre_ending_and_post_ending_sequences() -> void:
 		ok(StoryFlow.post_ending_line(kind) != "", "%s has a closing framing line" % kind)
 	ok(StoryFlow.post_ending_line("give") != StoryFlow.post_ending_line("keep"),
 			"the two endings close differently")
-	ok(StoryFlow.post_ending_line("give").contains("听不真"),
-			"give's closing keeps the fire's answer ambiguous")
+	ok(StoryFlow.post_ending_line("give").contains("都走了"),
+			"give closes on the names finally leaving")
 	ok(StoryFlow.post_ending_line("keep").contains("城一直半醒"),
 			"keep closes with the city half-awake")
+	ok(StoryFlow.post_ending_line("snuff").contains("再没有人替名字问一句"),
+			"snuff closes on nobody asking for the names")
+
+
+## 结局演出 = 结局分镜 + 滚动字幕；分镜读的就是注册表里的结局字幕 + 一句收束，顺序不变。
+func test_ending_boards_read_the_registry_and_end_in_credits() -> void:
+	for kind in ["give", "keep", "snuff"]:
+		var steps := StoryFlow.ending_steps(kind)
+		eq(steps.size(), 2, "%s ending plays two boards" % kind)
+		eq(String((steps[0] as Dictionary).get("id", "")), Boards.ending_id(kind), "%s: its own board first" % kind)
+		eq(String((steps[1] as Dictionary).get("id", "")), Boards.CREDITS, "%s: credits last" % kind)
+		for raw in steps:
+			eq(String((raw as Dictionary).get("kind", "")), "board", "%s uses board steps" % kind)
+			ok(Boards.has(String((raw as Dictionary).get("id", ""))), "%s: the board exists" % kind)
+			eq(bool((raw as Dictionary).get("skip_all", true)), false, "%s: endings advance line by line" % kind)
+		var expected: Array[String] = []
+		for line in ChapterText.ending_lines_of(kind):
+			expected.append(String(line))
+		expected.append(StoryFlow.post_ending_line(kind))
+		eq(Boards.lines_of(Boards.ending_id(kind)), expected,
+				"%s board reads the ending lines then the closing line" % kind)
+		var shots := Boards.shots(Boards.ending_id(kind))
+		var art_shots := 0
+		var art_text := ""
+		for raw_shot in shots:
+			var shot: Dictionary = raw_shot
+			if String(shot.get("art", "")) == "ending_%s" % kind:
+				art_shots += 1
+				art_text = " ".join(PackedStringArray(shot.get("lines", []) as Array))
+		eq(art_shots, 1, "%s has exactly one illustrated shot" % kind)
+		if kind == "give":
+			ok(art_text.contains("铁屑") or art_text.contains("散"),
+					"give's picture sits on the shot where you scatter into iron")
+		elif kind == "keep":
+			ok(art_text.contains("守下去"),
+					"keep's picture sits on the vigil, not the moment the door opens")
+		else:
+			ok(art_text.contains("一点红"),
+					"snuff's picture sits on the dark city and the last red in the furnace door")
+		eq(Boards.title_of(Boards.ending_id(kind)), "结局 · %s" % Boards.ending_name(kind), "%s has a replay title" % kind)
+	var credits := Boards.shots(Boards.CREDITS)
+	eq(credits.size(), 1, "credits are one scrolling shot")
+	ok((credits[0] as Dictionary).has("scroll") and not ((credits[0] as Dictionary)["scroll"] as Array).is_empty(),
+			"the credits scroll something")
+	for line in Boards.CREDITS_LINES:
+		ok(not line.contains("幕"), "credits do not use the design term")
 
 
 ## M1R4 canon：间幕不出现设计术语/旧称呼；术语统一；路线与门序有交代。
@@ -339,56 +461,58 @@ func test_interludes_keep_the_core_canon() -> void:
 	for edge in StoryFlow.boundaries():
 		all += " " + " ".join(edge.get("epilogue", []))
 		all += " " + " ".join(edge.get("teaser", []))
-	for word in ["骑士", "陵墓", "塞进剑", "你这把剑", "你这一把", "收索", "欠伊尔一次回答",
+	for word in ["陵墓", "塞进剑", "你这把剑", "你这一把", "收索", "欠伊尔一次回答",
 			"不是灯芯", "第一幕", "第二幕", "幕", "债", "借他们的手艺往前",
-			"插座", "封核", "炉门", "提前离场结局"]:
+			"插座", "封核", "封进核", "炉门", "提前离场结局", "净化偶", "残芯"]:
 		ok(not all.contains(word), "interludes do not use the retired wording '%s'" % word)
-	# 第一章机关在间幕里也兑现：炉座只认点过的核，点亮才能带走。
-	ok(" ".join(StoryFlow.for_edge("level01")["epilogue"]).contains("炉座只认点过的核"),
-			"the first bridge states the stand mechanism")
-	# 渣渊间幕必须说：伊尔（封进核之前）把残芯嵌进你背上的剑、点亮你。
+	# 第一章：续火 → 收回剑里 → 石板松开。
+	var first := " ".join(StoryFlow.for_edge("level01")["epilogue"])
+	ok(first.contains("火种在炉座上亮了") and first.contains("收回剑里"),
+			"the first bridge says the fire seed was relit and taken back")
+	ok(" ".join(StoryFlow.for_edge("level01")["teaser"]).contains("下面有钟声"),
+			"the first bridge points down to the bell")
+	# 渣渊间幕必须说：伊尔（封进火种之前）从渣里把你捡起来。
 	var slag_edge := StoryFlow.for_edge("level08")
 	ok(not slag_edge.is_empty(), "the slag boundary exists")
 	var slag := " ".join(slag_edge["epilogue"])
-	ok(slag.contains("封进核之前") and slag.contains("残芯嵌进你背上的剑"),
+	ok(slag.contains("封进火种之前") and slag.contains("捡起了你"),
 			"the slag interlude marks Yir's action as pre-sealing")
-	# D2：去炉心没有直路——渠顶旧街通圣殿，圣殿地窖才有下城的暗门。
-	var water_edge := StoryFlow.for_edge("level02")
-	ok(" ".join(water_edge["epilogue"]).contains("渠顶旧街")
-			and " ".join(water_edge["epilogue"]).contains("圣殿地窖"),
-			"the undercroft bridge closes the up-then-down route with a concrete path")
-	# 第二幕开场：债只作剧情句（你欠她一次问火），不带幕/债的设计词。
-	var debt_edge := StoryFlow.for_edge("level03")
-	ok(" ".join(debt_edge["epilogue"]).contains("你欠她一次问火"),
-			"the bridge points the debt the right way: you owe her one question")
-	ok(" ".join(debt_edge["epilogue"]).contains("往下走，才有机会还"),
-			"the bridge tells you where to go to pay it back, in plain plot terms")
-	# 地窖→工坊：伊尔的动作是她留下的字/封进核前画的一笔；插座统一叫剑槽。
+	# 去炉心没有直路：渠里的渣封死下城，只剩圣殿的暗门。
+	ok(" ".join(StoryFlow.for_edge("level02b")["epilogue"]).contains("圣殿的暗门"),
+			"the canal bridge says the only road is the cathedral's hidden door")
+	# 地窖→工坊：末页是一页纸，伊尔的话是她早就想做的事。
 	var crypt_edge := StoryFlow.for_edge("level04b")
 	var crypt_text := " ".join(crypt_edge["epilogue"]) + " " + " ".join(crypt_edge["teaser"])
-	ok(crypt_text.contains("封进核之前") and crypt_text.contains("画的一笔"),
-			"the workshop bridge uses the page she left, not a present-tense Yir")
-	ok(crypt_text.contains("剑槽"), "the workshop bridge calls the socket 剑槽")
-	# 工坊→墓园：借手艺在通关时兑现，不是空口欠债。
-	var rain_edge := StoryFlow.for_edge("level05")
-	ok(" ".join(rain_edge["epilogue"]).contains("机关")
-			and " ".join(rain_edge["epilogue"]).contains("手艺"),
-			"the borrowed craft pays off at the next mechanism")
+	ok(crypt_text.contains("把火还给炉") and crypt_text.contains("把火种交给你"),
+			"the workshop bridge links the last page to why she handed you the fire seed")
+	ok(crypt_text.contains("手艺"), "the workshop bridge says what the workshop gives the sword")
+	# 工坊→墓园：借手艺在通关时兑现，不是空口。
+	var rain_text := " ".join(StoryFlow.for_edge("level05")["epilogue"])
+	ok(rain_text.contains("锈核") and rain_text.contains("手艺"),
+			"the borrowed craft pays off right away")
 	# 墓园→钟楼：第一次预埋「还火的人自己也要进炉」的代价。
 	ok(" ".join(StoryFlow.for_edge("level06")["epilogue"]).contains("自己也要进炉"),
 			"the bell bridge seeds the cost of returning the fire")
-	var under := " ".join(StoryFlow.for_edge("level02")["teaser"]) \
-			+ " " + " ".join(StoryFlow.for_edge("level01")["teaser"])
-	ok(under.contains("要下去，得先上去"), "the undercroft interlude explains the climb-first route")
-	# 钟舌熔核的发现留到 ch9，间幕不在 ch6→07 提前剧透。
+	# 钟舌熔成火种的发现留到 ch9，间幕不在 ch8→09 提前剧透。
 	var bell_teaser := " ".join(StoryFlow.for_edge("level06")["teaser"])
 	ok(not bell_teaser.contains("熔"), "the bell-tower teaser does not spoil the melted tongue")
-	# 终章前的 teaser：门名统一、先问火、钥匙落地。
+	ok(" ".join(StoryFlow.for_edge("level07")["epilogue"]).contains("钟舌被熔成了火种"),
+			"the bell tower bridge answers where the tongue went")
+	# 终章前：门名统一，梦魇守门，火种在你背上。
 	var last_teaser := " ".join(StoryFlow.for_edge("level09b")["teaser"])
-	ok(last_teaser.contains("炉心门") and last_teaser.contains("先问火一句"),
-			"the final bridge names the door and the ask-first order")
+	ok(last_teaser.contains("炉心门") and last_teaser.contains("梦魇"),
+			"the final bridge names the door and who guards it")
 	ok(" ".join(StoryFlow.for_edge("level09")["teaser"]).contains("炉心门"),
-			"the cliff bridge no longer mixes door names")
+			"the cliff bridge uses the same door name")
+	# 带说话人的句子只用 SPEAKERS 里的名字（名牌认得出）。
+	for raw in StoryFlow.boundaries():
+		for line in StoryFlow.lines_of(raw):
+			var cut := String(line).find("：")
+			if cut > 0 and cut <= 4:
+				var who := String(line).substr(0, cut)
+				if who in ["还火", "守炉"]:
+					continue
+				ok(ChapterText.SPEAKERS.has(who), "spoken prefix '%s' is a known speaker" % who)
 
 
 func test_recap_uses_cleared_chapters() -> void:
@@ -414,9 +538,14 @@ func test_staging_art_handles_every_staging() -> void:
 	for edge in StoryFlow.boundaries():
 		var staging := StoryFlow.staging_of(edge)
 		ok(ALLOWED_STAGING.has(staging), "staging %s is implemented" % staging)
+		# 兜底几何布景每一种都能画出来（没有分镜的边界才用它）。
+		_transition._show_staging(staging)
+		eq(_transition.staging(), staging, "the fallback art shows %s" % staging)
+	_transition.reset_view()
 	# 渲染夹具与暂停菜单共用同一份预览入口；直接构造步骤也算一次真实播放。
 	ok(_transition.preview("level01"), "preview plays the first boundary")
 	ok(_transition.is_playing(), "preview reports playing")
+	eq(_transition.board_id(), "interlude_level01", "preview plays the boundary's storyboard")
 	Director.abort()
 	_transition.reset_view()
 	ok(not _transition.preview("level10", "level09"), "preview rejects a mismatched target")

@@ -4,7 +4,7 @@
 
 ## 工作区与不变契约
 
-当前整合分支为 `codex/overhaul-v3-completion`，工作区 `C:/Users/Administrator/.codex/worktrees/overhaul-v3-completion/Rustgrave`，起点 `8b91f22`。原 OneDrive 工作区的未提交改动不纳入。每个完整功能、修正和验收文档单独提交；截图与日志留在忽略的 `screenshots/` 中，未推送或发布。
+当前整合分支为 `master`。`feature/overhaul-v3` 上的 QHD 重绘、细节贴图路由，以及标题活景新增道具（坩埚、锻锤、送剑链、火盆、破旗、亡魂）已并入。关卡几何以已验收的 14 章重建为准，不回退到早期「不挪地面、只追加机关」的蓝图。每个完整功能、修正和验收文档单独提交；截图与日志留在忽略的 `screenshots/` 中，未推送或发布。
 
 故事及14章顺序保持不变；主线只要求普通单跳、冲刺、热锻，钩锁与额外跳跃属于可选支路。第一章继续使用手摆场景，不登记到 `GameContext.LAYOUTS`；旧 `Props/EmberNest`、`EmberNestEast`、`Door`、`RustyGate`、`ForgeHeart`、`ScrapPile`、`Pickups/EmberCore` 等存档路径保留。新存档实现兼容v2迁移，不能以当前写入版本号推断兼容性。
 

@@ -1,0 +1,1 @@
+Same creature and action as flying_demon__idle. Reuse the completed original-referenced drawing for the lower-resolution normalized variant. Register against each normalized original canvas, mask and palette; no new service request.

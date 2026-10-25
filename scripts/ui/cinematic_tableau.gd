@@ -23,6 +23,8 @@ var shot := ""
 var age := 0.0
 var heading := ""
 var subheading := ""
+## Boss 名号卡上沿的一行白话（ChapterText.boss_intro，如「守 座 的 人」）。空 = 不画。
+var kicker := ""
 
 
 func _ready() -> void:
@@ -67,6 +69,10 @@ func _card() -> void:
 	draw_line(Vector2(center_x - extent, y + 50), Vector2(center_x + extent, y + 50), RUST)
 	_center_text(subheading, y - 10, 10, Color("c89372"), center_x)
 	_center_text(heading, y + 21, 22, PALE, center_x)
+	if boss and kicker != "":
+		# 卡面上沿的白话一行：名号是游戏的腔调，这一行告诉玩家「这位是谁」。
+		_center_text(kicker, y - 36.0, 9,
+				Color(EMBER.r, EMBER.g, EMBER.b, 0.85 * smoothstep(0.1, 0.7, age)), center_x)
 	if boss:
 		_phase_marks(center_x, y + 50)
 	for side in [-1, 1]:

@@ -1,0 +1,105 @@
+{
+  "density": 6,
+  "size": [
+    1248,
+    832
+  ],
+  "cell": [
+    416,
+    416
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/spitter_hell_beast/attack/attack_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        416
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        14,
+        10,
+        56,
+        64
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/attack/attack_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        416
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        22,
+        2,
+        55,
+        64
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/attack/attack_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        416
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        22,
+        7,
+        60,
+        64
+      ]
+    },
+    {
+      "source": "assets/characters/spitter_hell_beast/attack/attack_3.png",
+      "slot": [
+        0,
+        416,
+        416,
+        832
+      ],
+      "frame_origin": [
+        16,
+        432
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "bbox": [
+        15,
+        17,
+        53,
+        64
+      ]
+    }
+  ]
+}

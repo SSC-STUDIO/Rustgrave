@@ -1,0 +1,289 @@
+{
+  "density": 6,
+  "size": [
+    1248,
+    896
+  ],
+  "cell": [
+    416,
+    224
+  ],
+  "frames": [
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_0.png",
+      "slot": [
+        0,
+        0,
+        416,
+        224
+      ],
+      "frame_origin": [
+        16,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        54,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_1.png",
+      "slot": [
+        416,
+        0,
+        832,
+        224
+      ],
+      "frame_origin": [
+        432,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        7,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_2.png",
+      "slot": [
+        832,
+        0,
+        1248,
+        224
+      ],
+      "frame_origin": [
+        848,
+        16
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        6,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_3.png",
+      "slot": [
+        0,
+        224,
+        416,
+        448
+      ],
+      "frame_origin": [
+        16,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        7,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_4.png",
+      "slot": [
+        416,
+        224,
+        832,
+        448
+      ],
+      "frame_origin": [
+        432,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_5.png",
+      "slot": [
+        832,
+        224,
+        1248,
+        448
+      ],
+      "frame_origin": [
+        848,
+        240
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        54,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_6.png",
+      "slot": [
+        0,
+        448,
+        416,
+        672
+      ],
+      "frame_origin": [
+        16,
+        464
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        54,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_7.png",
+      "slot": [
+        416,
+        448,
+        832,
+        672
+      ],
+      "frame_origin": [
+        432,
+        464
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        7,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_8.png",
+      "slot": [
+        832,
+        448,
+        1248,
+        672
+      ],
+      "frame_origin": [
+        848,
+        464
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        6,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_9.png",
+      "slot": [
+        0,
+        672,
+        416,
+        896
+      ],
+      "frame_origin": [
+        16,
+        688
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        7,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_10.png",
+      "slot": [
+        416,
+        672,
+        832,
+        896
+      ],
+      "frame_origin": [
+        432,
+        688
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        55,
+        32
+      ]
+    },
+    {
+      "source": "assets/characters/scrapper_hell_hound/walk/walk_11.png",
+      "slot": [
+        832,
+        672,
+        1248,
+        896
+      ],
+      "frame_origin": [
+        848,
+        688
+      ],
+      "size": [
+        64,
+        32
+      ],
+      "bbox": [
+        10,
+        8,
+        54,
+        32
+      ]
+    }
+  ]
+}

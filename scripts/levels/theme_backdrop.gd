@@ -288,7 +288,7 @@ func _add_plate(parent: Node, plate_name: String, path: String, scroll: Vector2,
 	parent.add_child(layer)
 	var spr := Sprite2D.new()
 	spr.name = "Sprite"
-	spr.texture = load(path) as Texture2D
+	spr.texture = DensityTextures.load_texture(path)
 	spr.centered = false
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.position = pos
@@ -310,7 +310,7 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 	var path: String = def.get("path", "")
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := DensityTextures.load_texture(path)
 	if tex == null:
 		return null
 	var layer := Parallax2D.new()
