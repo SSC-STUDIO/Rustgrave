@@ -1,21 +1,26 @@
 extends ChapterLayout
 ## 锈墓・陆 — 圣殿地窖：中庭的账本末页被人撕走，暗门通到地窖。地窖里有人在唱，没有声音。
 ##
-## 结构（地面 y=320；室内，教堂石板 skin=nave；单跳 ≤32px 高、≤72px 跨）：
-##   ① 前厅 0–1200       暗门入口、出生、余烬巢、路牌「地窖」、石像鬼与尖窗；
-##                       骸骨从土里起身教「先看土再走」，喷吐者守前厅东端。
-##   ② 骨室 1200–2600    唱诗壳机关：链吊台升到唱诗台（224），台面压板开地窖闸门；
-##                       顶上垂着烛泪藤条（烛雨），骨柱与祭坛是骨室的轮廓；
-##                       钩锁支路：唱诗楼座（碑文「地窖纪事 · 末页」+ 武器奖励位，主线够不到）。
-##   ③ 唱诗堂 2600–3680  末页碑文后的唱诗堂：Boss 前余烬巢、无声唱诗班竞技场（600px 平地）
-##                       → 出口「工坊暗门」→ level05。
-##
-## 主线（allow_hook=false）从出生点可达出口、三个余烬巢与压板；钩锁只开支路。
+## v3 重做结构（暗室串联 + 烛光桥 CandleBridge；打破 y=320 单线，下沉墓坑 y=352 + 多层走廊 y=288/256/224/136）：
+##   ① 前厅与初火教学 0–880      暗门入口、前厅余烬巢（176）、路牌「地窖」；
+##                               第一座烛光桥（512,288）跨越下沉骨槽（y=352，安全石底，两头均可单跳回 320）；
+##                               遭遇 1：下沉骨槽起身骸骨 + 爆裂骸骨守窄道，上层画廊散射喷吐者压制。
+##   ② 沉棺骨室与唱诗台 880–1760 碑文「唱诗」（960）、骨室余烬巢（1160）；
+##                               双路登台：点燃骨室烛台走烛光桥（256）直上唱诗台（224），或下到骨室底（352）乘链吊台升上；
+##                               唱诗台压板（1640,224）开启圣物闸门；西侧高台（1184,224）提供单向落回骨室巢的捷径；
+##                               遭遇 2：骨室底骸骨 + 爆裂骸骨 + 空中幽魂立体夹击。
+##   ③ 圣物暗廊与末页秘龛 1760–2600 圣物闸门（1880）、暗廊余烬巢（2000）；
+##                               遭遇 3：烛光桥串联高台（288→256），爆裂骸骨 + 幽魂 + 重盾卫立体驻守；
+##                               可选挑战与钩锁支路：登顶唱诗楼座（136）读「地窖纪事 · 末页」并拾取武器奖励「铁斩刃」。
+##   ④ 唱诗堂 Boss 场 2600–3680  碑文「伊尔」（2700）、Boss 前余烬巢（2860，距场门 40px）；
+##                               无声唱诗班竞技场（2900–3500）：连续主地面 + 两侧阶台/侧龛（288/256）+ 中央高空烛光桥（224）+ 可破坏骨瓮掩体；
+##                               出口「工坊暗门」（3592）→ level05。
 
 const EAST_LIMIT := 3680
 const CAMERA_TOP := -176
 const CEILING_Y := -112.0
 const ENTRY_SPAWN := Vector2(96, 300)
+const SUNKEN_Y := 352.0
 
 ## 圣殿石板压成冷紫（同 level04）；浮台略亮，和地面拉开。
 const STONE_TONE := Color(0.9, 0.88, 1.0)
@@ -24,81 +29,121 @@ const FLOAT_TONE := Color(0.94, 0.92, 1.0)
 const TORCH_TINT := Color(0.82, 0.84, 1.0)
 const WAX_TINT := Color(0.95, 0.87, 0.66, 0.9)
 
-## 地面段 [name, x0, x1, cap_left, cap_right]：一条连续地面，机关与支路都在它上方。
+## 地面段 [name, x0, x1, cap_left, cap_right, top_y]：高低错落的暗室地面，352 下沉段皆可单跳回 320。
 const FLOORS: Array = [
-	["FloorAnte", 0.0, 1200.0, false, true],
-	["FloorBone", 1200.0, 2600.0, true, true],
-	["FloorChoir", 2600.0, 3680.0, true, false],
+	["FloorAnte", 0.0, 464.0, false, true, FLOOR_Y],
+	["FloorSunkenA", 464.0, 880.0, false, false, SUNKEN_Y],
+	["FloorBoneWest", 880.0, 1280.0, true, true, FLOOR_Y],
+	["FloorBoneLower", 1280.0, 1760.0, false, false, SUNKEN_Y],
+	["FloorCatacomb", 1760.0, 2600.0, true, true, FLOOR_Y],
+	["FloorChoir", 2600.0, 3680.0, true, false, FLOOR_Y],
 ]
-## 悬空踏台 [name, pos(左上), width]（16px 厚，nave_float）
+
+## 悬空踏台 [name, pos(左上), width]（16px 厚，nave_float；皆在 Boss 竞技场外）
 const STEPS: Array = [
+	["StepGalleryA", Vector2(672, 288), 144.0],
+	["ShortcutBalcony", Vector2(1184, 224), 80.0],
+	["StepBoneEntry", Vector2(1296, 288), 64.0],
+	["StepBoneLift", Vector2(1424, 320), 64.0],
 	["ChoirLoft", Vector2(1568, 224), 160.0],
-	["LedgerGallery", Vector2(2240, 136), 128.0],
+	["StepLoftEast", Vector2(1776, 224), 88.0],
+	["StepCatacombA", Vector2(2112, 288), 80.0],
+	["CatacombUpper", Vector2(2384, 256), 128.0],
+	["LedgerGallery", Vector2(2224, 136), 160.0],
 ]
-## 唱诗台吊台：从地面上一层（296）把骑士送到唱诗台（224）；两段都在同一块台面上换乘。
+
+## 唱诗班 Boss 竞技场内的立体地形（两侧抬高阶台 + 侧龛，不阻碍浮空指挥官 y=254..320 的中场巡弋）
+const ARENA_PLATFORMS: Array = [
+	["ArenaStepWest", Vector2(2912, 288), 64.0],
+	["ArenaAlcoveWest", Vector2(2992, 256), 80.0],
+	["ArenaAlcoveEast", Vector2(3328, 256), 80.0],
+	["ArenaStepEast", Vector2(3424, 288), 64.0],
+]
+
+## 烛光桥 [name, pos(左上), width, candle_pos(脚点), props]
+const CANDLE_BRIDGES: Array = [
+	["CandleBridgeAnte", Vector2(512, 288), 112.0, Vector2(416, 320),
+			{"lit_time": 6.5, "hint_id": &"candle"}],
+	["CandleBridgeBone", Vector2(1392, 256), 112.0, Vector2(1240, 320),
+			{"lit_time": 6.5, "hint_id": &""}],
+	["CandleBridgeShortcut", Vector2(1328, 224), 112.0, Vector2(1584, 224),
+			{"lit_time": 7.0, "hint_id": &""}],
+	["CandleBridgeCatacomb", Vector2(2232, 256), 112.0, Vector2(2144, 288),
+			{"lit_time": 6.5, "hint_id": &""}],
+	["CandleBridgeArena", Vector2(3136, 224), 128.0, Vector2(3032, 256),
+			{"lit_time": 7.0, "hint_id": &""}],
+]
+
+## 唱诗台吊台：从骨室过渡阶（296）把骑士送到唱诗台（224）。
 const LIFTS: Array = [
-	["ChoirLift", Vector2(1520, 296), Vector2(0.0, -72.0), 6.0, 48.0, 0.0],
+	["ChoirLift", Vector2(1504, 296), Vector2(0.0, -72.0), 6.0, 48.0, 0.0],
 ]
 
-## 唱诗壳机关：压板装在唱诗台面上（脚点 y=224），闸门立在地窖地面（门 16×64，底在 320）。
+## 唱诗壳机关：压板装在唱诗台面上（脚点 y=224），闸门立在圣物暗廊入口（门 16×64，底在 320）。
 const PLATE_FEET := Vector2(1640, 224)
-const GATE_DOOR_POS := Vector2(2100, 256)
+const GATE_DOOR_POS := Vector2(1880, 256)
 
-## 三个余烬巢：前厅 / 骨室东头 / Boss 门前（间距 ≈1200px，死亡回程不重走整关）。
+## 四个余烬巢：前厅(176) / 骨室西(1160) / 圣物暗廊(2000) / Boss 门前(2860)，间距全部 <1000px。
 const NEST_ANTE_X := 176.0
-const NEST_BONE_X := 1460.0
+const NEST_BONE_X := 1160.0
+const NEST_VAULT_X := 2000.0
 const NEST_CHOIR_X := 2860.0
 
-## 碑文：主线「唱诗」讲被割了名字的唱诗班，主线「伊尔」讲她把自己封进剑；
-## 支路「末页」是账本最后那页 —— 本章的核心发现，只有钩锁能读到。
-const STELE_CHOIR_POS := Vector2(1240, 320)
+## 碑文：主线「唱诗」与「伊尔」在必经路上；支路「末页」在钩锁秘龛（LedgerGallery）。
+const STELE_CHOIR_POS := Vector2(960, 320)
 const STELE_YIR_POS := Vector2(2700, 320)
-const STELE_LEDGER_POS := Vector2(2270, 136)
+const STELE_LEDGER_POS := Vector2(2264, 136)
 
-## 钩锁支路：锚点悬在骨室上方，落在唱诗楼座（落台在锚点下方 88px）。
+## 钩锁支路与可选挑战奖励：锚点悬在圣物暗廊上方，落台在锚点下方 88px。
 const HOOK_POS := Vector2(2304, 48)
-## 支路奖励位：契约 §3.2 的 reward 位（kind ∈ weapon/character/equipment）。
-## ChapterLayout.reward() 在本分支尚未落地，先用同源的 EquipmentPickup 场景直接挂。
-## 奖励位是武器（铁斩刃）；WeaponRoster 落地后只需把 REWARD_KIND 改成 "weapon"、
-## REWARD_REF 换成 roster 的武器 id，拾取逻辑与位置都不用动。
-## Fill 底边在节点 +7px，所以 y = 台面 - 7（rest 在台面上，不做悬空奖励）。
 const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
-const REWARD_POS := Vector2(2330, 129)
+const REWARD_POS := Vector2(2336, 129)
 const REWARD_KIND := "equipment"
 const REWARD_REF := "iron_blade"
 
-## Boss：无声唱诗班（场景由 bosses-a 交付；缺失时 ChapterLayout.boss() 跳过，不阻塞）。
-## 竞技场 600px 连续平地（2900–3500），Boss 在中间；门前巢在 2860（距场地 40px）。
+## 可破坏骨瓮（支路与 Boss 场两侧掩体，打碎掉小回血）
+const DESTRUCTIBLES: Array = [
+	["LedgerUrn", &"rust_urn", Vector2(2368, 136)],
+	["ChoirUrnWest", &"rust_urn", Vector2(3088, 320)],
+	["ChoirUrnEast", &"rust_urn", Vector2(3312, 320)],
+]
+
+## Boss：无声唱诗班。竞技场 2900–3500，门前巢在 2860（距场门 40px ≤ 80px）。
 const ARENA_LEFT := 2900.0
 const ARENA_RIGHT := 3500.0
 const BOSS_POS := Vector2(3200, 320)
 const EXIT_X := 3592.0
 
 const WAYMARKS: Array = [
-	[Vector2(300, 320), "地窖"],
+	[Vector2(280, 320), "地窖"],
+	[Vector2(1216, 224), "捷径"],
 	[Vector2(2760, 320), "唱诗"],
 ]
 
-## [name, kind, pos, overrides]：落地敌人给脚点，飞行/穿墙敌人给悬停中心。
-## 巢位都在 nearby 敌人的 aggro/wake 圈外：前厅巢离骸骨 384px、喷吐者 644px；
-## 骨室巢离骸骨 180px（>150 唤醒）；Boss 前巢离齿盾卫 344px（>300 射程）。
+## 三处场景化遭遇（包含 exploder_skeleton、scatter_spitter、heavy_guard 变体），
+## 所有余烬巢均在附近敌人 aggro/wake 圈外。
 const ENEMIES: Array = [
-	["Skeleton1", "skeleton", Vector2(560, 320), {}],
-	["Spitter1", "spitter", Vector2(820, 320), {}],
-	["Ghost1", "ghost", Vector2(980, 236), {}],
-	["Skeleton2", "skeleton", Vector2(1280, 320), {}],
-	["Ghost2", "ghost", Vector2(2050, 236), {}],
-	["Skeleton3", "skeleton", Vector2(2380, 320), {}],
-	["GearShield1", "gear_shield", Vector2(2500, 320), {"patrol_range": 16.0}],
+	# 遭遇 1：前厅下沉骨槽与上层画廊（爆裂骸骨守窄道，西侧留足退路）
+	["Skeleton1", "skeleton", Vector2(584, 352), {}],
+	["SkeletonExploder1", "skeleton", Vector2(728, 352), {"variant": &"exploder_skeleton"}],
+	["Spitter1", "spitter", Vector2(768, 288), {"variant": &"scatter_spitter"}],
+	# 遭遇 2：沉棺骨室双层夹击（下层骸骨 + 爆裂骸骨，上层幽魂护唱诗台）
+	["Skeleton2", "skeleton", Vector2(1380, 352), {}],
+	["Ghost1", "ghost", Vector2(1520, 196), {}],
+	["SkeletonExploder2", "skeleton", Vector2(1640, 352), {"variant": &"exploder_skeleton"}],
+	# 遭遇 3：圣物暗廊立体猎场（中路爆裂骸骨 + 烛光桥上方幽魂 + 重盾卫守东口）
+	["Skeleton3", "skeleton", Vector2(2260, 320), {"variant": &"exploder_skeleton"}],
+	["Ghost2", "ghost", Vector2(2360, 212), {}],
+	["GearShield1", "gear_shield", Vector2(2480, 320), {"variant": &"heavy_guard", "patrol_range": 16.0}],
 ]
 
-## 壁炬：前厅 3 盏、骨室 3 盏、唱诗堂 3 盏。位置躲开尖窗/祭坛/石柱墙板（同层墙板
-## 叠在一起会把中景家具读成黑块），照不到的家具带另有 WARM_FILLS 的暖光补。
-const TORCHES: Array = [352.0, 820.0, 1100.0, 1500.0, 1650.0, 2450.0, 2680.0, 3200.0, 3480.0]
-## 暖烛光补 [name, x, y, radius, energy]：视觉 QA Phase A 指出本关中景（1700/2050/3100
-## 一带的祭坛、石柱、骷髅柱）被 cathedral grade 压成黑剪影（平均亮度 0.088–0.107）。
-## 只加光、不加碰撞：三盏宽半径 ADD 底光 + 一排贴着家具带的烛光暖池，把整章中景从
-## 黑里抬起来（不改全局 cathedral grade；室内 MIX 填充只会把画布乘暗，这里不用）。
+## 壁炬 [x, feet_y]：按所在暗室地面高度贴齐。
+const TORCHES: Array = [
+	[352.0, 320.0], [640.0, 352.0], [1060.0, 320.0],
+	[1460.0, 352.0], [1680.0, 352.0], [2180.0, 320.0],
+	[2680.0, 320.0], [3200.0, 320.0], [3480.0, 320.0],
+]
+
 const WARM_COLOR := Color(1.0, 0.72, 0.42)
 const WARM_FILLS: Array = [
 	["WarmWashAnte", 400.0, 180.0, 520.0, 1.3],
@@ -106,46 +151,40 @@ const WARM_FILLS: Array = [
 	["WarmWashWest", 1900.0, 180.0, 540.0, 1.2],
 	["WarmWashGate", 2700.0, 180.0, 500.0, 1.1],
 	["WarmWashChoir", 3300.0, 180.0, 440.0, 1.1],
-	["WarmAnte", 900.0, 250.0, 160.0, 0.95],
-	["WarmBoneRoom", 1700.0, 250.0, 170.0, 1.15],
+	["WarmAnte", 600.0, 250.0, 180.0, 1.05],
+	["WarmBoneRoom", 1450.0, 240.0, 190.0, 1.15],
 	["WarmGate", 2050.0, 250.0, 160.0, 1.1],
-	["WarmSkull", 2320.0, 240.0, 150.0, 1.0],
-	["WarmChoirHall", 3100.0, 240.0, 170.0, 1.15],
-	["WarmBossColumn", 3260.0, 190.0, 140.0, 1.25],
-	["WarmChoirAltar", 3420.0, 250.0, 150.0, 1.05],
+	["WarmSkull", 2320.0, 220.0, 170.0, 1.05],
+	["WarmChoirHall", 3060.0, 230.0, 180.0, 1.15],
+	["WarmBossColumn", 3200.0, 185.0, 160.0, 1.25],
+	["WarmChoirAltar", 3400.0, 240.0, 160.0, 1.05],
 ]
-## 接地装饰 [key, feet]：每件都写清「用途 + 叙事锚点」，只种 PropCatalog 里
-## cathedral 白名单的键（prop_fit_test 会复查主题、族变体、整数缩放与贴地）。
+
+## 接地装饰 [key, feet]：全部踩在对应高度层的实心台面上。
 const PROPS: Array = [
-	# 中庭下来的暗门：玩家从 level04 的账本间走进地窖。
 	["door_arch", Vector2(56, 320)],
-	["balustrade", Vector2(420, 320)],
-	["rubble_dry", Vector2(500, 320)],
-	# 前厅的尖窗与守门石像鬼：地窖最初也是按圣殿修的。
-	["window", Vector2(700, 320)],
-	["gargoyle", Vector2(1000, 320)],
-	# 骨室的骷髅柱：唱诗班把名字留在了柱子上（碑文「唱诗」就在柱脚旁）。
-	["skull_column", Vector2(1240, 320)],
-	# 骨室中段的祭坛：末页原本供在这里，现在只剩空台；台脚压一块石板当基座。
-	["altar", Vector2(1800, 320)],
-	["slab", Vector2(1800, 320)],
-	["column", Vector2(2000, 320)],
-	["rubble_dry_b", Vector2(2140, 320)],
-	# 骨室东端的骷髅柱与碎石：唱诗楼座就悬在这根柱子上方。
-	["skull_column", Vector2(2350, 320)],
-	["rubble_dry_c", Vector2(2620, 320)],
-	# 唱诗堂（Boss 房）：两端的石柱/石栏是临时地标，中间塌下来的石板是合唱席残座；
-	# 全部纯装饰、无碰撞，不挡 Boss 走位（BossArena 落地后由它接管场地）。
+	["balustrade", Vector2(368, 320)],
+	["rubble_dry", Vector2(520, 352)],
+	["window", Vector2(660, 352)],
+	["gargoyle", Vector2(820, 352)],
+	["skull_column", Vector2(1020, 320)],
+	["rubble_dry_b", Vector2(1320, 352)],
+	["altar", Vector2(1580, 352)],
+	["slab", Vector2(1580, 352)],
+	["column", Vector2(1820, 320)],
+	["rubble_dry_c", Vector2(1930, 320)],
+	["skull_column", Vector2(2320, 320)],
+	["rubble_dry", Vector2(2560, 320)],
+	# 唱诗堂（Boss 房）地标
 	["column", Vector2(2950, 320)],
-	["balustrade", Vector2(2920, 320)],
+	["balustrade", Vector2(2944, 288)],
 	["slab", Vector2(3050, 320)],
-	# 尖窗与祭坛是 Boss 房的两个可读光源地标；祭坛台脚也有石板基座。
-	["window", Vector2(3080, 320)],
+	["window", Vector2(3140, 320)],
 	["altar", Vector2(3380, 320)],
 	["slab", Vector2(3380, 320)],
-	["balustrade", Vector2(3490, 320)],
+	["balustrade", Vector2(3456, 288)],
 ]
-## 顶板下挂着的烛泪：唱诗班点过的蜡烛烧了两百年，蜡沿着顶石垂下来（藤条压成蜡色）。
+
 const VINES: Array = [500.0, 1200.0, 1700.0, 2100.0, 2500.0, 2900.0, 3300.0]
 
 
@@ -161,31 +200,19 @@ func wake_line() -> String:
 	return ChapterText.wake_of(level_id())
 
 
-## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
 func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
 	var entry := ChapterText.stele_of(level_id(), node_name)
 	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
 
 
-## 支路奖励位：挂一件装备拾取（rest 在楼座台面上）。等 ChapterLayout.reward() 合入后
-## 换成 reward(host, "RewardLedger", REWARD_POS, REWARD_KIND, REWARD_REF)。
-func _reward(host: Node2D) -> Node:
-	if not ResourceLoader.exists(REWARD_SCENE):
-		return null
-	var scene := load(REWARD_SCENE) as PackedScene
-	if scene == null:
-		return null
-	var pick := scene.instantiate()
-	if pick == null:
-		return null
-	pick.name = "RewardLedger"
-	pick.position = REWARD_POS
-	pick.set("reward_kind", REWARD_KIND)
-	pick.set("reward_ref", REWARD_REF)
-	# 显示名从装备目录取，物品名不抄进关卡（数据层是唯一来源）。
+## 支路奖励位：同时用 ChapterLayout.reward() 并在 Pickups 下保留原引用名或直接挂在 Pickups。
+func _reward(host: Node2D) -> EquipmentPickup:
 	var item := EquipmentCatalog.for_id(StringName(REWARD_REF))
-	pick.set("reward_name", item.display_name if item != null else "")
-	group(host, "Pickups").add_child(pick)
+	var display := item.display_name if item != null else ""
+	var pick := reward(host, "RewardLedger", REWARD_POS, REWARD_KIND, REWARD_REF, display)
+	if pick != null and pick.get_parent() != group(host, "Pickups"):
+		pick.get_parent().remove_child(pick)
+		group(host, "Pickups").add_child(pick)
 	return pick
 
 
@@ -205,12 +232,10 @@ func theme() -> String:
 	return "cathedral"
 
 
-## 地窖里的烛尘：唱诗班不在了，烛还在烧（室内光/尘层次）。
 func motes() -> String:
 	return "candle"
 
 
-## 圣殿有顶：天只走薄雾/晴，地窖里看不到天，全章用固定冷紫气氛。
 func weather_recipe() -> Dictionary:
 	return {
 		"allowed": [WorldClock.Weather.HAZE, WorldClock.Weather.CLEAR],
@@ -237,10 +262,16 @@ func build(host: Node2D) -> void:
 
 func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
+		var top_y: float = float(f[5]) if f.size() > 5 else FLOOR_Y
 		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "nave",
-				bool(f[3]), bool(f[4]), FLOOR_Y, STONE_TONE)
+				bool(f[3]), bool(f[4]), top_y, STONE_TONE)
 	for s in STEPS:
 		step(host, String(s[0]), s[1], float(s[2]), "nave_float", FLOAT_TONE)
+	for ap in ARENA_PLATFORMS:
+		step(host, String(ap[0]), ap[1], float(ap[2]), "nave_float", FLOAT_TONE)
+	for cb in CANDLE_BRIDGES:
+		candle_bridge(host, String(cb[0]), cb[1], float(cb[2]), cb[3], cb[4],
+				"nave_float", FLOAT_TONE)
 	for l in LIFTS:
 		lift(host, String(l[0]), l[1], l[2], float(l[3]), float(l[4]), float(l[5]))
 	enclose(host, "nave", CEILING_Y, -1.0, 0.0, STONE_TONE)
@@ -249,16 +280,17 @@ func _build_terrain(host: Node2D) -> void:
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestAnte", NEST_ANTE_X)
 	nest(host, "EmberNestBone", NEST_BONE_X)
+	nest(host, "EmberNestVault", NEST_VAULT_X)
 	nest(host, "EmberNestChoir", NEST_CHOIR_X)
-	# 唱诗壳机关：踩住唱诗台的压板，地窖闸门打开（骨室通唱诗堂的门）。
 	plate_door(host, "ReliquaryGate", PLATE_FEET, GATE_DOOR_POS)
 	_stele(host, "SteleChoir", STELE_CHOIR_POS)
 	_stele(host, "SteleYir", STELE_YIR_POS)
+	for d in DESTRUCTIBLES:
+		destructible(host, String(d[0]), d[1], d[2])
 	for w in WAYMARKS:
 		waymark(host, w[0], String(w[1]))
 
 
-## 钩锁支路：锚点 → 唱诗楼座。主线（allow_hook=false）够不到，只有钩锁能读末页。
 func _build_branch(host: Node2D) -> void:
 	hook(host, "HookLedger", HOOK_POS)
 	_stele(host, "SteleLedger", STELE_LEDGER_POS)
@@ -270,34 +302,24 @@ func _build_enemies(host: Node2D) -> void:
 		enemy(host, String(e[0]), String(e[1]), e[2], e[3])
 
 
-## Boss 位：统一走 ChapterLayout.boss()。场景缺失时它返回 null 并跳过竞技场，
-## 关卡照常可通；出口旗标先不挂 Boss 死亡条件，等 bosses-a 交付后由 Lead 决定
-## 死亡旗标名再接上（避免现在就把出口锁死成软锁）。
 func _build_boss(host: Node2D) -> void:
 	boss(host, "SilentChoir", "silent_choir", BOSS_POS, ARENA_LEFT, ARENA_RIGHT)
 
 
 func _build_decor(host: Node2D) -> void:
-	# 先铺中景暖雾（背景板照不到世界灯），再点壁炬与烛光暖池。
 	_build_warm_veil(host)
-	for x in TORCHES:
-		torch(host, x, FLOOR_Y, TORCH_TINT)
-	# 暖光补：宽半径 ADD 底光抬环境，再用贴家具带的烛光暖池点出陈设轮廓。
+	for t in TORCHES:
+		torch(host, float(t[0]), float(t[1]), TORCH_TINT)
 	for spec in WARM_FILLS:
 		_warm_fill(host, String(spec[0]), Vector2(float(spec[1]), float(spec[2])),
 				float(spec[3]), float(spec[4]))
 	for item in PROPS:
 		prop(host, String(item[0]), item[1])
-	# 顶板底边在 CEILING_Y + 32；烛泪从这条线上挂下来。
 	var ceiling_bottom := CEILING_Y + 32.0
 	for x in VINES:
 		hanging(host, "vine", Vector2(x, ceiling_bottom), WAX_TINT)
 
 
-## 中景暖雾：cathedral 的背景板在 ParallaxBackdrop（CanvasLayer −10），世界里的 2D 灯
-## 照不到它——所以中景家具（祭坛/石柱/骷髅柱）永远是黑剪影。这里在 world 画布最底层
-## （z=−8）加一层极淡的暖色纱：只盖背景板，不盖角色/道具（它们 z≥−3），等效于
-## 「本关更暖的雾/环境色」，不改全局 cathedral grade。这是氛围面纱，不是场景细节。
 func _build_warm_veil(host: Node2D) -> void:
 	var veil := ColorRect.new()
 	veil.name = "WarmVeil"
@@ -309,9 +331,6 @@ func _build_warm_veil(host: Node2D) -> void:
 	group(host, "Props").add_child(veil)
 
 
-## 场景暖光（WorldLight follow=authored + ADD）：参数口径与 level01 的
-## AmbientLighting 一致——authored_radius 是像素半径，base_energy 是基础亮度，
-## 时钟不改它。只补中景家具带的光，不加碰撞、不挡玩法。
 func _warm_fill(host: Node2D, light_name: String, pos: Vector2, radius: float,
 		energy: float) -> WorldLight:
 	var light := WorldLight.new()
@@ -324,6 +343,5 @@ func _warm_fill(host: Node2D, light_name: String, pos: Vector2, radius: float,
 	light.lit = true
 	light.set_base_energy(energy)
 	decor_layer(host).add_child(light)
-	# 氛围灯不为这点光算遮挡（和 AmbientLighting 一个口径）。
 	light.shadow_enabled = false
 	return light

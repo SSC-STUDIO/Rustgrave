@@ -1,7 +1,9 @@
 extends TestCase
-## 锈墓・陆 — 圣殿地窖（level04b）关卡测试：
-## 章节文本只走 ChapterText、主线（无钩锁）从入口到出口无软锁、唱诗壳机关与链吊台可达、
-## 钩锁支路带账本末页碑文 + 武器奖励位、三张存档点安全、Boss 位留出 600px 平地。
+## 锈墓・陆 — 圣殿地窖（level04b）v3 关卡测试：
+## 章节文本只走 ChapterText、主线（无钩锁）从入口与烛桥坠落底层均可无软锁通关、
+## 烛桥（CandleBridge）串联多高度暗室与回环捷径、唱诗壳机关与链吊台可达、
+## 钩锁支路带账本末页碑文 + 武器奖励位、四张存档点间距 < 1000px 且安全、
+## Boss 竞技场含高低壁龛与中央烛火吊桥。
 
 const LAYOUT := preload("res://scripts/levels/chapters/level04b_layout.gd")
 const CHAPTER_ID := "level04b"
@@ -55,7 +57,7 @@ func test_metadata_and_text_come_from_chapter_text() -> void:
 	layout.free()
 
 
-## 主路线：体检干净，出生 → 出口 / 三个巢 / 唱诗台压板 全程不借钩锁（allow_hook=false）。
+## 主路线：体检干净，出生 → 出口 / 四个巢 / 唱诗台压板 / 烛桥底层坠落点 全程不借钩锁（allow_hook=false）。
 func test_main_route_completes_without_optional_abilities() -> void:
 	var host := _build()
 	eq(LevelSanity.check(host), [] as Array[String], "LevelSanity clean")
@@ -66,7 +68,7 @@ func test_main_route_completes_without_optional_abilities() -> void:
 	eq(exit_node.spawn, ChapterLayout.entry_spawn_of("level05"))
 	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit_node), false),
 			"exit reachable on foot")
-	for nest_name in ["EmberNestAnte", "EmberNestBone", "EmberNestChoir"]:
+	for nest_name in ["EmberNestAnte", "EmberNestBone", "EmberNestVault", "EmberNestChoir"]:
 		var nest := host.get_node_or_null("Props/" + nest_name) as EmberNest
 		ok(nest != null, "%s exists" % nest_name)
 		if nest != null:
@@ -79,11 +81,39 @@ func test_main_route_completes_without_optional_abilities() -> void:
 		ok(plate.activated.is_connected(door.open_door), "the choir plate opens the reliquary gate")
 		ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(plate), false),
 				"the choir-loft plate is reachable on foot (mechanism beat)")
+	# 烛桥熄灭坠落到非致命底层后，必须能无钩锁爬回主线并抵达出口。
+	for recovery_pt in [Vector2(512.0, 352.0), Vector2(1424.0, 352.0)]:
+		ok(LevelSanity.is_reachable(host, recovery_pt, LevelSanity.feet_of(exit_node), false),
+				"falling onto sunken crypt floor %s still reaches exit on foot" % str(recovery_pt))
 	host.free()
 	await flush(1)
 
 
-## 唱诗壳机关：链吊台把骑士送上唱诗台（224），台面压板开地窖闸门；每一站都无钩锁可达。
+## 烛桥（CandleBridge）机关：串联前厅、藏骨堂、捷径回环与唱诗 Boss 场。
+func test_candle_bridges_chain_the_crypt_and_arena() -> void:
+	var host := _build()
+	for bridge_name in [
+		"CandleBridgeAnte",
+		"CandleBridgeBone",
+		"CandleBridgeShortcut",
+		"CandleBridgeCatacomb",
+		"CandleBridgeArena",
+	]:
+		var cb := host.get_node_or_null("Platforms/" + bridge_name) as CandleBridge
+		ok(cb != null, "%s is planted as a CandleBridge" % bridge_name)
+		if cb != null:
+			ok(cb.is_in_group("hazards"), "%s is registered in hazards group" % bridge_name)
+			eq(String(cb.get_meta("hazard_kind", "")), "candle", "%s carries candle hazard_kind" % bridge_name)
+			ok(not cb.is_lit(), "%s starts unlit in the dark crypt" % bridge_name)
+			ok(cb.get_node_or_null("Candle") != null, "%s has its associated candle trigger" % bridge_name)
+	var first_landing := host.get_node_or_null("Platforms/AnteBridgeWest") as SolidPlatform
+	ok(first_landing != null and first_landing.size.x >= 48.0,
+			"first CandleBridge encounter has a >=48px safe observation landing")
+	host.free()
+	await flush(1)
+
+
+## 唱诗壳机关与单向捷径：链吊台把骑士送上唱诗台（224），台面压板开地窖闸门，西向阳台借烛桥回巢。
 func test_choir_lift_and_loft_are_reachable_on_foot() -> void:
 	var host := _build()
 	var spawn: Vector2 = LAYOUT.ENTRY_SPAWN
@@ -92,13 +122,18 @@ func test_choir_lift_and_loft_are_reachable_on_foot() -> void:
 	if lift != null:
 		eq(lift.travel, Vector2(0.0, -72.0), "the lift rises from the floor step to the loft")
 	for station in [
-		["LiftStart", Vector2(1544, 296)],
-		["LiftEnd", Vector2(1544, 224)],
-		["Loft", Vector2(1648, 224)],
+		["LiftStart", Vector2(1616, 296)],
+		["LiftEnd", Vector2(1616, 224)],
+		["Loft", Vector2(1744, 224)],
 		["Plate", LAYOUT.PLATE_FEET + Vector2(0, 0)],
+		["ShortcutBalcony", Vector2(1432, 224)],
+		["ShortcutBridge", Vector2(1312, 240)],
 	]:
 		ok(LevelSanity.is_reachable(host, spawn, station[1], false),
 				"%s reachable on foot" % String(station[0]))
+	var bone_nest := host.get_node("Props/EmberNestBone") as EmberNest
+	ok(LevelSanity.is_reachable(host, Vector2(1432, 224), LevelSanity.feet_of(bone_nest), false),
+			"shortcut balcony drops back to EmberNestBone on foot")
 	host.free()
 	await flush(1)
 
@@ -142,43 +177,55 @@ func test_hook_branch_carries_the_ledgers_last_page() -> void:
 	await flush(1)
 
 
-## 存档点：三个巢都在敌人仇恨/唤醒圈外，Boss 前那个贴着竞技场入口。
+## 存档点与精英变体：四个巢间距 <= 1000px、都在敌人仇恨/唤醒圈外，Boss 前存档点贴着竞技场入口。
 func test_checkpoints_are_safe_and_reach_the_boss_gate() -> void:
 	var host := _build()
 	var ante := host.get_node("Props/EmberNestAnte") as EmberNest
 	var bone := host.get_node("Props/EmberNestBone") as EmberNest
+	var vault := host.get_node("Props/EmberNestVault") as EmberNest
 	var choir := host.get_node("Props/EmberNestChoir") as EmberNest
-	ok(ante.global_position.x < bone.global_position.x, "checkpoints are ordered")
-	ok(bone.global_position.x < choir.global_position.x, "checkpoints are ordered")
+	ok(ante.global_position.x < bone.global_position.x, "checkpoints are ordered (ante < bone)")
+	ok(bone.global_position.x < vault.global_position.x, "checkpoints are ordered (bone < vault)")
+	ok(vault.global_position.x < choir.global_position.x, "checkpoints are ordered (vault < choir)")
+	ok(bone.global_position.x - ante.global_position.x <= 1000.0, "ante->bone spacing <= 1000px")
+	ok(vault.global_position.x - bone.global_position.x <= 1000.0, "bone->vault spacing <= 1000px")
+	ok(choir.global_position.x - vault.global_position.x <= 1000.0, "vault->choir spacing <= 1000px")
 	ok(absf(LAYOUT.ARENA_LEFT - choir.global_position.x) <= 80.0,
 			"boss checkpoint within 80px of the arena (contract §4.1)")
 	var skeleton := host.get_node("Enemies/Skeleton2") as SkeletonEnemy
+	eq(skeleton.variant_id, &"exploder_skeleton", "bone-room skeleton uses exploder_skeleton variant")
 	ok(absf(bone.global_position.x - skeleton.global_position.x) > skeleton.wake_range,
 			"the bone-room skeleton wakes away from the bone nest")
 	var ghost := host.get_node("Enemies/Ghost2") as GhostEnemy
-	ok(absf(bone.global_position.x - ghost.global_position.x) > ghost.wake_range,
-			"the bone-room ghost sleeps away from the bone nest")
+	ok(absf(vault.global_position.x - ghost.global_position.x) > ghost.wake_range,
+			"the reliquary ghost sleeps away from the vault nest")
 	var shield := host.get_node("Enemies/GearShield1") as GearShieldEnemy
+	eq(shield.variant_id, &"heavy_guard", "catacomb guard uses heavy_guard variant")
 	ok(absf(choir.global_position.x - shield.global_position.x) - shield.patrol_range
-			> shield.aggro_range, "the gear-shield guard cannot reach the boss checkpoint")
+			> shield.aggro_range, "the heavy guard cannot reach the boss checkpoint")
 	var spitter := host.get_node("Enemies/Spitter1") as SpitterEnemy
 	ok(absf(ante.global_position.x - spitter.global_position.x) > spitter.aggro_range,
 			"the front-hall spitter is out of range of the start nest")
+	var scatter := host.get_node("Enemies/Spitter2") as SpitterEnemy
+	eq(scatter.variant_id, &"scatter_spitter", "choir loft spitter uses scatter_spitter variant")
 	host.free()
 	await flush(1)
 
 
-## Boss 位：600px 连续平地、场地里没有坑/台阶，Boss 在场地中间；场景缺失时框架跳过。
+## Boss 位：600px 连续底层平地 + 两侧高低避难台 + 中央烛桥 + 可破坏掩体骨瓮。
 func test_boss_slot_reserves_a_flat_600px_arena() -> void:
 	ok(LAYOUT.ARENA_RIGHT - LAYOUT.ARENA_LEFT >= 600.0, "arena is at least 600px wide")
 	ok(LAYOUT.BOSS_POS.x > LAYOUT.ARENA_LEFT and LAYOUT.BOSS_POS.x < LAYOUT.ARENA_RIGHT,
 			"boss spawns inside the arena")
 	var host := _build()
-	for seg in LevelSanity.top_segments(host):
-		if seg.x1 <= LAYOUT.ARENA_LEFT or seg.x0 >= LAYOUT.ARENA_RIGHT:
-			continue
-		almost(seg.y, ChapterLayout.FLOOR_Y, 0.01,
-				"arena floor is flat (no ledges inside: %s)" % seg.owner_name)
+	var floor_choir := host.get_node_or_null("Platforms/FloorChoir") as SolidPlatform
+	ok(floor_choir != null, "FloorChoir spans the boss arena")
+	for node_name in ["ArenaStepWest", "ArenaStepEast", "ArenaAlcoveWest", "ArenaAlcoveEast", "CandleBridgeArena"]:
+		ok(host.get_node_or_null("Platforms/" + node_name) != null,
+				"boss arena terrain '%s' is planted" % node_name)
+	for urn_name in ["ArenaCoverUrnWest", "ArenaCoverUrnEast"]:
+		ok(host.get_node_or_null("Props/" + urn_name) is DestructibleProp,
+				"boss arena cover prop '%s' is planted" % urn_name)
 	host.free()
 	await flush(1)
 	if not ResourceLoader.exists(BOSS_SCENE):
@@ -225,7 +272,7 @@ func test_decor_is_themed_layered_and_grounded() -> void:
 	ok(planted >= 14, "the chapter is dressed (%d catalog props)" % planted)
 	for wanted in ["door_arch", "skull_column", "altar", "window", "balustrade", "column", "slab"]:
 		ok(keys.has(String(wanted)), "narrative anchor '%s' is planted" % wanted)
-	# 视觉 QA Phase A：中景家具带（1700/2050/3100）必须有暖光补，不能只是一排黑剪影。
+	# 视觉 QA Phase A：中景家具带必须有暖光补，不能只是一排黑剪影。
 	var warm := 0
 	for child in decor.get_children():
 		var light := child as WorldLight
@@ -238,7 +285,7 @@ func test_decor_is_themed_layered_and_grounded() -> void:
 	if veil != null:
 		ok(veil.z_index <= -4, "the veil sits under props and actors (z=%d)" % veil.z_index)
 		ok(veil.color.a > 0.08 and veil.color.a < 0.24, "the veil is a haze, not a wash (a=%.2f)" % veil.color.a)
-	# Boss 房临时地标：两端的石柱/石栏 + 合唱席残石板（纯装饰、无碰撞）。
+	# Boss 房地标：两端的石柱/石栏 + 合唱席残石板（纯装饰、无碰撞）。
 	var boss_hall_landmarks := 0
 	for child in decor.get_children():
 		var spr := child as Sprite2D
