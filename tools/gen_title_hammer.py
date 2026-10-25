@@ -1,165 +1,241 @@
 #!/usr/bin/env python3
-"""Bake the title hammer's textures offline (body + head).
+"""Original title trip-hammer drawings, rasterized at QHD presentation density.
 
-title_hammer.gd used to draw every surface as flat rects at runtime, which read
-as clean vector shapes against the grimy pixel-art hall. This script renders
-the same shapes to PNGs with rust, pitting, drips, chips and rivets baked in;
-the runtime then just draws two textures (the arm stays code-drawn: its angle
-changes every frame).
-
-Canvas layout matches title_hammer.gd's local coordinates:
-  hammer_body.png  36x56, local origin (18, 44) — anvil, pad, column, bearing
-  hammer_head.png  18x14, top-left = the head's outline corner
-
-Run:  py -3 tools/gen_title_hammer.py
+The prop is placed at 2x world scale: eight texels per local unit match the hall's
+four texels per world unit. Geometry, fittings and material fields are authored
+here; no old PNG is enlarged. Body origin remains (18,44), with a wider 44x56
+canvas that includes the entire right bearing. Low-density fallback art is
+sampled from the same drawing. Requires Pillow and numpy.
 """
-from __future__ import annotations
-
-import os
-
+from pathlib import Path
+import numpy as np
 from PIL import Image, ImageDraw
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-OUT_DIR = os.path.join(ROOT, "assets", "title")
-
-OUTLINE = (0x0B, 0x09, 0x10, 255)
-IRON_DARK = (0x24, 0x1C, 0x22, 255)
-IRON = (0x3C, 0x34, 0x3C, 255)
-IRON_LIGHT = (0x6A, 0x5A, 0x5E, 255)
-RUST_A = (0x33, 0x18, 0x0E, 255)
-RUST_B = (0x4A, 0x24, 0x12, 255)
+ROOT = Path(__file__).resolve().parents[1]
+INK, SEAM, EDGE = "#0e0c15", "#19151e", "#796b70"
+DENSITY = 8
 
 
-def _hash(x: int, y: int) -> float:
-    h = abs((x * 73856093) ^ (y * 19349663) ^ 0x5BFD9)
-    return (h % 1000) / 1000.0
+class MetalDrawing:
+    """Palette-stepped casting grain, clipped corrosion and explicit fittings."""
+
+    def __init__(self, size, origin=(0, 0), density=DENSITY, seed=37):
+        self.size, self.origin, self.s = size, origin, density
+        self.image = Image.new("RGBA", (size[0]*density, size[1]*density))
+        self.d = ImageDraw.Draw(self.image)
+        yy, xx = np.indices((self.image.height, self.image.width))
+        self.x, self.y = xx/density-origin[0], yy/density-origin[1]
+        rng = np.random.default_rng(seed)
+        # Interpolation only synthesizes the noise field, never source art.
+        def field(cell):
+            grid = rng.random((max(2, self.image.height//cell+2),
+                               max(2, self.image.width//cell+2))).astype("float32")
+            return np.asarray(Image.fromarray(grid).resize(self.image.size, Image.Resampling.BILINEAR))
+        self.coarse, self.grain = field(density*3), field(3)
+        self.pit = rng.random(xx.shape)
+
+    def at(self, p):
+        return tuple(round((v+o)*self.s) for v, o in zip(p, self.origin))
+
+    def polygon(self, points, color):
+        self.d.polygon([self.at(p) for p in points], fill=color)
+
+    def line(self, points, color, width=.125):
+        self.d.line([self.at(p) for p in points], fill=color, width=max(1, round(width*self.s)))
+
+    def rect(self, box, color):
+        x0, y0 = self.at(box[:2])
+        x1, y1 = self.at(box[2:])
+        self.d.rectangle((x0,y0,x1-1,y1-1), fill=color)
+
+    def ellipse(self, box, color):
+        self.d.ellipse((*self.at(box[:2]), *self.at(box[2:])), fill=color)
+
+    def face(self, points, base, *, slope=0.0, rust=0.0):
+        mask = Image.new("1", self.image.size)
+        ImageDraw.Draw(mask).polygon([self.at(p) for p in points], fill=1)
+        active = np.asarray(mask)
+        grain = (self.coarse-.5)*18+(self.grain-.5)*11
+        grain += np.sin(self.y*5+self.x*.4)*.6
+        grain += slope*(self.x-np.mean(self.x[active]))
+        grain = np.round(grain/2.5)*2.5
+        color = np.array(base, dtype=float)[None,None,:]+grain[:,:,None]
+        if rust:
+            # Broken oxide islands and lipped casting pits are deliberately
+            # coarser than film grain, so the iron reads under the hall lights.
+            rugged = self.coarse + (self.grain-.5)*.4
+            oxide = np.clip((rugged-(.64-rust*.17))*5, 0, .75)
+            oxide = np.round(oxide*5)/5
+            color = color*(1-oxide[:,:,None])+np.array((79,47,32))*oxide[:,:,None]
+            cavities = (self.grain>.63)&(self.coarse>.4)
+            color[cavities] *= .64
+            lips = np.roll(cavities, -1, axis=0)&~cavities
+            color[lips] += 8
+            color[(self.pit>.975)&(oxide>.15)] *= .52
+            laminations = (np.sin(self.y*12+self.x*.6)>0.65)&(self.grain>.56)
+            color[laminations] *= .83
+        a = np.array(self.image)
+        a[active,:3] = np.clip(color[active],0,255).astype("uint8")
+        a[active,3] = 255
+        self.image = Image.fromarray(a)
+        self.d = ImageDraw.Draw(self.image)
+
+    def plate(self, box, base=(55,49,59), bevel=.375, rust=.6):
+        x0,y0,x1,y1 = box
+        b = bevel
+        self.polygon([(x0+b,y0),(x1-b,y0),(x1,y0+b),(x1,y1-b),
+                      (x1-b,y1),(x0+b,y1),(x0,y1-b),(x0,y0+b)], INK)
+        self.face([(x0+b,y0+b),(x1-b,y0+b),(x1-b,y1-b),(x0+b,y1-b)],base,rust=rust)
+        self.line([(x0+b,y1-b),(x0+b,y0+b),(x1-b,y0+b)],"#6a5b62")
+        self.line([(x1-b,y0+2*b),(x1-b,y1-b),(x0+2*b,y1-b)],"#211c25",.25)
+
+    def bolt(self, x, y, radius=.5):
+        r = radius
+        self.ellipse((x-r-.18,y-r+.12,x+r+.18,y+r+.35),INK)
+        self.polygon([(x-r,y-r*.45),(x,y-r),(x+r,y-r*.45),
+                      (x+r,y+r*.45),(x,y+r),(x-r,y+r*.45)],"#63575e")
+        self.line([(x-r*.55,y-r*.4),(x,y-r*.65),(x+r*.45,y-r*.35)],"#a08a7b")
+        self.line([(x-r*.45,y+.1),(x+r*.45,y+.1)],"#252029")
+
+    def rust_patch(self, x, y, width, height):
+        a = np.array(self.image)
+        field = ((self.x-x)/width)**2+((self.y-y)/height)**2
+        mask = (field<.65+self.coarse*.6)&(a[:,:,3]>0)
+        mix = np.clip((1.2-field)*(.22+self.grain*.32),0,.58)
+        oxide = np.stack((68+self.grain*30,36+self.grain*15,26+self.grain*11),axis=2)
+        a[mask,:3] = (a[:,:,:3]*(1-mix[:,:,None])+oxide*mix[:,:,None])[mask].astype("uint8")
+        self.image = Image.fromarray(a)
+        self.d = ImageDraw.Draw(self.image)
+
+    def save(self, name):
+        source,detail = ROOT/"assets/title"/name, ROOT/"assets/qhd/title"/name
+        detail.parent.mkdir(parents=True,exist_ok=True)
+        self.image.save(detail,optimize=True)
+        self.image.resize(self.size,Image.Resampling.NEAREST).save(source,optimize=True)
+        print(f"{name}: logical={self.size}, native={self.image.size}")
 
 
-def _grime(px, x0: int, y0: int, x1: int, y1: int, density: float,
-           w: int, h: int) -> None:
-    """2px-grid rust speckle + sparse dark pitting inside a rect (baked)."""
-    y = y0 + 1
-    while y < y1 - 1:
-        x = x0 + 1
-        while x < x1 - 1:
-            v = _hash(x, y)
-            if v < density * 0.5:
-                _put(px, x, y, RUST_A, w, h)
-            elif v < density:
-                _put(px, x, y, RUST_B, w, h)
-                _put(px, x + 1, y, RUST_A, w, h)
-            elif v > 0.94:
-                _put(px, x, y, IRON_DARK, w, h)
-            x += 2
-        y += 2
+def body():
+    p = MetalDrawing((44,56),(18,44))
+    p.plate((-18,-3,24,0),(45,38,46),bevel=.5)
+    p.line([(-17,-2.5),(23,-2.5)],"#817075",.25)
+    p.line([(-17,-.5),(23,-.5)],SEAM,.375)
+    # Rear I-beam with flanges, recessed web, clamps and punched inspection slots.
+    p.plate((14,-42,21,-2),(47,40,48),bevel=.5,rust=.95)
+    p.face([(14.5,-41),(16,-41),(16,-3),(14.5,-3)],(75,65,69),slope=-2,rust=.8)
+    p.face([(19,-41),(20.5,-41),(20.5,-3),(19,-3)],(32,27,36),rust=.7)
+    p.rect((16,-36,19,-4),"#29222c")
+    p.line([(16.25,-35.5),(16.25,-4)],"#51414a",.25)
+    for y in (-32.5,-20.5,-8.5):
+        p.plate((14,y,21,y+1.8),(72,58,61),bevel=.25)
+        p.bolt(15,y+.8,.35)
+        p.bolt(19.7,y+.8,.35)
+    for y in (-29.5,-26,-17.5,-14,-5):
+        p.plate((16.75,y,18.25,y+1.3),(24,21,30),bevel=.125,rust=0)
+    p.rust_patch(16,-29,1.1,5)
+    p.rust_patch(18.7,-17,.7,4)
+    # Braced foot: raised lip, lightening holes and end fasteners.
+    p.polygon([(14,-16),(16,-15),(11,-2.5),(8.5,-2.5)],INK)
+    p.face([(14.5,-15.5),(15.5,-15),(10.5,-3),(9,-3)],(57,44,49),rust=1)
+    p.line([(14.6,-15),(9.8,-3.5)],"#89705f",.25)
+    for i in range(3):
+        x,y = 13.8-i*1.3,-13+i*3.5
+        p.ellipse((x-.3,y-.5,x+.3,y+.5),SEAM)
+    p.bolt(14.7,-15,.5)
+    p.bolt(10,-3.7,.5)
+    # Flanged journal housing; pivot is (17,-38), not the image's corner.
+    p.plate((12.5,-43.5,22.5,-34.25),(58,48,55),bevel=1)
+    p.ellipse((13.3,-41.9,21,-34.4),INK)
+    p.ellipse((13.65,-41.55,20.65,-34.75),"#766255")
+    p.ellipse((14.2,-41,20.1,-35.3),"#40343b")
+    p.ellipse((14.9,-40.3,19.4,-35.9),"#16131d")
+    p.ellipse((15.5,-39.7,18.8,-36.5),"#73605a")
+    p.line([(14.4,-38.7),(14.7,-39.6),(15.7,-40.4)],"#ac8e73",.25)
+    for x in (13.6,21.1):
+        for y in (-42.4,-35.5):
+            p.bolt(x,y,.5)
+    p.line([(17.6,-42.5),(17.6,-41.5)],SEAM,.25)
+    p.bolt(17.6,-42.3,.3)
+    # Forged anvil: sculpted waist, gussets, stamped web, replaceable steel face.
+    p.plate((-11,-5.5,11,-3),(54,42,48),bevel=.5)
+    p.face([(-7,-10.5),(6,-10.5),(4,-6),(8.5,-5),(-8.5,-5),(-4.5,-6)],
+           (58,46,51),slope=-1,rust=1)
+    p.face([(3.5,-10.5),(6,-10.5),(4,-6),(8.5,-5),(5,-5)],(30,25,34),rust=.5)
+    p.face([(-7,-10.5),(-5.5,-10.5),(-3,-6),(-7.5,-5)],(82,64,62),rust=.7)
+    p.plate((-3.2,-9.4,2.6,-6),(37,30,39),bevel=.375)
+    p.line([(-1.8,-8.8),(.7,-8.8),(-.5,-7.4),(.7,-6.8)],"#7c6051",.25)
+    p.line([(-5,-9.5),(-5.5,-8.4),(-4.8,-7.4)],"#ad7a54")
+    p.plate((-11.25,-13.5,11,-10),(65,53,59),bevel=.5,rust=.4)
+    p.face([(-11,-13.4),(10,-13.4),(8.5,-12),(-10,-12)],(108,92,91),slope=-1,rust=.2)
+    p.face([(-11,-13.3),(-16,-12),(-16.5,-11.3),(-11,-11.3)],(73,60,66),rust=.4)
+    p.line([(-15,-11.8),(-11,-12.6),(-3,-12.6)],"#95817e")
+    p.line([(-10.5,-11.5),(9.7,-11.5)],"#28212b",.25)
+    p.line([(-9,-10.5),(8.5,-10.5)],"#806967")
+    for x,y,length in [(-8,-12.8,2),(-4.2,-13.1,1.5),(.4,-12.7,2),(5,-12.8,1.5),(8,-12.9,.8)]:
+        p.line([(x,y),(x+length,y-.15)],"#423740")
+    for x in (-9.4,9):
+        p.bolt(x,-4.25,.5)
+    p.rust_patch(-7.7,-5,2,.6)
+    p.rust_patch(6,-10.8,2,.7)
+    for x in (-15.5,22):
+        p.bolt(x,-1.7,.5)
+    p.save("hammer_body.png")
 
 
-def _put(px, x: int, y: int, col, w: int, h: int) -> None:
-    if 0 <= x < w and 0 <= y < h:
-        px[x, y] = col
+def head():
+    p = MetalDrawing((18,14),seed=73)
+    p.polygon([(1.5,0),(15.5,0),(18,2),(17.5,12),(15,14),(2,14),(0,12),(0,1.5)],INK)
+    p.face([(1,2.3),(14.5,2.3),(14.5,10.4),(1,10.8)],(63,52,61),slope=-.5,rust=.8)
+    p.face([(1,1.5),(2.5,.5),(15.2,.5),(16.7,2.2),(14.5,3),(2,3)],(101,85,90),slope=-.7,rust=.6)
+    p.face([(14.5,3),(17.2,2.1),(16.8,11.5),(14.5,12.5)],(34,28,39),slope=-1,rust=.7)
+    p.line([(2,.7),(14.6,.7),(16.2,1.7)],"#b69c8f")
+    p.line([(15.2,3),(16.7,2.6),(16.3,10.8)],"#594751",.25)
+    for x in (2,12.1):
+        p.plate((x,2.6,x+1.7,10.5),(76,60,64),bevel=.25,rust=.9)
+        for y in (4,8.8):
+            p.bolt(x+.85,y,.45)
+        p.rust_patch(x+.3,7.2,.5,1.8)
+    p.plate((5.1,4.2,10.8,8.7),(43,35,46),bevel=.4,rust=.8)
+    p.polygon([(7.7,4.9),(9.3,6.4),(7.7,8),(6.2,6.4)],"#271f2b")
+    p.line([(7.7,5.35),(8.75,6.4),(7.7,7.4)],"#8a6d5d",.25)
+    p.line([(7.7,5.35),(6.7,6.4),(7.7,7.4)],"#58434a")
+    p.face([(1.2,10.6),(14.3,10.3),(16.6,11.5),(14.7,13.3),(2,13.3),(.8,12.2)],
+           (93,76,76),slope=-1,rust=.4)
+    p.line([(1.3,10.7),(14.1,10.5)],"#201a25",.25)
+    p.line([(1.6,11.2),(14,11),(15.7,11.7)],"#b49987")
+    p.line([(2,12.8),(14.5,12.8),(16.2,11.7)],"#806b6c",.25)
+    for x,y,length in [(3.7,5.6,1.1),(9.4,3.4,1.8),(5,9.5,1.7),(10.8,9.3,1),
+                       (4,11.7,2.1),(8.4,11.9,1.4),(11.7,12.2,.9)]:
+        p.line([(x,y),(x+length,y-.25)],"#3d303a")
+        p.line([(x,y+.125),(x+length*.65,y)],"#88706b")
+    p.save("hammer_head.png")
 
 
-def _rect(dr: ImageDraw.ImageDraw, x0: float, y0: float, x1: float, y1: float,
-          ox: int, oy: int, col) -> None:
-    # draw_rect-style: [x0, x1) x [y0, y1)
-    dr.rectangle([x0 + ox, y0 + oy, x1 + ox - 1, y1 + oy - 1], fill=col)
+def arm():
+    # End pins are (1.5,3.5) and (20.5,3.5), nineteen local units apart.
+    p = MetalDrawing((22,7),seed=101)
+    p.polygon([(1,1),(20,1),(21.75,2.4),(21.75,4.6),(20,6),(1,6),(0,5),(0,2)],INK)
+    p.face([(1,1.5),(20,1.5),(21,2.5),(20,5.5),(1,5.5),(.5,4.5),(.5,2.5)],
+           (66,54,61),rust=.9)
+    p.line([(1,1.6),(19.8,1.6),(20.7,2.3)],"#998276",.25)
+    p.line([(1,5.1),(19.7,5.1)],"#29202d",.375)
+    p.plate((4.2,2.4,17.9,4.6),(29,24,34),bevel=.4,rust=0)
+    p.line([(5,4.3),(17.2,4.3)],"#64515a")
+    for x in (6,10.5,15.2):
+        p.line([(x,2.4),(x+.5,4.6)],"#705750",.5)
+        p.line([(x+.4,2.5),(x+.9,4.4)],"#231b28",.25)
+    for x in (1.5,20.5):
+        p.ellipse((x-1.3,2.2,x+1.3,4.8),"#201a27")
+        p.ellipse((x-1,2.5,x+1,4.5),"#87705b")
+        p.bolt(x,3.5,.65)
+    p.rust_patch(17.7,4.5,1.4,.5)
+    p.save("hammer_arm.png")
 
 
-def _body() -> None:
-    w, h, ox, oy = 36, 56, 18, 44
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    dr = ImageDraw.Draw(img)
-    px = img.load()
-    # pad
-    _rect(dr, -18, -3, 18, 0, ox, oy, IRON_DARK)
-    _rect(dr, -18, -3, 18, -2, ox, oy, IRON)
-    # anvil: block, throat, waist, face + top highlight, horn
-    _rect(dr, -11, -14, 11, -3, ox, oy, OUTLINE)
-    _rect(dr, -7, -6, 7, -3, ox, oy, IRON)
-    _rect(dr, -4, -10, 4, -6, ox, oy, IRON)
-    _rect(dr, -10, -13, 10, -10, ox, oy, IRON)
-    _rect(dr, -10, -13, 10, -12, ox, oy, IRON_LIGHT)
-    _rect(dr, -14, -13, -10, -11, ox, oy, IRON)
-    _rect(dr, -16, -12, -14, -11, ox, oy, IRON)
-    # column + bearing
-    _rect(dr, 15, -42, 19, 0, ox, oy, IRON_DARK)
-    _rect(dr, 15, -42, 16, 0, ox, oy, IRON)
-    _rect(dr, 13, -44, 21, -39, ox, oy, IRON)
-    _rect(dr, 13, -44, 21, -43, ox, oy, IRON_LIGHT)
-    # diagonal brace (draw_line width 2 in the runtime)
-    dr.line([15 + ox, -16 + oy, 9 + ox, 0 + oy], fill=IRON_DARK, width=2)
-    # grime (vertical faces rust harder than the top faces)
-    _grime(px, -10 + ox, -12 + oy, 10 + ox, -4 + oy, 0.16, w, h)
-    _grime(px, -6 + ox, -9 + oy, 6 + ox, -6 + oy, 0.22, w, h)
-    _grime(px, -17 + ox, -3 + oy, 17 + ox, -1 + oy, 0.24, w, h)
-    _grime(px, 15 + ox, -41 + oy, 19 + ox, 0 + oy, 0.18, w, h)
-    _grime(px, 13 + ox, -43 + oy, 21 + ox, -39 + oy, 0.20, w, h)
-    # rust drips under the bearing, running down the column
-    for dx, top, length in [(16, -39, 9), (18, -39, 16)]:
-        for y in range(top, top + length):
-            _put(px, dx + ox, y + oy, RUST_A, w, h)
-            if _hash(dx, y) > 0.6:
-                _put(px, dx + 1 + ox, y + oy, RUST_B, w, h)
-    # anvil rivets
-    for rx, ry in [(-9, -12), (7, -12)]:
-        _rect(dr, rx, ry, rx + 2, ry + 2, ox, oy, IRON_DARK)
-    # Long forged planes and worn edges are readable at 1x; surface speckles alone
-    # made the machine look like a flat rectangle under the title's light wash.
-    dr.line((8,32,26,32),fill='#8a7270')
-    dr.line((9,33,25,33),fill='#58464a')
-    dr.polygon([(23,34),(28,33),(28,39),(23,40)],fill='#231c25')
-    dr.line((14,36,14,39),fill='#7c5b4b')
-    dr.line((10,41,26,41),fill='#665154')
-    dr.line((12,43,27,43),fill='#17131b')
-    for y in (10,25,37):
-        dr.line((33,y,35,y),fill='#817074')
-        dr.line((33,y+2,35,y+2),fill='#17131b')
-    img.save(os.path.join(OUT_DIR, "hammer_body.png"))
-    print(f"  hammer_body.png  {w}x{h}")
-
-
-def _head() -> None:
-    w, h = 18, 14
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    dr = ImageDraw.Draw(img)
-    px = img.load()
-    # outline shell + iron face + top highlight + bright striking band
-    _rect(dr, 0, 0, 18, 14, 0, 0, OUTLINE)
-    _rect(dr, 1, 1, 17, 13, 0, 0, IRON)
-    _rect(dr, 1, 1, 17, 2, 0, 0, IRON_LIGHT)
-    _rect(dr, 2, 11, 16, 13, 0, 0, IRON_LIGHT)
-    # the head is the biggest flat face: moderate grime + a rusted striking edge
-    _grime(px, 1, 1, 17, 12, 0.15, w, h)
-    for x in range(1, 17):
-        if _hash(x, 99) < 0.55:
-            _put(px, x, 12, RUST_B, w, h)
-        if _hash(x, 77) < 0.30:
-            _put(px, x, 11, RUST_A, w, h)
-    # chipped corners
-    _rect(dr, 1, 1, 3, 3, 0, 0, IRON_DARK)
-    _rect(dr, 15, 11, 17, 13, 0, 0, IRON_DARK)
-    # two rivet pairs on the face
-    for rx, ry in [(4, 3), (12, 3)]:
-        _rect(dr, rx, ry, rx + 2, ry + 2, 0, 0, IRON_DARK)
-        _rect(dr, rx, ry, rx + 1, ry + 1, 0, 0, IRON_LIGHT)
-    # Bevels, deep side plane, face stamp and two scored striking edges.
-    dr.polygon([(2,1),(14,1),(16,3),(3,3)],fill='#79656b')
-    dr.polygon([(15,3),(17,2),(17,12),(15,11)],fill='#211b25')
-    dr.line((3,4,3,9),fill='#57444d')
-    dr.line((2,10,14,10),fill='#221923')
-    dr.line((3,11,13,11),fill='#917469')
-    dr.line((4,12,12,12),fill='#675052')
-    dr.line([(8,5),(10,6),(8,7),(10,8)],fill='#201821')
-    for x in (5,11): dr.point((x,11),fill='#b88b64')
-    img.save(os.path.join(OUT_DIR, "hammer_head.png"))
-    print(f"  hammer_head.png  {w}x{h}")
-
-
-def main() -> None:
-    os.makedirs(OUT_DIR, exist_ok=True)
-    _body()
-    _head()
+def main():
+    body()
+    head()
+    arm()
 
 
 if __name__ == "__main__":
