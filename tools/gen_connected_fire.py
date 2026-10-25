@@ -48,7 +48,7 @@ def build_forge():
             for x in range(60):
                 h=(x*37+y*19+x*y*3)%71
                 c=['#25100e','#351610','#4a1e13'][min(2,y//24)]
-                if h<7: c='#59251a'
+                if h<7: c='#4a1e13'
                 if y%9==0 or (x+(y//9%2)*7)%15==0: c='#1c0d0c'
                 d.point((x,y),fill=c)
         for x,offset,scale in [(9,2,1.30),(29,7,1.55),(49,12,1.20)]:
