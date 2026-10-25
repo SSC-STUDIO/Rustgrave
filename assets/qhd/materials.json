@@ -7110,7 +7110,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "47661dfcfecb87380378a30537dbb56bf3232b8eec4f99b49440a22895891343"
+      "sha256": "43a613c745938ec0c952d80a9b637dae9154287585114e8e2affde6b424b5e9e"
     },
     "res://assets/env/props/basalt/beam_bolts.png": {
       "texture": "res://assets/qhd/env/props/basalt/beam_bolts.png",
@@ -7124,7 +7124,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "eb8f78003ee75f8bc06915eff55214712b4b7c639e2712f5533c53308503589c"
+      "sha256": "84bf254e31708542edfaad975001dd8666278881e336cd66ab4df1187d02dccc"
     },
     "res://assets/env/props/basalt/beam_narrow.png": {
       "texture": "res://assets/qhd/env/props/basalt/beam_narrow.png",
@@ -7138,7 +7138,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "98fcf88887c54ca8d55da117b370c03c0a451c98615f0e93624eef1f212980b1"
+      "sha256": "2f6a149704db215985aa48cf11434941c569efa94bd77fc2c26bc43eb17839d9"
     },
     "res://assets/env/props/basalt/bones.png": {
       "texture": "res://assets/qhd/env/props/basalt/bones.png",
@@ -7166,7 +7166,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "820909298534751d01b49fae705f1361ad955110340522cfa9ed23701df0d96f"
+      "sha256": "2b5dbc6ed6724c9d7441f1c050ff6b4734609983eb8b192a84ea8adf84e55654"
     },
     "res://assets/env/props/basalt/chain.png": {
       "texture": "res://assets/qhd/env/props/basalt/chain.png",
@@ -7208,7 +7208,7 @@
       ],
       "material": "stone",
       "method": "original mechanical geometry at density 4",
-      "sha256": "7da490be79fe04e5b7917007df4b048698ff4cdb8a418db4145c36c649899665"
+      "sha256": "66a2b86467b26824d9971e9468f05b9f79f6befc798adb2549f8cb7237969d85"
     },
     "res://assets/env/props/basalt/girder_l.png": {
       "texture": "res://assets/qhd/env/props/basalt/girder_l.png",
@@ -7222,7 +7222,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "c1184b4ccf4f748c564bdbc95dc80db8e3da4a60111852443b4522c171035cdf"
+      "sha256": "7b09644c95dedc7a4d84021323f6b7e2d9c7a52907d082e59cb361a9d80c754d"
     },
     "res://assets/env/props/basalt/girder_r.png": {
       "texture": "res://assets/qhd/env/props/basalt/girder_r.png",
@@ -7236,7 +7236,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "6d97b5e36197287adfd43eb9d26e82141a8985bfcf048d7627cce39dcc32add2"
+      "sha256": "a75b923c267a3fd1974e0faeda109ab63c3d43c79b507cb326883d1e8a2579f2"
     },
     "res://assets/env/props/basalt/life_remains.png": {
       "texture": "res://assets/qhd/env/props/basalt/life_remains.png",
@@ -7264,7 +7264,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "7936a0e9695fdab16bdd6db1a6a4c81e248572957d33c1e98379354ca04da6d9"
+      "sha256": "33c9c065f879e13cfa36b443d7eeb5e7715af2f3a33d724d373a9cd01b45af7c"
     },
     "res://assets/env/props/basalt/pipe_valve.png": {
       "texture": "res://assets/qhd/env/props/basalt/pipe_valve.png",
@@ -7278,7 +7278,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "fe554a1446ed9cb975dc3cbbdc03c533968d7e48893ae42866aaf876e22a5385"
+      "sha256": "d7988f04a4332725810369afc243ebcfac7d445c482e31aada19740d45b0425a"
     },
     "res://assets/env/props/basalt/plate.png": {
       "texture": "res://assets/qhd/env/props/basalt/plate.png",
@@ -7376,7 +7376,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "cec1a6ba084e1868d9e48c914be19cd6596004a7cd9a1ace90d98be0f1bf94ca"
+      "sha256": "18ecfdfa56a14321fafe4c99cc72a88af892be92b436bf7409cdeae4bbdf4195"
     },
     "res://assets/env/props/brick/balustrade.png": {
       "texture": "res://assets/qhd/env/props/brick/balustrade.png",
@@ -7670,7 +7670,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "e7275e4a0c41152f6c5fbc0191839b1e12d42b183e522362a0fa8fabe0926d65"
+      "sha256": "ab02f643b78265c8e211c84e77d1893cd687dbbf4339c70a22c5384b520f23b2"
     },
     "res://assets/env/props/ground/chain.png": {
       "texture": "res://assets/qhd/env/props/ground/chain.png",
@@ -7698,7 +7698,7 @@
       ],
       "material": "stone",
       "method": "original mechanical geometry at density 4",
-      "sha256": "7d3427ba2c6ee815df3bc84dc58f960dad6e7413d95ea28041fa2491e99d5044"
+      "sha256": "412aa2fb1b47751882d45ca5ec18a7d46574246aeb34d61ad41134159c7c83a5"
     },
     "res://assets/env/props/ground/girder_l.png": {
       "texture": "res://assets/qhd/env/props/ground/girder_l.png",
@@ -7712,7 +7712,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "405587ad2c9d2ebd98cbdfa06c404002400258d5183bde22ca09f7c25ad35bf8"
+      "sha256": "6771a5135ace41bcda27122712d006b3b1a9d56575d0c985cadebdedada17607"
     },
     "res://assets/env/props/ground/girder_r.png": {
       "texture": "res://assets/qhd/env/props/ground/girder_r.png",
@@ -7726,7 +7726,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "bb6548d842bac92713f671e90bc4f42df68ade5c09a1a6b79d1ef1f316dc16d7"
+      "sha256": "28c5c4afb295e469e2ef9fcde7d600dbd9094a19cb7928f6b825f68c369c09d8"
     },
     "res://assets/env/props/ground/pipe_valve.png": {
       "texture": "res://assets/qhd/env/props/ground/pipe_valve.png",
@@ -7740,7 +7740,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "6b2fe8fa9968760a17b3a088513075d34ce0dfff8f859eca561f00210f8dbbe9"
+      "sha256": "4c57a17fb190d179fc5b39a430ac34f13085f7564ac3b867fbaa6be9c6a38e71"
     },
     "res://assets/env/props/iron/balustrade.png": {
       "texture": "res://assets/qhd/env/props/iron/balustrade.png",
@@ -7768,7 +7768,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "49aad73d8f50d0d602152a0d65cc6dd973188df65bc1ac056f7bba8d3b52f9b2"
+      "sha256": "d9fcd1b5a19db2a10ae96318d341bed2b9cae5992b87f6075f475d40e173d18e"
     },
     "res://assets/env/props/iron/beam_bolts.png": {
       "texture": "res://assets/qhd/env/props/iron/beam_bolts.png",
@@ -7782,7 +7782,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "5797659100da010d97b8dc670f7bbc13e1bf5cb60477825bee6480e7862fb442"
+      "sha256": "acdba293e121d23bb6280a5da5faa7579e6b5b730d6234b036aae1f547608b33"
     },
     "res://assets/env/props/iron/beam_narrow.png": {
       "texture": "res://assets/qhd/env/props/iron/beam_narrow.png",
@@ -7796,7 +7796,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "adba0b9fce1111fe2f677fcc1cfdf85f4cac94650b8e661cb40cbe2ceaf5fa68"
+      "sha256": "8324c61880ec01f6b3dacc228aa6a3976ffdd8d1362ceea86d79e6d6d77e38c4"
     },
     "res://assets/env/props/iron/bones.png": {
       "texture": "res://assets/qhd/env/props/iron/bones.png",
@@ -7824,7 +7824,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "803075971f16a58a347e8b381dda4ffe7f936cdd683cbefc2f8817ba62e46c32"
+      "sha256": "2ee7c828aa9739ad073252057c4ccd19975883847ea1da2c6d8063306afb0eb8"
     },
     "res://assets/env/props/iron/chain.png": {
       "texture": "res://assets/qhd/env/props/iron/chain.png",
@@ -7866,7 +7866,7 @@
       ],
       "material": "stone",
       "method": "original mechanical geometry at density 4",
-      "sha256": "2a1a293281a5cc679181f61a21406941926cf26fb481bf5f407d5d392bbe6c84"
+      "sha256": "8ee712481c34f41c076fbd155491f8a6fca2973c779fc3a769c761534f357d49"
     },
     "res://assets/env/props/iron/girder_l.png": {
       "texture": "res://assets/qhd/env/props/iron/girder_l.png",
@@ -7880,7 +7880,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "5f39344c5c48176eb448ec3f7af2bf18fa2fa3acd0a43d442280a6a7a6a92aa6"
+      "sha256": "5406680762c54cd16e1b5ad6d7ef2c538c946fcb5d4e699cd21c70ab979e0896"
     },
     "res://assets/env/props/iron/girder_r.png": {
       "texture": "res://assets/qhd/env/props/iron/girder_r.png",
@@ -7894,7 +7894,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "13664a181c9cd71a16987a30ea1b24a1bafd8dcf89a2a6e86c8acb3d2062c519"
+      "sha256": "08b905f7ef8b95c458d7a0051c6a0c2b01d47e94e5d30af800e3ae11c0ad7213"
     },
     "res://assets/env/props/iron/life_remains.png": {
       "texture": "res://assets/qhd/env/props/iron/life_remains.png",
@@ -7922,7 +7922,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "b9d4a14e39b4c2b3808221939ac4c98fef0a05acc230447cc1dcebc9ae533ed5"
+      "sha256": "3d8f4321a8350192e296990af0a52e26b758aa32bfc7aa59526e5caa4bdbcaab"
     },
     "res://assets/env/props/iron/pipe_valve.png": {
       "texture": "res://assets/qhd/env/props/iron/pipe_valve.png",
@@ -7936,7 +7936,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "e6a2294c0c7f24cb9cfd5cc07d56e989caf5f3b3284a0a72f7ddf5e212db4b30"
+      "sha256": "422c5da650c29da3c8e908777daecc17c9c31399158b3e50b9e89b9bd7200dfc"
     },
     "res://assets/env/props/iron/plate.png": {
       "texture": "res://assets/qhd/env/props/iron/plate.png",
@@ -8034,7 +8034,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "200cead4eeb34ddb1dbfbe343bffa67858b457d31217e4bb2c981cb79736274a"
+      "sha256": "643f2bc7c572ff093e2069008acea8af6d8f9317c19e504793863b7facb7f2e6"
     },
     "res://assets/env/props/moss/balustrade.png": {
       "texture": "res://assets/qhd/env/props/moss/balustrade.png",
@@ -8062,7 +8062,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "6279ae0410b21e5c78fef3f7b129b692fcd0f8013e473b72846a160fe0f19178"
+      "sha256": "d6b213f7bac5b43c4df2a04bcd8a289ad39127fc053b96156cf40bf924777ddd"
     },
     "res://assets/env/props/moss/beam_bolts.png": {
       "texture": "res://assets/qhd/env/props/moss/beam_bolts.png",
@@ -8076,7 +8076,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "a319c2fa688621cbbd5676aeff8f7c2d0753bdb22a8e031bc5ae088d7e8dee57"
+      "sha256": "6fec38091428fa222700e0978a1fe50807e001ade103219695aeeb770e26e4e0"
     },
     "res://assets/env/props/moss/beam_narrow.png": {
       "texture": "res://assets/qhd/env/props/moss/beam_narrow.png",
@@ -8090,7 +8090,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "a8293202902caebd2f0c79410b05e3ece64999ac4c682f05acf70f744ff131aa"
+      "sha256": "f3979f956ebc1cd3a8b1baf6e187775b0ab0bd7ef7da20335d66ee09b01fc613"
     },
     "res://assets/env/props/moss/bones.png": {
       "texture": "res://assets/qhd/env/props/moss/bones.png",
@@ -8118,7 +8118,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "e02234748a45961ac80c41b317799b2169af28e59a9c48a7ab455c501ff3baad"
+      "sha256": "b9055467151d7adc43e64d0671e393136bf810c3c27057fc8afdb1b80163830c"
     },
     "res://assets/env/props/moss/chain.png": {
       "texture": "res://assets/qhd/env/props/moss/chain.png",
@@ -8160,7 +8160,7 @@
       ],
       "material": "stone",
       "method": "original mechanical geometry at density 4",
-      "sha256": "5d842c3ccffcad770dc77eb9816ef998074dbb5ff15a9db5242fcfb0660e6b2d"
+      "sha256": "0f76da9dd122e3d734273e7cc002772624cf21a4cab2c2727b6ec503b9127119"
     },
     "res://assets/env/props/moss/girder_l.png": {
       "texture": "res://assets/qhd/env/props/moss/girder_l.png",
@@ -8174,7 +8174,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "97b08449cd277c82cbdedbf477709b8378d7a3a0259fa6c98c74432f5860b3f1"
+      "sha256": "bb8adcd587b2192466f282ec670603eae2504510c5851b178004affaeba95f19"
     },
     "res://assets/env/props/moss/girder_r.png": {
       "texture": "res://assets/qhd/env/props/moss/girder_r.png",
@@ -8188,7 +8188,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "6a073612358ab38b4fe8f48d74bbe5fcbcc5c0066b0a8fda71b659535ec03b67"
+      "sha256": "b7661e3ea1485305c2d5fd90b4030463cfeb01cb5a227fe026cfaa8d2ec4f3d7"
     },
     "res://assets/env/props/moss/grave_cross.png": {
       "texture": "res://assets/qhd/env/props/moss/grave_cross.png",
@@ -8230,7 +8230,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "0c384d24cec3f6b5effcfaa1dccc6b93cbeb96b3470e2debbf553c57ada38424"
+      "sha256": "860d52a3e75af899d3d3a7e265acad182d2b8b98e7c124f35a8252a28959a416"
     },
     "res://assets/env/props/moss/pipe_valve.png": {
       "texture": "res://assets/qhd/env/props/moss/pipe_valve.png",
@@ -8244,7 +8244,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "008b806283af6301b8b41d7c240fcdc69aa681e69f396c9255e52747f0355f1d"
+      "sha256": "f091f83b201bdb578e61e882c36957083766771ebb71334f6866cd0e9e581e02"
     },
     "res://assets/env/props/moss/plate.png": {
       "texture": "res://assets/qhd/env/props/moss/plate.png",
@@ -8356,7 +8356,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "a410a24a97883fb25122a97aa48f6d9632fb749a765969e15127417271046e4b"
+      "sha256": "e010f8e279a3e37552e2ae1e8f789bd5e26f3972371280ad27e356bd6a3871bf"
     },
     "res://assets/env/props/rampart/balustrade.png": {
       "texture": "res://assets/qhd/env/props/rampart/balustrade.png",
@@ -8384,7 +8384,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "ead244955cf752cd2fdd67dd91a434130a8f11ae1b5adef38f1c0ca20ab5765a"
+      "sha256": "3ddbd1745ab3befe247a4e6535e85761c586ac7857b7e3fb421630759f175e37"
     },
     "res://assets/env/props/rampart/beam_bolts.png": {
       "texture": "res://assets/qhd/env/props/rampart/beam_bolts.png",
@@ -8398,7 +8398,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "c9303bbbfa1548ab7680ea8da289da12910bab2201fe3795c4777342ed121378"
+      "sha256": "c66cd7bb329f0d731ccef7db56d20f980fd5128cdb41e40fdcbb44fdb0e5f9ea"
     },
     "res://assets/env/props/rampart/beam_narrow.png": {
       "texture": "res://assets/qhd/env/props/rampart/beam_narrow.png",
@@ -8412,7 +8412,7 @@
       ],
       "material": "atmosphere",
       "method": "original mechanical geometry at density 4",
-      "sha256": "a11b1e6740312f3e50a43d3db4f581ac43a265f9a9ee95c75a2f5a467ee2a37c"
+      "sha256": "35ecb1ab63b60de41f64321e5a6fb7946240abec995c7420bbe994d2385828dc"
     },
     "res://assets/env/props/rampart/bones.png": {
       "texture": "res://assets/qhd/env/props/rampart/bones.png",
@@ -8440,7 +8440,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "5db394c77ab82221392d74e6761544f9d2efa4ad9ce53631506f13efd244defe"
+      "sha256": "ddf269c7009d9fbdab5a726a0c67c6376c163afcf1de2b783724d811c5874300"
     },
     "res://assets/env/props/rampart/chain.png": {
       "texture": "res://assets/qhd/env/props/rampart/chain.png",
@@ -8482,7 +8482,7 @@
       ],
       "material": "stone",
       "method": "original mechanical geometry at density 4",
-      "sha256": "485388b2f868c0eea99e6ae6bb0bf14de5e14116d88efc5a2975c38cc41cc302"
+      "sha256": "8b476454ba57a382aac977218d9a19ba921c56667334c748dc3b82e23ad38cd4"
     },
     "res://assets/env/props/rampart/girder_l.png": {
       "texture": "res://assets/qhd/env/props/rampart/girder_l.png",
@@ -8496,7 +8496,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "b39fb4e7f37c7c216e5a4e7f01817ad2317c756986626f304587d6e38c91dca9"
+      "sha256": "12c16570380bad9bda5dfa40711e4e3560cdcc6c3f6a395664131858d640fe50"
     },
     "res://assets/env/props/rampart/girder_r.png": {
       "texture": "res://assets/qhd/env/props/rampart/girder_r.png",
@@ -8510,7 +8510,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "9dafb7e6147f9656f59a5017a9e96d3b5312eb647c2df0c47af892d234ecbd41"
+      "sha256": "0b37afb53487159c265a861decf6732004393b7716cc85b91d98a3b3a54ae957"
     },
     "res://assets/env/props/rampart/life_remains.png": {
       "texture": "res://assets/qhd/env/props/rampart/life_remains.png",
@@ -8538,7 +8538,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "05760b4f52aad8b88216d667a7493ece9d1c446911e0c98dfe63c2d53b0368b5"
+      "sha256": "6780092de2727de61aecc942daa5dbd06707a43ebe0f958e200cdf35a40edd47"
     },
     "res://assets/env/props/rampart/pipe_valve.png": {
       "texture": "res://assets/qhd/env/props/rampart/pipe_valve.png",
@@ -8552,7 +8552,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "abe2a4d674bf0d84f457ae0959f1b830498e965ae975572a299fb2740fdf09dc"
+      "sha256": "e770a42940ff3ca5cc9a7f268537fb6a03d3104097e0f1f98673f8a45b52c98e"
     },
     "res://assets/env/props/rampart/plate.png": {
       "texture": "res://assets/qhd/env/props/rampart/plate.png",
@@ -8664,7 +8664,7 @@
       ],
       "material": "metal",
       "method": "original mechanical geometry at density 4",
-      "sha256": "8dddd24757fb546cce5600c5f79a1455aab5413d5c578a9904af1971a127cea3"
+      "sha256": "b6ef127de2d25ac5efac95bf80853f1c36e61dc29932e4c3bb33a8351b5cbd7d"
     },
     "res://assets/env/props/stone/balustrade.png": {
       "texture": "res://assets/qhd/env/props/stone/balustrade.png",

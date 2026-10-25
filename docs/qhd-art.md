@@ -87,6 +87,11 @@ world detail; 4K output scales this density rather than claiming native 4K art.
 
 - Material integration: `qhd_material` 3/3; logical rectangles, ground contact
   and packed-scene transforms preserved.
+- Prop-fit regression: 7/7, zero engine errors. The first complete run found
+  opaque metal-panel corners and three empty physical rows below machinery.
+  The mechanical drawer now cuts plate corners and paints the full inclusive
+  final source-pixel row at density 4. The checks were retained unchanged;
+  the failed run remains in `qhd/full-tests-final/`.
 - Scene audit: 707/707 SHA256, dimensions and environment bottom anchors pass;
   all differ from nearest enlargement. Boss audit separately reproduces 459/459.
 - GPU sampling: all five checks pass (sprite frames, atlas crops, sprite regions,
@@ -99,7 +104,7 @@ world detail; 4K output scales this density rather than claiming native 4K art.
   fixtures, with actor/camera overrides, and do not establish campaign completion.
 - QHD normal-input acceptance: first chapter boss, death/reload, title Continue,
   chapter-two entry, pit crossing and checkpoint Continue pass. Public assists
-  remain 1.0/1.0/1.0; one death, zero engine errors. All 34 PNGs decode at
+  remain 1.0/1.0/1.0; one death, zero engine errors. All 38 PNGs decode at
   2560×1440. This is a fresh first-chapter run, not a new 14-chapter playthrough.
 - QHD offscreen performance probes: title callback interval p95 3.355 ms;
   level05 active p95 3.302 ms. These short fixed-camera callback measurements

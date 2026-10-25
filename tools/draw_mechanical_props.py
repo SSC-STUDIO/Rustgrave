@@ -23,7 +23,13 @@ def render(key, size, ramp, family, density=1):
         d = ImageDraw.Draw(im)
     p = [tuple(rgb)+(255,) for _,rgb in ramp]
     w,h = size
-    def rect(box,c): d.rectangle(box,fill=p[c])
+    def rect(box,c):
+        # Source pixel rectangles include their last row/column. At density 4
+        # that whole cell must be painted, including the ground-contact row.
+        if density == 4:
+            x0,y0,x1,y1=box
+            box=(x0,y0,x1+.75,y1+.75)
+        d.rectangle(box,fill=p[c])
     def line(points,c,width=1): d.line(points,fill=p[c],width=width)
     def bolt(x,y):
         rect((x-1,y-1,x+1,y+1),0)
@@ -122,7 +128,18 @@ def render(key, size, ramp, family, density=1):
                     for dy in range(3):
                         if pixels[x,y+dy][3]: pixels[x,y+dy]=p[3]
                     break
-    return im.image if density == 4 else im
+    result=im.image if density == 4 else im
+    if key=='metal_panel':
+        # Cut the plate's corners out of the canvas instead of delivering an
+        # opaque rectangular sticker. Keep the bolted face and bottom support.
+        cut=2*density-1
+        width,height=result.size
+        pd=ImageDraw.Draw(result)
+        for sx,sy in ((1,1),(-1,1),(1,-1),(-1,-1)):
+            x=0 if sx==1 else width-1
+            y=0 if sy==1 else height-1
+            pd.polygon([(x,y),(x+sx*cut,y),(x,y+sy*cut)],fill=(0,0,0,0))
+    return result
 
 
 def main():
