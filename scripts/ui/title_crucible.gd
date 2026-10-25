@@ -156,13 +156,18 @@ func stream_max() -> float:
 
 
 ## 铁水落到河面的位置（本节点坐标）。火星和落点光团都用它。
+## 落点在吊点左侧的熔河上；弧身往右鼓，从口沿送出去再落回来。
+const IMPACT_X := POUR_X - 18.0
+
+
 func impact_point() -> Vector2:
-	return Vector2(POUR_X, RIVER_Y)
+	return Vector2(IMPACT_X, RIVER_Y)
 
 
 ## 倾倒时的口沿：坩埚绕吊点转了 90°，铁水从口沿出去，不是从吊点笔直掉下来。
 const LIP_LOCAL := Vector2(8.0, 15.0)
-const ARC_BULGE := 10.0
+## 中段往右鼓。口沿在吊点右侧，先横着送出去，再落回熔河，厅里才看得出是一道弧。
+const ARC_BULGE := 34.0
 
 
 func lip_point() -> Vector2:
@@ -254,10 +259,10 @@ func _draw_stream() -> void:
 		var k := float(i + 1) / float(steps)
 		var u := lerpf(u0, u1, k)
 		var p := stream_point(u)
-		var broken := u > 0.78 and (i % 3 == 0)
+		var broken := u > 0.9 and (i % 2 == 0)
 		if not broken:
 			var mid := ((prev + p) * 0.5).round()
-			var w := 4.0 if u < 0.4 else 2.0
+			var w := 6.0 if u < 0.35 else (4.0 if u < 0.7 else 2.0)
 			draw_rect(Rect2(mid.x - w * 0.5 - 1.0, mid.y - 1.0, w + 2.0, 3.0), em(HOT_DEEP))
 			draw_rect(Rect2(mid.x - 1.0, mid.y - 1.0, 2.0, 3.0), em(HOT_CORE if u < 0.25 else HOT))
 		prev = p
