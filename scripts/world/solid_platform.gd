@@ -159,6 +159,8 @@ func _ready() -> void:
 	col.position = size * 0.5
 	add_child(col)
 	_add_light_occluder()
+	# Assemble structural supports after the owning level finishes its layout.
+	load("res://scripts/world/terrain_structures.gd").request(self)
 
 
 func _build_visual() -> void:
