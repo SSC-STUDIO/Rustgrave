@@ -90,7 +90,7 @@ func _setup_sprite() -> void:
 		_fill.visible = false
 	_sprite = Sprite2D.new()
 	_sprite.name = "BoltSprite"
-	_sprite.texture = load(BOLT_PATH) as Texture2D
+	_sprite.texture = ArtTexture.load_texture(BOLT_PATH)
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_sprite.centered = true
 	_sprite.scale = Vector2(0.28, 0.28)

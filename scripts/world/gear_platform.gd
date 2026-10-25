@@ -52,7 +52,7 @@ func _build_visual() -> void:
 	var choice := _block_choice()
 	var block_path: String = choice[0]
 	if ResourceLoader.exists(block_path):
-		var tex := load(block_path) as Texture2D
+		var tex := ArtTexture.load_texture(block_path)
 		var spr := Sprite2D.new()
 		spr.texture = tex
 		spr.centered = false

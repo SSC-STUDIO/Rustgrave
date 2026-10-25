@@ -40,6 +40,25 @@ class Canvas:
     def alpha_composite(self, other, dest=(0, 0)):
         self.image.alpha_composite(other.image, tuple(round(v*self.density) for v in dest))
 
+    def load(self):
+        return LogicalPixels(self)
+
+
+class LogicalPixels:
+    """Source-authored pixel accents on top of rerasterized geometry."""
+    def __init__(self, canvas):
+        self.canvas = canvas
+
+    def __getitem__(self, pos):
+        x, y = pos
+        s = self.canvas.density
+        return self.canvas.image.getpixel((x*s+s//2, y*s+s//2))
+
+    def __setitem__(self, pos, color):
+        x, y = pos
+        s = self.canvas.density
+        ImageDraw.Draw(self.canvas.image).rectangle((x*s,y*s,x*s+s-1,y*s+s-1),fill=color)
+
 
 class Images:
     Resampling = Image.Resampling

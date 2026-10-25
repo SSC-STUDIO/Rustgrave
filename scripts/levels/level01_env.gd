@@ -86,13 +86,15 @@ static func opaque_bottom_px(tex: Texture2D) -> int:
 		img.decompress()
 	var h := img.get_height()
 	var w := img.get_width()
+	var density := float(h) / float(tex.get_height())
 	for y in range(h - 1, -1, -1):
 		for x in w:
 			if img.get_pixel(x, y).a > OPAQUE_ALPHA:
-				_opaque_bottom_cache[key] = y
-				return y
-	_opaque_bottom_cache[key] = maxi(h - 1, 0)
-	return maxi(h - 1, 0)
+				var logical_y := ceili(float(y + 1) / density) - 1
+				_opaque_bottom_cache[key] = logical_y
+				return logical_y
+	_opaque_bottom_cache[key] = maxi(tex.get_height() - 1, 0)
+	return maxi(tex.get_height() - 1, 0)
 
 
 static func sprite_opaque_bottom_y(spr: Sprite2D) -> float:
@@ -116,7 +118,7 @@ static func find_sway(host: Node) -> WindSway:
 static func plant(parent: Node2D, path: String, feet: Vector2, scale: float, tint: Color = Color.WHITE, shed_leaves: bool = false) -> Sprite2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	return plant_texture(parent, tex, path, feet, scale, tint, shed_leaves)

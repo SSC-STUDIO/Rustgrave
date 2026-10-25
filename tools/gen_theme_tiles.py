@@ -886,6 +886,7 @@ HISTORY_RAMPS = {
 
 
 def history_prop_variants():
+    from draw_mechanical_props import render
     for family in HISTORY_FAMILIES:
         out_dir = os.path.join(ENV, "props", family)
         os.makedirs(out_dir, exist_ok=True)
@@ -898,6 +899,7 @@ def history_prop_variants():
             w, h = img.size
             img = img.resize((max(1, w // 2), max(1, h // 2)), Image.NEAREST)
             img = _snap_ramp(img, ramp)
+            img = render(key, img.size, ramp, family)
             img.save(os.path.join(out_dir, key + ".png"))
         # 骨渣 / 生活残留：底板已由 set_pieces() 抠掉，这里只做族色阶统一
         # （骨色比铁件亮一档：它是骨头，不是铁）。
@@ -916,6 +918,7 @@ def history_prop_variants():
         cw, ch = chain.size
         chain = chain.resize((max(1, cw // 2), max(1, ch // 2)), Image.NEAREST)
         chain = _snap_ramp(chain, ramp)
+        chain = render("chain", chain.size, ramp, family)
         chain.save(os.path.join(out_dir, "chain.png"))
         print("wrote props/%s history set" % family)
 
@@ -1241,6 +1244,7 @@ def _key_flat_background(img, rgb):
 
 
 def rust_remains():
+    from draw_mechanical_props import render
     out_dir = os.path.join(ENV, "props", "ground")
     os.makedirs(out_dir, exist_ok=True)
     for key, src in GROUND_REMAINS.items():
@@ -1251,6 +1255,7 @@ def rust_remains():
         w, h = img.size
         img = img.resize((max(1, w // 2), max(1, h // 2)), Image.NEAREST)
         img = _snap_ramp(img, GROUND_REMAINS_RAMP)
+        img = render(key, img.size, GROUND_REMAINS_RAMP, "ground")
         path = os.path.join(out_dir, key + ".png")
         img.save(path)
         print("wrote", os.path.relpath(path, ROOT), img.size)

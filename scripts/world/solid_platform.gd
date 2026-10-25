@@ -416,7 +416,7 @@ func _row_tint(r: int, rows: int, use_surface: bool) -> Color:
 
 func _load_tex(path: String) -> Texture2D:
 	if ResourceLoader.exists(path):
-		return load(path) as Texture2D
+		return ArtTexture.load_texture(path)
 	return null
 
 

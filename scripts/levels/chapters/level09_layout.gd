@@ -197,7 +197,7 @@ func _build_decor(host: Node2D) -> void:
 
 ## 复用城墙填充作无碰撞背墙，门洞和石柱标出可下探的塔室。
 class TowerRelief extends Node2D:
-	const FILL := preload("res://assets/env/rampart_fill.png")
+	var FILL := ArtTexture.load_texture("res://assets/env/rampart_fill.png")
 	var width := 336.0
 	func _draw() -> void:
 		draw_texture_rect(FILL, Rect2(0, 0, width, 64), true, Color(0.38, 0.43, 0.48))

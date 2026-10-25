@@ -86,7 +86,7 @@ func _rebuild_visuals() -> void:
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var tex_path: String = _def.get("texture", "")
 	if ResourceLoader.exists(tex_path):
-		var tex := load(tex_path) as Texture2D
+		var tex := ArtTexture.load_texture(tex_path)
 		if tex != null:
 			_sprite.texture = tex
 			var region: Rect2 = _def.get("region", Rect2())

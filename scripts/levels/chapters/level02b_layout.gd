@@ -365,7 +365,7 @@ func _restyle_lift(deck: Node2D, tone: Color) -> void:
 			path = LIFT_CAP_LEFT
 		elif x + world >= width - 0.01:
 			path = LIFT_CAP_RIGHT
-		var tex := load(path) as Texture2D
+		var tex := ArtTexture.load_texture(path)
 		if tex != null:
 			var spr := Sprite2D.new()
 			spr.texture = tex

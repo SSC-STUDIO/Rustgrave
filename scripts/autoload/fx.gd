@@ -110,9 +110,9 @@ func _ready() -> void:
 		set_process(false)
 		return
 	if ResourceLoader.exists(WEAPONHIT_SHEET_PATH):
-		_weaponhit_sheet = load(WEAPONHIT_SHEET_PATH) as Texture2D
+		_weaponhit_sheet = ArtTexture.load_texture(WEAPONHIT_SHEET_PATH)
 	if ResourceLoader.exists(BRIGHTFIRE_SHEET_PATH):
-		_brightfire_sheet = load(BRIGHTFIRE_SHEET_PATH) as Texture2D
+		_brightfire_sheet = ArtTexture.load_texture(BRIGHTFIRE_SHEET_PATH)
 
 
 ## One-shot particles must render inside the world viewport. The level runs in

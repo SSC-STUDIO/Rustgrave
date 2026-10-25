@@ -174,7 +174,7 @@ func _build_presence() -> void:
 	var glow := Sprite2D.new()
 	glow.name = "ColdBacklight"
 	if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-		glow.texture = load("res://assets/env/glow_soft.png") as Texture2D
+		glow.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 	glow.centered = true
 	glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	glow.position = Vector2(0.0, -32.0)
@@ -187,7 +187,7 @@ func _build_presence() -> void:
 	var shadow := Sprite2D.new()
 	shadow.name = "GroundShadow"
 	if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-		shadow.texture = load("res://assets/env/glow_soft.png") as Texture2D
+		shadow.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 	shadow.centered = true
 	shadow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	shadow.position = Vector2(0.0, -2.0)
@@ -199,7 +199,7 @@ func _build_presence() -> void:
 	var fill := Sprite2D.new()
 	fill.name = "ColdFill"
 	if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-		fill.texture = load("res://assets/env/glow_soft.png") as Texture2D
+		fill.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 	fill.centered = true
 	fill.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	fill.position = Vector2(0.0, -30.0)
@@ -212,7 +212,7 @@ func _build_presence() -> void:
 	var lamp := Sprite2D.new()
 	lamp.name = "ValveLamp"
 	if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-		lamp.texture = load("res://assets/env/glow_soft.png") as Texture2D
+		lamp.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 	lamp.centered = true
 	lamp.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	lamp.position = Vector2(2.0, -34.0)

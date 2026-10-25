@@ -826,7 +826,7 @@ class BossPresence extends Node2D:
 		var spr := Sprite2D.new()
 		spr.name = glow_name
 		if ResourceLoader.exists(GLOW_PATH):
-			spr.texture = load(GLOW_PATH) as Texture2D
+			spr.texture = ArtTexture.load_texture(GLOW_PATH)
 		spr.centered = true
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		spr.scale = size

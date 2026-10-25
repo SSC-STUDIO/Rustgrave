@@ -333,7 +333,7 @@ func _facade(host: Node2D, key: String, feet: Vector2, region: Rect2, tint: Colo
 	var path := PropCatalog.path_for(key, theme())
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	var spr := Sprite2D.new()

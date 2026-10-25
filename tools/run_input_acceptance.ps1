@@ -4,10 +4,13 @@ param(
     [switch]$Campaign,
     [switch]$BasicAbilities,
     [switch]$Fast,
+    [ValidatePattern('^[1-9]\d{2,3}x[1-9]\d{2,3}$')][string]$Window = '1920x1080',
+    [switch]$Shots,
     [string]$ResumeSave = '',
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe'
 )
 $ErrorActionPreference = 'Stop'
+if ($Shots -and -not $Rendered) { throw 'Shots requires Rendered' }
 $workspace = Split-Path -Parent $PSScriptRoot
 $runDir = Join-Path $workspace ('screenshots\acceptance\input-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
@@ -31,10 +34,12 @@ foreach ($kind in $endings) {
     }
     $arguments = @('--path', ('"' + $workspace + '"'))
     if (-not $Rendered) { $arguments += '--headless' }
-    else { $arguments += @('--windowed', '--position', '-12000,-12000', '--resolution', '1920x1080') }
+    else { $arguments += @('--windowed', '--position', '-12000,-12000', '--resolution', $Window) }
     if ($Fast) { $arguments += @('--fixed-fps', '60') }
     $scene = if ($Campaign -and $kind -eq 'rekindle') { 'res://scenes/tools/CampaignWalkthrough.tscn' } else { 'res://scenes/tools/InputWalkthrough.tscn' }
     $arguments += @($scene, '--', ('--ending=' + $kind))
+    if ($Rendered) { $arguments += ('--window=' + $Window) }
+    if ($Shots) { $arguments += '--shots' }
     if ($Campaign) { $arguments += '--campaign' }
     if ($BasicAbilities) { $arguments += '--basic-abilities' }
     if ($ResumeSave) { $arguments += '--resume' }
@@ -67,5 +72,8 @@ foreach ($kind in $endings) {
     if ($exitCode -ne 0 -or -not $result.passed -or $result.engine_errors.Count -gt 0 -or $realErrors.Count -gt 0) { throw ('Acceptance failed: ' + $runDir) }
     Copy-Item -LiteralPath $resultPath -Destination (Join-Path $runDir ($kind + '.json'))
     Get-ChildItem -LiteralPath $gameData -Filter '*.png' | Copy-Item -Destination $runDir
+    if ($Shots) {
+        Get-ChildItem -LiteralPath (Join-Path $gameData 'shots') -Filter '*.png' | Copy-Item -Destination $runDir
+    }
 }
 Write-Output ('Input acceptance passed. Evidence: ' + $runDir)

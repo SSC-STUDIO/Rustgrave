@@ -127,7 +127,7 @@ static func hang_from(layer: Node2D, key: String, bottom_center: Vector2,
 	var path := PropCatalog.path_for(key, THEME)
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	var spr := Sprite2D.new()

@@ -159,7 +159,7 @@ func build(host: Node2D, _theme_id: String = "graveyard") -> void:
 			backdrop.move_child(_cloud_low, slot)
 	var fog_tex: Texture2D = null
 	if ResourceLoader.exists(FOG_PATH):
-		fog_tex = load(FOG_PATH) as Texture2D
+		fog_tex = ArtTexture.load_texture(FOG_PATH)
 	if fog_tex != null:
 		_fog_far = _add_fog_layer(backdrop, "FogFar", Vector2(0.5, 0.1), 234.0, 0.13, fog_tex)
 	_sil_layer = _add_silhouette_layer(backdrop)
@@ -569,7 +569,7 @@ func _add_fog_layer(backdrop: Node, layer_name: String, motion: Vector2, y: floa
 func _add_cloud_layer(backdrop: Node, layer_name: String, motion: Vector2, y: float, path: String) -> Parallax2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	var layer := Parallax2D.new()

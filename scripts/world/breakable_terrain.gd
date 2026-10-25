@@ -53,7 +53,7 @@ func _build() -> void:
 	var tex: Texture2D = null
 	var tex_path := String(SKIN_TEX.get(skin, SKIN_TEX["stone"]))
 	if ResourceLoader.exists(tex_path):
-		tex = load(tex_path) as Texture2D
+		tex = ArtTexture.load_texture(tex_path)
 	for row in _rows:
 		for col in _cols:
 			var cell_size := Vector2(

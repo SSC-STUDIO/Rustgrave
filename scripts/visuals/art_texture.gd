@@ -35,3 +35,22 @@ static func load_texture(path: String) -> Texture2D:
 	# boss and backdrop from all previously visited chapters.
 	_cache[path] = weakref(texture)
 	return texture
+
+
+## Packed scenes may bind PNG ext_resources directly, before _ready() builds
+## their procedural dressing. Adapt those sprites without changing transforms.
+static func adapt_scene(node: Node) -> void:
+	if node is Sprite2D:
+		var sprite := node as Sprite2D
+		if sprite.texture != null and sprite.texture.resource_path.begins_with("res://assets/"):
+			sprite.texture = load_texture(sprite.texture.resource_path)
+	for child in node.get_children():
+		adapt_scene(child)
+
+
+## Godot's region UV clipping uses half a logical texel with size overrides,
+## stretching the outer physical texels. Nearest sampling at exact UV boundaries
+## needs no inset; keep the whole detailed region, including its edge texels.
+static func draw_region(canvas: CanvasItem, texture: Texture2D, dest: Rect2,
+		source: Rect2, modulate: Color = Color.WHITE) -> void:
+	canvas.draw_texture_rect_region(texture, dest, source, modulate, false, false)

@@ -71,7 +71,7 @@ static func glow_pulse(host: Node, world_pos: Vector2, tint: Color, seconds: flo
 		_glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	var spr := Sprite2D.new()
 	spr.name = "StoryGlow"
-	spr.texture = load(GLOW_PATH) as Texture2D
+	spr.texture = ArtTexture.load_texture(GLOW_PATH)
 	spr.centered = true
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spr.material = _glow_mat
@@ -212,7 +212,7 @@ func _show_layer(bucket: Array[Sprite2D]) -> void:
 
 func _load_motes() -> Texture2D:
 	if ResourceLoader.exists(MOTE_PATH):
-		return load(MOTE_PATH) as Texture2D
+		return ArtTexture.load_texture(MOTE_PATH)
 	var img := Image.create(3, 3, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	img.set_pixel(1, 1, Color(1, 1, 1, 0.8))

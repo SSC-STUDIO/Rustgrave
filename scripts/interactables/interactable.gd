@@ -46,7 +46,7 @@ func ensure_sprite(path: String, size: Vector2, offset: Vector2 = Vector2.ZERO, 
 		_ensure_collision(size, offset)
 		return
 	if ResourceLoader.exists(path):
-		var tex := load(path) as Texture2D
+		var tex := ArtTexture.load_texture(path)
 		if tex != null:
 			var spr := Sprite2D.new()
 			spr.name = "Fill"

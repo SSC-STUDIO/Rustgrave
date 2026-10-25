@@ -75,7 +75,7 @@ func _add_layer(parent: Node, layer_name: String, path: String, scroll: Vector2,
 		scale_k: float, tint: Color) -> Parallax2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	var layer := Parallax2D.new()
@@ -100,7 +100,7 @@ func _add_layer(parent: Node, layer_name: String, path: String, scroll: Vector2,
 func _add_columns(parent: Node) -> Parallax2D:
 	if not ResourceLoader.exists(COLUMN_PATH):
 		return null
-	var tex := load(COLUMN_PATH) as Texture2D
+	var tex := ArtTexture.load_texture(COLUMN_PATH)
 	if tex == null:
 		return null
 	var layer := Parallax2D.new()

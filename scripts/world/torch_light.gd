@@ -45,7 +45,7 @@ func _setup_sprite() -> void:
 		return
 	if not ResourceLoader.exists(TORCH_TEX):
 		return
-	var tex := load(TORCH_TEX) as Texture2D
+	var tex := ArtTexture.load_texture(TORCH_TEX)
 	if tex == null:
 		return
 	_sprite = Node2D.new()
@@ -59,7 +59,7 @@ func _setup_sprite() -> void:
 func _setup_furnace() -> void:
 	if not ResourceLoader.exists(FURNACE_TEX):
 		return
-	var tex := load(FURNACE_TEX) as Texture2D
+	var tex := ArtTexture.load_texture(FURNACE_TEX)
 	var spr := Sprite2D.new()
 	spr.name = "FurnaceSprite"
 	spr.texture = tex
@@ -95,7 +95,7 @@ func _setup_light() -> void:
 func _setup_halo() -> void:
 	if not ResourceLoader.exists(GLOW_TEX):
 		return
-	var tex := load(GLOW_TEX) as Texture2D
+	var tex := ArtTexture.load_texture(GLOW_TEX)
 	if tex == null:
 		return
 	_halo = Sprite2D.new()

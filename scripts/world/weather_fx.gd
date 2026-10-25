@@ -823,7 +823,7 @@ func _tick_ground_fx(delta: float) -> void:
 
 func _load_ember_tex() -> Texture2D:
 	if ResourceLoader.exists(EMBER_PATH):
-		var tex := load(EMBER_PATH) as Texture2D
+		var tex := ArtTexture.load_texture(EMBER_PATH)
 		if tex != null:
 			return tex
 	return _make_ember_tex()

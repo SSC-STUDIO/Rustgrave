@@ -272,7 +272,7 @@ func _plant_balustrade(parent: Node2D, feet: Vector2) -> void:
 	const PATH := "res://assets/env/balustrade.png"
 	if not ResourceLoader.exists(PATH):
 		return
-	var tex := load(PATH) as Texture2D
+	var tex := ArtTexture.load_texture(PATH)
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false
@@ -287,7 +287,7 @@ func _plant_env_sprite(parent: Node2D, path: String, pos: Vector2, scl: Vector2 
 	if not ResourceLoader.exists(path):
 		return null
 	var spr := Sprite2D.new()
-	spr.texture = load(path) as Texture2D
+	spr.texture = ArtTexture.load_texture(path)
 	spr.centered = false
 	spr.position = pos
 	spr.scale = scl
@@ -302,7 +302,7 @@ func _plant_env_sprite(parent: Node2D, path: String, pos: Vector2, scl: Vector2 
 func _plant_ruin_plate(parent: Node2D, path: String, pos: Vector2, scl: Vector2 = Vector2.ONE, tint: Color = Color.WHITE) -> Node2D:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	if tex == null:
 		return null
 	var root := Node2D.new()
@@ -327,7 +327,7 @@ func _plant_torch(parent: Node2D, pos: Vector2) -> void:
 
 ## feet is the bottom-centre. Returns the top-left that puts the texture there.
 func _plate_topleft(path: String, feet: Vector2, scale: float) -> Vector2:
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	var w := float(tex.get_width()) * scale
 	var h := float(tex.get_height()) * scale
 	return Vector2(feet.x - w * 0.5, feet.y - h)
@@ -335,7 +335,7 @@ func _plate_topleft(path: String, feet: Vector2, scale: float) -> Vector2:
 
 ## Keep an authored left edge: the foot x is the centre of that span.
 func _plate_feet(path: String, left_x: float, feet_y: float, scale: float) -> Vector2:
-	var tex := load(path) as Texture2D
+	var tex := ArtTexture.load_texture(path)
 	return Vector2(left_x + float(tex.get_width()) * scale * 0.5, feet_y)
 
 
@@ -503,7 +503,7 @@ func _plant_arena_glow(parent: Node2D) -> void:
 		return
 	var spr := Sprite2D.new()
 	spr.name = "ArenaGlow"
-	spr.texture = load(ARENA_GLOW_TEX) as Texture2D
+	spr.texture = ArtTexture.load_texture(ARENA_GLOW_TEX)
 	spr.centered = true
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.position = Vector2(ARENA_CENTER_X, STAGE_Y - 104.0)

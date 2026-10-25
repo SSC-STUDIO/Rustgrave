@@ -1318,13 +1318,21 @@ func _write_result(passed: bool) -> void:
 		"toxin_exposure": Settings.assist(&"assist_toxin"),
 	}
 	result["renderer"] = RenderingServer.get_current_rendering_method()
+	# Root ViewportTexture size may describe the logical canvas on HiDPI Windows;
+	# query the captured image to report the actual output pixels.
+	var render_size := Vector2i.ZERO
+	if _rendered:
+		var captured := get_tree().root.get_texture().get_image()
+		if captured != null:
+			render_size = captured.get_size()
+	result["actual_render_size"] = [render_size.x, render_size.y]
 	if not _frame_ms.is_empty():
 		_frame_ms.sort()
 		var total := 0.0
 		for sample in _frame_ms: total += sample
 		result["frame_timing"] = {"samples": _frame_ms.size(), "mean_ms": total / _frame_ms.size(),
 			"p95_ms": _frame_ms[int((_frame_ms.size() - 1) * 0.95)], "max_ms": _frame_ms.back(),
-			"scope": "1080p offscreen window; PNG encoding excluded; " + ("accelerated fixed 60 Hz simulation" if "--fast" in OS.get_cmdline_user_args() else "60 FPS cap")}
+			"scope": "%dx%d %s; PNG encoding excluded; " % [render_size.x, render_size.y, "rendered window callbacks" if _rendered else "headless simulation"] + ("accelerated fixed 60 Hz simulation" if "--fast" in OS.get_cmdline_user_args() else "60 FPS cap")}
 	var output := FileAccess.open("user://walkthrough_%s.json" % _ending, FileAccess.WRITE)
 	if output: output.store_string(JSON.stringify(result, "\t"))
 

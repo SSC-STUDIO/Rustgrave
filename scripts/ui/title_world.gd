@@ -318,7 +318,7 @@ func variant() -> StringName:
 # ----------------------------------------------------------------- build -------
 
 func _tex(file: String) -> Texture2D:
-	return load(DIR + file) as Texture2D
+	return ArtTexture.load_texture(DIR + file)
 
 
 func _build() -> void:
@@ -607,7 +607,7 @@ func _place_knight(skin: StringName, x: float, seated: bool = false) -> void:
 	var anim := FrameAnimSprite.new()
 	anim.name = "KnightSprite"
 	if seated:
-		var pose := load("res://assets/title/seated_%s.png" % SkinCatalog.folder_of(skin)) as Texture2D
+		var pose := ArtTexture.load_texture("res://assets/title/seated_%s.png" % SkinCatalog.folder_of(skin))
 		anim.register("seated", [pose], 1.0, true, Vector2(0, -24))
 		anim.play("seated")
 		_occluder(_knight, "KnightShadow", Rect2(-7, -29, 17, 28))
@@ -635,14 +635,14 @@ func _place_nest(x: float) -> void:
 	_stage.add_child(_nest)
 	var base := Sprite2D.new()
 	base.name = "Base"
-	base.texture = load("res://assets/env/ember_nest.png") as Texture2D
+	base.texture = ArtTexture.load_texture("res://assets/env/ember_nest.png")
 	base.centered = false
 	base.position = Vector2(-16.0, -20.0)
 	base.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_nest.add_child(base)
 	var coals := Sprite2D.new()
 	coals.name = "Coals"
-	coals.texture = load("res://assets/env/ember_nest_coals.png") as Texture2D
+	coals.texture = ArtTexture.load_texture("res://assets/env/ember_nest_coals.png")
 	coals.centered = false
 	coals.position = Vector2(-16.0, -20.0)
 	coals.material = Fx.additive_mat()
@@ -867,7 +867,7 @@ func _show_quit_sword(delay: float) -> void:
 	var tex: Texture2D = null
 	var pos := FEET
 	if _knight != null and is_instance_valid(_knight):
-		tex = load(Greatsword.BACK_PATH) as Texture2D
+		tex = ArtTexture.load_texture(Greatsword.BACK_PATH)
 		var blade := _knight.get_node_or_null("Visual/Greatsword/Blade") as Sprite2D
 		if blade != null:
 			pos = blade.global_position

@@ -234,7 +234,7 @@ func _waymark(parent: Node2D, feet: Vector2, text: String) -> void:
 	if ResourceLoader.exists(SIGN_TEX):
 		var spr := Sprite2D.new()
 		spr.name = "Board"
-		spr.texture = load(SIGN_TEX) as Texture2D
+		spr.texture = ArtTexture.load_texture(SIGN_TEX)
 		spr.centered = false
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		spr.position = origin
@@ -324,7 +324,7 @@ func _add_stele(parent: Node2D, pos: Vector2, stele_name: String, title: String,
 func _add_balustrade(parent: Node2D, feet: Vector2) -> void:
 	if not ResourceLoader.exists(BALUSTRADE_TEX):
 		return
-	var tex := load(BALUSTRADE_TEX) as Texture2D
+	var tex := ArtTexture.load_texture(BALUSTRADE_TEX)
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = false

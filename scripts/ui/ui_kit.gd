@@ -48,7 +48,7 @@ const SCRIM := Color(0.02, 0.01, 0.03)
 static func tex(path: String) -> Texture2D:
 	if not ResourceLoader.exists(path):
 		return null
-	return load(path) as Texture2D
+	return ArtTexture.load_texture(path)
 
 
 ## 主题变体标签。variation 为空则用 Label 基础样式。

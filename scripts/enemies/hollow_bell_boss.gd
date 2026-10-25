@@ -643,7 +643,7 @@ func _build_glow() -> Sprite2D:
 	glow.name = "BellGlow"
 	const PATH := "res://assets/env/glow_soft.png"
 	if ResourceLoader.exists(PATH):
-		glow.texture = load(PATH) as Texture2D
+		glow.texture = ArtTexture.load_texture(PATH)
 	glow.position = Vector2(0.0, -140.0)
 	glow.scale = Vector2(2.6, 3.0)
 	glow.z_index = -1

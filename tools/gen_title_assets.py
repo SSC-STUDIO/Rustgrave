@@ -49,12 +49,14 @@ import gen_title_hall as hall
 def gear_sheet(name: str, radius: float, teeth: int, spokes: int, frames: int, ramp,
                *, hub: float = 0.27, rim: float = 0.15, tooth: float = 0.11,
                spoke: float = 0.12, direction: int = 1, seed: int = 3,
-               light=(-0.55, -0.83), cols: int = 8) -> None:
+               light=(-0.55, -0.83), cols: int = 8, density: int = 1) -> None:
     """A `cols`-wide grid of `frames` rotation frames covering exactly one spoke
     period (a grid, not one long strip: keeps every texture well under 4096px)."""
-    ss = 4
+    ss = max(1, 4 // density)
     size = int(2 * radius + 8)
     size += size % 2
+    size *= density
+    radius *= density
     hs = size * ss
     c = hs / 2.0
     ys, xs = np.mgrid[0:hs, 0:hs].astype(np.float32)
@@ -62,11 +64,11 @@ def gear_sheet(name: str, radius: float, teeth: int, spokes: int, frames: int, r
     rr = np.hypot(dx, dy) / ss                        # radius in final px
     phi = np.arctan2(dy, dx)
     r_tip = radius
-    th = max(2.5, radius * tooth)
+    th = max(2.5 * density, radius * tooth)
     r_root = r_tip - th
-    r_rim_in = r_root - max(3.0, radius * rim)
+    r_rim_in = r_root - max(3.0 * density, radius * rim)
     r_hub = radius * hub
-    spoke_half = max(1.6, radius * spoke * 0.5)
+    spoke_half = max(1.6 * density, radius * spoke * 0.5)
     tooth_p = 2 * math.pi / teeth
     spoke_p = 2 * math.pi / spokes
     assert teeth % spokes == 0, "teeth must be a multiple of spokes for a seamless loop"
@@ -95,7 +97,7 @@ def gear_sheet(name: str, radius: float, teeth: int, spokes: int, frames: int, r
         spoke_mask = (np.abs(across) <= spoke_half * taper) & (along > 0)
         solid = disc & ((rr >= r_rim_in) | (rr <= r_hub) | spoke_mask)
 
-        bevel_w = 3.0 * ss
+        bevel_w = 3.0 * density * ss
         d = inside_distance(solid, int(bevel_w) + 1)
         height = np.clip((d - 1) / bevel_w, 0.0, 1.0).astype(np.float32)
         height = blur3(blur3(height))
@@ -112,7 +114,7 @@ def gear_sheet(name: str, radius: float, teeth: int, spokes: int, frames: int, r
         tone += np.where((rr >= r_rim_in) & (rr <= r_root), 0.4, 0.0)       # raised rim
         tone += np.where(rr <= r_hub, 0.3, 0.0)
         # a dark groove just inside the rim ring and around the hub: reads as a cast plate
-        groove = (np.abs(rr - (r_rim_in + 1.4)) < 0.75) | (np.abs(rr - (r_hub + 0.6)) < 0.7)
+        groove = (np.abs(rr - (r_rim_in + 1.4*density)) < 0.75*density) | (np.abs(rr - (r_hub + 0.6*density)) < 0.7*density)
         tone -= np.where(groove, 1.1, 0.0)
 
         blocks = solid.reshape(size, ss, size, ss)
@@ -130,15 +132,15 @@ def gear_sheet(name: str, radius: float, teeth: int, spokes: int, frames: int, r
         rim_px = final_solid & ~(pad[:-2, 1:-1] & pad[2:, 1:-1] & pad[1:-1, :-2] & pad[1:-1, 2:])
         img[rim_px, :3] = INK
         # hub: dark axle, ring, bolts on the spoke angles
-        axle_r = max(2.2, r_hub * 0.32)
+        axle_r = max(2.2*density, r_hub * 0.32)
         img[(rpx <= axle_r), :3] = ramp[0]
-        ring = (rpx > axle_r) & (rpx <= axle_r + 1.0)
+        ring = (rpx > axle_r) & (rpx <= axle_r + 1.0*density)
         img[ring & final_solid, :3] = INK
         bolt_r = r_hub * 0.68
         for k in range(spokes * 2):
             ang = theta + k * spoke_p / 2.0
             bx, by = cs + bolt_r * math.cos(ang), cs + bolt_r * math.sin(ang)
-            bolt = ((xx + 0.5 - bx) ** 2 + (yy + 0.5 - by) ** 2) <= 1.1 ** 2
+            bolt = ((xx + 0.5 - bx) ** 2 + (yy + 0.5 - by) ** 2) <= (1.1*density) ** 2
             img[bolt & final_solid, :3] = ramp[-1] if k % 2 == 0 else ramp[1]
         sheet.paste(Image.fromarray(img, "RGBA"), ((f % cols) * size, (f // cols) * size))
     save_image(sheet, name)

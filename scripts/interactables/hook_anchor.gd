@@ -21,7 +21,7 @@ func _ready() -> void:
 		if ResourceLoader.exists(GLOW_PATH):
 			var glow := Sprite2D.new()
 			glow.name = "Glow"
-			glow.texture = load(GLOW_PATH) as Texture2D
+			glow.texture = ArtTexture.load_texture(GLOW_PATH)
 			glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 			glow.centered = true
 			glow.scale = Vector2(1.1, 1.1)
@@ -29,7 +29,7 @@ func _ready() -> void:
 			add_child(glow)
 		var spr := Sprite2D.new()
 		spr.name = "Sprite"
-		spr.texture = load(TEX_PATH) as Texture2D
+		spr.texture = ArtTexture.load_texture(TEX_PATH)
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		spr.centered = true
 		spr.scale = Vector2(BASE_SCALE, BASE_SCALE)

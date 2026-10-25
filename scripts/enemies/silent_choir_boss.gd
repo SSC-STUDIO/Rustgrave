@@ -165,7 +165,7 @@ func _build_presence() -> void:
 	var glow := Sprite2D.new()
 	glow.name = "ChoirGlow"
 	if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-		glow.texture = load("res://assets/env/glow_soft.png") as Texture2D
+		glow.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 	glow.centered = true
 	glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	glow.scale = Vector2(3.0, 3.4)
@@ -736,7 +736,7 @@ class ChoirWisp extends Node2D:
 		material = Fx.additive_mat()
 		var spr := Sprite2D.new()
 		if ResourceLoader.exists("res://assets/env/glow_soft.png"):
-			spr.texture = load("res://assets/env/glow_soft.png") as Texture2D
+			spr.texture = ArtTexture.load_texture("res://assets/env/glow_soft.png")
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		spr.scale = Vector2(1.1, 0.7)
 		spr.modulate = Color(0.95, 0.72, 0.42, 0.16)
