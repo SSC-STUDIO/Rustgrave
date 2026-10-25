@@ -57,7 +57,7 @@ const STEPS: Array = [
 	["GalleryD", Vector2(1976, 256), Vector2(160, 16)],
 	["UpperBridgeD", Vector2(2144, 224), Vector2(144, 16)],
 	["StepD2", Vector2(2296, 256), Vector2(48, 16)],
-	["StepD3", Vector2(2352, 288), Vector2(48, 16)],
+	["StepD3", Vector2(2336, 288), Vector2(40, 16)],
 	## F 段空钟笼厅：两侧避钟笼台 + 上层悬廊 + 中央击锤高台。
 	["CageAlcoveWest", Vector2(2760, 288), Vector2(64, 16)],
 	["CageBelfryWest", Vector2(2840, 256), Vector2(56, 16)],
@@ -141,7 +141,7 @@ const VINES: Array = [Vector2(200, 0), Vector2(304, 0), Vector2(768, 0), Vector2
 		Vector2(1712, 0), Vector2(2048, 0), Vector2(2352, 0), Vector2(2520, 0), Vector2(2900, 0),
 		Vector2(3200, 0), Vector2(3500, 0)]
 const WAYMARKS: Array = [[Vector2(352, 320), "地窟"], [Vector2(1720, 320), "沉钟"],
-		[Vector2(2384, 320), "回廊"], [Vector2(2748, 320), "空钟"]]
+		[Vector2(2400, 320), "回廊"], [Vector2(2748, 320), "空钟"]]
 const VINE_TEX := "res://assets/env/moss_vine.png"
 const ARCH_TEX := "res://assets/env/moss_arch.png"
 const RUBBLE_TEX := "res://assets/env/moss_rubble.png"

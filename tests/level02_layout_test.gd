@@ -63,7 +63,7 @@ func test_step_chains_are_single_jumps() -> void:
 		# sunken bell vault spiral: floor D -> step D1 -> gallery D; gallery D -> upper bridge D; upper bridge D -> step D2 -> step D3 -> floor E
 		[Vector2(1908, 320), Vector2(1908, 288), Vector2(1976, 256)],
 		[Vector2(2136, 256), Vector2(2144, 224)],
-		[Vector2(2288, 224), Vector2(2296, 256), Vector2(2352, 288), Vector2(2360, 320)],
+		[Vector2(2288, 224), Vector2(2296, 256), Vector2(2336, 288), Vector2(2360, 320)],
 		# sunken floor direct climb out to floor E
 		[Vector2(2360, 352), Vector2(2360, 320)],
 		# alcove: lift D at its top -> hop left onto the alcove's right end

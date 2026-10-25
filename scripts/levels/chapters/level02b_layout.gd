@@ -131,7 +131,7 @@ const WAYMARKS: Array = [
 const ENEMIES: Array = [
 	## 遭遇战 1（水闸广场绞盘台，x=740..960）：装甲碎铁犬 + 爆裂骸骨守卫绞盘压板与水闸门。
 	["Scrapper1", "scrapper", Vector2(748, 320), {"patrol_range": 16.0, "variant": &"armored_scrapper"}],
-	["SkeletonGate", "skeleton", Vector2(884, 320), {"variant": &"exploder_skeleton"}],
+	["SkeletonGate", "skeleton", Vector2(948, 320), {"variant": &"exploder_skeleton"}],
 	## 遭遇战 2（双层运渣大渠，x=1380..1900）：上层悬索桥飞魔 + 幽魂，下层渠墩散射喷吐者。
 	["FlyingDemon1", "flying_demon", Vector2(1500, 210), {}],
 	["SpitterCanal", "spitter", Vector2(1576, 320), {"variant": &"scatter_spitter"}],
