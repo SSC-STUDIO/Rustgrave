@@ -1,8 +1,9 @@
 class_name MenuItem
 extends Control
 ## 一行菜单。默认形态沿用主题的 Button 样式盒（暂停菜单 / 结局选择用它）；
-## 标题屏用三档异形板：PRIMARY 右端收成箭头、SECONDARY 右端剪出燕尾、
+## 铁架屏用三档异形板：PRIMARY 右端收成箭头、SECONDARY 右端剪出燕尾、
 ## GHOST 只留双层描边——形状由 MenuPlate 用同一套调色板现画，不新增贴图。
+## 标题屏不画板也不画铁条：灯是光标，字被那盏灯照亮（lamp）。
 ##
 ## 不用 Button，因为选中态需要在键盘导航下自己控制（Button 的 focus 框会叠在
 ## normal 之上），而且要挂帧动画火苗。样式仍然只从主题取，保证与全局一致。
@@ -51,12 +52,29 @@ const STRIP_RUST := Color("#8B4513")
 const STRIP_IRON := Color("#4A3E44")
 const STRIP_EMBER := Color("#FFC14A")
 
+## 标题屏「灯即光标」：行本身不画铁条。宽度仍用 STRIP_WIDTH，高度仍是 52。
+## 亮度由吊灯的距离每帧写入；选中行底下长出一道余烬细线。
+const LAMP_LABEL_X := 10.0
+const LAMP_ASH := Color(0.55, 0.50, 0.48)
+const LAMP_LIT := Color(1.0, 0.84, 0.52)
+const LAMP_HOT := Color(1.0, 0.95, 0.78)
+
 ## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
 var id: StringName = &""
 ## 标题屏的紧凑板：同样的三档形状，映射到更矮更短的一组 SPECS。
 var compact := false
-## 铁条版式（MenuList.strip_style 在 add_child 之前写入）。
+## 铁条版式（MenuList.strip_style 在 add_child 之前写入）。回看 / 暂停等屏继续用它。
 var strip := false
+## 标题屏灯版式（MenuList.lamp_style 在 add_child 之前写入）。
+var lamp := false
+## 0 = 刻在暗处，1 = 正被吊灯照着。只在 lamp 行上有意义。
+var light := 0.28:
+	set(value):
+		var next := clampf(value, 0.0, 1.0)
+		if is_equal_approx(light, next):
+			return
+		light = next
+		_apply_lamp_light()
 ## 压在不透明深色面板上的铁条（回看页）：底色更深、几乎不透明，才不会和卡片的紫底混成一片。
 var dark_plate := false
 ## 开屏"落位"：1 = 整条向左偏移 LAND_SHIFT 并等着淡入，0 = 在原位。
@@ -94,6 +112,8 @@ var _cursor_x := 0.0
 var _cursor_base_y := 0.0
 var _cursor_tween: Tween
 var _shift_tween: Tween
+var _underline := 0.0
+var _text_width := 96.0
 
 
 func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
@@ -104,6 +124,8 @@ func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
 func _ready() -> void:
 	if kind == Kind.DEFAULT:
 		_build_default_row()
+	elif lamp:
+		_build_lamp_row()
 	elif strip:
 		_build_strip_row()
 	else:
@@ -214,6 +236,28 @@ func _build_strip_row() -> void:
 	add_child(_cursor)
 
 
+## 灯版式：只有字。吊灯画在菜单列左侧，不占这一行的节点。
+func _build_lamp_row() -> void:
+	var width: float = STRIP_WIDTH[kind]
+	custom_minimum_size = Vector2(width, HEIGHT)
+	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	show_tick = false
+	_label = UiKit.label(_text, &"MenuItemLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_label.position = Vector2(LAMP_LABEL_X, 0.0)
+	_label.size = Vector2(width - LAMP_LABEL_X - 16.0, HEIGHT)
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(_label)
+	# 小字默认藏在行内左下。不要放到行宽的最右端：那里是炉厅的铁牌，字会刻在牌子上。
+	_note = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_note.position = Vector2(LAMP_LABEL_X, 32.0)
+	_note.size = Vector2(minf(width - LAMP_LABEL_X - 16.0, 210.0), 18.0)
+	_note.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_note.visible = false
+	add_child(_note)
+	_measure_text()
+
+
 ## 条右端的小字（例如试炼未解锁时的"第七章后解锁"）；空串 = 不显示。
 func set_note(value: String) -> void:
 	if _note == null:
@@ -221,12 +265,18 @@ func set_note(value: String) -> void:
 	_note.text = value
 	_note.visible = value != ""
 	if value != "":
-		_note.add_theme_font_size_override("font_size", 10)
+		_note.add_theme_font_size_override("font_size", 12)
 		_note.modulate = Color(0.70, 0.65, 0.60, 0.85)
+	if lamp:
+		_layout_lamp_text()
 
 
 func _apply_land() -> void:
-	if _label == null or not strip:
+	if _label == null or not (strip or lamp):
+		return
+	if lamp:
+		_layout_lamp_text()
+		queue_redraw()
 		return
 	var ox := -land * LAND_SHIFT
 	_label.position.x = STRIP_LABEL_X + ox
@@ -235,13 +285,44 @@ func _apply_land() -> void:
 	queue_redraw()
 
 
+## 有解锁小字时，行名抬到上半，小字贴在它下面，都停在左列里。
+func _layout_lamp_text() -> void:
+	if _label == null or not lamp:
+		return
+	var ox := -land * LAND_SHIFT
+	var noted := _note != null and _note.visible
+	var width := size.x if size.x >= 8.0 else custom_minimum_size.x
+	_label.position = Vector2(LAMP_LABEL_X + ox, 0.0)
+	_label.size = Vector2(maxf(width - LAMP_LABEL_X - 16.0, 40.0), 32.0 if noted else HEIGHT)
+	if _note != null:
+		_note.position = Vector2(LAMP_LABEL_X + ox, 32.0)
+		_note.size = Vector2(minf(maxf(width - LAMP_LABEL_X - 16.0, 40.0), 210.0), 18.0)
+
+
 func set_text(value: String) -> void:
 	_text = value
 	if _label != null:
 		_label.text = value
+	_measure_text()
+
+
+func _measure_text() -> void:
+	if _label == null:
+		return
+	var font := _label.get_theme_font(&"font")
+	var font_size := _label.get_theme_font_size(&"font_size")
+	if font != null:
+		_text_width = font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 
 
 func _process(delta: float) -> void:
+	if lamp:
+		var goal := 1.0 if selected and not disabled else 0.0
+		var before := _underline
+		_underline = move_toward(_underline, goal, delta * (4.5 if goal > 0.0 else 6.0))
+		if not is_equal_approx(before, _underline):
+			queue_redraw()
+		return
 	if not selected or disabled:
 		return
 	_time += delta
@@ -309,7 +390,35 @@ func _draw_strip() -> void:
 		draw_rect(Rect2(x0 + w - 9.0, y0 + h * 0.5 - 1.0, 2.0, 2.0), Color(1.0, 0.85, 0.45))
 
 
+func _draw_lamp() -> void:
+	if _underline <= 0.01:
+		return
+	var shown := clampf(_text_width, 24.0, maxf(size.x - 24.0, 24.0)) * _underline
+	var x := _label.position.x if _label != null else LAMP_LABEL_X
+	var noted := _note != null and _note.visible
+	var y := 28.0 if noted else floorf(size.y * 0.5 + 12.0)
+	draw_rect(Rect2(x, y, shown, 1.0), Color(1.0, 0.55, 0.18, 0.30 + 0.6 * light))
+	draw_rect(Rect2(x, y, minf(6.0, shown), 1.0), Color(1.0, 0.93, 0.72, 0.45 + 0.45 * light))
+
+
+func _apply_lamp_light() -> void:
+	if _label == null or not lamp:
+		return
+	var col := LAMP_ASH.lerp(LAMP_LIT, light)
+	if selected and not disabled:
+		col = col.lerp(LAMP_HOT, 0.45)
+	if disabled:
+		col = Color(0.42, 0.40, 0.40, 0.55)
+	_label.add_theme_color_override("font_color", col)
+	if _note != null:
+		_note.modulate = Color(0.72, 0.64, 0.58, 0.35 + 0.5 * light)
+	queue_redraw()
+
+
 func _draw() -> void:
+	if lamp:
+		_draw_lamp()
+		return
 	if kind != Kind.DEFAULT and strip:
 		_draw_strip()
 		return
@@ -327,12 +436,19 @@ func _notification(what: int) -> void:
 	# 短钉的位置取自本行高度：容器排版完成后第一次拿到真实尺寸，要重画。
 	if what == NOTIFICATION_RESIZED:
 		queue_redraw()
-		# 容器重排会重置 position：选中条的抽出量补回来（不播缓动）。
-		_apply_shift(selected and not disabled, true)
+		if lamp:
+			_apply_land()
+		else:
+			# 容器重排会重置 position：选中条的抽出量补回来（不播缓动）。
+			_apply_shift(selected and not disabled, true)
 
 
 func _refresh() -> void:
 	if _label == null:
+		return
+	if lamp:
+		_apply_lamp_light()
+		set_process(true)
 		return
 	if kind == Kind.DEFAULT:
 		_refresh_default()
@@ -403,6 +519,16 @@ func _apply_shift(lit: bool, instant: bool = false) -> void:
 
 ## 确认这一格：条身上一道白热闪光扫过（TitleScreen._confirm_effect 调用）。
 func flash() -> void:
+	if lamp:
+		if not is_inside_tree() or _label == null:
+			return
+		var keep := _label.modulate.a
+		_label.modulate = Color(1.35, 1.22, 0.95, keep)
+		var tw := create_tween()
+		tw.tween_property(_label, "modulate", Color(1.0, 1.0, 1.0, keep), 0.28)
+		_underline = 1.0
+		queue_redraw()
+		return
 	if not strip or not is_inside_tree():
 		return
 	var overlay := ColorRect.new()

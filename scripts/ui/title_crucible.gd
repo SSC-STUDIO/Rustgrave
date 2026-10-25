@@ -159,6 +159,13 @@ func impact_point() -> Vector2:
 	return Vector2(POUR_X, RIVER_Y)
 
 
+## 柱身上某一点的横坐标。along = 0 在壶沿，1 在河面。落点钉在 POUR_X。
+func _stream_x(along: float) -> float:
+	var lip := roundf(_x) + _swing() - _tilt * 10.0
+	var bow := sin(along * 8.0 + _t * 6.0) * (1.0 + along)
+	return lerpf(lip, float(POUR_X), along) + bow
+
+
 func _moving() -> bool:
 	return _phase == Phase.TO_POUR or _phase == Phase.TO_LOAD
 
@@ -203,25 +210,34 @@ func _draw() -> void:
 				Rect2(float(frame * CUP_FRAME), 0.0, CUP_FRAME, CUP_FRAME))
 	var hot := heat01() > 0.1
 	draw_colored_polygon(_cup_points(0.0, SURFACE), em(HOT) if hot else Color(0.30, 0.11, 0.09))
-	# 铁水柱：白热的芯 + 更宽的橙边 + 往下流的暗节
+	# 铁水：从倾转后的壶沿落到熔河。上宽下窄，中间略弯，下端裂成铁滴。
+	# 落点仍是 POUR_X / RIVER_Y，柱长算法不变。
 	if _stream_bot > _stream_top:
-		var sx := POUR_X - 3.0
 		var y0 := STREAM_Y0 + _stream_top
 		var y1 := STREAM_Y0 + _stream_bot
-		draw_rect(Rect2(sx, y0, 6.0, y1 - y0), em(HOT_DEEP))
-		draw_rect(Rect2(sx + 1.0, y0, 4.0, y1 - y0), em(HOT))
-		draw_rect(Rect2(sx + 2.0, y0, 2.0, y1 - y0), em(HOT_CORE))
-		var off := int(_t * 70.0) % 14
-		var yy := y0 + float(off)
-		while yy < y1 - 2.0:
-			draw_rect(Rect2(sx + 1.0, yy, 4.0, 3.0), em(HOT_DEEP))
-			yy += 14.0
+		var span := maxf(y1 - y0, 1.0)
+		var steps := maxi(int(span / 3.0), 1)
+		for i in steps:
+			var along := float(i) / float(maxi(steps - 1, 1))
+			var y := y0 + along * span
+			var w := maxf(3.0, roundf(lerpf(7.0, 3.0, along)))
+			var sx := _stream_x(along) - w * 0.5
+			draw_rect(Rect2(floorf(sx), floorf(y), w, 3.0), em(HOT_DEEP.lerp(HOT, 1.0 - along * 0.35)))
+			draw_rect(Rect2(floorf(sx + w * 0.5 - 1.0), floorf(y), 2.0, 3.0), em(HOT_CORE))
+		if span > 28.0:
+			for drop in 5:
+				var phase := fposmod(_t * (80.0 + float(drop) * 13.0) + float(drop) * 18.0, span)
+				if phase < span * 0.42:
+					continue
+				var drop_y := y0 + phase
+				var drop_x := roundf(sin(_t * 3.0 + float(drop) * 2.2) * (3.0 + float(drop)))
+				draw_rect(Rect2(POUR_X + drop_x, floorf(drop_y), 2.0, 2.0), em(HOT))
 		if _landed:
 			# 落点的飞溅：几粒会跳的亮点，比柱身更醒目
 			var step := floorf(_t * 12.0)
-			for k in 8:
-				var jx := sin(step * 1.9 + float(k) * 2.3) * 11.0
-				var jy := absf(sin(step * 2.7 + float(k) * 1.1)) * 12.0
+			for spark in 8:
+				var jx := sin(step * 1.9 + float(spark) * 2.3) * 11.0
+				var jy := absf(sin(step * 2.7 + float(spark) * 1.1)) * 12.0
 				draw_rect(Rect2(floorf(POUR_X + jx), floorf(RIVER_Y - 4.0 - jy), 2.0, 2.0), em(HOT_CORE))
 
 
@@ -238,8 +254,11 @@ func _draw_overlay() -> void:
 		_glow_rect(Rect2(POUR_X - 2.0, y0, 4.0, y1 - y0), Color(1.0, 0.92, 0.62, 0.55 * h))
 		if _landed:
 			var flick := 0.8 + 0.2 * sin(_t * 31.0)
-			_glow_at(Vector2(POUR_X, RIVER_Y - 2.0), 96.0, Color(1.0, 0.55, 0.18, 0.62 * h * flick))
-			_glow_at(Vector2(POUR_X, RIVER_Y - 6.0), 28.0, Color(1.0, 0.95, 0.7, 0.45 * h * flick))
+			var ripple := 0.65 + 0.35 * sin(_t * 8.0)
+			_glow_at(Vector2(POUR_X, RIVER_Y - 2.0), 110.0, Color(1.0, 0.55, 0.18, 0.62 * h * flick))
+			_glow_at(Vector2(POUR_X, RIVER_Y - 6.0), 36.0, Color(1.0, 0.95, 0.7, 0.5 * h * flick))
+			_glow_at(Vector2(POUR_X, RIVER_Y + 2.0), 48.0 + 18.0 * ripple,
+					Color(1.0, 0.42, 0.12, 0.28 * h * ripple))
 
 
 # --- 测试 / 工具用 ------------------------------------------------------------

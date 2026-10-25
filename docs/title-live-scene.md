@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `Ambient` (`CanvasModulate`) | — | — | 全局环境底色，按变体/幕次与开屏/退场亮度插值 |
 | `Void` (`Polygon2D`) | 0 | — | 铺底深色背景（`#0A080F`） |
-| `HallFar` (`Sprite2D`) | 0 | `-0.30` | 远处锻厅背景（`assets/title/hall_far.png`） |
+| `HallFar` (`Sprite2D` + `title_far_haze.gd`) | 0 | `-0.30` | 远处锻厅背景（`assets/title/hall_far.png`）。脚本在同一张精灵上加了缓慢漂移的灰带和几扇随炉温明灭的远窗，不另占节点 |
 | `PitRiver` (`Sprite2D`) | 0 | `-0.30` | 桥下熔河（`pit_river.png`，`LIGHT_MODE_UNSHADED` 自发光，随炉温变色） |
 | `Beam` (`Sprite2D`) | 0 | `-0.20` | 天窗斜落光柱（`beam.png`，`BLEND_MODE_ADD` + `UNSHADED`） |
 | `HallMid` (`Sprite2D`) | 1 | `-0.55` | 中景巨柱、下层远桥与管线（`hall_mid.png`） |
@@ -69,11 +69,13 @@
 1. **顶部字标（`MastheadColumn` / `Masthead` / `TitleLogo` + `Subtitle`）**：
    - 居中偏上（`y = 28..178`），不遮挡画面中段的铁桥与骑士。
    - 挂载 `assets/shaders/title_forge.gdshader`：开屏时斜向白热前沿从左向右扫过，量化为 4 阶像素热区（白热 → 余烬橙 → 字标本色），沿途由 `UiSparks` 迸出火星；副题「锈 墓 · 余 烬 骑 士」随后淡入。
-2. **左下极简铁条菜单（`Menu`，`MenuList.strip_style = true`）**：
+2. **左下菜单（`Menu`，`MenuList.lamp_style = true`）**：字刻在墙上，光标是一盏吊灯（`MenuLamp` / `TitleLampCursor`）。
    - 起点 `RAIL_X = 72, RAIL_TOP = 254`，7 个 `MenuItem`（每行高 `52px` 满足触控下限），按**行动**（点燃余烬 / 继续旅程或回看余烬）、**模式**（回火试炼 / 余烬竞技场）、**系统**（设置 / 操作说明）、**离开**（离开锈墓）四组排列，组间 `16px` 留白。
-   - 三档宽度递减：主行动 `344px`、模式与系统 `304px`、离开 `248px`（全部严格停在画面中线 `x = 640` 左侧）。
-   - 聚焦时左侧灯口烧亮、余烬光标滑入、条上迸发火星，并联动 `TitleWorld.nudge()` 使吊灯闪亮、镜头微推 `1~2px`。
+   - 三档宽度递减：主行动 `344px`、模式与系统 `304px`、离开 `248px`（全部严格停在画面中线 `x = 640` 左侧）。行内不再画铁条；未选中的字是冷灰，离灯越近越暖。
+   - 吊灯从屋架落下，链端一盏与场景同款的灯笼，旁边一团加法光晕（不占点光预算）。聚焦时灯落到该行、字下长出一道余烬细线，并联动 `TitleWorld.nudge()` 使厅里的吊灯闪亮、镜头微推 `1~2px`。开屏时灯与菜单一起落下；离开时火焰先灭。
+   - 聚焦「继续旅程」时右侧旅程列从半透明收到全亮，和厅里那排进度吊灯是同一个反应。
    - **有存档时默认选中第 2 项「继续旅程」**（索引 `1`）。
+   - 铁条版式（`strip_style`）仍留给回看页、试炼菜单、暂停里的条，不跟标题屏绑在一起。
 3. **右侧旅程刻度列（`JourneyColumn`）与可展开档案卡（`DossierWrap/Dossier`）**：
    - 收起态位于右侧 `Rect2(1000, 188, 208, 420)`：顶部显示通关计数 `XX / 14`、当前章节标题与两行前情提要；中段为 `TitleGauge`（14 枚章节菱形刻度，已通关亮余烬色、当前章 8fps 呼吸搏动，幕界标注「醒 / 债 / 铸 / 炉」）；底部为 2×2 `TitleChip` 数据芯片（阶 / 装 / 试 / 竞）。
    - 鼠标悬停旅程列或按 **`Tab` 键**滑出展开 `DossierWrap/Dossier`（`Rect2(820, 184, 388, 424)`），完整保留 `DossierRank`、`DossierSkin`、`DossierTrials`、`DossierArena`、`DossierChapter`、`DossierRecap`、`TrialLockHint`、`DossierFoot` 等节点。
@@ -83,7 +85,7 @@
 
 ### 3.2 开场、进关与退场动效
 
-- **开场（`_play_intro`）**：`BootCurtain` 纯黑幕 0.5s 退去 → `TitleWorld.play_intro()` 吊灯按通关数逐盏点亮 → 0.45s 字标锻造扫光 + 5 次火星迸发 → 副题淡入 → 1.45s 起菜单 7 行依次向右落位（每行间隔 0.07s）→ 旅程列、墓志、页脚浮现。开场不是输入门禁，任意确认操作调用 `_skip_intro()` 立即落位终态并执行。
+- **开场（`_play_intro`）**：`BootCurtain` 纯黑幕 0.5s 退去 → `TitleWorld.play_intro()` 厅内吊灯按通关数逐盏点亮 → 0.45s 字标锻造扫光 + 5 次火星迸发 → 副题淡入 → 1.45s 起菜单灯从屋架落下、7 行依次向右落位（每行间隔 0.07s）→ 旅程列、墓志、页脚浮现。开场不是输入门禁，任意确认操作调用 `_skip_intro()` 立即落位终态并执行。
 - **确认进关（`_confirm_effect`）**：触发 `TitleWorld.enter_push(5.0, 0.55)`（白热闪光 + 镜头向骑士推进 5px + 吊灯齐闪）+ 选中条火星迸发 + `gate` 音效 + `Director.fade_to`。
 - **竞技场入口修复（`ID_ARENA`）**：在 `_on_chosen` 中接入 `_start_arena()` → `ArenaRun.start()`（支持 `arena_start` 测试接缝）；启动成功即切入竞技场，若返回 `false` 则恢复菜单激活并播放 `ui_denied`。
 - **退出（`_quit_sequence`）**：菜单行自上而下逐格熄灭，活景调用 `TitleWorld.quit_out(0.2)` 将亮着的吊灯逐盏吹灭、环境光压暗，只留巨剑剪影在黑暗中微亮，随后浮现 `QuitCaption`（「余 烬 熄 灭。」）再退出；期间任意按键/点击立即调用 `_finish_quit()`。

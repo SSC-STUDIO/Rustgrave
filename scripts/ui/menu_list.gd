@@ -4,7 +4,7 @@ extends VBoxContainer
 ## 鼠标悬停同步选中。暂停菜单 / 结局选择 / 覆盖确认用默认行（主题样式盒），
 ## 标题屏的菜单架用 kind 指定三档异形板（见 MenuItem.Kind）。
 ##
-## 导航只看 add_item 进来的项：标题屏在项之间插的空白、铆钉横线是普通子节点，
+## 导航只看 add_item 进来的项：标题屏在项之间插的空白是普通子节点，
 ## 不参与上下键的顺序。
 ##
 ## `active` 为 false 时不吃输入 —— 打开操作说明这类子面板时由上层置 false。
@@ -14,8 +14,10 @@ signal chosen(id: StringName)
 signal focus_changed(id: StringName)
 
 var active := true
-## 新加进来的项用铁条版式（标题屏；之后的 add_item 才生效）。
+## 新加进来的项用铁条版式（回看页 / 试炼菜单等；之后的 add_item 才生效）。
 var strip_style := false
+## 新加进来的项用灯版式（标题屏；和 strip_style 互斥，灯优先）。
+var lamp_style := false
 
 var _items: Array[MenuItem] = []
 var _ids: Array[StringName] = []
@@ -28,7 +30,8 @@ func add_item(id: StringName, text: String, item_disabled: bool = false,
 	var item := MenuItem.new(text, kind)
 	item.id = id
 	item.compact = compact
-	item.strip = strip_style
+	item.lamp = lamp_style
+	item.strip = strip_style and not lamp_style
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))

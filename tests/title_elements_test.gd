@@ -165,7 +165,7 @@ func test_every_variant_stays_inside_the_budget_with_the_new_elements() -> void:
 		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "%s: 灯 %d <= 8" % [variant_id, world.light_count()])
 		ok(world.node_count() <= 250, "%s: 节点 %d <= 250" % [variant_id, world.node_count()])
 		ok(world.node_count() <= 150, "%s: 新元素之后仍留有余量 (%d)" % [variant_id, world.node_count()])
-		eq(world.lantern_count(), 5, "%s: 仍是五盏吊灯" % variant_id)
+		eq(world.lantern_count(), 14, "%s: 十四盏可见吊灯" % variant_id)
 		var props := world.prop_nodes()
 		eq(props.size(), 7, "%s: 坩埚 / 锻锤 / 亡魂 / 火盆 / 两面旗 / 送剑链" % variant_id)
 		for prop in props:

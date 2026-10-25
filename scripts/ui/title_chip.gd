@@ -1,12 +1,10 @@
 class_name TitleChip
 extends Control
-## A small stat chip on the title screen's journey column: a dark tag with a one-glyph
-## name and a short value (rank, skin, trials, arena). `lit` chips have a record to show.
+## A small stat on the title screen's journey column: a one-glyph name, a short value,
+## and a hairline. `lit` means there is a record to show. No plate — the text sits
+## on the furnace the way the menu sits on the left wall.
 
 const CHIP_SIZE := Vector2(98.0, 26.0)
-const FILL := Color(0.055, 0.04, 0.075, 0.66)
-const EDGE := Color("#3A2012")
-const EDGE_LIT := Color("#8B4513")
 const STRIPE := Color("#4A3E44")
 const STRIPE_LIT := Color("#FFC14A")
 
@@ -62,18 +60,10 @@ func _apply() -> void:
 func _draw() -> void:
 	var w := size.x
 	var h := size.y
-	# 阶梯切角（2px 栅格）：芯片与档案卡、铁条用同一种边角语汇。
-	draw_rect(Rect2(2.0, 0.0, w - 4.0, h), FILL)
-	draw_rect(Rect2(0.0, 2.0, w, h - 4.0), FILL)
-	var edge := EDGE_LIT if lit else EDGE
-	draw_rect(Rect2(2.0, 0.0, w - 4.0, 1.0), edge)
-	draw_rect(Rect2(2.0, h - 1.0, w - 4.0, 1.0), edge)
-	draw_rect(Rect2(0.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-	draw_rect(Rect2(w - 1.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-	# 顶光 / 底影：一点钢板厚度。
-	draw_rect(Rect2(3.0, 1.0, w - 6.0, 1.0), Color(0.9, 0.7, 0.5, 0.06))
-	draw_rect(Rect2(3.0, h - 2.0, w - 6.0, 1.0), Color(0.0, 0.0, 0.0, 0.22))
-	draw_rect(Rect2(0.0, 2.0, 3.0, h - 4.0), STRIPE_LIT if lit else STRIPE)
-	# 标签和值之间一道 1px 内分隔，四枚芯片看起来像同一套仪表。
-	draw_rect(Rect2(28.0, 6.0, 1.0, h - 12.0),
-			Color(EDGE.r, EDGE.g, EDGE.b, 0.9))
+	# 刻在机壳上的一行：底下一根发丝，左边一粒菱形。有记录时菱形是余烬色。
+	var mark := STRIPE_LIT if lit else STRIPE
+	var c := Vector2(4.0, h * 0.5 - 1.0)
+	for dy in range(-2, 3):
+		var half := 2 - absi(dy)
+		draw_rect(Rect2(c.x - half, c.y + dy, float(2 * half + 1), 1.0), mark)
+	draw_rect(Rect2(0.0, h - 2.0, w, 1.0), Color(mark.r, mark.g, mark.b, 0.55 if lit else 0.35))

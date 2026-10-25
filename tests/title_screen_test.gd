@@ -1,5 +1,5 @@
 extends TestCase
-## 标题屏版式回归（v3 活景版）：菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开
+## 标题屏版式回归（v3 活景版）：菜单是左下一列被吊灯照着的字（行动 / 模式 / 系统 / 离开
 ## 四组、七行、每行 52px 触控高度）、右侧是旅程标尺 + 数据片（悬停 / Tab 展开完整档案）、
 ## 底部是打字机墓志与页脚；所有区块在 1280x720 / 1920x1080 / 非 16:9 窗口里互不重叠、
 ## 都落在内容矩形内。异形板（menu_plate.gd）仍服务暂停菜单等其它屏，这里一并守住它。
@@ -60,12 +60,38 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 	for i in mini(items.size(), EXPECTED_KINDS.size()):
 		eq(items[i].kind, EXPECTED_KINDS[i], "第 %d 格的档位" % i)
 	for item in items:
-		ok(item.strip, "铁条版式")
+		ok(item.lamp and not item.strip, "灯版式，不是铁条")
 		ok(item.custom_minimum_size.y >= UiKit.TOUCH_MIN, "行高不低于触控下限 %.0f" % UiKit.TOUCH_MIN)
 	# 三档宽度递减：行动 > 模式/系统 > 离开
 	ok(items[0].custom_minimum_size.x > items[2].custom_minimum_size.x, "行动条比模式条宽")
 	ok(items[2].custom_minimum_size.x > items[6].custom_minimum_size.x, "离开条最窄")
 
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 灯即光标：跳过开屏后灯落在当前行上；换行后灯跟着走，被照到的一行更亮。
+func test_the_lantern_cursor_follows_the_selected_row() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var lamp := title.find_child("MenuLamp", true, false) as TitleLampCursor
+	ok(lamp != null, "菜单灯存在")
+	if lamp == null:
+		title.queue_free()
+		return
+	var menu := title.get_node("Menu") as MenuList
+	var items := _items(title)
+	var first: MenuItem = items[menu.item_ids().find(menu.selected_id())]
+	var row_y: float = title.design_rect(first).get_center().y
+	almost(lamp.position.y + lamp.lantern_center().y, row_y, 2.0, "跳过开屏后灯已经落在当前行")
+	menu.select(6, false)
+	title._update_lamp()
+	lamp.advance(0.8)
+	title._update_lamp()
+	var quit_item: MenuItem = items[6]
+	var quit_y: float = title.design_rect(quit_item).get_center().y
+	almost(lamp.position.y + lamp.lantern_center().y, quit_y, 8.0, "灯跟着落到离开行")
+	ok(quit_item.light > first.light, "灯下的一行比远处的一行更亮")
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -138,7 +164,7 @@ func test_select_walks_the_menu_and_skips_disabled_rows() -> void:
 
 
 ## 鼠标悬停与键盘上下键共用同一条"选中"信号：任何时刻只有一格是选中的，
-## 两种输入方式看到的是同一条亮起的铁条（不出现"高亮一格、回车执行另一格"）。
+## 两种输入方式看到的是同一行被灯照亮（不出现"高亮一格、回车执行另一格"）。
 func test_hover_and_keyboard_share_one_selection() -> void:
 	var title: TitleScreen = await _open_title()
 	var menu := title.get_node("Menu") as MenuList

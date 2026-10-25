@@ -7,11 +7,11 @@ extends Control
 ## `Keyart` TextureRect 显示（同一套像素平滑着色器，和游戏里的世界图一致）。
 ##
 ## 版式（1280x720 设计空间）：字标居中偏上，"锻入"式显现（白热 → 锈色扫过 + 火星），
-## 副题随后淡入；菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开四组，每行
-## 52px 触控高度，余烬光标；聚焦时在条上迸火星并让场景轻推一下）；右侧是"旅程标尺"：
-## 14 个章节刻度（已通关亮、当前搏动）+ 四枚小数据片（阶位 / 外观 / 试炼 / 竞技场），
-## 悬停或按 Tab 展开完整档案；底部是慢速打字机轮换的墓志，署名收成页脚一行，
-## 页脚右侧随菜单焦点写一句当前行的说明（MENU_HINTS）。
+## 副题随后淡入；菜单是左下一列被一盏吊灯照着的字（行动 / 模式 / 系统 / 离开四组，
+## 每行 52px 触控高度；灯即光标，聚焦时灯落到那一行、字被照亮，并让场景轻推一下）；
+## 右侧是"旅程标尺"：14 个章节刻度（已通关亮、当前搏动）+ 四枚小数据片
+## （阶位 / 外观 / 试炼 / 竞技场），悬停或按 Tab 展开完整档案；底部是慢速打字机
+## 轮换的墓志，署名收成页脚一行，页脚右侧随菜单焦点写一句当前行的说明（MENU_HINTS）。
 ##
 ## 菜单每一行聚焦时，炉厅里还有各自的反应（TitleWorld.react_to：炉火一涌 / 锻锤敲一下 /
 ## 火盆加亮 / 光柱云影放缓 / 破旗一掀 / 魂光升起），见 docs/title-live-scene.md §6。
@@ -57,8 +57,8 @@ const ENTRY_SPAWN_OVERRIDES := {
 }
 const ENTRY_SPAWN_FALLBACK := Vector2(96.0, 300.0)
 
-## 「回看余烬」条：与 TitleChip 同一套深底、锈边、左侧色条与阶梯切角。
-## 常态暗锈；焦点 / 悬停时边与色条烧成余烬色，右侧箭头旁亮一粒火星。
+## 「回看余烬」：一行刻在旅程列底部的字，不是一块铁条。
+## 常态是暗锈细线；焦点 / 悬停时细线烧长，字左侧亮一粒余烬。
 class RecapStrip:
 	extends Control
 	const HEIGHT := 26.0
@@ -75,26 +75,17 @@ class RecapStrip:
 		queue_redraw()
 
 	func _draw() -> void:
-		var w := size.x
 		var h := size.y
-		var edge := TitleChip.EDGE_LIT if _lit else TitleChip.EDGE
-		draw_rect(Rect2(2.0, 0.0, w - 4.0, h), TitleChip.FILL)
-		draw_rect(Rect2(0.0, 2.0, w, h - 4.0), TitleChip.FILL)
-		draw_rect(Rect2(2.0, 0.0, w - 4.0, 1.0), edge)
-		draw_rect(Rect2(2.0, h - 1.0, w - 4.0, 1.0), edge)
-		draw_rect(Rect2(0.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-		draw_rect(Rect2(w - 1.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-		draw_rect(Rect2(3.0, 1.0, w - 6.0, 1.0), Color(0.9, 0.7, 0.5, 0.06))
-		draw_rect(Rect2(3.0, h - 2.0, w - 6.0, 1.0), Color(0.0, 0.0, 0.0, 0.22))
-		# 左侧色条：常态暗铁，点亮烧成余烬。
-		draw_rect(Rect2(0.0, 2.0, 3.0, h - 4.0), TitleChip.STRIPE_LIT if _lit else TitleChip.STRIPE)
-		# 文字左对齐，留出色条的位置。
 		var font := get_theme_default_font()
+		var col := UiKit.EMBER if _lit else Color(0.78, 0.70, 0.62, 0.72)
 		if font != null:
-			var col := UiKit.EMBER if _lit else Color("#E4DCCC")
-			draw_string(font, Vector2(12.0, h * 0.5 + 5.0), LABEL, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
-			# 右侧的小箭头，与文字同色，点亮时是一粒余烬。
-			draw_string(font, Vector2(w - 18.0, h * 0.5 + 5.0), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
+			draw_string(font, Vector2(10.0 if _lit else 0.0, h * 0.5 + 5.0), LABEL,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
+		var line := Color(1.0, 0.62, 0.22, 0.9) if _lit else Color(0.42, 0.26, 0.16, 0.4)
+		var line_w := 148.0 if _lit else 72.0
+		draw_rect(Rect2(0.0, h - 2.0, line_w, 1.0), line)
+		if _lit:
+			draw_rect(Rect2(0.0, h * 0.5 - 2.0, 3.0, 3.0), Color(1.0, 0.86, 0.45))
 
 ## 副题两侧的余烬菱形饰：作为 Subtitle 的子节点画在文字两边，随副题定宽自动对中。
 class SubtitleFlanks:
@@ -222,6 +213,7 @@ var _logo_material: ShaderMaterial
 var _logo_flash: ColorRect
 var _subtitle: Label
 var _menu: MenuList
+var _lamp: TitleLampCursor
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
@@ -335,18 +327,17 @@ func _build_backdrop() -> void:
 	add_child(_keyart)
 	if live_scene_enabled:
 		_build_live_world()
-		# 字标压在顶部、菜单压在左下：只轻轻压暗这两处，中段（骑士与光柱）留给场景。
-		add_child(UiKit.scrim(0.58, 0.0, 0.50))
-		add_child(UiKit.scrim_side(0.30, 520.0))
-		# the journey column hangs over the right-hand machinery: darken that edge too
-		var right_scrim := UiKit.scrim_side(0.42, 420.0)
+		# 字标在顶、墓志在底：只压这两条边。菜单靠吊灯自己的光，不再铺一块左帘。
+		add_child(UiKit.scrim(0.40, 0.0, 0.32))
+		add_child(UiKit.scrim_side(0.16, 340.0))
+		# 旅程字刻在右侧机壳上，只留一条很窄的暗边，炉门还露在外面。
+		var right_scrim := UiKit.scrim_side(0.18, 240.0)
 		right_scrim.flip_h = true
 		right_scrim.anchor_left = 1.0
 		right_scrim.anchor_right = 1.0
-		right_scrim.offset_left = -420.0
+		right_scrim.offset_left = -240.0
 		right_scrim.offset_right = 0.0
 		add_child(right_scrim)
-		UiKit.corner_brackets(self, 12.0, 12.0)
 		return
 	_keyart.texture = UiKit.tex(KEYART_PATH)
 	# 旧版静态 keyart 的氛围：上下压暗 + 骑士光影 + 余烬 + 角饰。
@@ -419,6 +410,23 @@ func _build_masthead() -> void:
 	_logo_material.set_shader_parameter("progress", 1.0)
 	_logo.material = _logo_material
 	_masthead.add_child(_logo)
+	# 字标背后一小团炉温，让铁字像还烫着，而不是贴在画面上。
+	var halo := TextureRect.new()
+	halo.name = "LogoHalo"
+	halo.texture = load("res://assets/title/glow.png")
+	halo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	halo.show_behind_parent = true
+	halo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	halo.offset_left = -36.0
+	halo.offset_top = -16.0
+	halo.offset_right = 36.0
+	halo.offset_bottom = 18.0
+	var halo_mat := CanvasItemMaterial.new()
+	halo_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	halo.material = halo_mat
+	halo.modulate = Color(1.0, 0.62, 0.28, 0.16)
+	_logo.add_child(halo)
 
 	_subtitle = UiKit.label("锈 墓 · 余 烬 骑 士", &"SubHeadLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_subtitle.name = "Subtitle"
@@ -442,11 +450,19 @@ func _build_masthead() -> void:
 	_logo.add_child(_logo_flash)
 
 
-## 左下菜单：压暗的铁条分四组。行距用空白节点而不是容器 separation。
+## 左下菜单：一盏吊灯照着四组字。行距用空白节点而不是容器 separation。
 func _build_rail() -> void:
+	# 灯在菜单之前加：字画在灯和光晕上面，灯又画在场景上面。
+	_lamp = TitleLampCursor.new()
+	_lamp.name = "MenuLamp"
+	_lamp.position = Vector2(RAIL_X - 36.0, 0.0)
+	_lamp.size = Vector2(72.0, 720.0)
+	_lamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_lamp)
+
 	_menu = MenuList.new()
 	_menu.name = "Menu"
-	_menu.strip_style = true
+	_menu.lamp_style = true
 	_menu.add_theme_constant_override("separation", 0)
 	_menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_menu.position = Vector2(RAIL_X, RAIL_TOP)
@@ -533,14 +549,14 @@ func _build_journey() -> void:
 	head_rule.name = "JourneyRule"
 	head_rule.position = Vector2(0.0, 17.0)
 	head_rule.size = Vector2(JOURNEY_W, 1.0)
-	head_rule.color = Color(0.42, 0.26, 0.16, 0.55)
+	head_rule.color = Color(0.42, 0.26, 0.16, 0.28)
 	head_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_journey.add_child(head_rule)
 	var guide := ColorRect.new()
 	guide.name = "JourneyGuide"
 	guide.position = Vector2(-10.0, 8.0)
 	guide.size = Vector2(1.0, JOURNEY_H - 16.0)
-	guide.color = Color(0.42, 0.26, 0.16, 0.30)
+	guide.color = Color(0.42, 0.26, 0.16, 0.12)
 	guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_journey.add_child(guide)
 
@@ -575,8 +591,7 @@ func _build_journey() -> void:
 		_journey.add_child(chip)
 		_chips[String(spec[0])] = chip
 
-	# 回看余烬：和上方的数据芯片同一种语汇（深底、锈边、左侧色条、切角），做成一条
-	# 与芯片同高的横条。外观由 RecapStrip 自绘；Button 只负责焦点、点击与导航。
+	# 回看余烬：和芯片一样只剩字和一根细线。Button 负责焦点、点击与导航。
 	var recap := Button.new()
 	recap.name = "RecapButton"
 	recap.flat = true
@@ -805,7 +820,7 @@ func _build_inscription() -> void:
 	rule.name = "EpitaphRule"
 	rule.position = Vector2(0.0, 0.0)
 	rule.size = Vector2(EPITAPH_RECT.size.x, 1.0)
-	rule.color = Color(0.42, 0.26, 0.16, 0.5)
+	rule.color = Color(0.42, 0.26, 0.16, 0.28)
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(rule)
 	var nail := ColorRect.new()
@@ -819,7 +834,7 @@ func _build_inscription() -> void:
 	# 字背后的柔和底衬：桥面上的栏杆和火星会从字底下穿过，垫一层才读得稳。
 	_ep_backing = ColorRect.new()
 	_ep_backing.name = "EpitaphBacking"
-	_ep_backing.color = Color(0.02, 0.01, 0.03, 0.42)
+	_ep_backing.color = Color(0.02, 0.01, 0.03, 0.16)
 	_ep_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(_ep_backing)
 
@@ -966,6 +981,8 @@ func _play_intro() -> void:
 	_keyart.modulate.a = 0.0
 	_masthead.modulate.a = 0.0
 	_subtitle.modulate.a = 0.0
+	if _lamp != null:
+		_lamp.modulate.a = 0.0
 	_logo_material.set_shader_parameter("progress", 0.0)
 	_journey.modulate.a = 0.0
 	var inscription := get_node_or_null("Inscription") as CanvasItem
@@ -1009,6 +1026,10 @@ func _play_intro() -> void:
 				.set_delay(LOGO_AT + LOGO_TIME * (0.12 + 0.19 * float(k)))
 	tw.tween_property(_subtitle, "modulate:a", 1.0, 0.35).set_delay(LOGO_AT + LOGO_TIME * 0.85) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 吊灯和第一行一起落下：链从屋架上放下来，火在落到字上时才点着。
+	if _lamp != null:
+		tw.tween_property(_lamp, "modulate:a", 1.0, 0.35).set_delay(MENU_AT)
+		tw.tween_callback(_lamp.arm).set_delay(MENU_AT)
 	# 菜单逐条落位
 	var delay := MENU_AT
 	for i in rows.size():
@@ -1077,6 +1098,10 @@ func _skip_intro() -> void:
 			control.modulate.a = 1.0
 		if child is MenuItem:
 			(child as MenuItem).land = 0.0
+	_update_lamp()
+	if _lamp != null:
+		_lamp.ignite(true)
+		_lamp.modulate.a = 1.0
 	if _world != null:
 		_world.skip_intro()
 	if _curtain != null and is_instance_valid(_curtain):
@@ -1103,6 +1128,7 @@ func _process(delta: float) -> void:
 	_update_pointer()
 	_update_dossier_hover()
 	_update_epitaph(delta)
+	_update_lamp()
 	if _quitting or _intro_playing:
 		# 退场/开屏动画期间字标 / keyart 的呼吸会让位给 tween，
 		# 否则 _process 会和 tween 抢同一个 modulate 属性。
@@ -1125,6 +1151,52 @@ func _update_pointer() -> void:
 		return
 	var local := get_local_mouse_position()
 	_world.set_pointer(Vector2(local.x / 640.0 - 1.0, local.y / 360.0 - 1.0))
+
+
+## 吊灯跟到当前行，字的亮度按离火焰的距离算。继续旅程被照到时，右侧旅程列一起亮起来。
+func _update_lamp() -> void:
+	if _lamp == null or _menu == null:
+		return
+	var items := _menu.items()
+	var selected := _menu.selected_id()
+	var idx := _menu.item_ids().find(selected)
+	if idx >= 0 and idx < items.size():
+		var row := _local_rect(items[idx])
+		_lamp.set_target_center_y(row.get_center().y - _lamp.position.y)
+	var lamp_y := _lamp.position.y + _lamp.lantern_center().y
+	for item in items:
+		var row_item := item as MenuItem
+		if row_item == null or not row_item.lamp:
+			continue
+		var dy := absf(_local_rect(row_item).get_center().y - lamp_y)
+		var amt := clampf(1.0 - dy / 120.0, 0.28, 1.0)
+		if row_item.disabled:
+			amt *= 0.45
+		if row_item.selected and not row_item.disabled:
+			amt = maxf(amt, 0.92)
+		row_item.light = amt
+	if _intro_playing or _quitting or _journey == null:
+		return
+	_set_journey_tone(1.0 if selected == ID_CONTINUE else 0.58)
+
+
+func _set_journey_tone(tone: float) -> void:
+	for node_name in ["JourneyHeader", "JourneyCount", "JourneyChapter", "JourneyRecap",
+			"JourneyGauge", "JourneyRule", "JourneyGuide", "RecapButton"]:
+		var node := _journey.get_node_or_null(String(node_name)) as CanvasItem
+		if node != null and not is_equal_approx(node.modulate.a, tone):
+			node.modulate.a = tone
+	for chip in _chips.values():
+		var node := chip as CanvasItem
+		if node != null and not is_equal_approx(node.modulate.a, tone):
+			node.modulate.a = tone
+
+
+## 火星从灯焰上迸出来；灯还没落下时，退回到这一行的中心。
+func _lamp_spark_at(item: Control) -> Vector2:
+	if _lamp != null and _lamp.modulate.a > 0.2:
+		return _lamp.position + _lamp.lantern_center()
+	return _local_rect(item).get_center()
 
 
 ## 悬停旅程列（或展开后悬停在卡上）/ Tab 固定：展开完整档案。
@@ -1242,9 +1314,10 @@ func _on_focus_changed(id: StringName) -> void:
 		if _ui_ready:
 			_world.react_to(id)
 	if _ui_sparks != null and item != null and not _intro_playing:
-		var r := _local_rect(item)
-		var at := Vector2(r.position.x + MenuItem.STRIP_CURSOR_X + 6.0, r.position.y + r.size.y * 0.5)
+		var at := _lamp_spark_at(item)
 		_ui_sparks.burst(at * 0.5, 8, 62.0)
+		if _lamp != null:
+			_lamp.flare(0.85)
 
 
 ## 页脚右侧的说明：这一行是什么（MENU_HINTS）。「继续」行在有结局时是「回看余烬」。
@@ -1507,10 +1580,10 @@ func _confirm_effect() -> void:
 		var idx := _menu.item_ids().find(_menu.selected_id())
 		if idx >= 0 and idx < items.size():
 			var item := items[idx] as MenuItem
-			var r := _local_rect(item)
 			if _ui_sparks != null:
-				_ui_sparks.burst(Vector2(r.position.x + 24.0, r.position.y + r.size.y * 0.5) * 0.5,
-						14, 90.0)
+				_ui_sparks.burst(_lamp_spark_at(item) * 0.5, 14, 90.0)
+			if _lamp != null:
+				_lamp.flare(1.2)
 			item.flash()
 
 
@@ -1545,6 +1618,8 @@ func _quit_sequence() -> void:
 		_skip_intro()
 	_quitting = true
 	_menu.active = false
+	if _lamp != null:
+		_lamp.douse()
 	_dossier_pinned = false
 	if _dossier_open:
 		_set_dossier_open(false)

@@ -20,6 +20,7 @@ extends Node2D
 ## Living details (docs/title-live-scene.md §4–§6; each is 1-3 nodes, whole-pixel, additive
 ## light only — the light budget is full, so none of them adds a PointLight2D):
 ##
+##   far haze     ash bands and window-lights drawn on HallFar (no extra node)
 ##   crucible     a ladle on an overhead rail walks over the pit, tips and pours molten iron
 ##   hammer       a far trip-hammer strikes a white-hot billet, sparks
 ##   sword chain  named greatswords ride a chain into the furnace housing (the oath, drawn);
@@ -38,6 +39,7 @@ extends Node2D
 ## nodes, no per-frame allocation in the hot paths. Everything is NEAREST and whole-pixel placed.
 
 const CrucibleScript := preload("res://scripts/ui/title_crucible.gd")
+const FarHazeScript := preload("res://scripts/ui/title_far_haze.gd")
 const HammerScript := preload("res://scripts/ui/title_hammer.gd")
 const SwordChainScript := preload("res://scripts/ui/title_sword_chain.gd")
 const BannerScript := preload("res://scripts/ui/title_banner.gd")
@@ -163,6 +165,7 @@ var _motes: TitleSparks
 var _vignette: Sprite2D
 var _flash: Polygon2D
 var _beam: Sprite2D
+var _hall_far: Sprite2D
 var _river: Sprite2D
 var _current: Sprite2D
 var _current_mat: ShaderMaterial
@@ -486,7 +489,9 @@ func _build() -> void:
 	void_rect.polygon = _rect_polygon(Rect2(Vector2(-48.0, -40.0), WORLD + Vector2(96.0, 80.0)))
 	add_child(void_rect)
 
-	_layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	# 远景的灰带和窗火画在 HallFar 自己身上，不另加节点（节点预算卡在 150）。
+	_hall_far = _layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	_hall_far.set_script(FarHazeScript)
 	# the molten river: emissive (unlit), driven by the furnace level
 	_river = _layer("PitRiver", "pit_river.png", Vector2(-32.0, 330.0), -0.30, 0, self)
 	var emissive := CanvasItemMaterial.new()
@@ -1147,6 +1152,10 @@ func _push_prop_look() -> void:
 	var heat := float(_grade["forge"]) * level * (1.0 + _surge * 0.5)
 	for prop in _heat_props:
 		prop.set_look(heat, lift)
+	# HallFar carries the haze script. It is not a living prop (those are capped at
+	# seven, each with a glow node), but it still follows the forge heat.
+	if _hall_far != null and _hall_far.has_method("set_look"):
+		_hall_far.set_look(heat, lift)
 	_braziers.boost = _brazier_boost
 	# 巢火不是 §6.1 的常驻道具（只有守炉结局在）：单独喂炉温与环境色。
 	if _nest_flame != null and is_instance_valid(_nest_flame):

@@ -154,7 +154,7 @@
 
 ## 0. 标题屏菜单架（已被 v3 取代）
 
-> **已被 v3 取代**：v3 改为左下压暗"铁条 + 余烬光标"极简列（`MenuList.strip_style = true`），详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
+> **已被 v3 取代**：标题屏现在是左下四组字加一盏吊灯光标（`MenuList.lamp_style = true`），详见 [`docs/title-live-scene.md`](./title-live-scene.md)。
 
 七格，按"行动 / 模式 / 系统 / 离开"分组：
 
