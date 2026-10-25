@@ -291,3 +291,22 @@ static func flash_alpha(alpha: float, scale: float) -> float:
 
 static func shake_px(px: float, scale: float) -> float:
 	return minf(px, SHAKE_PX_CAP) * clampf(scale, 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# 辅助选项倍率（在引用处动态读取，不改动基础常量）
+# ---------------------------------------------------------------------------
+static func damage_taken_multiplier() -> float:
+	return Settings.damage_taken_scale if is_instance_valid(Settings) else 1.0
+
+
+static func is_assist_invincible() -> bool:
+	return damage_taken_multiplier() <= 0.001
+
+
+static func parry_window_multiplier() -> float:
+	return Settings.parry_window_scale if is_instance_valid(Settings) else 1.0
+
+
+static func toxin_fill_multiplier() -> float:
+	return Settings.toxin_fill_scale if is_instance_valid(Settings) else 1.0

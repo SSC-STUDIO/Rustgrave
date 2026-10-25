@@ -12,10 +12,12 @@ var current: int
 var invincible: bool = false
 var _hit_iframe: float = 0.0
 var _dead: bool = false
+var _assist_damage_carry: float = 0.0
 
 
 func _ready() -> void:
 	current = max_hp
+	_assist_damage_carry = 0.0
 	changed.emit(current, max_hp)
 
 
@@ -28,13 +30,32 @@ func is_invincible() -> bool:
 	return invincible or _hit_iframe > 0.0 or _dead
 
 
+func _is_player_target(host: Node) -> bool:
+	if host == null:
+		return true
+	return host is Player or host.is_in_group("player")
+
+
 func take_damage(amount: int, attacker: Node = null) -> bool:
 	if amount <= 0 or is_invincible():
 		return false
-	var effective_damage := amount
 	var host := get_parent()
+	var is_player_target := _is_player_target(host)
+	if is_player_target and CombatRules.is_assist_invincible():
+		return false
+	var effective_damage := amount
 	if host is Player and "stats" in host and host.stats != null and host.stats.has_method(&"get_defense_reduction"):
 		effective_damage = maxi(1, amount - host.stats.get_defense_reduction())
+	if is_player_target:
+		var mult := CombatRules.damage_taken_multiplier()
+		if mult < 0.999:
+			var exact := float(effective_damage) * mult + _assist_damage_carry
+			var whole := int(floor(exact + 0.0001))
+			_assist_damage_carry = maxf(0.0, exact - float(whole))
+			if whole <= 0:
+				_hit_iframe = hit_iframe_time
+				return false
+			effective_damage = whole
 	current = maxi(0, current - effective_damage)
 	_hit_iframe = hit_iframe_time
 	changed.emit(current, max_hp)
@@ -63,6 +84,7 @@ func set_max_hp(new_max: int) -> void:
 func heal_full() -> void:
 	current = max_hp
 	_dead = false
+	_assist_damage_carry = 0.0
 	changed.emit(current, max_hp)
 
 

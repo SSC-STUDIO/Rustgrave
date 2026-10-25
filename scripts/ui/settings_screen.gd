@@ -1,8 +1,8 @@
 class_name SettingsScreen
 extends CanvasLayer
-## 设置界面：声音 / 画面 / 键位三页，标题屏与暂停菜单共用（与 ControlsPanel 同一套挂法）。
+## 设置界面：声音 / 画面 / 键位 / 辅助四页，标题屏与暂停菜单共用（与 ControlsPanel 同一套挂法）。
 ##
-## 一切走 Settings 自动加载：音量、震屏与闪光强度、键位改动立刻生效并落盘，
+## 一切走 Settings 自动加载：音量、震屏与闪光强度、键位、辅助选项立刻生效并落盘，
 ## 不在这里重复实现总线或键位逻辑。滑条拖动期间只改内存，松手 / 停手 SAVE_DELAY 秒后
 ## 才写一次文件（Settings.set_* 的 persist 参数），关闭界面时一定冲刷。
 ##
@@ -21,7 +21,8 @@ const Plate := preload("res://scripts/ui/menu_plate.gd")
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
 const TAB_KEYS := 2
-const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位"]
+const TAB_ASSIST := 3
+const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位", "辅 助"]
 
 const STEP := 5.0
 const SAVE_DELAY := 0.5
@@ -43,6 +44,19 @@ const BUS_NAMES := {
 ## 提示开关等没有专属接口的选项走 Settings.value；键名与各系统约定一致。
 const OPT_FULLSCREEN := &"fullscreen"
 const OPT_SMOOTHING := &"pixel_smoothing"
+const OPT_DAMAGE_TAKEN := &"damage_taken"
+const OPT_PARRY_WINDOW := &"parry_window"
+const OPT_TOXIN_FILL := &"toxin_fill"
+const OPT_SUBTITLE_SPEED := &"subtitle_speed"
+const OPT_UI_TEXT_SCALE := &"ui_text_scale"
+
+const ASSIST_IDS: Array[StringName] = [
+	OPT_DAMAGE_TAKEN,
+	OPT_PARRY_WINDOW,
+	OPT_TOXIN_FILL,
+	OPT_SUBTITLE_SPEED,
+	OPT_UI_TEXT_SCALE,
+]
 
 var _root: Control
 var _shell: Dictionary = {}
@@ -121,7 +135,7 @@ func _build() -> void:
 		tab.toggle_mode = true
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
-		tab.custom_minimum_size = Vector2(210.0, UiKit.TOUCH_MIN)
+		tab.custom_minimum_size = Vector2(180.0, UiKit.TOUCH_MIN)
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
@@ -137,6 +151,7 @@ func _build() -> void:
 	_pages.append(_build_audio_page(host))
 	_pages.append(_build_display_page(host))
 	_pages.append(_build_keys_page(host))
+	_pages.append(_build_assist_page(host))
 
 	_notice = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_notice.name = "Notice"
@@ -278,6 +293,18 @@ func _build_keys_page(host: Control) -> Control:
 	return page
 
 
+func _build_assist_page(host: Control) -> Control:
+	var page := _page(host, "AssistPage")
+	page.add_theme_constant_override("separation", 4)
+	page.add_child(_toggle_row(OPT_DAMAGE_TAKEN, "受 伤 倍 率"))
+	page.add_child(_toggle_row(OPT_PARRY_WINDOW, "弹 反 窗 口"))
+	page.add_child(_toggle_row(OPT_TOXIN_FILL, "毒素累积速度"))
+	page.add_child(_toggle_row(OPT_SUBTITLE_SPEED, "字 幕 速 度"))
+	page.add_child(_toggle_row(OPT_UI_TEXT_SCALE, "字 号 放 大"))
+	page.add_child(_page_note("辅助项随时可切换 · 免伤（辅助）在受伤结算前直接拦截伤害"))
+	return page
+
+
 ## 行底（Panel）+ 内容。焦点 / 悬停时行底换成"选中"贴图，名字变琥珀色。
 ## 页面底部的 12px 脚注：让页面下半屏有东西可看，也顺手解释这一页在改什么。
 func _page_note(text: String) -> Label:
@@ -377,6 +404,11 @@ func _paint_toggle(label: Label, on: bool) -> void:
 	label.modulate = UiKit.EMBER if on else Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.75)
 
 
+func _paint_choice(label: Label, text: String, modified: bool) -> void:
+	label.text = text
+	label.modulate = UiKit.EMBER if modified else Color.WHITE
+
+
 func _toggle_row(id: StringName, title: String) -> Control:
 	var button := _button_row(id, title, ROW_WIDTH)
 	button.name = "Toggle_%s" % String(id)
@@ -440,8 +472,37 @@ func _toggle_state(id: StringName) -> bool:
 
 func _sync_toggle(id: StringName) -> void:
 	var label := _value_labels.get(id) as Label
-	if label != null:
-		_paint_toggle(label, _toggle_state(id))
+	if label == null:
+		return
+	match id:
+		OPT_DAMAGE_TAKEN:
+			var s := Settings.damage_taken_scale
+			if s <= 0.001:
+				_paint_choice(label, "免伤（辅助）", true)
+			elif s < 0.99:
+				_paint_choice(label, "×0.5（辅助）", true)
+			else:
+				_paint_choice(label, "×1", false)
+		OPT_PARRY_WINDOW:
+			var p := Settings.parry_window_scale
+			_paint_choice(label, "×1.5（辅助）" if p > 1.05 else "×1", p > 1.05)
+		OPT_TOXIN_FILL:
+			var t := Settings.toxin_fill_scale
+			_paint_choice(label, "×0.5（辅助）" if t < 0.95 else "×1", t < 0.95)
+		OPT_SUBTITLE_SPEED:
+			var sp := Settings.subtitle_speed_scale
+			var text := "标准 ×1"
+			if sp < 0.9:
+				text = "慢 ×0.75"
+			elif sp > 1.1:
+				text = "快 ×1.5"
+			_paint_choice(label, text, absf(sp - 1.0) > 0.05)
+		OPT_UI_TEXT_SCALE:
+			var ts := Settings.ui_text_scale
+			var pct := int(round(ts * 100.0))
+			_paint_choice(label, "%d%%" % pct, pct != 100)
+		_:
+			_paint_toggle(label, _toggle_state(id))
 
 
 func _sync_keys() -> void:
@@ -489,6 +550,9 @@ func _on_setting_changed(key: StringName) -> void:
 		return
 	if key == &"keys":
 		_sync_keys()
+	elif key == &"assist" or ASSIST_IDS.has(key):
+		for id in ASSIST_IDS:
+			_sync_toggle(id)
 
 
 # --- 页面 ----------------------------------------------------------------------
@@ -625,6 +689,15 @@ func _on_slider_drag_ended(_changed: bool) -> void:
 	flush()
 
 
+static func _next_preset(current: float, presets: Array[float]) -> float:
+	var idx := 0
+	for i in presets.size():
+		if absf(current - presets[i]) < 0.01:
+			idx = i
+			break
+	return presets[(idx + 1) % presets.size()]
+
+
 func _on_toggle_pressed(id: StringName) -> void:
 	_cancel_capture()
 	match id:
@@ -634,6 +707,16 @@ func _on_toggle_pressed(id: StringName) -> void:
 		OPT_SMOOTHING:
 			GamePresentation.set_pixel_smoothing(not GamePresentation.pixel_smoothing)
 			Settings.set_value(OPT_SMOOTHING, GamePresentation.pixel_smoothing)
+		OPT_DAMAGE_TAKEN:
+			Settings.set_damage_taken_scale(_next_preset(Settings.damage_taken_scale, Settings.DAMAGE_TAKEN_PRESETS))
+		OPT_PARRY_WINDOW:
+			Settings.set_parry_window_scale(_next_preset(Settings.parry_window_scale, Settings.PARRY_WINDOW_PRESETS))
+		OPT_TOXIN_FILL:
+			Settings.set_toxin_fill_scale(_next_preset(Settings.toxin_fill_scale, Settings.TOXIN_FILL_PRESETS))
+		OPT_SUBTITLE_SPEED:
+			Settings.set_subtitle_speed_scale(_next_preset(Settings.subtitle_speed_scale, Settings.SUBTITLE_SPEED_PRESETS))
+		OPT_UI_TEXT_SCALE:
+			Settings.set_ui_text_scale(_next_preset(Settings.ui_text_scale, Settings.UI_TEXT_SCALE_PRESETS))
 		_:
 			Settings.set_value(id, not bool(Settings.value(id, true)))
 	_sync_toggle(id)
@@ -790,6 +873,10 @@ func slider_for(id: StringName) -> HSlider:
 
 func toggle_for(id: StringName) -> Button:
 	return _toggles.get(id) as Button
+
+
+func value_text(id: StringName) -> String:
+	return (_value_labels[id] as Label).text if _value_labels.has(id) else ""
 
 
 func key_button_for(action: StringName) -> Button:

@@ -44,6 +44,37 @@ const RUST_MID := Color("#A0522D")
 const ASH := Color("#8A8680")
 const SCRIM := Color(0.02, 0.01, 0.03)
 
+static var _text_scale: float = 1.0
+
+
+static func text_scale() -> float:
+	return _text_scale
+
+
+static func scaled_font_size(base_px: int) -> int:
+	return int(round(float(base_px) * _text_scale))
+
+
+## 字号放大（100% / 125% / 150%）：调整主题字号，不改动 PresentationMetrics 内容矩形，
+## 且保持固定宽度卡片内的按钮/键帽行不溢出花边卡。
+static func apply_text_scale(scale: float) -> void:
+	_text_scale = clampf(scale, 1.0, 1.5)
+	var ext := extras_theme()
+	if ext != null:
+		ext.set_font_size("font_size", &"HintLabel", scaled_font_size(24))
+		ext.set_font_size("font_size", &"HintMarkLabel", scaled_font_size(24))
+		ext.set_font_size("font_size", &"TinyHintLabel", scaled_font_size(12))
+	if ResourceLoader.exists(THEME_PATH):
+		var proj := load(THEME_PATH) as Theme
+		if proj != null:
+			var small_px := scaled_font_size(12)
+			for v in [&"HudLabel", &"HudStrongLabel", &"HudToxinLabel",
+					&"TinyLabel", &"TinyStrongLabel", &"TinyToxinLabel", &"FootnoteLabel"]:
+				proj.set_font_size("font_size", v, small_px)
+			var body_px := scaled_font_size(24)
+			for v in [&"PromptLabel", &"AnnounceLabel", &"EpitaphLabel"]:
+				proj.set_font_size("font_size", v, body_px)
+
 
 static func tex(path: String) -> Texture2D:
 	if not ResourceLoader.exists(path):
@@ -267,18 +298,18 @@ static func _extras_panels(t: Theme) -> void:
 
 static func _extras_labels(t: Theme) -> void:
 	t.set_type_variation(&"HintLabel", &"Label")
-	t.set_font_size("font_size", &"HintLabel", 24)
+	t.set_font_size("font_size", &"HintLabel", scaled_font_size(24))
 	t.set_color("font_color", &"HintLabel", Color("#E4DCCC"))
 	t.set_color("font_shadow_color", &"HintLabel", Color(0.04, 0.03, 0.06, 0.85))
 	t.set_constant("shadow_offset_x", &"HintLabel", 2)
 	t.set_constant("shadow_offset_y", &"HintLabel", 2)
 	t.set_type_variation(&"HintMarkLabel", &"Label")
-	t.set_font_size("font_size", &"HintMarkLabel", 24)
+	t.set_font_size("font_size", &"HintMarkLabel", scaled_font_size(24))
 	t.set_color("font_color", &"HintMarkLabel", EMBER)
 	# 紧凑提示（12px）：只给"说明/提示"档，比 24px 的教学条矮一半 ——
 	# 顶部那条"Tab 目标 · 天气"不该占掉 1/12 的画面。
 	t.set_type_variation(&"TinyHintLabel", &"Label")
-	t.set_font_size("font_size", &"TinyHintLabel", 12)
+	t.set_font_size("font_size", &"TinyHintLabel", scaled_font_size(12))
 	t.set_color("font_color", &"TinyHintLabel", Color("#E4DCCC"))
 	t.set_color("font_outline_color", &"TinyHintLabel", Color(0.04, 0.03, 0.06, 0.92))
 	t.set_constant("outline_size", &"TinyHintLabel", 1)

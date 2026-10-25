@@ -27,12 +27,30 @@ const MOVE_AXIS_DEADZONE := 0.2
 ## Slider drags would otherwise rewrite the file dozens of times per second.
 const SAVE_DELAY := 0.4
 
+## Assist option discrete presets.
+const DAMAGE_TAKEN_PRESETS: Array[float] = [1.0, 0.5, 0.0]
+const PARRY_WINDOW_PRESETS: Array[float] = [1.0, 1.5]
+const TOXIN_FILL_PRESETS: Array[float] = [1.0, 0.5]
+const SUBTITLE_SPEED_PRESETS: Array[float] = [0.75, 1.0, 1.5]
+const UI_TEXT_SCALE_PRESETS: Array[float] = [1.0, 1.25, 1.5]
+
 ## Redirectable for tests; production keeps PATH.
 var save_path: String = PATH
 ## 0..1 multiplier on camera shake amplitude (0 = off).
 var shake_scale: float = 1.0
 ## 0..1 multiplier on full-screen flashes and lightning (0 = off).
 var flash_scale: float = 1.0
+## Assist options (default 1.0 = no gameplay / UI change).
+## damage_taken_scale: 1.0 (normal), 0.5 (half damage), 0.0 (invincible assist).
+var damage_taken_scale: float = 1.0
+## parry_window_scale: 1.0 (normal), 1.5 (extended active/parry window).
+var parry_window_scale: float = 1.0
+## toxin_fill_scale: 1.0 (normal), 0.5 (slowed toxin accumulation).
+var toxin_fill_scale: float = 1.0
+## subtitle_speed_scale: 0.75 / 1.0 / 1.5 typewriter speed multiplier.
+var subtitle_speed_scale: float = 1.0
+## ui_text_scale: 1.0 (100%) / 1.25 (125%) / 1.5 (150%).
+var ui_text_scale: float = 1.0
 
 var _volume: Dictionary = {}
 var _key_overrides: Dictionary = {}
@@ -67,6 +85,12 @@ func load_settings() -> bool:
 			_volume[bus] = clampf(float(cfg.get_value("audio", String(bus), DEFAULT_VOLUME[bus])), 0.0, 100.0)
 		shake_scale = clampf(float(cfg.get_value("comfort", "shake", 1.0)), 0.0, 1.0)
 		flash_scale = clampf(float(cfg.get_value("comfort", "flash", 1.0)), 0.0, 1.0)
+		if cfg.has_section("assist"):
+			damage_taken_scale = _snap_preset(float(cfg.get_value("assist", "damage_taken", 1.0)), DAMAGE_TAKEN_PRESETS, 1.0)
+			parry_window_scale = _snap_preset(float(cfg.get_value("assist", "parry_window", 1.0)), PARRY_WINDOW_PRESETS, 1.0)
+			toxin_fill_scale = _snap_preset(float(cfg.get_value("assist", "toxin_fill", 1.0)), TOXIN_FILL_PRESETS, 1.0)
+			subtitle_speed_scale = _snap_preset(float(cfg.get_value("assist", "subtitle_speed", 1.0)), SUBTITLE_SPEED_PRESETS, 1.0)
+			ui_text_scale = _snap_preset(float(cfg.get_value("assist", "ui_text_scale", 1.0)), UI_TEXT_SCALE_PRESETS, 1.0)
 		if cfg.has_section("keys"):
 			for action in REBINDABLE:
 				var code := int(cfg.get_value("keys", String(action), 0))
@@ -83,6 +107,17 @@ func load_settings() -> bool:
 	_loaded = true
 	apply_all()
 	return ok
+
+
+static func _snap_preset(val: float, presets: Array[float], fallback: float) -> float:
+	var best := fallback
+	var best_diff := INF
+	for p in presets:
+		var d := absf(val - p)
+		if d < best_diff:
+			best_diff = d
+			best = p
+	return best
 
 
 ## Coalesced write: many callers (slider drags) can ask; one write lands ~0.4 s after the last.
@@ -110,6 +145,11 @@ func save_settings() -> bool:
 		cfg.set_value("audio", String(bus), volume_percent(bus))
 	cfg.set_value("comfort", "shake", shake_scale)
 	cfg.set_value("comfort", "flash", flash_scale)
+	cfg.set_value("assist", "damage_taken", damage_taken_scale)
+	cfg.set_value("assist", "parry_window", parry_window_scale)
+	cfg.set_value("assist", "toxin_fill", toxin_fill_scale)
+	cfg.set_value("assist", "subtitle_speed", subtitle_speed_scale)
+	cfg.set_value("assist", "ui_text_scale", ui_text_scale)
 	for action in _key_overrides:
 		cfg.set_value("keys", String(action), int(_key_overrides[action]))
 	for action in _pad_overrides:
@@ -137,6 +177,7 @@ func apply_all() -> void:
 		InputMap.action_set_deadzone(&"move_left", MOVE_AXIS_DEADZONE)
 	if InputMap.has_action(&"move_right"):
 		InputMap.action_set_deadzone(&"move_right", MOVE_AXIS_DEADZONE)
+	UiKit.apply_text_scale(ui_text_scale)
 
 
 # --- volume -----------------------------------------------------------------
@@ -176,6 +217,56 @@ func set_flash_scale(value: float, persist: bool = true) -> void:
 	if persist:
 		save_soon()
 	changed.emit(&"flash")
+
+
+# --- assist options ---------------------------------------------------------
+
+func set_damage_taken_scale(value: float, persist: bool = true) -> void:
+	damage_taken_scale = _snap_preset(value, DAMAGE_TAKEN_PRESETS, 1.0)
+	if persist:
+		save_settings()
+	changed.emit(&"damage_taken")
+
+
+func set_parry_window_scale(value: float, persist: bool = true) -> void:
+	parry_window_scale = _snap_preset(value, PARRY_WINDOW_PRESETS, 1.0)
+	if persist:
+		save_settings()
+	changed.emit(&"parry_window")
+
+
+func set_toxin_fill_scale(value: float, persist: bool = true) -> void:
+	toxin_fill_scale = _snap_preset(value, TOXIN_FILL_PRESETS, 1.0)
+	if persist:
+		save_settings()
+	changed.emit(&"toxin_fill")
+
+
+func set_subtitle_speed_scale(value: float, persist: bool = true) -> void:
+	subtitle_speed_scale = _snap_preset(value, SUBTITLE_SPEED_PRESETS, 1.0)
+	if persist:
+		save_settings()
+	changed.emit(&"subtitle_speed")
+
+
+func set_ui_text_scale(value: float, persist: bool = true) -> void:
+	ui_text_scale = _snap_preset(value, UI_TEXT_SCALE_PRESETS, 1.0)
+	UiKit.apply_text_scale(ui_text_scale)
+	if persist:
+		save_settings()
+	changed.emit(&"ui_text_scale")
+
+
+func reset_assist(persist: bool = true) -> void:
+	damage_taken_scale = 1.0
+	parry_window_scale = 1.0
+	toxin_fill_scale = 1.0
+	subtitle_speed_scale = 1.0
+	ui_text_scale = 1.0
+	UiKit.apply_text_scale(ui_text_scale)
+	if persist:
+		save_settings()
+	changed.emit(&"assist")
 
 
 # --- key bindings -----------------------------------------------------------
@@ -428,6 +519,11 @@ func _reset_values() -> void:
 		_volume[bus] = float(DEFAULT_VOLUME[bus])
 	shake_scale = 1.0
 	flash_scale = 1.0
+	damage_taken_scale = 1.0
+	parry_window_scale = 1.0
+	toxin_fill_scale = 1.0
+	subtitle_speed_scale = 1.0
+	ui_text_scale = 1.0
 	_key_overrides.clear()
 	_pad_overrides.clear()
 	_extra.clear()

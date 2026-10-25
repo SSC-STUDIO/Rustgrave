@@ -58,23 +58,24 @@ func _ready() -> void:
 		hitbox = get_node("Hitbox")
 	# Sole deflection path: the swing's active frames acknowledge incoming
 	# projectiles through the hitbox signal plus the idle-frame sweep below.
-	hitbox.area_entered.connect(_on_hitbox_area_entered)
-	if hitbox:
+	if hitbox != null:
+		hitbox.area_entered.connect(_on_hitbox_area_entered)
 		hitbox.damage = damage
 		hitbox.team = &"player"
 		hitbox.riposte_eligible = true
 		hitbox.monitoring = false
 	var host := get_parent()
-	var hp := host.get_node_or_null("Health") as Health
-	if hp != null:
-		hp.died.connect(cancel_attack)
-	# 取消窗口：冲刺要过闸门才能打断后摇；起跳 / 冲刺成功后由这里收尾。
-	# 只连宿主自己的控制器信号，不走全局总线，重生时不会重复连接。
-	var ctrl := host.get_node_or_null("PlayerController") as PlayerController
-	if ctrl != null:
-		ctrl.dash_cancel_gate = can_dash_cancel
-		ctrl.dashed.connect(_on_host_dashed)
-		ctrl.jumped.connect(_on_host_jumped)
+	if host != null:
+		var hp := host.get_node_or_null("Health") as Health
+		if hp != null:
+			hp.died.connect(cancel_attack)
+		# 取消窗口：冲刺要过闸门才能打断后摇；起跳 / 冲刺成功后由这里收尾。
+		# 只连宿主自己的控制器信号，不走全局总线，重生时不会重复连接。
+		var ctrl := host.get_node_or_null("PlayerController") as PlayerController
+		if ctrl != null:
+			ctrl.dash_cancel_gate = can_dash_cancel
+			ctrl.dashed.connect(_on_host_dashed)
+			ctrl.jumped.connect(_on_host_jumped)
 
 
 func _notification(what: int) -> void:
@@ -194,6 +195,11 @@ func is_parry_window() -> bool:
 	return _state == State.ACTIVE and not _host_locked()
 
 
+func active_window_for_step(step: int = 0) -> float:
+	var idx := clampi(step, 0, COMBO_ACTIVE.size() - 1)
+	return float(COMBO_ACTIVE[idx]) * CombatRules.parry_window_multiplier()
+
+
 ## 本刀是否已经「打实」：造成了伤害或弹反成功。盾面挡下不算。
 func swing_connected() -> bool:
 	return _parried_swing or (hitbox != null and hitbox.connected)
@@ -215,7 +221,7 @@ func phase_progress() -> float:
 		State.WINDUP:
 			total = float(COMBO_WINDUP[_combo_index])
 		State.ACTIVE:
-			total = float(COMBO_ACTIVE[_combo_index])
+			total = active_window_for_step(_combo_index)
 		State.RECOVERY:
 			total = float(COMBO_RECOVERY[_combo_index])
 	return clampf(1.0 - _timer / maxf(total, 0.001), 0.0, 1.0)
@@ -379,7 +385,7 @@ func _begin_windup() -> void:
 
 func _begin_active() -> void:
 	_state = State.ACTIVE
-	_timer = float(COMBO_ACTIVE[_combo_index])
+	_timer = active_window_for_step(_combo_index)
 	_parried_swing = false
 	if hitbox:
 		var face := 1.0

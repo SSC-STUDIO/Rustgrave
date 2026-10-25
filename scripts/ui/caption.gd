@@ -23,6 +23,11 @@ var _panel: PanelContainer
 var _lift := 0.0
 
 
+static func effective_chars_per_sec() -> float:
+	var scale := Settings.subtitle_speed_scale if is_instance_valid(Settings) else 1.0
+	return CHARS_PER_SEC * maxf(0.25, scale)
+
+
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -108,7 +113,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	if _typing:
-		_shown += CHARS_PER_SEC * delta
+		_shown += effective_chars_per_sec() * delta
 		var n := mini(_full.length(), int(_shown))
 		_label.text = _full.substr(0, n)
 		if n >= _full.length():
