@@ -4,8 +4,13 @@ extends "res://tools/input_walkthrough.gd"
 
 var _fight_tick := 0
 var _final_caption_recorded := false
+## `--route`：路线验收模式。只验证 14 章的到达/门禁/存档/结局链，不做战斗技巧验证
+## （Boss 门禁用结算击杀跳过，并打印 route mode 日志）；Boss 战正确性由
+## tests/<boss>_test.gd 与 tools/boss_fixture.gd 覆盖。默认关闭 = 全正常输入。
+var _route_mode := false
 
 func _run() -> void:
+	_route_mode = "--route" in OS.get_cmdline_user_args()
 	if not "--resume" in OS.get_cmdline_user_args():
 		await super._run()
 		return
@@ -420,8 +425,26 @@ func _clear_gate_boss(exit: LevelExit) -> bool:
 	if boss == null:
 		# 没有 Boss 可打：门仍锁着就是布局/旗标问题，让后面的 interact 暴露出来。
 		return true
+	# Boss 死亡时会释放自己：名字先抓在手里，别碰已释放的节点。
+	var boss_name := String(boss.name)
 	_step = "campaign_boss_" + flag
-	print("[BOSS GATE] fighting %s for flag %s" % [boss.name, flag])
+	if _route_mode:
+		# 路线验收模式：直接结算 Boss 死亡，验证「门禁→到达→存档」链。
+		print("[BOSS GATE] route mode: finishing %s for flag %s (combat skipped)" % [boss_name, flag])
+		var boss_health = boss.get("health")
+		if boss_health != null and boss_health.has_method("take_damage"):
+			boss_health.take_damage(9999, _player())
+		for _wait in 300:
+			await _frames(1)
+			if SaveData.has_flag(flag): break
+		if not SaveData.has_flag(flag):
+			_fail("route mode could not unlock " + flag)
+			return false
+		await _frames(60)
+		await _settle_fade()
+		_record(boss_name + "_slain")
+		return true
+	print("[BOSS GATE] fighting %s for flag %s" % [boss_name, flag])
 	# 只给一次有界尝试：验收驱动不会为一场 Boss 无限重试（Boss 战正确性由
 	# tests/<boss>_test.gd 与 tools/boss_fixture.gd 覆盖）。
 	for i in 5400:
