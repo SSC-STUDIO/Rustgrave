@@ -153,4 +153,3 @@ func _tap_start() -> void:
 	event.pressed = false
 	Input.parse_input_event(event)
 	await get_tree().process_frame
-

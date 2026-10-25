@@ -94,4 +94,3 @@ func test_individual_rematch_uses_current_chapter_and_safe_arena_entry() -> void
 		if expected.has(row["kind"]):
 			eq(stages[0]["level_id"], expected[row["kind"]])
 		ok((stages[0]["spawn"] as Vector2).x > 1800.0, "practice starts in the current arena")
-
