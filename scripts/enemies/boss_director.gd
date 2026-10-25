@@ -31,6 +31,8 @@ signal enrage_started
 signal arena_event(id: StringName, data: Dictionary)
 signal died
 signal frozen_changed(frozen: bool)
+signal poise_changed(hits: int, threshold: int)
+signal poise_broken
 
 const ATTACH_NAME := "BossDirector"
 
@@ -64,6 +66,10 @@ var _next_allowed_at: float = 0.0
 var _cooldowns: Dictionary = {}
 var _fired_events: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
+var _poise_hits := 0
+var _poise_left := 0.0
+var _poise_recovery := 0.0
+var _poise_cooldown := 0.0
 
 
 ## 工厂：给 Boss 挂一个导演层。重复调用返回已有实例（顺带刷新配置）。
@@ -94,6 +100,7 @@ func _ready() -> void:
 		_rng.randomize()
 	if rng_seed != 0:
 		_rng.seed = rng_seed
+	GameEvents.hit.connect(_on_poise_hit)
 	set_physics_process(true)
 
 
@@ -104,6 +111,7 @@ func _ready() -> void:
 func start() -> void:
 	if running:
 		return
+	_reset_poise()
 	running = true
 	clock = 0.0
 	_active_attack_clear()
@@ -124,6 +132,7 @@ func stop() -> void:
 ## 重试 / 重开：时钟与阶段归零，保留 kit。
 func reset_fight() -> void:
 	stop()
+	_reset_poise()
 	clock = 0.0
 	phase = 1
 	enraged = false
@@ -155,6 +164,7 @@ func notify_death() -> void:
 	if _death_notified:
 		return
 	_death_notified = true
+	_reset_poise()
 	running = false
 	_active_attack_clear()
 	emit_signal("died")
@@ -252,9 +262,13 @@ func is_busy() -> bool:
 func tick(delta: float) -> void:
 	if delta <= 0.0:
 		return
-	if frozen or not running:
+	if frozen:
 		return
 	if get_tree() != null and get_tree().paused:
+		return
+	if not Director.is_input_locked():
+		_tick_poise(delta)
+	if not running:
 		return
 	clock += delta
 	if not active_attack.is_empty() and clock >= _busy_until:
@@ -270,6 +284,63 @@ func tick(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	tick(delta)
+
+
+func poise_hits() -> int:
+	return _poise_hits
+
+
+func is_poise_broken() -> bool:
+	return _poise_recovery > 0.0
+
+
+func _on_poise_hit(attacker: Node, target: Node, amount: int) -> void:
+	if target != boss or not (boss is EnemyBase) or amount <= 0 or _death_notified:
+		return
+	var enemy := boss as EnemyBase
+	if enemy.hit_material != &"boss" or enemy.health == null or enemy.health.current <= 0 \
+			or enemy.health.invincible or frozen or Director.is_input_locked() \
+			or (get_tree() != null and get_tree().paused) or _poise_cooldown > 0.0:
+		return
+	# GameEvents.hit follows Health's successful damage path. Blocked/i-frame hits,
+	# reflected bolts, hot light blows and secondary fire/waves cannot add poise.
+	if not (attacker is Hitbox):
+		return
+	var blade := attacker as Hitbox
+	if blade.team != &"player" or not blade.riposte_eligible or blade.blow != &"finisher":
+		return
+	_poise_hits += 1
+	_poise_left = CombatRules.BOSS_POISE_WINDOW
+	poise_changed.emit(_poise_hits, CombatRules.BOSS_POISE_HITS)
+	if _poise_hits < CombatRules.BOSS_POISE_HITS:
+		return
+	_poise_hits = 0
+	_poise_left = 0.0
+	_poise_recovery = CombatRules.BOSS_POISE_RECOVERY
+	_poise_cooldown = CombatRules.BOSS_POISE_COOLDOWN
+	notify_attack_finished()
+	enemy.break_poise(_poise_recovery)
+	poise_changed.emit(0, CombatRules.BOSS_POISE_HITS)
+	poise_broken.emit()
+	GameEvents.announcement.emit("连续终结击破势 —— 首领露出了空当")
+
+
+func _tick_poise(delta: float) -> void:
+	_poise_recovery = maxf(0.0, _poise_recovery - delta)
+	_poise_cooldown = maxf(0.0, _poise_cooldown - delta)
+	if _poise_left > 0.0:
+		_poise_left = maxf(0.0, _poise_left - delta)
+		if _poise_left <= 0.0:
+			_poise_hits = 0
+			poise_changed.emit(0, CombatRules.BOSS_POISE_HITS)
+
+
+func _reset_poise() -> void:
+	_poise_hits = 0
+	_poise_left = 0.0
+	_poise_recovery = 0.0
+	_poise_cooldown = 0.0
+	poise_changed.emit(0, CombatRules.BOSS_POISE_HITS)
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +415,8 @@ func schedule_snapshot() -> Dictionary:
 		"last_attack_id": String(last_attack_id),
 		"active_attack_id": String(active_attack.get("id", "")),
 		"next_attack_in": maxf(0.0, _next_allowed_at - clock),
+		"poise_hits": _poise_hits,
+		"poise_recovery": _poise_recovery,
 		"attacks": by_id,
 		"arena_events": kit.arena_events() if kit != null else [],
 	}
@@ -365,7 +438,7 @@ func _distance_to_player() -> float:
 # 内部
 # ---------------------------------------------------------------------------
 func _can_pick() -> bool:
-	if not running or frozen:
+	if not running or frozen or is_poise_broken():
 		return false
 	if get_tree() != null and get_tree().paused:
 		return false

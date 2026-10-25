@@ -285,9 +285,9 @@ func _begin_dive() -> void:
 	_face_player()
 	begin_telegraph(&"emberwind_herald", DIVE_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.LANE,
-			Vector2(_facing * 30.0, _floor_y - HOVER_HEIGHT + 8.0),
+			Vector2(global_position.x + _facing * 30.0, _floor_y - DIVE_LOW + 8.0),
 			DIVE_WINDUP, Color(1.0, 0.7, 0.35, 0.95),
-			{"length": DIVE_LANE, "facing": _facing})
+			{"length": DIVE_LANE, "facing": _facing, "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"boss_axe_swing"), global_position, 0.1, -8.0)
 
 
@@ -296,9 +296,9 @@ func _begin_push() -> void:
 	_face_player()
 	begin_telegraph(&"emberwind_herald", PUSH_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
-			Vector2(_facing * PUSH_SIZE.x * 0.5, _floor_y - 70.0),
+			Vector2(global_position.x + _facing * PUSH_SIZE.x * 0.5, _floor_y - PUSH_SIZE.y * 0.5 - 10.0),
 			PUSH_WINDUP, Color(0.55, 0.9, 1.0, 0.9),
-			{"rect": Rect2(-PUSH_SIZE * 0.5, PUSH_SIZE)})
+			{"rect": Rect2(-PUSH_SIZE * 0.5, PUSH_SIZE), "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -8.0)
 
 
@@ -318,10 +318,10 @@ func _begin_updraft() -> void:
 	set_meta("updraft_x", _clamp_x(at_x))
 	begin_telegraph(&"emberwind_herald", UPDRAFT_WINDUP)
 	CombatMarker.spawn(self, CombatMarker.Kind.ZONE,
-			Vector2(float(get_meta("updraft_x")) - global_position.x, _floor_y - 80.0),
+			Vector2(float(get_meta("updraft_x")), _floor_y - UPDRAFT_HEIGHT * 0.5),
 			UPDRAFT_WINDUP, Color(0.65, 0.95, 0.85, 0.9),
 			{"rect": Rect2(-Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT) * 0.5,
-					Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT))})
+					Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT)), "top_level": true})
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -10.0)
 
 
@@ -416,7 +416,11 @@ func _do_push() -> void:
 	zone.size = PUSH_SIZE
 	zone.flow = _facing * (PUSH_FLOW_P2 if _enraged else PUSH_FLOW)
 	zone.life = PUSH_ACTIVE + 0.05
-	zone.position = Vector2(_facing * PUSH_SIZE.x * 0.5, _floor_y - zone.size.y * 0.5 - 10.0)
+	# These ground areas belong to the Boss for cleanup but stay in world space.
+	# _floor_y is already global; inheriting the flying transform counted it twice.
+	zone.top_level = true
+	zone.position = Vector2(global_position.x + _facing * PUSH_SIZE.x * 0.5,
+			_floor_y - zone.size.y * 0.5 - 10.0)
 	add_child(zone)
 	_transient.append(zone)
 	Sfx.play_at(CombatRules.sfx_key(&"dash"), global_position, 0.1, -6.0)
@@ -449,7 +453,8 @@ func _do_updraft() -> void:
 	zone.size = Vector2(UPDRAFT_WIDTH, UPDRAFT_HEIGHT)
 	zone.lift = UPDRAFT_LIFT_P2 if _enraged else UPDRAFT_LIFT
 	zone.life = UPDRAFT_LIFE if _enraged else UPDRAFT_LIFE * 0.75
-	zone.position = Vector2(float(get_meta("updraft_x")) - global_position.x,
+	zone.top_level = true
+	zone.position = Vector2(float(get_meta("updraft_x")),
 			_floor_y - zone.size.y * 0.5)
 	add_child(zone)
 	_transient.append(zone)
@@ -552,8 +557,17 @@ func _interrupt_attack() -> void:
 			_boss_director.notify_attack_finished()
 
 
+func _interrupt_for_poise() -> void:
+	_interrupt_attack()
+	hitbox.disarm()
+	# A hook-earned down window remains longer than this finisher recovery.
+	if _state != State.DOWNED:
+		_state = State.IDLE
+		_timer = 0.0
+
+
 # ---------------------------------------------------------------------------
-# 视觉（程序化像素：披灰的翼 + 羽刃轮廓）
+# 视觉（原创机械鸟逐帧像素，独立钢翼 / 镜眼尾羽 / 炉灯胸腔）
 # ---------------------------------------------------------------------------
 func _build_visual() -> void:
 	if visual == null:
@@ -581,68 +595,44 @@ func _build_visual() -> void:
 
 func _update_visuals(delta: float) -> void:
 	if _shell != null and _shell.has_method("animate"):
-		_shell.call("animate", delta, 1.0 if _facing >= 0.0 else -1.0, _enraged, is_down())
+		_shell.call("animate", delta, 1.0 if _facing >= 0.0 else -1.0, _enraged, is_down(), String(_attack), int(_step))
 	if _glow != null:
 		var pulse := 1.0 + 0.1 * sin(Time.get_ticks_msec() / 1000.0 * 2.6)
 		_glow.modulate.a = (0.26 if _enraged else 0.14) * pulse
 
 
-## 灰卫：灰披风、翼上的羽刃、头盔里一点炉火。翼按正弦扇动。
+## 源稿 tools/gen_original_bell_bosses.py：长喙冠、分节钢翼和五片镜眼尾羽。
+## 真实攻击阶段约束前摇 / 判定 / 后摇，不让帧时钟提前播放命中姿势。
 class HeraldShell extends Node2D:
 	var _t := 0.0
-	var _facing := 1.0
 	var _hot := false
-	var _down := false
+	var _frames: FrameAnimSprite
+
+	func _ready() -> void:
+		_frames = FrameAnimSprite.new()
+		_frames.name = "OriginalHeraldFrames"
+		for prefix in ["", "hot_"]:
+			for action in ["idle", "dive", "wind_push", "feather_blades", "updraft", "downed"]:
+				var key: String = prefix + action
+				# The folded lantern sits at the same hurtbox center. Its lowest
+				# hull pixel stays above the floor when the real yank lands it.
+				var anchor := Vector2(0.0, -52.0 if action == "downed" else -40.0)
+				_frames.register(key, CharFrames.anim("original_emberwind_herald", key), 6.0, true, anchor)
+		add_child(_frames)
+		_frames.pin_frame("idle", 0)
 
 	func set_hot(hot: bool) -> void:
 		_hot = hot
-		queue_redraw()
+		if _frames != null:
+			_frames.pin_frame(("hot_" if hot else "") + "idle", 0)
 
-	func animate(delta: float, facing: float, hot: bool, down: bool) -> void:
+	func animate(delta: float, facing: float, hot: bool, down: bool, attack: String = "", step: int = 0) -> void:
 		_t += delta
-		_facing = facing
 		_hot = hot
-		_down = down
-		queue_redraw()
-
-	func _draw() -> void:
-		var flap := sin(_t * 5.6) * 0.5 + 0.5
-		var base := Color(0.42, 0.44, 0.48)
-		var ash := Color(0.30, 0.31, 0.35)
-		var ember := Color(1.0, 0.55, 0.2) if _hot else Color(0.9, 0.55, 0.25)
-		# 披风 / 躯干（向下收窄的斗篷）。
-		var cloak := PackedVector2Array([
-			Vector2(-9.0, -30.0), Vector2(9.0, -30.0),
-			Vector2(13.0, -6.0), Vector2(6.0, 8.0), Vector2(-6.0, 8.0), Vector2(-13.0, -6.0),
-		])
-		draw_colored_polygon(cloak, ash)
-		draw_rect(Rect2(-3.0, -26.0, 6.0, 20.0), base)
-		# 头盔：窄长的灰盔，面缝一点火。
-		draw_rect(Rect2(-6.0, -46.0, 12.0, 14.0), base)
-		draw_rect(Rect2(-8.0, -44.0, 16.0, 3.0), Color(0.24, 0.25, 0.28))
-		draw_rect(Rect2(-2.0, -40.0, 4.0, 2.0), ember)
-		# 翅膀：三层羽刃，扇动幅度随 flap。
-		for side in [-1.0, 1.0]:
-			var spread := 12.0 + 16.0 * flap
-			var wing := PackedVector2Array([
-				Vector2(side * 6.0, -26.0),
-				Vector2(side * spread, -40.0 - 6.0 * flap),
-				Vector2(side * (spread + 10.0), -28.0 - 10.0 * flap),
-				Vector2(side * (spread + 4.0), -18.0 - 4.0 * flap),
-				Vector2(side * 7.0, -20.0),
-			])
-			draw_colored_polygon(wing, Color(0.36, 0.38, 0.42))
-			draw_line(wing[1], wing[4], Color(0.5, 0.52, 0.55), 1.0)
-			draw_line(wing[2], wing[3], Color(0.5, 0.52, 0.55), 1.0)
-		# 羽刃：悬在身侧的 3 片薄刃（二阶段刃口透热）。
-		for i in 3:
-			var bx := -10.0 + float(i) * 10.0
-			var by := -12.0 + float(i % 2) * 4.0
-			draw_line(Vector2(bx, by), Vector2(bx + 2.0, by + 12.0),
-					Color(0.6, 0.62, 0.66), 1.0)
-		# 坠落（被钩下来）时翅膀收拢成灰堆：画几条灰线。
-		if _down:
-			draw_line(Vector2(-16.0, 6.0), Vector2(16.0, 6.0), Color(0.35, 0.36, 0.4), 2.0)
+		var action := "downed" if down else (attack if not attack.is_empty() else "idle")
+		var index := int(_t * 6.0) % (4 if down else 6) if action in ["idle", "downed"] else clampi(step, 0, 2) * 2 + int(_t * 8.0) % 2
+		_frames.flip_h = facing < 0.0
+		_frames.pin_frame(("hot_" if hot else "") + action, index)
 
 
 ## 风推区：把站进去的骑士沿 flow 方向推（真实速度，不改玩家公式）。
@@ -796,7 +786,8 @@ func _on_died() -> void:
 	SaveData.mark_flag(FLAG_DEAD)
 	SaveData.persist_story()
 	_cleanup_transient()
-	_death_burst([] as Array[Texture2D], 12.0, _facing > 0.0, 0.0, "最后一片灰落在风口上")
+	_death_burst(CharFrames.anim("original_emberwind_herald", "hot_downed" if _enraged else "downed"),
+			8.0, _facing < 0.0, -52.0, "最后一片灰落在风口上")
 
 
 func _cleanup_transient() -> void:

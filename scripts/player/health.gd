@@ -33,8 +33,10 @@ func take_damage(amount: int, attacker: Node = null) -> bool:
 		return false
 	var effective_damage := amount
 	var host := get_parent()
+	if host is Player:
+		effective_damage = CombatRules.incoming_damage(amount)
 	if host is Player and "stats" in host and host.stats != null and host.stats.has_method(&"get_defense_reduction"):
-		effective_damage = maxi(1, amount - host.stats.get_defense_reduction())
+		effective_damage = maxi(1, effective_damage - host.stats.get_defense_reduction())
 	current = maxi(0, current - effective_damage)
 	_hit_iframe = hit_iframe_time
 	changed.emit(current, max_hp)

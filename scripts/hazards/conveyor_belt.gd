@@ -122,3 +122,15 @@ class StripeOverlay extends Node2D:
 				else:
 					HazardFx.px_rect(self, Rect2(clampf(x - 1.0, 0.0, belt_size.x), 1.0, 2.0, 1.0), c)
 			x += STRIPE
+
+
+## 无搬运的完整停转窗口。运动中的带仍可走，但不能当作静止落脚点。
+func safe_window(duration: float = 0.0) -> bool:
+	if is_zero_approx(speed):
+		return is_zero_approx(current_velocity())
+	if flip_period <= 0.01:
+		return false
+	var half := fposmod(_t, flip_period)
+	if half <= flip_period - minf(STOP_TIME, flip_period * 0.4):
+		return false
+	return maxf(0.0, duration) < flip_period - half

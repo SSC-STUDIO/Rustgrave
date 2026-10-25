@@ -6,6 +6,7 @@ extends RefCounted
 ## 每个机关皮肤在每个时刻的候选音效键，按顺序取第一个在 Sfx.LIBRARY 里存在的。
 ## 新做的专用音效（tools/gen_audio_sfx.py）只要加进 LIBRARY，这里自动改用，不必改机关代码。
 const SFX := {
+	"wind": {"fire": [&"hazard_wind"]},
 	"steam": {
 		"warn": [&"hazard_steam_warn", &"gear_creak"],
 		"fire": [&"hazard_steam", &"splash"],

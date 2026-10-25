@@ -161,7 +161,8 @@ func test_mouse_hover_and_exit_transitions() -> void:
 	ok(w_btn.modulate.r >= 1.0, "slot button lit on hover")
 
 	panel._on_slot_blurred(&"weapon")
-	await flush(3)
+	# Blur animates for 0.16s; three physics frames do not finish that tween.
+	await get_tree().create_timer(0.2).timeout
 	ok(abs(w_btn.modulate.r - 1.0) < 0.05, "slot button restored after blur")
 
 	# Rapid enter/exit cycling (stress test tweens)

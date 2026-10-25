@@ -11,7 +11,7 @@ const NEWER_MANIFEST := '{"version":"9.9.9","notes_zh":"· 一条更新\\n· 又
 const OLDER_MANIFEST := '{"version":"0.0.1","notes_zh":"旧版","download_page":"http://example.invalid/old"}'
 const EMPTY_MANIFEST := '{"notes_zh":"没有版本号"}'
 
-const SERVER_SCRIPT := "res://tools/test_manifest_server.js"
+const SERVER_SCRIPT := "res://tools/test_manifest_server.cjs"
 const SERVER_PORT := 38117
 
 
@@ -150,14 +150,13 @@ func test_skip_without_entry_is_a_noop() -> void:
 
 
 # ===========================================================================
-# 4. 真实 HTTP 链路（本地一次性 server；没有 node 就跑不了，如实标记）
+# 4. 真实 HTTP 链路（本地一次性 server；缺少 Node 或启动失败必须失败）
 # ===========================================================================
 
 ## check_async 走完：HTTPRequest 发出、收到 200、解析、emit。这一条
 ## 验证的是请求路径本身，前面的用例只验证解析后的决策。
 func test_check_async_pulls_the_manifest_over_http() -> void:
 	if not await _spawn_server(NEWER_MANIFEST):
-		push_warning("SKIP: no node runtime for the manifest server")
 		return
 	var got: Array = []
 	UpdateService.checked.connect(func(status, _entry): got.append(status))
@@ -187,16 +186,17 @@ func test_check_async_unreachable_reports_error() -> void:
 ## 一次检查在飞时，第二次直接吃掉：标题屏连点两次不该发两个请求。
 func test_check_async_ignores_concurrent_second_call() -> void:
 	if not await _spawn_server(NEWER_MANIFEST):
-		push_warning("SKIP: no node runtime for the manifest server")
 		return
-	var count := 0
-	UpdateService.checked.connect(func(_status, _entry): count += 1)
+	var got: Array = []
+	UpdateService.checked.connect(func(status, _entry): got.append(status))
 	UpdateService.set_manifest_url_for_test("http://127.0.0.1:%d/update.json" % SERVER_PORT)
 	UpdateService.check_async()
 	UpdateService.check_async()  # 第一次还没回来，这次应该被吃掉
-	await _wait_for_signal([])
+	await _wait_for_signal(got)
+	await get_tree().create_timer(0.1).timeout
 	_kill_server()
-	eq(count, 1, "并发第二次 check 不重复发信号")
+	eq(got.size(), 1, "并发第二次 check 不重复发信号")
+	eq(got.front() if not got.is_empty() else &"idle", &"available", "唯一的请求完成真实 HTTP 检查")
 
 
 # ===========================================================================
@@ -213,16 +213,31 @@ func _spawn_server(body: String) -> bool:
 	if FileAccess.file_exists(ready):
 		DirAccess.remove_absolute(ready)
 	var script := ProjectSettings.globalize_path(SERVER_SCRIPT)
-	var pid := OS.create_process("node", [script, body, "/update.json", "12",
+	# Windows CreateProcess strips embedded JSON quotes from argv. Pass a file so
+	# this covers the real manifest bytes, including escaped notes and Unicode.
+	var body_path := ready + ".json"
+	var body_file := FileAccess.open(body_path, FileAccess.WRITE)
+	ok(body_file != null, "manifest fixture file opens")
+	if body_file == null:
+		return false
+	body_file.store_string(body)
+	body_file.close()
+	var runtime := OS.get_environment("RUSTGRAVE_TEST_NODE")
+	if runtime.is_empty():
+		runtime = "node"
+	var pid := OS.create_process(runtime, [script, "--body-file=" + body_path, "/update.json", "12",
 			str(SERVER_PORT), ready], false)
+	ok(pid > 0, "local HTTP coverage requires a working Node runtime (RUSTGRAVE_TEST_NODE)")
 	if pid < 0:
 		return false
 	_server_pid = pid
 	# 轮询 ready 文件：node 起到 listen 有几毫秒，不能假定一 spawn 就能连。
-	for _i in 60:
-		await flush(1)
+	var deadline := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < deadline:
+		await get_tree().create_timer(0.05, true, false, true).timeout
 		if FileAccess.file_exists(ready):
 			return true
+	ok(false, "manifest server must become ready; a failed helper must not silently skip HTTP assertions")
 	_kill_server()
 	return false
 
@@ -235,6 +250,8 @@ func _kill_server() -> void:
 	var ready := ProjectSettings.globalize_path(READY_PATH)
 	if FileAccess.file_exists(ready):
 		DirAccess.remove_absolute(ready)
+	if FileAccess.file_exists(ready + ".json"):
+		DirAccess.remove_absolute(ready + ".json")
 
 
 ## 等 checked 信号落地（HTTPRequest 是异步的，最多等 30 步 / 1.5 秒）。

@@ -1,5 +1,72 @@
 # Rustgrave 验收记录
 
+## 2026-10-25：v3最终整合验收
+
+当前权威结果见 `docs/overhaul-v3.md` 最终门禁表与 `screenshots/acceptance/overhaul-v3/final-evidence-index.json`。下文按日期保留历史失败、局部夹具与旧范围；它们不覆盖本节的新结果。
+
+本节证据路径除源码/文档外，均相对 `screenshots/acceptance/overhaul-v3/`。
+
+- 无章节/用例过滤全量：**1462/1462、28740条断言、0引擎错误**。`full-final-window-contract/summary.json` 为 `passed=true`、`completed=true`，源码 `f7bcff7`，启动记录包含两份输入驱动SHA256。保留防护/锚点warning，以及退出时3个ObjectDB实例泄漏warning，不声称零warning。
+- 同一源码从标题新游戏完成14章渲染输入：`../input-20261025-002258-602/rekindle.json`，校验归档 `input-final/rekindle-window-contract/`。`input_only/basic_abilities/rendered=true`、`resumed=false`；3次真实死亡、0引擎错误、138个里程碑、115张1080p PNG。七Boss实际击杀、梦魇三阶段、熔渣致死/复活/Continue后Boss缺席、最终出口/字幕与完成存档均通过。辅助0.5/1.5/0.5，机关等待645帧；模拟固定60Hz加速，不代表显示器帧率。
+- 第一章熄灭分支为 `input-final/snuff/`：新游戏、基本能力、辅助均100%、1次真实死亡、0引擎错误；这是提前结局。
+- 14章×5机位×2分辨率共140张构图、标题24+4张、系统UI8张均已审阅。固定/无敌角色与BossFixture只提供构图或战斗状态证据，不混入输入通关结论。
+- 七位Boss独立设计并自行绘制459张透明像素帧，可编辑源稿随代码提交，459/459重绘一致、跨Boss零完全相同帧；见 `docs/original-bosses.md` 与原画板。
+- 标题与14章入口15次性能探针，p95 3.349–5.001ms，保留钟楼1160.905ms停顿。源码差异审计 `render-runtime-compatibility.json` 证明后续只读查询与不影响当前章节的预警下限可沿用原构图/采样；未声称停顿已修复或Boss最坏场景达标。
+- 音频14个机关文件+1条标题循环数值审计通过；不是主观听感验收。实体触屏、手柄实机手感、真人试玩、音频混音及实体显示器呈现/性能仍未验证。
+
+复现：`./tools/run_tests.ps1 -TimeoutSeconds 2400 -ArtifactsDir <新目录>`；`./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Fast -Rendered -Ending rekindle`。测试需清除 `RUSTGRAVE_LEVEL_FILTER`，使用隔离APPDATA。PNG/日志/哈希索引留在本地ignored目录，源代码与本节已提交，未推送或发布。历史逐章定向门禁没有满足“每阶段全量先通过”，此流程偏差保留，不追认。
+
+## 2026-10-24：七位Boss独立原创美术
+
+七位Boss现均读取各自的 `assets/characters/original_*` 素材，共459张透明像素PNG；不再以盾卫、幽魂或旧马匹帧充当Boss主体。设计与可编辑绘制源稿索引见 `docs/original-bosses.md`，权属说明见 `assets/external/CREDITS.md`。
+
+- 刽子手：闭面葬甲、碑盾和裂斧；空钟：双链悬挂裂钟及独立钟舌。
+- 绞盘守渠人：潜水压力甲、水平双绞筒与链锚；无声唱诗班：管风琴指挥及三种独立面具。
+- 铸钟人：四层铸模重甲、背炉和分节锤；炉风先驱：长喙冠、分节钢翼和镜眼尾羽。
+- 梦魇：窑骨骸马、外露炉心和名牌鬃，独立四足步态。
+
+`tools/art/review_original_bosses.py --reproduce` 再次完成459/459帧源稿重绘与逐像素比较，二值透明度、跨Boss零完全相同帧。三份源稿以像素簇和关节绘图，无图片输入、描图或下载角色帧；帧数与哈希是交付完整性检查，不单独作为原创性证明。七套轮廓、装备及动作逐个审阅，实际战斗阶段/前摇/判定/收招/倒地选择对应帧，保留原故事与判定契约。
+
+证据为 `screenshots/acceptance/overhaul-v3/original-bosses/{seven-original-bosses.png,original-assets-review.json}` 及该目录各Boss的渲染/战斗报告。画板按卡片独立放大，不表示游戏内体型；摆位和注入伤害的BossFixture只证明视觉与战斗状态，正常输入通关另列。
+
+## 2026-10-24 v3 续作：Boss 连续终结击破势
+
+- 独立 `codex/overhaul-v3-completion`，整合基线 `8b91f22`；原 OneDrive 工作区的未提交内容未混入。
+- 全量 `tools/run_tests.ps1`：**1298/1298，0 engine errors**；
+  `screenshots/acceptance/overhaul-v3/p1-poise/full-final/summary.json` 为 `passed=true`、`completed=true`。
+- 专项 `boss_poise`：**6/6，111 条断言**，覆盖七个 Boss 的前摇/活动判定撤回、
+  剑终结击累计、免疫与格挡、过期/冷却、冻结/重置、阶段及碰撞不变。
+- `scenes/tools/BossPoiseAcceptance.tscn` 加载真实第一章竞技场，1280×720 渲染三张图，
+  `screenshots/acceptance/overhaul-v3/p1-poise/render/report.json` 通过且无引擎错误；图像已查看。
+  这是摆位并调用真实伤害路径的战斗夹具，不能证明正常输入通关或真人手感。
+- 完整 14 章地形重建、输入通关与渲染矩阵继续按 `docs/overhaul-v3.md` 跟踪，未在此宣告完成。
+
+### 战役输入工具：机关等待与辅助选项
+
+- 第一章与后续章节共用只读 `tools/campaign_hazard_policy.gd`：周期机关等待覆盖完整宽度的安全窗口，
+  已在判定区内则继续离开；区分楼层与目的地，摆锤预测后续 0.25 秒的锤头位置。
+- 专项 `campaign_hazard_policy` **4/4、16 条断言、0 engine errors**，
+  证据 `screenshots/acceptance/overhaul-v3/bot-policy/targeted-final/`。
+- 战役工具使用公开设置：受伤 0.5、弹反 1.5、毒素 0.5；报告写入实际倍率与机关等待帧数。
+  不更改角色位置、HP、敌人伤害结算、进度旗标或门状态。
+- 第一轮真实输入冒烟暴露了辅助弹反前摇读取关闭 Area 的引擎错误；已修为仅查询弹丸，
+  专项 `comfort_options` **7/7**、`integration_parry` **3/3**，均无引擎错误。
+  实体 Hurtbox 验证前摇无提前剑伤，进入正常判定期才造成伤害。
+  本节记录工具与缺陷验证，不宣称 14 章输入通关。
+- 输入工具原先要求先精确走到活着的刽子手身后，导航与战斗抢夺方向而反复死亡；
+  改为在竞技场近侧交接战斗。`input-20261024-170810-489/rekindle-stdout.log` 已记录第一章 Boss 击杀、
+  死亡后进度保留、Continue、进入第二章与地窟存档点检查；本轮为仅基础能力、公开辅助选项的正常输入。
+- 多层下落导航统一复用第一章驱动；图连边检查整个人体的台缘净空，不再把被低楼板挡住头部的下落算成可走路线。
+  走下台缘时身体完全离开支撑面后再刹车。`bot-navigation/targeted-r3/` 的真实玩家物理夹具
+  **3/3、15 条断言、0 engine errors**，验证窄柱下落、绕开头顶障碍、改走上层台后落回下层；
+  这些是局部输入回归，完整战役仍待跑完。
+- 32px 上升、36px 缺口的跳跃改用已开放的基础冲刺，不再套用同高跳跃的冲刺阈值；
+  `bot-navigation/high-gap/` 的局部真实输入回归 **4/4、18 条断言、0 engine errors**，未解锁额外跳跃。
+- 渲染工具也改为寻找真实固定台面，并检查整个人体净空；不再固定 y320。
+  `peek-support/targeted-final/` **3/3、0 engine errors**；真实第四章 x1760 的渲染图
+  `peek-support/render/live_1760_level04_lit_active.png` 已查看，骑士脚点为 (1640,288)，站在掩体台顶。
+  仍是固定机位夹具，不提供输入可达性证据。PowerShell 包装恢复调用方 APPDATA，并拒绝引擎 ERROR。
+
 ## 2026-10-17 全面升级 · 阶段一（样板）验收
 
 环境：Windows 10、Godot 4.7.1 stable、GL Compatibility、NVIDIA RTX 4060 Laptop。
@@ -323,7 +390,23 @@ M1R4 已按上一轮 5 条改过：开场补动机/代价、第一章炉座只�
 - 工具现在能跑完 level01→level02 全流程（含刽子手战、死亡读档、Continue、下地窟、压板/毒坑），在 level02 空钟门前会**识别门禁并进入 Boss 战**；但输入机器人打不过空钟（玩家 7 血 vs Boss 18 血，无弹反/走位技巧），因此 **14 章全程通关仍未被机器人证明**。该门禁链改由测试覆盖：`hollow_bell_test`（死亡写旗标+清场）、`level02_layout_test`（条件门禁）、`chapter_progression_test`（击杀后推门→进入 level02b 并保存到达点）。
 - 真实输入 14 章通关：**未完成**。`scenes/tools/CampaignWalkthrough.tscn` 在本机 headless 跑 >20 分钟无输出（疑似等待游戏输入/标题流程），已中止；真实手柄/键盘人工通关也未做。因此"14 章可从头玩到尾"本轮**没有**正常输入证据，只有逐章 fixture/布局/路由/存储测试与各章渲染证据；这是本轮最大的未验证项。
 - 真机触控/刘海、960×540 与 1920×1080 的试炼菜单实拍（只验证布局数学与控件边界）；真机 Boss 战 HUD 未录。
-- Boss 视觉：新 Boss 主体为程序化像素 + 复用角色帧（CapstanWarden=gear_shield 冷青、SilentChoir=ghost 3 暖壳+2× 指挥、其余程序化），属可读性达标的占位美术；正式美术替换不改判定/测试。
+- Boss视觉（历史状态，已于2026-10-24取代）：当时CapstanWarden复用gear_shield、SilentChoir复用ghost，属于占位美术。当前七位均为独立原创像素帧，见本页“七位Boss独立原创美术”及 `docs/original-bosses.md`；不再将该历史描述用于当前版本。
 - 视觉审计 Phase B/C（扩章后重拍、Boss 房逐场构图）未全量完成：Phase A 已修 P0；02b/04b 有 before/after；其余扩章段与 7 场 Boss 房列入 `PHASE_B_QUEUE.md` / Phase C，待后续。
 - 外部角色/武器线未合并：契约 §3 + `LoadoutBridge`（feature-detect）+ 奖励位 + 可达性矩阵 + `LoadoutMergeCheck` 已就绪；合并时按契约 SMOKE 1–7 跑门禁。
 - `docs/` 与源码在同一分支；`screenshots/` 全量 gitignore（证据只在本地，路径如上）。
+
+### 2026-10-24：熔渣回巢升降台下落
+
+连续新游戏Basic战役 `input-20261024-215829-600` 在level08高台与ReturnLift的交接处失败，保留该轮失败报告。导航原先只对固定台执行“走出整个人体再刹车”的重叠下落规则；升降台被遗漏后，角色会原地跳跃。现将规则用于真实运动升降台，并读取它的当前高度。`overhaul-v3/return-lift-fix/tests/` 17/17、0引擎错误，新增用例使用实际宽度/位置/8秒运动周期，正常方向输入落到低层地面，不冻结平台或改角色坐标。完整战役必须重新运行。
+
+### 2026-10-24：终章Continue与最终出口
+
+渲染连续新游戏 `input-20261024-220815-789` 完成14章到达、梦魇三阶段与击杀、真实熔渣死亡和Continue后，验收脚本误读旧场景的出口引用而失败。现于Continue后重取真实出口；合法已击杀存档恢复不重复执行死亡验证。导航拒绝把会先落到中间楼梯上的下落直接连到远处低层地面。最终东阶中层宽64→32，给从320地面向288台阶起跳留出净空，保留上层回路。
+
+`overhaul-v3/finale-continue-fix/tests-final/` 19/19、0引擎错误；正常移动用例覆盖实际STEPS的东阶净空和中间落脚面。`input-20261024-222018-301/rekindle.json` 为已击杀合法存档恢复的渲染验证，最终出口、结局字幕与campaign_complete均通过，0引擎错误；该轮不是新游戏全程证据。
+
+### 2026-10-24：14章新游戏完整渲染输入通过
+
+`./tools/run_input_acceptance.ps1 -Campaign -BasicAbilities -Fast -Rendered -Ending rekindle` 通过，证据 `screenshots/acceptance/input-20261024-222123-500/rekindle.json`。从标题新游戏开始，`resumed=false`，不拼接恢复局；`input_only=true`、`basic_abilities=true`、`rendered=true`，2次真实死亡、0引擎错误。第一章后依次记录其余13章入口、七Boss真实击杀、梦魇三阶段、熔渣死亡恢复、标题Continue后Boss缺席、最终出口/字幕和持久化game_complete。
+
+主线仅单跳/冲刺/热锻，无钩锁或额外跳跃；公开辅助为受伤0.5、弹反1.5、毒素0.5，按真实机关安全窗口等候665帧。只读路线/敌人状态并发正常输入，不写角色位置、血量、敌人伤害、门或进度旗标。115张PNG全部解码、尺寸确认为1920×1080，哈希和章节入口索引在同目录 `render-manifest.json`。加速固定60Hz模拟和离屏窗口不证明实体性能或真人手感。该历史轮次后的全量曾在 `full-authoritative-final/` 失败；现以本页2026-10-25最终整合节的 `full-final-window-contract/` 为准。

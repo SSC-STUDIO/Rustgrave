@@ -3,27 +3,27 @@ extends EnemyBase
 ## 无声唱诗班（level04b · 圣殿地窖的 Boss）。驾驶模式接入 BossKit/BossDirector/BossArena。
 ##
 ## 人物（docs/story.md §2/§5）：账本末页被他们守着 —— 没有声音的唱诗班，还在唱。
-## 造型：3 个唱诗壳（ghost 帧 1x，暖烛色）绕 1 个指挥（ghost 帧 2x，冷白色）。
+## 原创管风琴面具指挥与三种唱诗壳；均为独立1倍像素帧，不读取ghost素材。
 ## 可读性：声波锥（lane）/ 烛雨区（zone）/ 静默区（zone，里面歌声听不见你）/
 ## 二阶段合声光束（可弹反 -> 打回指挥身上破防）。指挥是唯一受击点；壳只是和声。
 ## 每招前摇 >= 0.35s，导演层串行出招 -> 同一时刻只有一条预警。
 
 signal slain
 
-const GHOST_CHAR := "ghost"
+const GHOST_CHAR := "original_silent_choir"
 ## ghost 帧 64×80，内容居中（bbox 20..44 × 19..61）：centered Sprite 原点即内容中心。
-const CONDUCTOR_SCALE := 2
-const CONDUCTOR_POS := Vector2(0.0, -42.0)
+const CONDUCTOR_SCALE := 1
+const CONDUCTOR_POS := Vector2(0.0, -46.0)
 const BOSS_TITLE := "无声唱诗班 · 末页的守夜"
 const BOSS_SUBTITLE := "把名字唱成账的人"
 const BOSS_ID := &"silent_choir"
 const MAX_HP := 15
 const DEATH_FLAG := &"choir_dead"
 ## 冷白指挥 / 暖烛壳：两层色相 + 2x 对 1x 的两层剪影。
-const CONDUCTOR_TINT := Color(1.10, 1.38, 1.70)
-const CONDUCTOR_TINT_P2 := Color(1.38, 1.62, 1.92)
-const SHELL_TINT := Color(1.45, 1.12, 0.62)
-const SHELL_TINT_P2 := Color(1.85, 1.28, 0.66)
+const CONDUCTOR_TINT := Color(1.0, 1.0, 1.08)
+const CONDUCTOR_TINT_P2 := Color(1.12, 1.04, 1.10)
+const SHELL_TINT := Color(1.0, 0.98, 0.92)
+const SHELL_TINT_P2 := Color(1.12, 1.02, 0.92)
 const BODY_SIZE := Vector2(30, 66)
 const HURT_SIZE := Vector2(44, 88)
 
@@ -140,7 +140,10 @@ func is_airborne() -> bool:
 func _build_visual() -> void:
 	_anim = _build_frame_anim(GHOST_CHAR, [
 		["idle", "idle", 8.0, true, CONDUCTOR_POS],
-		["sing", "attack", 7.0, true, CONDUCTOR_POS],
+		["sing", "windup", 7.0, true, CONDUCTOR_POS],
+		["cast", "cast", 8.0, true, CONDUCTOR_POS],
+		["recover", "recover", 7.0, false, CONDUCTOR_POS],
+		["broken", "broken", 7.0, true, CONDUCTOR_POS],
 	])
 	if _anim == null:
 		return
@@ -178,6 +181,7 @@ func _build_shells() -> void:
 		var shell := ChoirShell.new()
 		shell.name = "Shell%s" % String(char(65 + i))
 		shell.position = SHELL_OFFSETS[i]
+		shell.art_variant = i
 		shell.tint = SHELL_TINT
 		add_child(shell)
 		_shells.append(shell)
@@ -317,7 +321,7 @@ func _on_died() -> void:
 	GameEvents.boss_defeated.emit()
 	SaveData.mark_flag(DEATH_FLAG)
 	SaveData.persist_story()
-	var vanish := CharFrames.anim(GHOST_CHAR, "vanish")
+	var vanish := CharFrames.anim(GHOST_CHAR, "death")
 	_death_burst(vanish, 12.0, false, CONDUCTOR_POS.y, "唱诗班停了。没有声音")
 
 
@@ -362,6 +366,10 @@ func _cancel_drive() -> void:
 	_drive_timer = 0.0
 	_hide_warning()
 	_clear_active_box()
+
+
+func _interrupt_for_poise() -> void:
+	_cancel_drive()
 
 
 func _begin_windup_pose(id: StringName) -> void:
@@ -567,8 +575,18 @@ func _tick_state(delta: float) -> void:
 
 
 func _after_move() -> void:
-	if _anim != null and _drive == Drive.NONE and _anim.current() != "idle":
-		_anim.play("idle")
+	if _anim != null:
+		if is_marked():
+			_anim.play("broken")
+		elif _drive == Drive.WINDUP:
+			var duration := maxf(_kit.windup_for(_drive_entry, _phase), 0.01)
+			_anim.pin_frame("sing", clampi(int((1.0 - _drive_timer / duration) * 6.0), 0, 5))
+		elif _drive == Drive.ACTIVE:
+			_anim.play("cast")
+		elif _drive == Drive.RECOVERY:
+			_anim.play("recover")
+		else:
+			_anim.play("idle")
 	# 弹反打回来自动开的破绽：给一句提示（只提示一次）。
 	if is_marked() and not _was_marked:
 		GameEvents.announcement.emit("合声被打断 —— 指挥露出来了")
@@ -669,14 +687,18 @@ func _hazard_choir_fade(_data: Dictionary = {}) -> void:
 # ---------------------------------------------------------------------------
 ## 一个唱诗壳：ghost 帧 1x，暖烛色，轻轻悬浮；被点名放声时亮一下。
 class ChoirShell extends Node2D:
+	var art_variant := 0
 	var tint := Color(1.45, 1.12, 0.62)
 	var _frames: Array[Texture2D] = []
+	var _sing_frames: Array[Texture2D] = []
 	var _sprite: Sprite2D
 	var _t := 0.0
 	var _sing := 0.0
 
 	func _ready() -> void:
-		_frames = CharFrames.anim("ghost", "idle")
+		var source := "original_silent_choir/cantor_%d" % clampi(art_variant,0,2)
+		_frames = CharFrames.anim(source, "idle")
+		_sing_frames = CharFrames.anim(source, "sing")
 		_sprite = Sprite2D.new()
 		if not _frames.is_empty():
 			_sprite.texture = _frames[0]
@@ -699,8 +721,9 @@ class ChoirShell extends Node2D:
 		_sing = maxf(0.0, _sing - delta)
 		position.y += sin(_t * 1.8) * 3.2 * delta
 		if _sprite != null and not _frames.is_empty():
-			var idx := int(_t * 7.0) % _frames.size()
-			_sprite.texture = _frames[idx]
+			var active := _sing_frames if _sing > 0.0 and not _sing_frames.is_empty() else _frames
+			var idx := int(_t * 7.0) % active.size()
+			_sprite.texture = active[idx]
 			var glow := 1.0 + 5.0 * _sing
 			_sprite.modulate = Color(tint.r * glow, tint.g * glow, tint.b * glow, 1.0)
 

@@ -34,9 +34,9 @@ const FLOORS: Array = [
 	["FloorC", Vector2(1120, 320), Vector2(256, 80), "moss", true, true],
 	["PitFloorC", Vector2(1376, 384), Vector2(224, 16), "moss", false, false],
 	["FloorD", Vector2(1600, 320), Vector2(360, 80), "moss", true, true],
-	## D 段下沉钟堂：1960–2360 下沉至 y=352，与上层 y=256/224 构成三层螺旋下探空间。
-	["FloorSunken", Vector2(1960, 352), Vector2(400, 48), "moss", false, false],
-	["FloorE", Vector2(2360, 320), Vector2(1440, 80), "moss", true, false],
+	## D 段下沉钟堂：1960–2432 下沉至 y=352，与上层 y=256/224 构成三层螺旋下探空间。
+	["FloorSunken", Vector2(1960, 352), Vector2(472, 48), "moss", false, false],
+	["FloorE", Vector2(2432, 320), Vector2(1368, 80), "moss", true, false],
 ]
 ## [name, pos, size] — 悬空苔台（16px 厚，一跳 ≤32px 的台阶链）。
 const STEPS: Array = [
@@ -57,6 +57,8 @@ const STEPS: Array = [
 	["GalleryD", Vector2(1976, 256), Vector2(160, 16)],
 	["UpperBridgeD", Vector2(2144, 224), Vector2(144, 16)],
 	["StepD2", Vector2(2296, 256), Vector2(48, 16)],
+	# Leave a full body and run-up clear of this overhang so a missed upper
+	# gallery jump can recover onto FloorE before opening the shortcut.
 	["StepD3", Vector2(2352, 288), Vector2(48, 16)],
 	## F 段空钟笼厅：两侧避钟笼台 + 上层悬廊 + 中央击锤高台。
 	["CageAlcoveWest", Vector2(2760, 288), Vector2(64, 16)],
@@ -119,8 +121,8 @@ const BELL_HAZARDS: Array = [
 	["BellShaftWest", Vector2(1296, 256), Vector2(36, 40), 0.85, 0.45, 2.5, 0.0],
 	["BellVaultLower", Vector2(2056, 352), Vector2(36, 40), 0.8, 0.45, 2.4, 0.2],
 	["BellVaultUpper", Vector2(2176, 224), Vector2(36, 40), 0.8, 0.45, 2.4, 0.6],
-	["BellCorridorWest", Vector2(2432, 320), Vector2(36, 40), 0.75, 0.45, 2.2, 0.0],
-	["BellCorridorEast", Vector2(2528, 320), Vector2(36, 40), 0.75, 0.45, 2.2, 0.5],
+	["BellCorridorWest", Vector2(2480, 320), Vector2(36, 40), 0.75, 0.45, 2.2, 0.0],
+	["BellCorridorEast", Vector2(2560, 320), Vector2(36, 40), 0.75, 0.45, 2.2, 0.5],
 ]
 ## [name, scene key, pos, variant]
 const ENEMIES: Array = [
@@ -141,7 +143,7 @@ const VINES: Array = [Vector2(200, 0), Vector2(304, 0), Vector2(768, 0), Vector2
 		Vector2(1712, 0), Vector2(2048, 0), Vector2(2352, 0), Vector2(2520, 0), Vector2(2900, 0),
 		Vector2(3200, 0), Vector2(3500, 0)]
 const WAYMARKS: Array = [[Vector2(352, 320), "地窟"], [Vector2(1720, 320), "沉钟"],
-		[Vector2(2384, 320), "回廊"], [Vector2(2748, 320), "空钟"]]
+		[Vector2(2448, 320), "回廊"], [Vector2(2748, 320), "空钟"]]
 const VINE_TEX := "res://assets/env/moss_vine.png"
 const ARCH_TEX := "res://assets/env/moss_arch.png"
 const RUBBLE_TEX := "res://assets/env/moss_rubble.png"

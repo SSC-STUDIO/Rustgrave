@@ -3,6 +3,7 @@ extends Node
 ## damages enemies, opens gates, or emits gameplay milestones.
 const ERROR_COLLECTOR := preload("res://tests/error_collector.gd")
 const TITLE := "res://scenes/ui/TitleScreen.tscn"
+const HAZARD_POLICY := preload("res://tools/campaign_hazard_policy.gd")
 var _errors
 var _ending := "rekindle"
 var _step := "startup"
@@ -20,6 +21,7 @@ var _last_frame_usec := 0
 var _campaign := false
 var _basic_abilities := false
 var _skip_captions := true
+var _hazard_wait_frames := 0
 ## --shots: save a PNG at every milestone plus opening / combat / boss beats into
 ## user://shots/. --window=WxH sizes the real window; --onscreen puts it on the desktop
 ## (decorated, at 40,40) instead of the off-screen borderless default.
@@ -188,7 +190,9 @@ func _run() -> void:
 	if not _require(SaveData.last_lit_nest().ends_with("EmberNestEast"), "east checkpoint is reachable"): return
 	_record("east_checkpoint")
 	# --- ④ 炉厅竞技场：刽子手在石台上，炉龛喷火口只在战斗里转 ---
-	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return
+	# Hand control to the combat driver at the arena's near side. Navigation must
+	# not demand a precise point behind a live shield-bearing boss first.
+	if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 80.0, Level01EastWing.STAGE_Y)): return
 	if not await _fight_boss(): return
 	_record("boss_slain")
 	if not await _verify_progress_reload(): return
@@ -404,7 +408,7 @@ func _fight_boss() -> bool:
 		if player.get_instance_id() != fighter_id:
 			fighter_id = player.get_instance_id()
 			# 死了回 BossGate 前的巢：长阶 + 石台 + 掩体墩都要走回去（不传送，不跳关）。
-			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X + 40.0, Level01EastWing.STAGE_Y)): return false
+			if not await _nv_navigate(Vector2(Level01EastWing.ARENA_CENTER_X - 80.0, Level01EastWing.STAGE_Y)): return false
 			continue
 		var boss: ExecutionerBoss = null
 		for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -702,11 +706,59 @@ func _world_root() -> Node:
 	return GameContext.world_root(_player())
 
 
+## Closed pressure gates are real walls even though LevelSanity's static
+## terrain table intentionally omits interactables. Read their live state.
+func _nv_solids() -> Array[Rect2]:
+	var world := _world_root()
+	var solids := LevelSanity.solid_rects(world)
+	for node in world.find_children("*", "", true, false):
+		if node is ArenaDoor and not node.is_open:
+			solids.append(Rect2(node.global_position, Vector2(16.0, 64.0)))
+		elif node is BreakableTerrain or node is DestructibleProp:
+			# Optional rubble is still a physical wall until its real chunks break.
+			# Read only the body's direct shapes, excluding the damage Hurtbox.
+			for child in node.get_children():
+				if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
+					var size_: Vector2 = child.shape.size
+					solids.append(Rect2(child.global_position - size_ * 0.5, size_))
+	return solids
+
+
+func _nv_tops() -> Array[LevelSanity.TopSeg]:
+	var tops := LevelSanity.top_segments(_world_root())
+	# Decorative caches are real bodies too. Read their live collision tops so
+	# a jump landing on an intact cache can replan from that actual support.
+	for node in _world_root().find_children("*", "", true, false):
+		if not node is DestructibleProp and not node is BreakableTerrain: continue
+		for child in node.get_children():
+			if child is CollisionShape2D and not child.disabled and child.shape is RectangleShape2D:
+				var size_: Vector2 = child.shape.size
+				var corner: Vector2 = child.global_position - size_ * 0.5
+				if size_.x >= 16.0:
+					tops.append(LevelSanity.TopSeg.new(corner.x, corner.x + size_.x, corner.y, String(node.name), "prop"))
+	return tops
+
+
+func _nv_clear_approach(feet: Vector2, direction: float) -> Vector2:
+	var solids := _nv_solids()
+	var tops := _nv_tops()
+	for offset in range(0, 81, 8):
+		var candidate := feet + Vector2(direction * offset, 0)
+		var body := Rect2(candidate - Vector2(7, 26), Vector2(14, 26))
+		var clear := LevelSanity.standing_on(tops, candidate, 3.0, 3.0) != null
+		for solid in solids:
+			if solid.grow(-0.5).intersects(body):
+				clear = false
+				break
+		if clear: return candidate
+	return feet
+
+
 func _nv_segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var world := _world_root()
-	var solids := LevelSanity.solid_rects(world)
-	for top in LevelSanity.top_segments(world):
+	var solids := _nv_solids()
+	for top in _nv_tops():
 		var name_ := top.owner_name.get_slice("@", 0)
 		var lift := world.get_node_or_null("Platforms/" + name_) as MovingPlatform
 		if lift != null:
@@ -723,7 +775,8 @@ func _nv_segments() -> Array[Dictionary]:
 					if span.y - r.end.x >= 16: pieces.append(Vector2(r.end.x, span.y))
 			spans = pieces
 		for span in spans:
-			if span.y - span.x >= 24: out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
+			if span.y - span.x >= (16 if top.kind == "prop" else 24):
+				out.append({"r": Rect2(span.x, top.y, span.y - span.x, 16), "lift": null, "name": top.owner_name})
 	for segment in out:
 		segment.wet = false
 		for prop in world.get_node("Props").get_children():
@@ -746,23 +799,52 @@ func _nv_closest(segments: Array[Dictionary], feet: Vector2) -> int:
 	return best
 
 
-func _nv_link(a: Dictionary, b: Dictionary) -> bool:
+func _nv_link(a: Dictionary, b: Dictionary, solids: Array[Rect2] = []) -> bool:
 	if a.lift != null and a.lift == b.lift: return true
 	var ar: Rect2 = a.r
 	var br: Rect2 = b.r
 	var at := LevelSanity.TopSeg.new(ar.position.x, ar.end.x, ar.position.y, "a")
 	var bt := LevelSanity.TopSeg.new(br.position.x, br.end.x, br.position.y, "b")
 	if not LevelSanity._can_hop(at, bt): return false
+	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	if b.lift == null and gap <= 0.0 and br.position.y > ar.position.y + 8.0:
+		if not _nv_drop_side_clear(ar, br, true) and not _nv_drop_side_clear(ar, br, false):
+			return false
 	var x0 := minf(ar.end.x, br.end.x)
 	var x1 := maxf(ar.position.x, br.position.x)
 	if x1 > x0:
-		for r in LevelSanity.solid_rects(_world_root()):
+		for r in (_nv_solids() if solids.is_empty() else solids):
+			# A lower stair in the gap catches a descending body before the
+			# distant floor. Visit that landing instead of claiming a direct drop.
+			if br.position.y > ar.position.y + 8.0 and r.position.y > ar.position.y + 0.5 \
+					and r.position.y < br.position.y - 0.5 and r.position.x < x1 and r.end.x > x0 \
+					and (r.position.x >= ar.end.x - 0.5 or r.end.x <= ar.position.x + 0.5):
+				return false
+			# Walk over an actual connecting floor before climbing its stair.
+			# Skipping that floor invents a gap and an unnecessary airborne dash,
+			# which can overshoot a narrow landing after a conveyor run-up.
+			if br.position.y < ar.position.y - 8.0 and absf(r.position.y - ar.position.y) < 1.0 \
+					and r.position.x <= x0 + 0.5 and r.end.x >= x1 - 0.5:
+				return false
 			if r.position.x < x1 and r.end.x > x0 and r.position.y < ar.position.y - 3 and r.end.y > minf(ar.position.y, br.position.y) - 24:
 				return false
 	return true
 
 
+func _nv_route_cost(a: Dictionary, b: Dictionary) -> float:
+	var ar: Rect2 = a.r
+	var br: Rect2 = b.r
+	var gap := maxf(0.0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	# Equal hop counts must not prefer a narrow uphill dash over the broad
+	# recoverable floor underneath it. Keep physical effort in the route cost.
+	return 10.0 + (200.0 if b.wet else 0.0) + gap / 16.0 \
+			+ maxf(0.0, ar.position.y - br.position.y) / 16.0 \
+			+ 24.0 / maxf(24.0, br.size.x)
+
+
 func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
+	# No physics advances during graph search; use one live obstacle snapshot.
+	var solids := _nv_solids()
 	var start := _nv_closest(segments, _player().position)
 	var goal := _nv_closest(segments, feet)
 	var parents := {start: -1}
@@ -773,8 +855,8 @@ func _nv_path(segments: Array[Dictionary], feet: Vector2) -> Array[Dictionary]:
 		var at: int = queue.pop_front()
 		if at == goal: break
 		for i in segments.size():
-			var cost: float = costs[at] + 10.0 + (200.0 if segments[i].wet else 0.0)
-			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i]):
+			var cost: float = costs[at] + _nv_route_cost(segments[at], segments[i])
+			if (not costs.has(i) or cost < costs[i]) and _nv_link(segments[at], segments[i], solids):
 				parents[i] = at
 				costs[i] = cost
 				if not i in queue: queue.append(i)
@@ -841,20 +923,20 @@ func _nv_navigate(feet: Vector2, restore_plates: bool = true) -> bool:
 
 ## 炉口挡路吗：前方 ~40px 内有一口同高度的周期炉口，且现在进去（含穿过判定区的时间）不安全。
 ## 已经站在判定区里就不拦（要让人走出去）。
-func _nv_hazard_blocks(p: Player, dir: float) -> bool:
-	if dir == 0.0 or not p.is_on_floor(): return false
-	for hz in _nv_vents:
-		if not is_instance_valid(hz) or not hz is CyclicHazard: continue
-		var c := hz as CyclicHazard
-		var zone := c.hit_rect()
-		if p.global_position.y < zone.position.y - 8.0 or p.global_position.y > zone.end.y + 8.0: continue
-		var px := p.global_position.x
-		if px >= zone.position.x - 7.0 and px <= zone.end.x + 7.0: continue
-		var ahead := (zone.position.x - 7.0 - px) if dir > 0.0 else (px - (zone.end.x + 7.0))
-		if ahead < 0.0 or ahead > 44.0: continue
-		var cross_time := (zone.size.x + 14.0) / 108.0 + 0.3 + ahead / 108.0
-		if not c.safe_window(cross_time): return true
-	return false
+func _nv_hazard_blocks(p: Player, target_x: float) -> bool:
+	if not p.is_on_floor(): return false
+	return HAZARD_POLICY.should_wait(_nv_vents, p.global_position, target_x,
+			p.controller.max_speed)
+
+
+func _nv_grounded_near(x: float, y: float) -> bool:
+	var p := _player()
+	if p == null or not p.is_on_floor() or absf(p.position.x - x) >= 4.0 \
+			or absf(p.get_real_velocity().x) >= 12.0: return false
+	# A live slope is connected ground, even though the static graph records
+	# the adjacent platform's level top. Read its actual contact normal.
+	var tolerance := 36.0 if absf(p.get_floor_normal().x) > 0.1 else 9.0
+	return absf(p.position.y - y) < tolerance
 
 
 func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
@@ -862,21 +944,28 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 	for i in 900:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
-		if absf(p.position.x - x) < 4 and absf(p.position.y - y) < 9 and p.is_on_floor() and absf(p.velocity.x) < 12:
+		if _nv_grounded_near(x, y):
 			_release()
 			return true
 		if absf(p.position.y - y) > 40: return false
-		if _nv_hazard_blocks(p, signf(x - p.position.x)):
-			_move(0.0)
-			_set_action(&"jump", false)
-			_set_action(&"dash", false)
+		if _nv_hazard_blocks(p, x):
+			_release()
+			_hazard_wait_frames += 1
 			await _frames(1)
 			continue
 		_nv_steer(x)
 		var spitter_close := false
+		var landing_guard := false
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if enemy is SpitterEnemy and not enemy._dead and absf(enemy.position.y - p.position.y) < 14 and absf(enemy.position.x - p.position.x) < 64: spitter_close = true
-		if fight or spitter_close or absf(x - p.position.x) > 96:
+			if enemy is EnemyBase and not enemy._dead and not enemy is GhostEnemy \
+					and absf(enemy.position.y - p.position.y) < 24 and absf(enemy.position.x - p.position.x) < 52:
+				landing_guard = true
+		if not fight and landing_guard:
+			# A run-up is part of traversal, but contact enemies can knock the
+			# knight back into the pit. Clear that real threat before positioning.
+			_nv_combat(false, true)
+		elif fight or spitter_close or absf(x - p.position.x) > 96:
 			_nv_combat(absf(x - p.position.x) > 96)
 		else:
 			_set_action(&"attack", false)
@@ -893,7 +982,9 @@ func _nv_flat(x: float, y: float, fight: bool = true) -> bool:
 func _nv_steer(x: float) -> void:
 	var p := _player()
 	var dx := x - p.position.x
-	var speed := p.velocity.x
+	# CharacterBody.velocity excludes the conveyor's inherited floor motion.
+	# Brake against measured world movement so a belt can be counter-steered.
+	var speed := p.get_real_velocity().x if p.is_on_floor() else p.velocity.x
 	var brake := speed * speed / (2.0 * (400.0 if p.is_on_floor() else 270.0) * 1.55)
 	if absf(dx) < 2 and absf(speed) < 10:
 		_move(0)
@@ -920,6 +1011,7 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			threat = e
 	var attack := false
 	var dash := false
+	if _nv_guard_combat(threat, _nv_tick): return
 	if threat != null:
 		var side := signf(threat.position.x - p.position.x)
 		if threat.has_method("is_airborne") and threat.is_airborne():
@@ -940,12 +1032,59 @@ func _nv_combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 	_set_action(&"dash", dash)
 
 
+## Flank a blocking guard only where its rear has a fixed same-height landing.
+## Run-up positioning must not keep trading frontal swings into an intact shield.
+func _nv_guard_combat(threat: EnemyBase, tick: int) -> bool:
+	if not threat is GearShieldEnemy: return false
+	var p := _player()
+	var facing := float((threat as GearShieldEnemy)._shield_facing)
+	var rear := threat.position.x - facing * 32.0
+	var support := LevelSanity.standing_on(LevelSanity.top_segments(_world_root()),
+			Vector2(rear, threat.position.y))
+	if support == null or support.kind != "" or absf(p.position.y - threat.position.y) > 8: return false
+	var behind := (p.position.x - threat.position.x) * facing < -16.0
+	if not behind:
+		_move(signf(rear - p.position.x))
+		_set_action(&"attack", false)
+		_set_action(&"dash", absf(p.position.x - threat.position.x) < 60 and p.controller._dash_cd <= 0)
+	else:
+		_move(facing if p.controller.facing != facing else 0.0)
+		_set_action(&"attack", tick % 20 == 0)
+		_set_action(&"dash", false)
+	return true
+
+
 ## 台面这一端的外侧（身体高度）是不是实心：是墙不是边。
 func _nv_edge_blocked(r: Rect2, right: bool) -> bool:
-	var probe := Vector2(r.end.x + 5.0 if right else r.position.x - 5.0, r.position.y - 12.0)
-	for s in LevelSanity.solid_rects(_world_root()):
-		if s.grow(-0.5).has_point(probe): return true
+	# Test the full knight body. A balcony can clip the head while leaving the
+	# old single waist-height probe clear, so walking off that edge never works.
+	var probe := Rect2(Vector2(r.end.x + 0.5 if right else r.position.x - 14.5,
+			r.position.y - 26.0), Vector2(14.0, 26.0))
+	# Adjacent pieces of one continuous floor have no walk-off at their join.
+	# Keep walking through the next segment until a real edge or stair exists.
+	var foot_probe := Vector2(r.end.x + 0.5 if right else r.position.x - 0.5,
+			r.position.y + 0.5)
+	for s in _nv_solids():
+		if s.grow(-0.5).intersects(probe): return true
+		if absf(s.position.y - r.position.y) < 1.0 and s.has_point(foot_probe): return true
 	return false
+
+
+func _nv_drop_side_clear(from: Rect2, to: Rect2, right: bool) -> bool:
+	var landing := from.end.x + 12.0 if right else from.position.x - 12.0
+	# A landing may support part of the body at its outer lip; unlike an
+	# intermediate obstacle, its edge does not need the entire descent sweep.
+	if landing < to.position.x + 3.0 or landing > to.end.x - 3.0 or _nv_edge_blocked(from, right):
+		return false
+	# A stair under the departure ledge catches the knight before the claimed
+	# lower floor. Route through that real landing instead of retrying forever.
+	# Steering/braking can drift four pixels around the landing center. A
+	# nominal 16px shaft beside a floor is too tight for that 14px body sweep.
+	var descent := Rect2(landing - 11.0, from.position.y, 22.0, to.position.y - from.position.y)
+	for solid in _nv_solids():
+		if solid.position.y > from.position.y + 0.5 and solid.position.y < to.position.y - 0.5 \
+				and solid.grow(-0.5).intersects(descent): return false
+	return true
 
 
 func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
@@ -958,27 +1097,43 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(b.lift): return false
 			_nv_steer(b.lift.position.x + b.lift.width * 0.5)
-			if b.lift.position.distance_to(br.position) < 8: return true
+			if b.lift.position.distance_to(br.position) < 8 \
+					and absf(_player().position.y - br.position.y) < 10 and _player().is_on_floor(): return true
 			await _frames(1)
 		return false
 	var right := br.get_center().x >= ar.get_center().x
 	var gap := maxf(0, maxf(br.position.x - ar.end.x, ar.position.x - br.end.x))
+	# A deep lower landing needs a drop through the opening. Jumping first
+	# catches the neighboring upper gallery and repeats the same route forever.
+	var deep_drop := gap > 0.0 and br.position.y - ar.position.y >= 64.0 \
+			and a.lift == null and b.lift == null
 	# 缺口大的上跳（升 ≥16、横跨 ≥24）贴着台缘起跳：真实单跳够距只有 ~40px。
 	var margin := 3.0 if (gap >= 20.0 and br.position.y < ar.position.y - 8.0) else 8.0
+	# At a contiguous 32px riser, jumping against the lip catches the body on
+	# its vertical face. Start earlier so the feet clear it before moving across.
+	if gap < 4.0 and ar.position.y - br.position.y > 24.0: margin = 24.0
 	var launch := clampf(br.position.x - margin if right else br.end.x + margin, ar.position.x + margin, ar.end.x - margin)
+	var vertical_riser := false
+	if a.lift == null and gap < 4.0 and ar.position.y - br.position.y > 24.0:
+		var rise := Rect2(launch - 7.0, br.position.y - 26.0, 14.0, ar.position.y - br.position.y)
+		for solid in _nv_solids():
+			if solid.grow(-0.5).intersects(rise): vertical_riser = true
+		if vertical_riser:
+			# Stand just outside the step after leaving the low ceiling. Jump
+			# straight up, then use the normal air dash once the feet clear it.
+			launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
 	# 落到一条与自己横向重叠的更低长地面（楼座 → 巷、浮石 → 地面）：不能「走到落点」——落点
 	# 还在自己头顶的台面上。走到朝向终点那一侧的台缘，再往外走下去。
 	var drop_landing := NAN
-	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and a.lift == null and b.lift == null:
+	if gap <= 0.0 and br.position.y > ar.position.y + 8.0 and b.lift == null:
 		right = _nv_goal.x >= ar.get_center().x if _nv_goal.is_finite() else right
-		if right and br.end.x - ar.end.x < 24.0: right = false
-		if not right and ar.position.x - br.position.x < 24.0: right = true
-		# 台缘外侧立着实心（楼座东头的掩体墩）：那一侧不是边，是墙，换另一侧下去。
-		if right and _nv_edge_blocked(ar, true): right = false
-		elif not right and _nv_edge_blocked(ar, false): right = true
+		if not _nv_drop_side_clear(ar, br, right): right = not right
+		if not _nv_drop_side_clear(ar, br, right): return false
 		launch = ar.end.x - 8.0 if right else ar.position.x + 8.0
-		drop_landing = clampf(ar.end.x + 18.0 if right else ar.position.x - 18.0,
-				br.position.x + 4.0, br.end.x - 4.0)
+		# Leave room for the steering deadband inside the destination's 3px
+		# success margin, even when only its outer lip supports the landing.
+		drop_landing = clampf(ar.end.x + 12.0 if right else ar.position.x - 12.0,
+				br.position.x + 6.0, br.end.x - 6.0)
 	if a.lift != null:
 		for i in 1200:
 			if _player() == null or _player().health.current <= 0 or not is_instance_valid(a.lift): return false
@@ -986,7 +1141,7 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			if absf(_player().position.x - launch) < 4 and absf(_player().velocity.x) < 12 and absf(_player().position.y - ar.position.y) < 10: break
 			await _frames(1)
 	# 空中加速度只有 270px/s²：站着起跳 0.4s 只飘 ~22px。任何有缺口的跳都要助跑（和玩家一样）。
-	if gap > 0 and a.lift == null:
+	if (gap > 0 or ar.position.y - br.position.y > 24.0) and a.lift == null and not vertical_riser:
 		var run_start := ar.end.x - 36 if right else ar.position.x + 36
 		run_start = clampf(run_start, ar.position.x + 4.0, ar.end.x - 4.0)
 		if not await _nv_flat(run_start, ar.position.y, false): return false
@@ -1001,6 +1156,16 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 		if not await _nv_flat(launch, ar.position.y, false): return false
 		_release()
 		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
+	if vertical_riser:
+		# The flat-walk steering deadband is wider than the last pixel of
+		# ceiling clearance. Settle against the actual riser face by input.
+		_move(1.0 if right else -1.0)
+		for i in 90:
+			if _player() == null or _player().health.current <= 0: return false
+			if (right and _player().position.x >= ar.end.x - 7.2) \
+					or (not right and _player().position.x <= ar.position.x + 7.2): break
+			await _frames(1)
+		_release()
 	if b.lift != null:
 		_release()
 		for i in 1200:
@@ -1015,6 +1180,8 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 	if gap > 24:
 		while _player() != null and _player().controller._dash_cd > 0:
 			await _frames(1)
+	var drop_dashed := false
+	var riser_dashed := false
 	for i in 180:
 		var p := _player()
 		if p == null or p.health.current <= 0: return false
@@ -1024,11 +1191,34 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			r.position = b.lift.position
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
 		if not is_nan(drop_landing): landing = drop_landing
-		_nv_steer(landing)
-		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
+		var departure_y: float = a.lift.position.y if a.lift != null and is_instance_valid(a.lift) else ar.position.y
+		if vertical_riser and not riser_dashed:
+			_move(0.0)
+		elif not is_nan(drop_landing) and p.is_on_floor() and absf(p.position.y - departure_y) < 8.0:
+			# Leave the whole 14px body past the ledge before braking. Steering to
+			# a point only 8px beyond it can stop 2px short and remain supported.
+			_move(1.0 if right else -1.0)
+		else:
+			_nv_steer(landing)
+		_set_action(&"jump", i < 24 and not deep_drop and is_nan(drop_landing) and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)
-		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40)
-		_set_action(&"dash", i == dash_frame and needs_dash)
+		var needs_dash := gap > (56 if br.position.y > ar.position.y else 40) \
+				or (ar.position.y - br.position.y > 24.0 and gap > 24.0) \
+				or (deep_drop and gap > 24.0) \
+				or (a.lift != null and gap > 32.0)
+		var dash_now := i == dash_frame
+		if deep_drop:
+			# Cross under the neighboring 16px gallery only after the whole
+			# 26px knight clears its underside; an early dash hits its side.
+			dash_now = not drop_dashed and p.position.y >= ar.position.y + 44.0
+			if dash_now and needs_dash: drop_dashed = true
+		if vertical_riser:
+			needs_dash = true
+			dash_now = not riser_dashed and p.position.y <= br.position.y - 2.0
+			if dash_now:
+				_move(1.0 if right else -1.0)
+				riser_dashed = true
+		_set_action(&"dash", dash_now and needs_dash)
 		if i > 4 and p.is_on_floor() and absf(p.position.y - r.position.y) < 8 and p.position.x >= r.position.x + 3 and p.position.x <= r.end.x - 3 and absf(p.velocity.x) < 20:
 			_release()
 			return true
@@ -1037,6 +1227,10 @@ func _nv_cross(a: Dictionary, b: Dictionary) -> bool:
 			return false
 		await _frames(1)
 	_release()
+	print("[CROSS TIMEOUT] feet=%s velocity=%s floor=%s destination=%s drop_target=%s" % [
+			_player().position if _player() else Vector2.INF,
+			_player().velocity if _player() else Vector2.INF,
+			_player().is_on_floor() if _player() else false, br, drop_landing])
 	return false
 
 
@@ -1117,6 +1311,12 @@ func _write_result(passed: bool) -> void:
 	result["resumed"] = "--resume" in OS.get_cmdline_user_args()
 	result["fixed_fps_accelerated"] = "--fast" in OS.get_cmdline_user_args()
 	result["rendered"] = _rendered
+	result["hazard_wait_frames"] = _hazard_wait_frames
+	result["assists"] = {
+		"incoming_damage": Settings.assist(&"assist_incoming"),
+		"parry_window": Settings.assist(&"assist_parry"),
+		"toxin_exposure": Settings.assist(&"assist_toxin"),
+	}
 	result["renderer"] = RenderingServer.get_current_rendering_method()
 	if not _frame_ms.is_empty():
 		_frame_ms.sort()

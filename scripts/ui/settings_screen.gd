@@ -21,7 +21,8 @@ const Plate := preload("res://scripts/ui/menu_plate.gd")
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
 const TAB_KEYS := 2
-const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位"]
+const TAB_ASSIST := 3
+const TAB_TITLES: Array[String] = ["声 音", "画 面", "键 位", "辅 助"]
 
 const STEP := 5.0
 const SAVE_DELAY := 0.5
@@ -30,7 +31,6 @@ const ROW_WIDTH := 700.0
 ## 两列键位在 900px 卡片里：2×380 + 24 = 784，仍小于 832 的内容宽。
 ## 旧值 480 时网格 984px，会从花边卡两侧各挤出 76px。
 const KEY_COLUMN_WIDTH := 380.0
-const PAGE_HEIGHT := 308.0
 const TICK_INTERVAL := 0.045
 
 const BUS_NAMES := {
@@ -43,6 +43,7 @@ const BUS_NAMES := {
 ## 提示开关等没有专属接口的选项走 Settings.value；键名与各系统约定一致。
 const OPT_FULLSCREEN := &"fullscreen"
 const OPT_SMOOTHING := &"pixel_smoothing"
+var _display_choices: Dictionary = {}
 
 var _root: Control
 var _shell: Dictionary = {}
@@ -121,7 +122,7 @@ func _build() -> void:
 		tab.toggle_mode = true
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
-		tab.custom_minimum_size = Vector2(210.0, UiKit.TOUCH_MIN)
+		tab.custom_minimum_size = Vector2(156.0, UiKit.TOUCH_MIN)
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
@@ -130,13 +131,14 @@ func _build() -> void:
 
 	var host := Control.new()
 	host.name = "Pages"
-	host.custom_minimum_size = Vector2(0.0, PAGE_HEIGHT)
+	host.custom_minimum_size = Vector2.ZERO
 	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(host)
 	_pages.append(_build_audio_page(host))
 	_pages.append(_build_display_page(host))
 	_pages.append(_build_keys_page(host))
+	_pages.append(_build_assist_page(host))
 
 	_notice = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	_notice.name = "Notice"
@@ -217,12 +219,19 @@ func _footer_button(text: String, node_name: StringName) -> Button:
 
 
 func _page(host: Control, node_name: String) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = node_name + "Scroll"
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	host.add_child(scroll)
 	var page := VBoxContainer.new()
 	page.name = node_name
-	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.alignment = BoxContainer.ALIGNMENT_CENTER
 	page.add_theme_constant_override("separation", 6)
-	host.add_child(page)
+	scroll.add_child(page)
 	return page
 
 
@@ -240,6 +249,9 @@ func _build_audio_page(host: Control) -> Control:
 
 func _build_display_page(host: Control) -> Control:
 	var page := _page(host, "DisplayPage")
+	page.add_child(_display_choice(&"resolution", "窗 口 分 辨 率"))
+	page.add_child(_display_choice(&"display_fit", "缩 放 策 略"))
+	page.add_child(_display_choice(&"vsync", "垂 直 同 步"))
 	page.add_child(_toggle_row(OPT_FULLSCREEN, "全 屏"))
 	page.add_child(_toggle_row(OPT_SMOOTHING, "像 素 平 滑"))
 	page.add_child(_slider_row(&"shake", "震 屏 强 度"))
@@ -249,6 +261,62 @@ func _build_display_page(host: Control) -> Control:
 	_viewport_label.name = "ViewportInfo"
 	page.add_child(_viewport_label)
 	page.add_child(_page_note("震动 / 闪光强度同时作用于战斗反馈与过场演出"))
+	return page
+
+
+func _display_choice(id: StringName, title: String) -> Control:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(ROW_WIDTH, UiKit.TOUCH_MIN)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	row.add_child(_name_label(title, 230.0))
+	var choice := OptionButton.new()
+	choice.name = String(id)
+	choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	choice.custom_minimum_size.y = UiKit.TOUCH_MIN
+	if id == &"resolution":
+		for res in DisplayFit.PRESET_RESOLUTIONS:
+			choice.add_item("%d × %d" % [res.x, res.y])
+		var saved: Variant = Settings.value(id, Vector2i(1280, 720))
+		choice.select(maxi(0, DisplayFit.PRESET_RESOLUTIONS.find(saved)))
+	elif id == &"display_fit":
+		for text in ["等比自适应", "扩展视野", "整数像素"]:
+			choice.add_item(text)
+		choice.select(int(Settings.value(id, DisplayFit.FitMode.INTEGER)))
+	else:
+		choice.add_item("关")
+		choice.add_item("开")
+		choice.select(1 if bool(Settings.value(id, true)) else 0)
+	choice.item_selected.connect(_on_display_selected.bind(id))
+	row.add_child(choice)
+	_display_choices[id] = choice
+	return row
+
+
+func _on_display_selected(index: int, id: StringName) -> void:
+	match id:
+		&"resolution":
+			DisplayFit.apply_resolution(DisplayFit.PRESET_RESOLUTIONS[index])
+			_sync_toggle(OPT_FULLSCREEN)
+		&"display_fit":
+			DisplayFit.apply_fit_mode(index as DisplayFit.FitMode, null, true)
+		&"vsync":
+			DisplayFit.apply_vsync(index == 1)
+	if _viewport_label != null:
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
+
+
+func _build_assist_page(host: Control) -> Control:
+	var page := _page(host, "AssistPage")
+	for spec in [[&"assist_incoming", "受 伤 倍 率"], [&"assist_parry", "弹 反 窗 口"],
+			[&"assist_toxin", "毒 素 速 率"], [&"subtitle_speed", "字 幕 速 度"],
+			[&"text_scale", "文 本 缩 放"]]:
+		var row := _slider_row(spec[0], spec[1])
+		var slider := _sliders[spec[0]] as HSlider
+		var limits: Vector2 = Settings.ASSIST_LIMITS[spec[0]]
+		slider.min_value = limits.x * 100.0
+		slider.max_value = limits.y * 100.0
+		page.add_child(row)
+	page.add_child(_page_note("100% 保持原有平衡 · 受伤 / 毒素调低更轻松，弹反调高更宽容"))
 	return page
 
 
@@ -408,7 +476,7 @@ func _sync_all() -> void:
 		_sync_toggle(id)
 	_sync_keys()
 	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 func _slider_percent(id: StringName) -> float:
@@ -418,7 +486,7 @@ func _slider_percent(id: StringName) -> float:
 		&"flash":
 			return Settings.flash_scale * 100.0
 		_:
-			return Settings.volume_percent(id)
+			return Settings.assist(id) * 100.0 if Settings.ASSIST_LIMITS.has(id) else Settings.volume_percent(id)
 
 
 func _sync_slider(id: StringName) -> void:
@@ -489,6 +557,8 @@ func _on_setting_changed(key: StringName) -> void:
 		return
 	if key == &"keys":
 		_sync_keys()
+	elif _sliders.has(key):
+		_sync_slider(key)
 
 
 # --- 页面 ----------------------------------------------------------------------
@@ -509,12 +579,13 @@ func _show_page(index: int) -> void:
 	_tab = clampi(index, 0, _pages.size() - 1)
 	for i in _pages.size():
 		_pages[i].visible = i == _tab
+		_pages[i].get_parent().visible = i == _tab
 		_tab_buttons[i].set_pressed_no_signal(false)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
 	_reset_keys.visible = _tab == TAB_KEYS
 	_wire_page_tail()
 	if _viewport_label != null and _tab == TAB_DISPLAY:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 
 
 ## 当前页第一个能拿焦点的控件。
@@ -613,7 +684,10 @@ func _on_slider_changed(value: float, id: StringName) -> void:
 		&"flash":
 			Settings.set_flash_scale(value / 100.0, false)
 		_:
-			Settings.set_volume_percent(id, value, false)
+			if Settings.ASSIST_LIMITS.has(id):
+				Settings.set_value(id, value / 100.0, false)
+			else:
+				Settings.set_volume_percent(id, value, false)
 	(_value_labels[id] as Label).text = "%d%%" % int(round(value))
 	_mark_dirty()
 	if _tick_cool <= 0.0:
@@ -638,7 +712,7 @@ func _on_toggle_pressed(id: StringName) -> void:
 			Settings.set_value(id, not bool(Settings.value(id, true)))
 	_sync_toggle(id)
 	if _viewport_label != null:
-		_viewport_label.text = "视口 %s · 整数倍像素缩放" % DisplayFit.get_resolution_string()
+		_viewport_label.text = "视口 %s · %s" % [DisplayFit.get_resolution_string(), DisplayFit.fit_mode_label()]
 	UiKit.sfx(&"ui_select")
 
 

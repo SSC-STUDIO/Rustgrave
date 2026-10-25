@@ -1,0 +1,595 @@
+{
+  "generator": "tools/gen_original_choir_warden.py",
+  "external_inputs": [],
+  "method": "project-original integer pixel contours and joint poses",
+  "actions": {
+    "idle": 6,
+    "guard": 4,
+    "charge": 6,
+    "sweep": 6,
+    "release": 4,
+    "hurt": 3,
+    "broken": 4,
+    "death": 7
+  },
+  "palette": {
+    "ink": "#122632",
+    "deep": "#203d48",
+    "dark": "#2d555e",
+    "teal": "#3c7074",
+    "mid": "#548d89",
+    "light": "#80b2a2",
+    "edge": "#b2cebb",
+    "rust": "#614936",
+    "brass": "#8d7450",
+    "gold": "#b29a69",
+    "ivory": "#d9d5b1",
+    "white": "#f2edca",
+    "glass": "#173f50",
+    "cyan": "#70d3d5",
+    "ice": "#bceee3",
+    "hose": "#26323d"
+  },
+  "frames": [
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        123,
+        107
+      ],
+      "pixel_sha256": "3a0e9afcab8bf9f6347c14c2ec14d82a3668ad57d6faea2ed5033704457ad7fb"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        123,
+        107
+      ],
+      "pixel_sha256": "4630ef26d40bf79e1f11e339f4e081663f5df7d49e813e59371e494e25810c38"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        22,
+        123,
+        107
+      ],
+      "pixel_sha256": "d2bef432e76dc73998202e68fa76f57a21e6bb27cc0322cada3176734d24ddc4"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        22,
+        123,
+        107
+      ],
+      "pixel_sha256": "2b416bf75ab7dce2839309b7201ee25e0866dd5de31039d72af98e62c4f57870"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_4.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        123,
+        107
+      ],
+      "pixel_sha256": "ca585c2257202b6e884b13245b02c77bfba3fc4fd0dea5d369b72b4348f57ffd"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/idle/idle_5.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        24,
+        123,
+        107
+      ],
+      "pixel_sha256": "1c6002f1e861fe767275e82a34446fb2225aa7e9e0bd1f9c3e533eaf2c3fa570"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/guard/guard_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        118,
+        107
+      ],
+      "pixel_sha256": "bb500bcdbf125d0130cc14639edae5325fe4a43e3965847d9aa658bc87ba35bb"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/guard/guard_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        118,
+        107
+      ],
+      "pixel_sha256": "16463a66e1571eee968e801b97a8d035a9f3e55c15b064ee76ff403a657e11fc"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/guard/guard_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        118,
+        107
+      ],
+      "pixel_sha256": "dbfcd1d040e6d25e6425a74e563ef47a93ed023d41a3a49f5c489302f2896d0a"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/guard/guard_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        118,
+        107
+      ],
+      "pixel_sha256": "da2b4f0d43ccbd69979cd408c02c2be2841ada6338891c05ac3b3d7350ee1fd8"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        24,
+        119,
+        107
+      ],
+      "pixel_sha256": "b0bb05cb8ae9add39e61a98326832c906f343babe875ce0759332bfe7607ae13"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        117,
+        107
+      ],
+      "pixel_sha256": "20c3fdc1fd755d1ca62dbc930a9a5602906b1440b2f5ff80b39978869b7eaaee"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        115,
+        107
+      ],
+      "pixel_sha256": "1ed55e75315d367a26e6d8d6207df6fffdda52fd20cf647d0f031fae3c6843bc"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        113,
+        107
+      ],
+      "pixel_sha256": "b4693eb18da225701fbaf8804107ba6906820020006b053613b471846514fe4a"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_4.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        111,
+        107
+      ],
+      "pixel_sha256": "5418c4e07e11783aec0fb89a553f813ef3b898f574f7f07fa9c87669e83eea14"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/charge/charge_5.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        109,
+        107
+      ],
+      "pixel_sha256": "76d4a16ff04f91b12a308e2d3ecae81ec79370049604cf3d3c139bd9544e7b8a"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        124,
+        107
+      ],
+      "pixel_sha256": "cfa49807803e542f1b0a8e0473da2a766a6bc362d763780971706bfa0b8f2823"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        24,
+        124,
+        107
+      ],
+      "pixel_sha256": "c98688d0d4448c09ae37c95bb6089eaab5176fe9dbd462847b1ffdf40990e0ae"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        124,
+        107
+      ],
+      "pixel_sha256": "5d28355aaf4eac6d5f64d4f6a89900b162d35b867ff35e71abf49984b98d6f89"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        124,
+        107
+      ],
+      "pixel_sha256": "84a4e69df5cfae8e1b446f90cf7d414a7eaa153631dc8e6574489e49f5f96ad9"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_4.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        124,
+        107
+      ],
+      "pixel_sha256": "a69d94f2fff1de4673a254aa30f12ad9b7e8ad7b302bed45d063c5c156379ec3"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/sweep/sweep_5.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        124,
+        107
+      ],
+      "pixel_sha256": "1f282564fe59a5ef143d820b08d46ec9f9cf74c58cbbbbeee9794092ccf08a57"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/release/release_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        122,
+        107
+      ],
+      "pixel_sha256": "c2653dfcd440b0fa4a270976134f4ff8b614ea54e062be4bca799cdfe508890e"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/release/release_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        24,
+        122,
+        107
+      ],
+      "pixel_sha256": "d7eef4323baa2cfb25a46259be405176c4197c141229dc47ae8e18f1f0857c8d"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/release/release_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        122,
+        107
+      ],
+      "pixel_sha256": "e85ce43cb16bb79cba8df3eb60451e590006ac250533752d3831d8a6c959bbd3"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/release/release_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        23,
+        122,
+        107
+      ],
+      "pixel_sha256": "b969b5dad9c289e1c9f78e028b61ab88a74f1dc21b42f5126dad79e26d21e957"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/hurt/hurt_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        24,
+        123,
+        107
+      ],
+      "pixel_sha256": "a5c908fc978fdbc9d7e65a6a30902501c874c0785f147586ac6904b4217156cb"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/hurt/hurt_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        27,
+        123,
+        107
+      ],
+      "pixel_sha256": "464d579bab290408f4e216bc88dd97a87656ba0f9d2535b6334daf969bdd4b2d"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/hurt/hurt_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        25,
+        123,
+        107
+      ],
+      "pixel_sha256": "9945543adac0e15f839df55a20ce74ddcb66caa6dcf2cbef164cb46569ec7b5a"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/broken/broken_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        30,
+        123,
+        107
+      ],
+      "pixel_sha256": "8d461ff42c8e3342b8cb03bf308108d385624633b7d62a4c9e1f3c0aae117ed5"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/broken/broken_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        31,
+        123,
+        107
+      ],
+      "pixel_sha256": "ce57552a03f64ad146e5a292962949424c73727117d9513dc889dfa9f6bc5ca3"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/broken/broken_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        30,
+        123,
+        107
+      ],
+      "pixel_sha256": "45283088c71ae4499abc729b8bffc85b372f70e4c41bc2364a91b41b00a3c1cb"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/broken/broken_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        31,
+        123,
+        107
+      ],
+      "pixel_sha256": "6ad287081a27b9bb180427c79a378070c512b0e52a1b0bf44bcf9d74ab572e08"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_0.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        26,
+        125,
+        108
+      ],
+      "pixel_sha256": "06b1b759efcc5c5326fec439cb077dc60e2f1fbd8560956934494873141f6eb2"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_1.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        30,
+        125,
+        108
+      ],
+      "pixel_sha256": "1911cdc0649efdf300b289d7332452d24ff75bbd0726d3c3342e4acce188a14b"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_2.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        33,
+        125,
+        108
+      ],
+      "pixel_sha256": "b075b6f44971df02273dbc7ade40e2f66543816c7677506a2ad6aba0bbb2a6c0"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_3.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        35,
+        125,
+        108
+      ],
+      "pixel_sha256": "12b0cae87214bda8e277c75b5185562520affb871f7e2eaa8db0b5f7c897d8b1"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_4.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        36,
+        125,
+        108
+      ],
+      "pixel_sha256": "6885ab5640ef62a35f54905fdb3db110e86df215d1938afb9fb589e545583bd0"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_5.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        37,
+        125,
+        108
+      ],
+      "pixel_sha256": "e0d5994672a49845f755fb0137731ce403e6fafc3220d3aa7c88de8c8769698d"
+    },
+    {
+      "path": "assets/characters/original_capstan_warden/death/death_6.png",
+      "size": [
+        128,
+        112
+      ],
+      "bbox": [
+        10,
+        37,
+        125,
+        108
+      ],
+      "pixel_sha256": "809bbdd70bcbec2c50c2c60c423feff397868f963a012c36588d08a28d3091e3"
+    }
+  ]
+}

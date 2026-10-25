@@ -47,6 +47,7 @@ var _spine: Control
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _tutorial: TutorialRecall
+var _map_from_hotkey := false
 var _map: MapScreen
 var _equipment: CanvasLayer
 ## Esc during a scene fade (respawn fade-in, chapter arrival, Continue) used to be
@@ -349,6 +350,10 @@ func sub_screen_open() -> bool:
 
 
 func _resume_menu() -> void:
+	if _map_from_hotkey:
+		_map_from_hotkey = false
+		close()
+		return
 	if _trial_menu != null and _trial_menu.visible:
 		_trial_menu.active = true
 	else:
@@ -401,6 +406,7 @@ func _process(_delta: float) -> void:
 
 
 func close() -> void:
+	_map_from_hotkey = false
 	_open_requested = false
 	if not visible or _closing:
 		return
@@ -450,6 +456,18 @@ func _set_play_hud_visible(show: bool) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("map") and not event.is_echo():
+		if not visible and GameContext.gameplay_input_enabled() and not Director.is_fading():
+			open()
+			if visible:
+				_map_from_hotkey = true
+				_menu.active = false
+				_trial_menu.active = false
+				_map.open()
+		elif visible and not sub_screen_open():
+			_on_chosen(ID_MAP)
+		get_viewport().set_input_as_handled()
+		return
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	if Director.choice_hold and not visible:

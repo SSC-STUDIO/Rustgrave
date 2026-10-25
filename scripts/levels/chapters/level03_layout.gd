@@ -1,113 +1,104 @@
 extends ChapterLayout
 ## 锈墓・叁 — 锈城街巷：地窟的门开在地面上的死城里。窗里有锈苔的光，街上没人。
 ##
-## 结构（街面 y=320，一跳台阶 ≤32px、横跨 ≤64px）：
-##   ① 街道      0–560     出生点、余烬巢、碑文、路牌、水沟石栏，一只碎铁犬教冲锋
-##   ② 毒水沟    560–720   断桥两块石板（288/256）踩上屋顶 A（224）
-##      屋顶     720–1360  屋顶 A→B（喷吐者）→C（压板）；屋顶 C 东侧两级实心石阶
-##                         通街面，走街面的人也能从这里爬上去踩压板
-##   ③ 城门      1360      压板在屋顶 C 上，闸门在街面；离最后一级石阶 64px、离屋顶
-##                         160px，跳不到门顶上
-##   ④ 广场      1360–1936 第二余烬巢；两只碎铁犬 + 一只飞魔；守墓者石像；
-##                         塔楼屋顶（y=160）只能钩锁上去：碑文「灯」+ 悬着的余烬核，
-##                         是本章的支路。屋顶东侧的瓦面可以顺势跳回街面。
-##                         塔楼本身是最高的剪影，钩点悬在它上面，站在广场就能看见。
-##   ⑤ 窄巷      1936–2240 下沉 32px 的巷子，两侧矮屋檐口压顶，幽魂在巷东凝出；
-##                         巷口第三巢在碎铁犬/幽魂的仇恨圈外，死亡回程约 800px
-##   ⑥ 圣殿前阶  2240–2880 三级 32px 石阶（320/288/256）上前台；喷吐者守阶口，
-##                         齿盾卫守门；出口「圣殿门」→ level04
-##   ⑦ 死城街区  2880–4000 前台落地回到街面；死城支路（屋顶环线，可回主路）带
-##                         1 个奖励位；街尾是新的圣殿门（出口）
+## 下沉街巷、市场抬台、两条屋顶环线；详见 docs/level-redesign/level03.md。
 
 const EAST_LIMIT := 4000
 const ENTRY_SPAWN := Vector2(96, 300)
-
-## 地面段 [name, x0, x1, top_y]
+const FALLING_TILES := preload("res://scripts/levels/chapters/level03_falling_tiles.gd")
 const FLOORS: Array = [
-	["StreetA", 0.0, 560.0, 320.0],
-	["StreetB", 720.0, 1360.0, 320.0],
-	["Plaza", 1360.0, 1936.0, 320.0],
-	["Alley", 1936.0, 2240.0, 352.0],
-	["StairA", 2240.0, 2336.0, 320.0],
-	["StairB", 2336.0, 2432.0, 288.0],
-	["Terrace", 2432.0, 2880.0, 256.0],
-	["DeadStreet", 2880.0, 4000.0, 320.0],
+	["StreetA", 0.0, 512.0, 320.0],
+	["DrainLane", 512.0, 832.0, 352.0],
+	["StreetB", 832.0, 1536.0, 320.0],
+	["MarketCourt", 1536.0, 1856.0, 288.0],
+	["Plaza", 1856.0, 2112.0, 320.0],
+	["Alley", 2112.0, 2432.0, 352.0],
+	["StairA", 2432.0, 2496.0, 320.0],
+	["StairB", 2496.0, 2560.0, 288.0],
+	["Terrace", 2560.0, 2848.0, 256.0],
+	["DeadStreet", 2848.0, 3232.0, 320.0],
+	["DeadSlope", 3232.0, 3296.0, 288.0],
+	["DeadCourt", 3296.0, 3552.0, 256.0],
+	["TempleStreet", 3552.0, 4000.0, 320.0],
 ]
 const STEPS: Array = [
-	["BridgeA1", Vector2(592, 288), 48.0, "brick_float"],
-	["BridgeA2", Vector2(672, 256), 48.0, "brick_float"],
-	["RoofA", Vector2(760, 224), 128.0, "brick"],
-	["RoofB", Vector2(952, 224), 96.0, "brick"],
-	["RoofC", Vector2(1104, 224), 96.0, "brick"],
-	["TowerRoof", Vector2(1784, 160), 144.0, "brick"],
-	["EaveD", Vector2(1952, 256), 96.0, "brick"],
-	["EaveE", Vector2(2112, 256), 96.0, "brick"],
-	## ⑦ 死城支路：从街面爬上死屋檐口（288→256→224），沿屋脊走到奖励位，
-	## 再从屋脊直接落回街面——可回主路的环线，不需要钩锁也能走通。
-	["DeadStepA", Vector2(2952, 288), 48.0, "brick_float"],
-	["DeadRoofA", Vector2(3000, 256), 120.0, "brick"],
-	["DeadRidge", Vector2(3120, 224), 140.0, "brick"],
+	["RoofEntry", Vector2(928, 224), 80.0, "brick"],
+	["RoofB", Vector2(1072, 224), 96.0, "brick"],
+	["RoofC", Vector2(1232, 224), 96.0, "brick"],
+	["TowerRoof", Vector2(1760, 160), 144.0, "brick"],
+	# Keep the return eave west of StairB's jump arc. Covering the mandatory
+	# staircase either removes its 32px landing or clips the next jump's headroom.
+	["AlleyReturnStep", Vector2(2448, 224), 48.0, "brick"],
+	["EaveE", Vector2(2352, 256), 96.0, "brick"],
+	["EaveD", Vector2(2192, 256), 80.0, "brick"],
+	["DeadRoofA", Vector2(2992, 256), 64.0, "brick"],
+	["DeadRidge", Vector2(3056, 224), 128.0, "brick"],
+	["DeadRoofB", Vector2(3264, 192), 96.0, "brick"],
+	["DeadRoofC", Vector2(3440, 192), 80.0, "brick"],
 ]
-## 实心石阶 [name, pos(左上), size]：屋顶 C 东侧下到街面的两级。
-## 每级至多 32 高；64 高的落差拆成上下两块，LevelSanity 的净空检查才把
-## 它读成「两级台阶」，而不是一堵压在街面上的墙。
+const COLLAPSING_STEPS: Array = [
+	["CollapseRoof1", Vector2(1024, 224), 32.0],
+	["CollapseRoof2", Vector2(1184, 224), 32.0],
+	["CollapseAlley", Vector2(2288, 256), 48.0],
+	["CollapseQuarter1", Vector2(3200, 224), 48.0],
+	["CollapseQuarter2", Vector2(3376, 192), 48.0],
+]
 const BLOCKS: Array = [
-	["RoofStepHighBase", Vector2(1200, 288), Vector2(48, 32)],
-	["RoofStepHigh", Vector2(1200, 256), Vector2(48, 32)],
-	["RoofStepLow", Vector2(1248, 288), Vector2(48, 32)],
+	["RoofStepLow", Vector2(736, 320), Vector2(64, 32)],
+	["RoofStepMidBase", Vector2(800, 320), Vector2(64, 32)],
+	["RoofStepMid", Vector2(800, 288), Vector2(64, 32)],
+	["RoofStepHighBase", Vector2(864, 288), Vector2(64, 32)],
+	["RoofStepHigh", Vector2(864, 256), Vector2(64, 32)],
+	# A missed eave jump / Plaza nest reload must still reach the closed gate's plate.
+	# Climb east, then jump back west across the open 64px gap onto RoofC.
+	["RoofReturnLow", Vector2(1328, 288), Vector2(64, 32)],
+	["RoofReturnHighBase", Vector2(1392, 288), Vector2(64, 32)],
+	["RoofReturnHigh", Vector2(1392, 256), Vector2(64, 32)],
+	# Keep the 64px street gate meaningful beside the new return stair.
+	# The brick lintel closes its overhead bypass while leaving the open doorway clear.
+	["GateLintel", Vector2(1488, 160), Vector2(48, 96)],
+	# Leave 32px to drop back to the street before the optional blocked roof.
+	["DeadStepA", Vector2(2928, 288), Vector2(32, 32)],
 ]
-const CANAL_X0 := 560.0
-const CANAL_X1 := 720.0
-## 酸黄绿：夜街的青灰石板旁，原色毒液会读成一条水沟。
-const TOXIN_TINT := Color(1.0, 1.25, 0.55)
-
+const DEBRIS: Array = [
+	["FallingTileTeach", Vector2(400, 320), 0.0],
+	["FallingTileMarket", Vector2(1744, 288), 0.25],
+	["FallingTileAlley", Vector2(2336, 352), 0.5],
+	["FallingTileQuarter", Vector2(3488, 256), 0.75],
+]
 const NEST_START_X := 176.0
-const NEST_PLAZA_X := 1424.0
-## 巷口的第三巢：广场两只碎铁犬的巡逻范围收窄到巢的 215px 仇恨圈之外，
-## 巷里的幽魂也退到东端。死亡回程从 1300px 缩到约 800px，且巢位在战斗圈外。
-const NEST_ALLEY_X := 2000.0
+const NEST_PLAZA_X := 1168.0
+const NEST_ALLEY_X := 2160.0
+const NEST_QUARTER_X := 3152.0
 const STELE_WINDOW_POS := Vector2(248, 320)
-const STELE_STAIR_POS := Vector2(2600, 256)
+const STELE_STAIR_POS := Vector2(2680, 256)
+const STELE_TOWER_POS := Vector2(1832, 160)
 const SIGN_TOWN_POS := Vector2(328, 320)
 const SIGN_TEMPLE_POS := Vector2(3780, 320)
-
-## 压板脚点在屋顶 C 上；闸门左上角在街面（门 16×64，底在 320）。
-const PLATE_FEET := Vector2(1152, 224)
-const GATE_POS := Vector2(1360, 256)
-## 钩锁锚点悬在塔楼屋顶上方；余烬核悬在屋顶上方 32px。
-## 支路碑文站在屋顶东端，和核错开：读碑的人不会把核挤进字里。
+const PLATE_FEET := Vector2(1280, 224)
+const GATE_POS := Vector2(1488, 256)
 const HOOK_POS := Vector2(1856, 104)
 const EMBER_CORE_POS := Vector2(1896, 128)
-## 支路奖励：世界信息（锈城为什么熄灯），不是第二枚可收集核。
-const STELE_TOWER_POS := Vector2(1832, 160)
-## ⑦ 死城街区：奖励位在死屋檐脊上（EquipmentPickup 的 Fill 底边在节点 +7px）。
 const REWARD_SCENE := "res://scenes/interactables/EquipmentPickup.tscn"
-const REWARD_POS := Vector2(3176, 217)
+const REWARD_POS := Vector2(3104, 217)
 const REWARD_KIND := "equipment"
 const REWARD_REF := "iron_blade"
 const EXIT_POS := Vector2(3840, 320)
-
-## [name, kind, pos, overrides]：落地敌人给脚点，飞行/穿墙敌人给悬停中心。
-## 广场两只碎铁犬的 beat 收在 16px：plaza 巢和巷口巢都在 215px 冲锋圈之外。
 const ENEMIES: Array = [
-	["Scrapper1", "scrapper", Vector2(432, 320), {}],
-	["Spitter1", "spitter", Vector2(1008, 224), {}],
-	["Scrapper2", "scrapper", Vector2(1664, 320), {"patrol_range": 16.0}],
-	["Scrapper3", "scrapper", Vector2(1760, 320), {"patrol_range": 16.0}],
-	["FlyingDemon1", "flying_demon", Vector2(1712, 184), {}],
-	# 幽魂退到窄巷东端，巷口巢（2000）距它 228px > 210px 唤醒距离。
-	["Ghost1", "ghost", Vector2(2228, 312), {}],
-	["Spitter2", "spitter", Vector2(2464, 256), {}],
-	["GearShield1", "gear_shield", Vector2(2656, 256), {}],
-	## ⑦ 死城街区：碎铁犬守在支路入口、幽魂在屋脊东侧、喷吐者守街尾圣殿门。
-	["Scrapper4", "scrapper", Vector2(2900, 320), {}],
-	["Ghost2", "ghost", Vector2(3420, 268), {}],
-	["Spitter3", "spitter", Vector2(3640, 320), {}],
+	["Scrapper1", "scrapper", Vector2(640, 352), {"patrol_range": 24.0, "aggro_range": 128.0, "lose_range": 256.0}],
+	["Spitter1", "spitter", Vector2(752, 320), {"aggro_range": 224.0}],
+	["Scrapper2", "scrapper", Vector2(1584, 288), {"patrol_range": 16.0, "alert_radius": 160.0}],
+	["Scrapper3", "scrapper", Vector2(1696, 288), {"variant": &"swift_scrapper", "patrol_range": 16.0}],
+	["FlyingDemon1", "flying_demon", Vector2(1704, 200), {}],
+	["AlleyHound", "scrapper", Vector2(2416, 352), {"variant": &"armored_scrapper", "patrol_range": 16.0, "alert_radius": 180.0}],
+	["Ghost1", "ghost", Vector2(2400, 312), {}],
+	["Spitter2", "spitter", Vector2(2592, 256), {}],
+	["GearShield1", "gear_shield", Vector2(2768, 256), {"patrol_range": 16.0}],
+	["Scrapper4", "scrapper", Vector2(3432, 256), {"variant": &"swift_scrapper", "patrol_range": 16.0}],
+	["Ghost2", "ghost", Vector2(3408, 156), {}],
+	["Spitter3", "spitter", Vector2(3664, 320), {}],
 ]
 
-## 街屋已经在夜城视差里。不再把圣殿尖窗板竖在街心当第二排房子。
-## 也不竖 bg_wall_torch：那是室内墙板，会挡掉夜城远山。
-## 装饰门洞（地窟出口 / 店门）：压暗以免读成机关闸门。
 const ARCH_TINT := Color(0.82, 0.8, 0.84)
 ## 死城街上没有春天的新叶：灌木压成干枯的灰橄榄，别在锈砖上跳一块鲜绿。
 const DRY_BUSH := Color(0.72, 0.7, 0.5)
@@ -163,13 +154,13 @@ func weather_recipe() -> Dictionary:
 	}
 
 
-## ⑤ 窄巷（1936–2240）两侧矮屋檐口压顶：风被墙吃掉，雾沉在巷底。
-## ⑦ 死城街区（2880–4000）也是一片沉雾：死屋之间连风都懒得走。
+## 窄巷两侧矮屋檐口压顶：风被墙吃掉，雾沉在巷底。
+## 死城街区也是一片沉雾：死屋之间连风都懒得走。
 func weather_regions() -> Array:
 	return [
-		{"name": "AlleyCalm", "rect": Rect2(1936, 224, 304, 176),
+		{"name": "AlleyCalm", "rect": Rect2(2112, 224, 320, 176),
 			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
-		{"name": "DeadQuarter", "rect": Rect2(2880, 224, 1120, 176),
+		{"name": "DeadQuarter", "rect": Rect2(2848, 160, 1152, 240),
 			"weather": WorldClock.Weather.FOG, "intensity": 0.85, "wind_scale": 0.5},
 	]
 
@@ -189,7 +180,8 @@ func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
 		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "brick",
 				float(f[1]) > 0.0, float(f[2]) < float(EAST_LIMIT), float(f[3]))
-	toxin_pit(host, "Canal", CANAL_X0, CANAL_X1, 32.0, "brick", TOXIN_TINT)
+	for c in COLLAPSING_STEPS:
+		collapsing(host, String(c[0]), c[1], float(c[2]), "brick", {"shake_time": 0.7, "respawn_time": 3.0})
 	for s in STEPS:
 		step(host, String(s[0]), s[1], float(s[2]), String(s[3]))
 	for b in BLOCKS:
@@ -201,6 +193,13 @@ func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStreet", NEST_START_X)
 	nest(host, "EmberNestPlaza", NEST_PLAZA_X)
 	nest(host, "EmberNestAlley", NEST_ALLEY_X, 352.0)
+	nest(host, "EmberNestQuarter", NEST_QUARTER_X)
+	for d in DEBRIS:
+		var hazard := FALLING_TILES.new()
+		hazard.name = String(d[0])
+		hazard.position = d[1]
+		hazard.phase = float(d[2])
+		group(host, "Props").add_child(hazard)
 	_stele(host, "SteleWindow", STELE_WINDOW_POS)
 	_stele(host, "SteleStair", STELE_STAIR_POS)
 	waymark(host, SIGN_TOWN_POS, "锈城")
@@ -213,11 +212,11 @@ func _build_props(host: Node2D) -> void:
 	# ⑦ 死屋檐脊上的奖励位：支路尽头的一件锈城遗物（EquipmentPickup 接应）。
 	_reward(host)
 	# ⑧ 可破坏道具（M2）：街边两只可砍碎的锈堆，放在支路/角落，不挡主线。
-	destructible(host, "ScrapHeapStreet", &"scrap_heap", Vector2(880, 320))
-	destructible(host, "RustUrnStreet", &"rust_urn", Vector2(1140, 320))
-	# ⑨ 可破坏地形（M2）：死屋檐道上的裂石板。重击两下打碎，才能走上屋脊拿奖励；
-	#    会话内破坏（persist=false），重载恢复，主路线不经过它。
-	breakable(host, "RubbleRoofB", Vector2(3024, 192), Vector2(64, 64), "brick")
+	destructible(host, "ScrapHeapStreet", &"scrap_heap", Vector2(1040, 320))
+	destructible(host, "RustUrnStreet", &"rust_urn", Vector2(1400, 320))
+	# 死屋檐道西口的裂石板：打通近路拿屋脊奖励，东侧也可经塌瓦绕回。
+	# 会话内破坏（persist=false），重载恢复，主路线不经过它。
+	breakable(host, "RubbleRoofB", Vector2(2992, 192), Vector2(48, 64), "brick")
 
 
 ## 奖励位：EquipmentPickup 的 reward_kind/reward_ref 走 LoadoutBridge（roster 缺失
@@ -245,38 +244,18 @@ func _build_enemies(host: Node2D) -> void:
 
 
 func _build_decor(host: Node2D) -> void:
-	# ① 街道：地窟门洞、一丛杂草、干石渣、水沟两岸的石栏。不用墓园树和苔石。
-	prop(host, "door_arch_town", Vector2(40, 320), 1.0, ARCH_TINT)
-	foliage(host, "bush_s", Vector2(368, 320), 1.0, false, DRY_BUSH)
-	prop(host, "rubble_dry", Vector2(464, 320))
-	prop(host, "balustrade_town", Vector2(520, 320))
-	prop(host, "balustrade_town", Vector2(760, 320))
-	# ② 屋顶下的街面：干石、店门洞、门前杂草
-	prop(host, "rubble_dry", Vector2(920, 320))
-	prop(host, "door_arch_town", Vector2(1072, 320), 1.0, ARCH_TINT)
-	foliage(host, "bush_s", Vector2(1108, 320), 1.0, false, DRY_BUSH)
-	# ④ 广场：一栋还立着的砖屋当地标（压暗压冷，退到夜城后面），石栏和干石。
-	# 枯树、守墓者石像是墓园的，不搬到街上。
-	prop(host, "brick_house", Vector2(1660, 320), 1.0, Color(0.42, 0.46, 0.54))
-	prop(host, "balustrade_town", Vector2(1544, 320))
-	prop(host, "rubble_dry", Vector2(1656, 320))
-	prop(host, "rubble_dry_c", Vector2(1744, 320))
-	foliage(host, "bush_s", Vector2(1836, 320), 1.0, false, DRY_BUSH)
-	# ⑤ 窄巷：檐下是灰藤，不是鲜苔；巷底干石
-	hanging(host, "vine", Vector2(1960, 272), Color(0.4, 0.42, 0.4, 0.75))
-	hanging(host, "vine", Vector2(2200, 272), Color(0.4, 0.42, 0.4, 0.75))
-	prop(host, "rock_pile", Vector2(2064, 352), 1.0, Color(0.6, 0.62, 0.7))
-	# ⑥ 圣殿前阶：阶口杂草、干石、前台石栏
-	foliage(host, "bush_s", Vector2(2250, 320), 1.0, false, DRY_BUSH)
-	prop(host, "rubble_dry", Vector2(2352, 288))
-	prop(host, "balustrade_town", Vector2(2528, 256))
-	# ⑦ 死城街区：塌了半边的砖屋、门洞、干石与栏杆；支路屋脊下一盏残窗灯。
-	prop(host, "brick_house", Vector2(2960, 320), 1.0, Color(0.36, 0.4, 0.5))
-	prop(host, "door_arch_town", Vector2(3260, 320), 1.0, ARCH_TINT)
-	prop(host, "rubble_dry", Vector2(3304, 320))
-	prop(host, "rubble_dry_b", Vector2(3384, 320))
-	prop(host, "balustrade_town", Vector2(3480, 320))
-	foliage(host, "bush_s", Vector2(3540, 320), 1.0, false, DRY_BUSH)
-	prop(host, "brick_house", Vector2(3700, 320), 1.0, Color(0.4, 0.44, 0.54))
-	prop(host, "rubble_dry_c", Vector2(3806, 320))
-	hanging(host, "vine", Vector2(3096, 224), Color(0.4, 0.42, 0.4, 0.7))
+	for p in [["door_arch_town", Vector2(40, 320)], ["rubble_dry", Vector2(464, 320)],
+		["balustrade_town", Vector2(688, 352)], ["door_arch_town", Vector2(1080, 320)],
+		["rubble_dry", Vector2(1440, 320)], ["balustrade_town", Vector2(1552, 288)],
+		["rubble_dry_c", Vector2(1808, 288)], ["balustrade_town", Vector2(2016, 320)],
+		["rock_pile", Vector2(2240, 352)], ["rubble_dry_b", Vector2(2480, 320)],
+		["balustrade_town", Vector2(2816, 256)], ["door_arch_town", Vector2(2880, 320)],
+		["rubble_dry", Vector2(3192, 320)], ["rubble_dry_b", Vector2(3320, 256)],
+		["balustrade_town", Vector2(3528, 256)], ["rubble_dry_c", Vector2(3806, 320)]]:
+		prop(host, String(p[0]), p[1], 1.0, ARCH_TINT if p[0] == "door_arch_town" else Color.WHITE)
+	for pos in [Vector2(352, 320), Vector2(1328, 320), Vector2(1952, 320), Vector2(2720, 256), Vector2(3584, 320)]:
+		foliage(host, "bush_s", pos, 1.0, false, DRY_BUSH)
+	for pos in [Vector2(1640, 288), Vector2(2960, 320), Vector2(3728, 320)]:
+		prop(host, "brick_house", pos, 1.0, Color(0.38, 0.42, 0.52))
+	for pos in [Vector2(2208, 272), Vector2(2384, 272), Vector2(3096, 240)]:
+		hanging(host, "vine", pos, Color(0.4, 0.42, 0.4, 0.7))

@@ -59,6 +59,11 @@ const RIPOSTE_TIME := 1.2
 const RIPOSTE_MULT := 2
 ## 非盾类敌人被弹丸打中后的硬直（盾类走自己的 stagger_time）。
 const RIPOSTE_STAGGER := 0.55
+## 两次真正命中的剑刃终结击，在这个窗口内积累一次首领破势。
+const BOSS_POISE_HITS := 2
+const BOSS_POISE_WINDOW := 5.0
+const BOSS_POISE_RECOVERY := 0.8
+const BOSS_POISE_COOLDOWN := 1.6
 
 # ---------------------------------------------------------------------------
 # 毒素档位：奖励（伤害、位移、钩程、剑光）与风险（满溢掉血）都读这张表。
@@ -83,6 +88,21 @@ const TOXIN_TIERS := {
 }
 ## 满溢：每隔这么久掉 1 点生命（ToxinMeter.overflow_interval 的镜像）。
 const OVERFLOW_TICK := 0.55
+
+
+## Only player Health uses this: enemies and arena units keep their authored HP.
+static func incoming_damage(amount: int) -> int:
+	return maxi(1, int(round(float(amount) * Settings.assist(&"assist_incoming"))))
+
+
+## Extra parry coverage is the trailing portion of windup; idle/recovery stay closed.
+static func parry_windup_start() -> float:
+	return 1.0 - (Settings.assist(&"assist_parry") - 1.0)
+
+
+static func toxin_exposure(amount: float) -> float:
+	return amount * Settings.assist(&"assist_toxin") if amount > 0.0 else amount
+
 
 # ---------------------------------------------------------------------------
 # 受击反馈矩阵：材质 x 出手分量。所有顿帧 / 震屏 / 火花 / 击退 / 硬直 / 音效都从这里取。

@@ -11,7 +11,9 @@ param(
     # skin id to show on the bridge (default: the Ember Knight)
     [string]$Skin = '',
     # hide the UI and capture only the live scene
-    [switch]$Bare
+    [switch]$Bare,
+    [switch]$Keyart,
+    [switch]$ShadowPair
 )
 # Window-mode capture of the live title (see tools/title_peek.gd). Saves and settings
 # are isolated under $OutDir, and APPDATA is redirected, so a real player save is
@@ -20,8 +22,8 @@ $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
 $outputDir = Join-Path $workspace ($OutDir -replace '/', '\')
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-$env:APPDATA = Join-Path $outputDir 'isolated-userdata'
-$env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
+$previousAppData = $env:APPDATA
+$previousUpdateCheck = $env:RUSTGRAVE_NO_UPDATE_CHECK
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
 $first = ($Sizes -split ',')[0]
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $first,
@@ -29,9 +31,18 @@ $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '
     ('--out=' + $resOut), ('--sizes=' + $Sizes), ('--variants=' + $Variants), ('--shots=' + $Shots))
 if ($Skin) { $arguments += @('--skin=' + $Skin) }
 if ($Bare) { $arguments += @('--bare') }
+if ($Keyart) { $arguments += @('--keyart') }
+if ($ShadowPair) { $arguments += @('--shadow-pair') }
 $stdoutFile = Join-Path $outputDir 'stdout.log'
 $stderrFile = Join-Path $outputDir 'stderr.log'
-$process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+try {
+    $env:APPDATA = Join-Path $outputDir 'isolated-userdata'
+    $env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
+    $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+} finally {
+    $env:APPDATA = $previousAppData
+    $env:RUSTGRAVE_NO_UPDATE_CHECK = $previousUpdateCheck
+}
 if (-not $process.WaitForExit(300000)) {
     Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $process.Id) | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
     if (-not $process.HasExited) { $process.Kill() }
@@ -40,4 +51,5 @@ if (-not $process.WaitForExit(300000)) {
 Get-Content -LiteralPath $stdoutFile | Where-Object { $_ -match '^TITLE_PEEK ' }
 $errors = @(Get-Content -LiteralPath $stderrFile | Where-Object { $_ -match '^(SCRIPT ERROR:|ERROR:)' })
 if ($errors.Count -gt 0) { $errors; exit 1 }
+if ($null -ne $process.ExitCode -and $process.ExitCode -ne 0) { throw 'title_peek failed' }
 exit 0

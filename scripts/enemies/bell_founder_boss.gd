@@ -537,8 +537,15 @@ func _interrupt_attack() -> void:
 			_boss_director.notify_attack_finished()
 
 
+func _interrupt_for_poise() -> void:
+	_interrupt_attack()
+	_disarm_poise_hitboxes(_transient)
+	_state = State.IDLE
+	_timer = 0.0
+
+
 # ---------------------------------------------------------------------------
-# 视觉（程序化像素：铸工剪影 + 钟形盔 + 大锤）
+# 视觉（原创四层炉甲铸工 / 钟模背炉 / 独立分节锤）
 # ---------------------------------------------------------------------------
 func _build_visual() -> void:
 	if visual == null:
@@ -569,84 +576,71 @@ func _build_visual() -> void:
 
 func _update_visuals(delta: float) -> void:
 	if _shell != null and _shell.has_method("animate"):
-		_shell.call("animate", delta, _swing, _enraged, _broken_left > 0.0)
+		_shell.call("animate", delta, _swing, _enraged, _broken_left > 0.0, String(_attack), int(_step))
 	if _hammer != null and _hammer.has_method("set_swing"):
 		(_hammer as Node2D).call("set_swing", _swing)
+		_hammer.call("animate_state", delta, _enraged, _broken_left > 0.0, String(_attack), int(_step))
 	if _glow != null:
 		var pulse := 1.0 + 0.08 * sin(Time.get_ticks_msec() / 1000.0 * 2.2)
 		_glow.modulate.a = (0.30 if _enraged else 0.16) * pulse
 
 
-## 铸工本体：围裙、炉火前的剪影、钟形头盔。
+## 自绘四层炉甲：各层护甲、背炉开口和钳手均烘焙为透明整数像素帧。
 class FounderShell extends Node2D:
 	var _hot := false
 	var _t := 0.0
-	var _shake := 0.0
-	var _cracked := false
+	var _frames: FrameAnimSprite
+
+	func _ready() -> void:
+		_frames = FrameAnimSprite.new()
+		_frames.name = "OriginalFounderFrames"
+		for prefix in ["", "hot_"]:
+			for action in ["idle", "hammer_slam", "mold_cast", "molten_pool", "bell_shard", "stagger"]:
+				var key: String = prefix + action
+				_frames.register(key, CharFrames.anim("original_bell_founder", key), 6.0, true, Vector2(0.0, -56.0))
+		add_child(_frames)
+		_frames.pin_frame("idle", 0)
 
 	func set_hot(hot: bool) -> void:
 		_hot = hot
-		queue_redraw()
+		if _frames != null:
+			_frames.pin_frame(("hot_" if _hot else "") + "idle", 0)
 
 	func crack() -> void:
-		_cracked = true
-		_shake = 3.0
-		queue_redraw()
+		if _frames != null:
+			_frames.pin_frame(("hot_" if _hot else "") + "stagger", 0)
 
-	func animate(delta: float, swing: float, hot: bool, broken: bool) -> void:
+	func animate(delta: float, _swing: float, hot: bool, broken: bool, attack: String, step: int) -> void:
 		_t += delta
 		_hot = hot
-		_shake = lerpf(_shake, 0.0, minf(1.0, delta * 8.0))
-		if absf(swing) > 0.05:
-			_shake = maxf(_shake, absf(swing) * 2.0)
-		queue_redraw()
-
-	func _draw() -> void:
-		var ox := roundf(sin(_t * 30.0) * _shake)
-		# 腿 / 围裙 / 躯干（1x 像素块，脚在 y=0）。
-		draw_rect(Rect2(ox - 9.0, -18.0, 7.0, 18.0), Color(0.20, 0.17, 0.15))
-		draw_rect(Rect2(ox + 2.0, -18.0, 7.0, 18.0), Color(0.20, 0.17, 0.15))
-		draw_rect(Rect2(ox - 13.0, -52.0, 26.0, 36.0), Color(0.30, 0.24, 0.19))
-		# 皮围裙：胸前一块更暗的矩形 + 护腰。
-		draw_rect(Rect2(ox - 9.0, -48.0, 18.0, 30.0), Color(0.24, 0.18, 0.14))
-		draw_rect(Rect2(ox - 14.0, -26.0, 28.0, 5.0), Color(0.16, 0.13, 0.11))
-		# 手臂（挥锤时前伸）。
-		draw_rect(Rect2(ox + 10.0, -50.0, 8.0, 6.0), Color(0.26, 0.21, 0.17))
-		# 钟形头盔：下宽上窄的铜钟扣在头上。
-		var helm := PackedVector2Array([
-			Vector2(ox - 6.0, -58.0), Vector2(ox + 6.0, -58.0),
-			Vector2(ox + 11.0, -72.0), Vector2(ox + 9.0, -80.0),
-			Vector2(ox - 9.0, -80.0), Vector2(ox - 11.0, -72.0),
-		])
-		draw_colored_polygon(helm, Color(0.34, 0.27, 0.20))
-		draw_rect(Rect2(ox - 12.0, -60.0, 24.0, 4.0), Color(0.42, 0.32, 0.22))
-		# 面缝里的炉火：一阶段暗橙，二阶段亮白橙。
-		var eye := Color(1.0, 0.62, 0.25) if _hot else Color(0.85, 0.42, 0.16)
-		draw_rect(Rect2(ox - 2.0, -66.0, 4.0, 2.0), eye)
-		# 熔金裂纹：二阶段从围裙和钟壳上烧出来。
-		if _hot:
-			draw_line(Vector2(ox - 8.0, -42.0), Vector2(ox - 2.0, -34.0), Color(1.0, 0.5, 0.12, 0.9), 2.0)
-			draw_line(Vector2(ox - 2.0, -34.0), Vector2(ox + 6.0, -28.0), Color(1.0, 0.5, 0.12, 0.7), 1.0)
-			draw_line(Vector2(ox + 8.0, -74.0), Vector2(ox + 4.0, -64.0), Color(1.0, 0.45, 0.1, 0.85), 1.0)
-		# 被弹反的破绽：钟壳上留一道亮裂。
-		if _cracked or _hot:
-			draw_line(Vector2(ox - 6.0, -76.0), Vector2(ox + 3.0, -60.0), Color(1.0, 0.86, 0.5, 0.9), 2.0)
+		var action := "stagger" if broken else (attack if not attack.is_empty() else "idle")
+		var index := int(_t * 6.0) % 4 if action in ["idle", "stagger"] else clampi(step, 0, 2) * 2 + int(_t * 8.0) % 2
+		_frames.pin_frame(("hot_" if hot else "") + action, index)
 
 
-## 大锤（挂在手上，挥锤时旋转）。
+## 独立分节锤仍接收真实 swing；举锤/落锤/收锤另按真实 AttackStep 钉帧。
 class FounderHammer extends Node2D:
-	var _swing := 0.0
+	var _t := 0.0
+	var _frames: FrameAnimSprite
+
+	func _ready() -> void:
+		_frames = FrameAnimSprite.new()
+		_frames.name = "OriginalFounderToolFrames"
+		for prefix in ["", "hot_"]:
+			for action in ["idle", "hammer_slam", "mold_cast", "molten_pool", "bell_shard", "stagger"]:
+				var key: String = prefix + "tool_" + action
+				_frames.register(key, CharFrames.anim("original_bell_founder", key), 6.0, true, Vector2(0.0, -56.0))
+		add_child(_frames)
+		_frames.pin_frame("tool_idle", 0)
 
 	func set_swing(swing: float) -> void:
-		_swing = swing
 		rotation = -swing * 0.5
-		queue_redraw()
 
-	func _draw() -> void:
-		draw_rect(Rect2(9.0, -46.0, 3.0, 34.0), Color(0.22, 0.18, 0.15))
-		draw_rect(Rect2(2.0, -56.0, 18.0, 12.0), Color(0.34, 0.30, 0.26))
-		draw_rect(Rect2(2.0, -56.0, 18.0, 4.0), Color(0.46, 0.40, 0.33))
-		draw_rect(Rect2(16.0, -56.0, 4.0, 12.0), Color(0.24, 0.20, 0.17))
+	func animate_state(delta: float, hot: bool, broken: bool, attack: String, step: int) -> void:
+		_t += delta
+		var action := "stagger" if broken else (attack if not attack.is_empty() else "idle")
+		var index := int(_t * 6.0) % 4 if action in ["idle", "stagger"] else clampi(step, 0, 2) * 2 + int(_t * 8.0) % 2
+		_frames.pin_frame(("hot_" if hot else "") + "tool_" + action, index)
 
 
 ## 熔金池：持续存在的浇铸区（站进去每 0.9s 掉 1 血）。视觉是发光的熔金面。

@@ -9,15 +9,14 @@ extends EnemyBase
 ## 召唤碎铁犬；每次**泄压**时身侧的泄压阀是破防窗口（砸开 = 2 倍破绽 + 硬直）。
 ## 每招前摇 >= 0.35s，导演层串行出招 -> 同一时刻只有一条预警。
 ##
-## 美术：assets/characters/gear_shield_executioner 帧冷青色调复用（无专属素材，见汇报）；
-## 程序化链条/绞盘轭/蒸汽是表现层，不遮挡骑士剪影与预警（z 在玩法层之下）。
+## 原创潜水甲、水平双绞筒与链锚，源稿tools/gen_original_choir_warden.py。
 
 signal slain
 
 ## 帧素材：与齿轮盾卫共用（100×100，原图面朝左，脚底距底边 16.5px）。
-const EXEC_CHAR := "gear_shield_executioner"
-const EXEC_POS := Vector2(6.0, -34.0)
-const EXEC_DEATH_BASELINE := -33.0
+const EXEC_CHAR := "original_capstan_warden"
+const EXEC_POS := Vector2(0.0, -51.0)
+const EXEC_DEATH_BASELINE := -51.0
 const BODY_SIZE := Vector2(30, 52)
 const HURT_SIZE := Vector2(40, 68)
 
@@ -27,8 +26,8 @@ const BOSS_ID := &"capstan_warden"
 const MAX_HP := 16
 const DEATH_FLAG := &"capstan_dead"
 ## 冷青剪影：帧素材的近黑主色被冷色抬亮，地窖暗部里也能读出体块（骑士仍比 Boss 亮）。
-const COLD_TINT := Color(2.30, 2.95, 3.15)
-const COLD_TINT_P2 := Color(2.60, 3.15, 3.35)
+const COLD_TINT := Color(0.95, 1.05, 1.08)
+const COLD_TINT_P2 := Color(1.05, 1.12, 1.10)
 ## 背后的冷光 / 接地阴影：把 1× 剪影从深色砖墙上剥出来（不遮玩法层）。
 const GLOW_TINT := Color(0.55, 0.85, 1.05, 0.20)
 
@@ -113,7 +112,7 @@ func _enemy_ready() -> void:
 	_fit_silhouette()
 	_build_visual()
 	_build_presence()
-	_build_yoke()
+	# The original frame carries its own horizontal winch; no legacy round yoke.
 	_build_boss_framework()
 	call_deferred("_bind_arena")
 
@@ -144,16 +143,19 @@ func body_clearance() -> Vector2:
 func _build_visual() -> void:
 	_anim = _build_frame_anim(EXEC_CHAR, [
 		["idle", "", 8.0, true, EXEC_POS],
-		["guard", "idle2", 8.0, true, EXEC_POS],
-		["charge", "summon", 7.0, false, EXEC_POS],
+		["guard", "guard", 8.0, true, EXEC_POS],
+		["charge", "charge", 7.0, false, EXEC_POS],
+		["release", "release", 8.0, false, EXEC_POS],
+		["broken", "broken", 7.0, true, EXEC_POS],
+		["hurt", "hurt", 8.0, false, EXEC_POS],
 	])
 	if _anim == null:
 		return
-	var attack_frames := CharFrames.anim(EXEC_CHAR, "attack")
+	var attack_frames := CharFrames.anim(EXEC_CHAR, "sweep")
 	if not attack_frames.is_empty():
 		_anim.register("sweep", attack_frames,
 				float(attack_frames.size()) / (CHAIN_WINDUP + CHAIN_ACTIVE), false, EXEC_POS)
-	_anim.flip_h = true
+	_anim.flip_h = false
 	_anim.play("idle")
 	visual.add_child(_anim)
 	visual.move_child(_anim, 0)
@@ -411,6 +413,12 @@ func _cancel_drive() -> void:
 	_clear_active_box()
 
 
+func _interrupt_for_poise() -> void:
+	_cancel_drive()
+	_vent_left = 0.0
+	_close_valve()
+
+
 func _begin_windup_pose(id: StringName) -> void:
 	if _anim == null:
 		return
@@ -564,8 +572,14 @@ func _tick_state(delta: float) -> void:
 	if not _announced:
 		# 走进竞技场就开战（没有独立闸门触发器；和梦魇同一条靠近唤醒逻辑）。
 		var near := knight()
-		if near != null and global_position.distance_to(near.global_position) <= WAKE_RANGE:
+		var bounds := boss_arena_bounds()
+		if near != null and near.global_position.x >= bounds.x and near.global_position.x <= bounds.y \
+				and global_position.distance_to(near.global_position) <= WAKE_RANGE:
 			announce()
+		else:
+			# Do not creep towards the approach/checkpoint before the fight.
+			# Announcing from there activates BossArena's player clamp remotely.
+			velocity.x = 0.0
 	if _break_left > 0.0:
 		_break_left = maxf(0.0, _break_left - delta)
 		velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
@@ -586,6 +600,9 @@ func _tick_state(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, 500.0 * delta)
 		_tick_drive(delta)
 		return
+	if not _announced:
+		velocity.x = 0.0
+		return
 	# 两招之间缓慢靠近骑士（竞技场 clamp 由 BossArena 负责）。
 	var player := knight()
 	if player != null:
@@ -601,9 +618,16 @@ func _tick_state(delta: float) -> void:
 
 
 func _after_move() -> void:
-	if _anim != null and _drive == Drive.NONE:
+	if _anim != null:
 		if _break_left > 0.0:
-			_anim.play("guard")
+			_anim.play("broken")
+		elif _drive == Drive.WINDUP:
+			var duration := maxf(_kit.windup_for(_drive_entry, _phase), 0.01)
+			_anim.pin_frame("charge", clampi(int((1.0 - _drive_timer / duration) * 6.0), 0, 5))
+		elif _drive == Drive.ACTIVE:
+			_anim.pin_frame("sweep" if _drive_id == &"chain_sweep" else "release", 2)
+		elif _drive == Drive.RECOVERY or _vent_left > 0.0:
+			_anim.play("release")
 		else:
 			_anim.play("idle")
 	if visual != null:

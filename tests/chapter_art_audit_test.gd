@@ -245,7 +245,7 @@ func test_goal_and_exit_labels_come_from_chapter_text() -> void:
 		print("AUDIT hud %s objective='%s' exit='%s'" % [level_id, objective, exit_label])
 
 
-## ------------------------------ D. 新章 Boss 预留竞技场：连续平地 + 不塞杂物 --
+## ------------------------------ D. 新章 Boss 竞技场：连续回收地面 + 可读地形 --
 
 func test_new_chapter_boss_arenas_are_clear_flat_and_empty() -> void:
 	for level_id in ["level02b", "level04b"]:
@@ -263,15 +263,42 @@ func test_new_chapter_boss_arenas_are_clear_flat_and_empty() -> void:
 		var left: float = float(constants["ARENA_LEFT"])
 		var right: float = float(constants["ARENA_RIGHT"])
 		print("AUDIT arena %s [%d, %d] width=%d" % [level_id, left, right, right - left])
-		# 1) 竞技场必须是连续平地：地板段覆盖整段，坑/台/吊台不进入场地。
+		# 1) 两场都保留连续回收地面；地窖的侧龛与烛桥另验可达和喷口避让。
 		var floors: Array = constants.get("FLOORS", [])
 		var covered := 0.0
 		for f in floors:
 			var x0 := float(f[1])
 			var x1 := float(f[2])
 			covered += maxf(0.0, minf(x1, right) - maxf(x0, left))
+			if level_id == "level04b" and x1 > left and x0 < right:
+				eq(float(f[3]), ChapterLayout.FLOOR_Y, "crypt recovery floor stays level")
 		eq(covered, right - left, "%s: the arena floor is continuous and flat" % level_id)
-		for table_name in ["PITS", "STEPS", "BLOCKS", "LIFTS"]:
+		var excluded_tables := ["PITS", "STEPS", "BLOCKS", "LIFTS"]
+		if level_id == "level04b":
+			excluded_tables = ["PITS", "BLOCKS", "LIFTS"]
+			var shelters := 0
+			var boss_pos: Vector2 = constants["BOSS_POS"]
+			for row in constants.get("STEPS", []):
+				var pos: Vector2 = row[1]
+				var width := float(row[2])
+				if pos.x + width <= left or pos.x >= right:
+					continue
+				var feet := pos + Vector2(width * 0.5, 0)
+				ok(LevelSanity.is_reachable(host, boss_pos, feet, false), "crypt shelter is reachable by basic jumps")
+				for hz in LevelSanity.hazards(host):
+					if hz is CyclicHazard:
+						ok(not (hz as CyclicHazard).hit_rect().grow(12).has_point(feet - Vector2(0, 16)),
+								"crypt shelter clears every flame sweep")
+				shelters += 1
+			ok(shelters >= 2, "crypt arena supplies two permanent side shelters")
+			for row in constants.get("CANDLE_STEPS", []):
+				var pos: Vector2 = row[1]
+				if pos.x < left or pos.x > right:
+					continue
+				var feet := Vector2(pos.x + float(row[2]) * 0.5, ChapterLayout.FLOOR_Y)
+				var support := LevelSanity.standing_on(LevelSanity.top_segments(host), feet)
+				ok(support != null and support.kind == "", "crypt candle fall lands on the permanent recovery floor")
+		for table_name in excluded_tables:
 			var rows: Array = constants.get(table_name, [])
 			for row in rows:
 				var pos := Vector2(float(row[1].x), float(row[1].y)) if row[1] is Vector2 else Vector2.ZERO

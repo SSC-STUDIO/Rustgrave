@@ -6,26 +6,30 @@ const WORLD_SIZE := Vector2i(640, 360)
 const UI_SIZE := Vector2i(1280, 720)
 
 
-static func calculate(window_size: Vector2i) -> Dictionary:
+static func calculate(window_size: Vector2i, mode: int = DisplayFit.FitMode.INTEGER) -> Dictionary:
 	var physical := Vector2(maxi(window_size.x, 640), maxi(window_size.y, 360))
-	var integer_scale := maxi(1, int(floor(minf(physical.x / 640.0, physical.y / 360.0))))
-	var content_size := Vector2(WORLD_SIZE) * integer_scale
-	var origin := ((physical - content_size) * 0.5).floor()
-	# The native root stretches per axis. Compensate here so Godot never rounds
-	# an aspect-preserved render target (1366x768 otherwise becomes 1365x768).
+	var fit_scale := minf(physical.x / 640.0, physical.y / 360.0)
+	var integer_scale := maxi(1, int(floor(fit_scale)))
+	var pixel_scale := float(integer_scale) if mode == DisplayFit.FitMode.INTEGER else fit_scale
+	var ui_size := Vector2(WORLD_SIZE) * pixel_scale
+	var ui_origin := ((physical - ui_size) * 0.5).floor()
+	var expanded := mode == DisplayFit.FitMode.EXPAND
+	var content_size := physical if expanded else ui_size
+	var origin := Vector2.ZERO if expanded else ui_origin
 	var root_scale := physical / Vector2(UI_SIZE)
-	var canvas_origin := origin / root_scale
-	var ui_scale := float(integer_scale) * 0.5
+	var canvas_origin := ui_origin / root_scale
 	return {
 		"scale": integer_scale,
+		"world_size": Vector2i((physical / pixel_scale).ceil()) if expanded else WORLD_SIZE,
 		"physical_rect": Rect2(origin, content_size),
-		"canvas_rect": Rect2(canvas_origin, content_size / root_scale),
-		"ui_transform": Transform2D(0.0, Vector2.ONE * ui_scale / root_scale, 0.0, canvas_origin),
+		"canvas_rect": Rect2(origin / root_scale, content_size / root_scale),
+		"ui_canvas_rect": Rect2(canvas_origin, ui_size / root_scale),
+		"ui_transform": Transform2D(0.0, Vector2.ONE * pixel_scale * 0.5 / root_scale, 0.0, canvas_origin),
 	}
 
 
 static func for_window(win: Window) -> Dictionary:
-	return calculate(win.size if win != null else UI_SIZE)
+	return calculate(win.size if win != null else UI_SIZE, DisplayFit.get_fit_mode())
 
 
 ## Safe-area insets measured on the root canvas (left, top, right, bottom in 1280x720
@@ -36,8 +40,8 @@ static func for_window(win: Window) -> Dictionary:
 static func layer_insets(root_insets: Vector4, window_size: Vector2i) -> Vector4:
 	if root_insets == Vector4.ZERO:
 		return Vector4.ZERO
-	var metrics := calculate(window_size)
-	var canvas: Rect2 = metrics["canvas_rect"]
+	var metrics := calculate(window_size, DisplayFit.get_fit_mode())
+	var canvas: Rect2 = metrics["ui_canvas_rect"]
 	var ui := Vector2(UI_SIZE)
 	# The content rect spans [canvas.position, canvas.end] on the root canvas and
 	# is exactly UI_SIZE wide/high in layer units, so one layer unit is this many

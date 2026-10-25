@@ -1,191 +1,194 @@
 extends Node
-## Frame-cost probe (evidence, not a gate): boots a real chapter in the real
-## presentation shell and attributes the frame budget to the systems that own it.
-##
-## It samples three things per camera spot:
-##   1. Godot's own frame-time monitors (process / physics / render),
-##   2. A per-script CPU attribution pass: every Node whose script defines
-##      _process or _physics_process is timed with Time.get_ticks_usec()
-##      around its own tick by temporarily swapping the method with a
-##      measurement wrapper (see _wrap_process). GDScript virtual dispatch
-##      cannot be intercepted directly, so the wrapper is installed by
-##      re-registering the node's _process through a small proxy object that
-##      times the original script's method and then calls it.
-##   3. Node inventory: how many nodes exist per class, so the cost of "many
-##      tiny sprites" and "many tiny scripts" is visible as counts.
-##
-## Because (2) needs a rewrite of each node's process entry point, the probe
-## reports attribution for the whole level with the camera parked at one spot,
-## then a node-class histogram. Run it per level:
-##
-##   godot --path . --windowed --resolution 1920x1080 res://scenes/tools/FrameCostProbe.tscn -- --level=level08
-
-const OUT := "res://screenshots/peek/frame_cost"
-const SETTLE_SECONDS := 1.2
-const SAMPLE_SECONDS := 4.0
+## Off-screen render-callback cadence is separate from CPU monitors and physical
+## presentation FPS. No GPU timer or per-script attribution is implemented.
+const OUT := "res://screenshots/acceptance/overhaul-v3/title-perf/probes"
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		printerr("FrameCostProbe needs a render target")
 		get_tree().quit(2)
 		return
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	get_tree().create_timer(240.0, true, false, true).timeout.connect(func() -> void:
-		printerr("frame cost probe: watchdog timeout")
-		if is_inside_tree():
-			get_tree().quit(3))
+	get_tree().create_timer(180.0, true, false, true).timeout.connect(func() -> void:
+		push_error("frame cost probe watchdog timeout")
+		get_tree().quit(3))
 	var level_id := "level08"
+	var variant := "cold"
 	var out_dir := OUT
 	var win_size := Vector2i(1920, 1080)
+	var active := false
+	var keyart := false
+	var seconds := 4.0
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--level="):
 			level_id = arg.trim_prefix("--level=")
+		elif arg.begins_with("--variant="):
+			variant = arg.trim_prefix("--variant=")
 		elif arg.begins_with("--out="):
 			out_dir = arg.trim_prefix("--out=")
+		elif arg.begins_with("--sample="):
+			seconds = maxf(1.0, float(arg.trim_prefix("--sample=")))
 		elif arg.begins_with("--win="):
 			var parts := arg.trim_prefix("--win=").split("x", false)
 			if parts.size() == 2:
 				win_size = Vector2i(int(parts[0]), int(parts[1]))
+		elif arg == "--active":
+			active = true
+		elif arg == "--keyart":
+			keyart = true
+	if level_id != "title" and not GameContext.LEVELS.has(level_id):
+		push_error("unknown probe level: " + level_id)
+		get_tree().quit(1)
+		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
-	var win := get_tree().root
-	win.mode = Window.MODE_WINDOWED
-	win.position = Vector2i(-12000, -12000)
-	win.size = win_size
-	Engine.max_fps = 0
-	SaveData.save_path = out_dir + "/perf_save.cfg"
+	SaveData.save_path = out_dir + "/probe_save.cfg"
+	Settings.save_path = out_dir + "/probe_settings.cfg"
 	SaveData.delete_save()
-	SaveData.flags.clear()
-	SaveData.mark_flag("opening_seen")
-	SaveData.mark_flag("wake")
+	SaveData.flags = PackedStringArray(["opening_seen", "wake", "boss_intro"])
 	SaveData.pending_spawn = Vector2.INF
 	SaveData.entering_from_checkpoint = false
 	SaveData.ending = ""
 	Director.abort()
-	if GameContext.LEVELS.has(level_id):
+	var win := get_tree().root
+	win.mode = Window.MODE_WINDOWED
+	win.position = Vector2i(-12000, -12000)
+	win.size = win_size
+	var camera_position := Vector2.ZERO
+	var player_feet := Vector2.ZERO
+	var title_state: Dictionary = {}
+	if level_id == "title":
+		var flags: Array = []
+		for id in GameContext.LEVEL_ORDER:
+			flags.append(String(StoryFlow.DONE_FLAGS[id]))
+		TitleWorld.forced_state = {}
+		if variant != "cold":
+			var fixture := ConfigFile.new()
+			fixture.set_value("meta", "version", 3)
+			fixture.set_value("meta", "scene", GameContext.LEVELS["level10"])
+			fixture.set_value("meta", "ending", variant)
+			fixture.set_value("story", "flags", flags)
+			fixture.set_value("player", "origin", "ember_vanguard")
+			fixture.set_value("profile", "ember_rank", 4)
+			fixture.set_value("profile", "skin_id", "skin_fantasy_knight")
+			fixture.save(SaveData.save_path)
+		title_state = TitleWorld.state_from_save()
+		var title := preload("res://scenes/ui/TitleScreen.tscn").instantiate() as TitleScreen
+		title.live_scene_enabled = not keyart
+		add_child(title)
+		await get_tree().process_frame
+		title._skip_intro()
+	else:
 		GameContext.pending_world_path = GameContext.LEVELS[level_id]
-	var presentation := preload("res://scenes/ui/GamePresentation.tscn").instantiate()
-	add_child(presentation)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	Director.abort()
-	Director.set_letterbox(false, true)
-	Director.hide_hint()
-	await get_tree().create_timer(0.6).timeout
-	var camera := get_tree().get_first_node_in_group("game_camera") as GameCamera
-	var player := get_tree().get_first_node_in_group("player") as Player
-	if camera == null or player == null:
-		printerr("frame cost probe: no camera/player")
-		get_tree().quit(1)
+		add_child(preload("res://scenes/ui/GamePresentation.tscn").instantiate())
+		await get_tree().create_timer(0.6).timeout
+		Director.abort()
+		Director.set_letterbox(false, true)
+		Director.hide_hint()
+		var camera := get_tree().get_first_node_in_group("game_camera") as GameCamera
+		var player := get_tree().get_first_node_in_group("player") as Player
+		if camera == null or player == null:
+			push_error("frame cost probe: missing camera/player")
+			get_tree().quit(1)
+			return
+		player.set_physics_process(false)
+		player.health.invincible = true
+		camera.set_physics_process(false)
+		camera_position = camera.global_position
+		player_feet = player.global_position
+		if not active:
+			for enemy in get_tree().get_nodes_in_group("enemies"):
+				enemy.process_mode = Node.PROCESS_MODE_DISABLED
+	Engine.max_fps = 0
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	if not await _settle_window(win_size):
 		return
-	# Park the world exactly like perf_probe: frozen AI, only render/scene cost.
-	player.set_physics_process(false)
-	player.health.invincible = true
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		enemy.set_physics_process(false)
-		enemy.set_process(false)
-	camera.global_position = Vector2(960.0, 220.0)
-	camera.force_update_scroll()
-	camera.set_physics_process(false)
-	await get_tree().create_timer(SETTLE_SECONDS).timeout
-	var warm_until := Time.get_ticks_usec() + 2_000_000
-	while Time.get_ticks_usec() < warm_until:
-		await get_tree().process_frame
-	# ---------------------------------------------------------------- sample
-	var frame_ms: Array[float] = []
-	var process_ms: Array[float] = []
-	var physics_ms: Array[float] = []
-	var draw_calls: Array[float] = []
-	var nodes: Array[float] = []
+	await get_tree().create_timer(2.0).timeout
+	# No texture readback in the sample loop. CPU monitors are not added together.
+	var intervals: Array[float] = []
+	var cpu: Array[float] = []
+	var physics: Array[float] = []
+	var draws: Array[float] = []
+	var fps: Array[float] = []
+	await RenderingServer.frame_post_draw
 	var start := Time.get_ticks_usec()
-	while Time.get_ticks_usec() - start < int(SAMPLE_SECONDS * 1_000_000.0):
-		await get_tree().process_frame
-		frame_ms.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-				+ Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
-		process_ms.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
-		physics_ms.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
-		draw_calls.append(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-		nodes.append(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	# ------------------------------------------------------- node inventory
+	var previous := start
+	var drawn_start := Engine.get_frames_drawn()
+	while Time.get_ticks_usec() - start < int(seconds * 1_000_000.0):
+		await RenderingServer.frame_post_draw
+		var now := Time.get_ticks_usec()
+		intervals.append(float(now - previous) / 1000.0)
+		previous = now
+		cpu.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+		physics.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
+		draws.append(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+		fps.append(Performance.get_monitor(Performance.TIME_FPS))
+	var elapsed := float(previous - start) / 1_000_000.0
 	var histogram: Dictionary = {}
-	var process_nodes := 0
-	var physics_nodes := 0
-	var sprite_count := 0
-	var light_count := 0
-	var total := 0
-	_count_nodes(get_tree().root, histogram, 0)
-	for key in histogram:
-		total += int(histogram[key]["count"])
-	for key in histogram:
-		var e: Dictionary = histogram[key]
-		process_nodes += int(e.get("process", 0))
-		physics_nodes += int(e.get("physics", 0))
-		sprite_count += int(e.get("sprite", 0))
-		light_count += int(e.get("light", 0))
-	var report := {
-		"level": level_id,
-		"window": "%dx%d" % [win_size.x, win_size.y],
-		"renderer": RenderingServer.get_current_rendering_method(),
-		"sampled_frames": frame_ms.size(),
-		"frame_ms_avg": snappedf(_mean(frame_ms), 0.01),
-		"process_ms_avg": snappedf(_mean(process_ms), 0.01),
-		"physics_ms_avg": snappedf(_mean(physics_ms), 0.01),
-		"draw_calls_avg": snappedf(_mean(draw_calls), 0.1),
-		"nodes_avg": snappedf(_mean(nodes), 0.1),
-		"nodes_total_sampled": total,
-		"process_nodes": process_nodes,
-		"physics_process_nodes": physics_nodes,
-		"sprite_nodes": sprite_count,
-		"light_nodes": light_count,
-		"class_histogram": histogram,
-	}
-	var file := FileAccess.open("%s/frame_cost_%s_%dx%d.json" % [out_dir, level_id, win_size.x, win_size.y],
-			FileAccess.WRITE)
+	_count_nodes(get_tree().root, histogram)
+	var image := win.get_texture().get_image()
+	var mode := "keyart" if keyart else "live"
+	var label := level_id + ("_" + variant + "_" + mode if level_id == "title" else "_active" if active else "_frozen")
+	var stem := "%s/frame_cost_%s_%dx%d" % [out_dir, label, win_size.x, win_size.y]
+	image.save_png(stem + ".png")
+	var report := {"level": level_id, "variant": variant if level_id == "title" else "entry_camera",
+		"mode": mode if level_id == "title" else "active_ai" if active else "frozen_ai",
+		"limitations": "Off-screen render callbacks, not physical presentation FPS; no GPU timer or per-script attribution. Fixed entry camera, no traversal or worst-case guarantee.",
+		"window": [win.size.x, win.size.y], "actual_render_size": [image.get_width(), image.get_height()],
+		"renderer": RenderingServer.get_current_rendering_method(), "display_server": DisplayServer.get_name(),
+		"vsync_mode": DisplayServer.window_get_vsync_mode(), "max_fps": Engine.max_fps,
+		"sample_seconds": elapsed, "sampled_callbacks": intervals.size(),
+		"rendered_frames_delta": Engine.get_frames_drawn() - drawn_start,
+		"render_callbacks_per_second": float(intervals.size()) / maxf(elapsed, 0.001),
+		"callback_interval_ms_mean": _mean(intervals), "callback_interval_ms_p50": _percentile(intervals, 0.5),
+		"callback_interval_ms_p95": _percentile(intervals, 0.95), "callback_interval_ms_max": intervals.max(),
+		"process_monitor_ms_mean": _mean(cpu), "physics_monitor_ms_mean": _mean(physics),
+		"engine_fps_monitor_mean": _mean(fps), "draw_calls_mean": _mean(draws),
+		"object_node_monitor": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+		"camera_position": [camera_position.x, camera_position.y], "player_feet": [player_feet.x, player_feet.y],
+		"title_state": title_state,
+		"class_histogram": histogram, "callback_intervals_ms": intervals}
+	var file := FileAccess.open(stem + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "\t"))
-	print("FRAMECOST level=%s %s" % [level_id, JSON.stringify({
-		"frame_ms_avg": report["frame_ms_avg"],
-		"process_ms_avg": report["process_ms_avg"],
-		"physics_ms_avg": report["physics_ms_avg"],
-		"draw_calls_avg": report["draw_calls_avg"],
-		"nodes_avg": report["nodes_avg"],
-		"process_nodes": process_nodes,
-		"physics_process_nodes": physics_nodes,
-		"sprite_nodes": sprite_count,
-		"light_nodes": light_count,
-	})])
+	print("FRAMECOST ", label, " callbacks_per_sec=", report["render_callbacks_per_second"],
+		" interval_p95_ms=", report["callback_interval_ms_p95"], " actual=", image.get_size())
 	SaveData.delete_save()
 	get_tree().quit(0)
 
+func _settle_window(wanted: Vector2i) -> bool:
+	var win := get_tree().root
+	var stable := 0
+	for frame in 120:
+		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
+			win.mode = Window.MODE_WINDOWED
+			win.size = wanted
+			win.position = Vector2i(-12000, -12000)
+			stable = 0
+		await RenderingServer.frame_post_draw
+		stable = stable + 1 if win.size == wanted and win.get_texture().get_image().get_size() == wanted else 0
+		if stable >= 3:
+			return true
+	push_error("frame cost probe render size did not settle")
+	get_tree().quit(1)
+	return false
 
-func _count_nodes(node: Node, histogram: Dictionary, depth: int) -> void:
-	if depth > 12 or node == null:
-		return
+func _count_nodes(node: Node, histogram: Dictionary) -> void:
 	var key := node.get_class()
-	var raw: Variant = histogram.get(key)
-	var e: Dictionary
-	if raw == null:
-		e = {"count": 0, "process": 0, "physics": 0, "sprite": 0, "light": 0}
-		histogram[key] = e
-	else:
-		e = raw
-	e["count"] = int(e["count"]) + 1
-	if node is Sprite2D or node is Polygon2D or node is ColorRect:
-		e["sprite"] = int(e["sprite"]) + 1
-	if node is Light2D:
-		e["light"] = int(e["light"]) + 1
-	# process_mode 0 = inherit, 1 = pausable... disabled nodes (mode 3/4/5) skip.
-	var mode := node.process_mode
-	if node.has_method("_process") and mode < 3:
-		e["process"] = int(e["process"]) + 1
-	if node.has_method("_physics_process") and mode < 3:
-		e["physics"] = int(e["physics"]) + 1
+	if not histogram.has(key):
+		histogram[key] = {"count": 0, "process": 0, "physics": 0}
+	histogram[key]["count"] += 1
+	if node.is_processing() and node.can_process():
+		histogram[key]["process"] += 1
+	if node.is_physics_processing() and node.can_process():
+		histogram[key]["physics"] += 1
 	for child in node.get_children():
-		_count_nodes(child, histogram, depth + 1)
-
+		_count_nodes(child, histogram)
 
 func _mean(values: Array[float]) -> float:
-	if values.is_empty():
-		return 0.0
 	var total := 0.0
-	for v in values:
-		total += v
-	return total / float(values.size())
+	for value in values:
+		total += value
+	return total / maxf(1.0, float(values.size()))
+
+func _percentile(values: Array[float], quantile: float) -> float:
+	var ordered := values.duplicate()
+	ordered.sort()
+	return ordered[clampi(ceili(float(ordered.size()) * quantile) - 1, 0, ordered.size() - 1)]

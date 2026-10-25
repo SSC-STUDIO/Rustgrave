@@ -148,6 +148,7 @@ var _skill_labels: Array[Label] = []
 
 
 func _ready() -> void:
+	call_deferred("_checkpoint_notice")
 	layer = 10
 	WorldClock.isolate_ui_layer(self)
 	DisplayServer.window_set_title("Rustgrave")
@@ -486,7 +487,7 @@ func _build_death_overlay(root: Control) -> void:
 	_death_overlay.add_child(column)
 	column.add_child(UiKit.label("余 烬 熄 灭", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	column.add_child(UiKit.divider())
-	column.add_child(UiKit.label("在最后点亮的余烬巢重燃…", &"DimLabel",
+	column.add_child(UiKit.label("在最后点亮的余烬巢重燃… · 按确认立即重燃", &"DimLabel",
 			HORIZONTAL_ALIGNMENT_CENTER))
 
 
@@ -916,6 +917,12 @@ func banner_text() -> String:
 
 func banner_alpha() -> float:
 	return _banner.modulate.a
+
+
+func _checkpoint_notice() -> void:
+	if SaveData.checkpoint_notice_pending:
+		SaveData.checkpoint_notice_pending = false
+		GameEvents.announcement.emit("余烬巢已复位 · 生命与毒素已恢复")
 
 
 func _on_player_died() -> void:

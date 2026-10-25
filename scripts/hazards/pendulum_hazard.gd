@@ -245,3 +245,25 @@ func _draw_head(center: Vector2, alpha: float) -> void:
 		HazardFx.px_rect(self, Rect2(center.x - r * 0.7, center.y + r * 0.6, r * 1.4, r * 0.5), dark)
 		HazardFx.px_rect(self, Rect2(center.x - r, center.y - r * 0.5, 3.0, r * 1.2), light)
 		HazardFx.px_rect(self, Rect2(center.x + r - 3.0, center.y - r * 0.5, 3.0, r * 1.2), dark)
+
+
+## 球头在完整时段内不经过世界 x 区间；缺省为吊点下方14px宽的通道。
+## 计算端点和所有摆端，避免只采样首尾而漏过中途的横扫。竖向净空由调用方检查。
+func safe_window(duration: float = 0.0, x0: float = NAN, x1: float = NAN) -> bool:
+	if is_nan(x0):
+		x0 = global_position.x - 7.0
+	if is_nan(x1):
+		x1 = global_position.x + 7.0
+	var span := maxf(0.0, duration)
+	var cycle := maxf(MIN_PERIOD, period)
+	var last := _t + minf(span, cycle)
+	var lo := minf(head_x_at(_t), head_x_at(last))
+	var hi := maxf(head_x_at(_t), head_x_at(last))
+	var turn := ceili((_t - cycle * 0.25) / (cycle * 0.5))
+	var turn_time := cycle * 0.25 + float(turn) * cycle * 0.5
+	while turn_time <= last:
+		var x := head_x_at(turn_time)
+		lo = minf(lo, x)
+		hi = maxf(hi, x)
+		turn_time += cycle * 0.5
+	return hi < minf(x0, x1) - head_radius or lo > maxf(x0, x1) + head_radius

@@ -48,6 +48,8 @@ var pending_spawn: Vector2 = Vector2.INF
 ## True from death→fade until the new level finishes try_wake. Survives
 ## consume_pending_spawn(), unlike pending_spawn itself.
 var entering_from_checkpoint: bool = false
+## Transient UI notice; never serialized into the campaign file.
+var checkpoint_notice_pending := false
 
 ## Absolute node paths of one-shot interactables that died (picked up cores,
 ## used filter gears, melted gates). Persisted even though their nodes are
@@ -578,6 +580,10 @@ func mark_flag(id: String) -> void:
 
 
 func has_flag(id: String) -> bool:
+	# A practice scene must build its defeated Boss again. The stored campaign
+	# flags remain intact and all writes remain blocked by the existing trial lock.
+	if TrialRunScript.forces_boss_spawn() and id == String(TrialRunScript.stage().get("death_flag", "")):
+		return false
 	return flags.has(id)
 
 
@@ -958,6 +964,7 @@ func respawn(scene_path: String, spawn: Vector2) -> void:
 		return
 	pending_spawn = spawn
 	entering_from_checkpoint = true
+	checkpoint_notice_pending = true
 	Director.fade_to(scene_path)
 
 

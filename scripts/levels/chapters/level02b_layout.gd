@@ -48,8 +48,11 @@ const FLOOR_TONE := Color(0.84, 0.92, 0.84)
 ## 竞技场内的避水石台单独声明在 ARENA_PERCHES 中。
 const STEPS: Array = [
 	["CanalStoneW", Vector2(576, 288), 48.0],
-	["CanalStoneE", Vector2(656, 288), 48.0],
-	["HaulStoneW", Vector2(1120, 288), 48.0],
+	# Keep 32px of clear headroom beside the bank for a single-jump recovery.
+	["CanalStoneE", Vector2(640, 288), 48.0],
+	# Leave a full 32px shaft beside the west bank. A stone touching x=1120
+	# hits the knight's head at feet y=330 and prevents the 32px recovery jump.
+	["HaulStoneW", Vector2(1152, 288), 48.0],
 	["HaulStoneMid", Vector2(1208, 272), 48.0],
 	["HaulStoneE", Vector2(1648, 272), 48.0],
 	## 大渠下层路线石墩（y=320）：高水位时紧贴液面之上，低水位泄水后与渠底（y=352）组成下层通路。
@@ -59,7 +62,9 @@ const STEPS: Array = [
 	## 钩锁支路绞盘架（y=120）。
 	["CapstanGallery", Vector2(1472, 120), 96.0],
 	## 抽水井上层走道与单向捷径回环阶梯（y=136 -> 168 -> 200）。
-	["PumpCatwalk", Vector2(2448, 136), 96.0],
+	# Stop beside the shaft: spanning over its endpoint crushes the rider's
+	# head before the lift reaches the upper route.
+	["PumpCatwalk", Vector2(2448, 136), 48.0],
 	["PumpOverlookE", Vector2(2600, 168), 80.0],
 	["PumpStepE", Vector2(2696, 200), 64.0],
 ]
@@ -100,7 +105,7 @@ const REWARD_REF := "toxic_ward"
 const PLATE_FEET := Vector2(824, 288)
 const GATE_DOOR_POS := Vector2(1008, 256)
 ## 大渠双水位切换阀板（装在西桥头石 HaulStoneW y=288 上）。
-const DRAIN_VALVE_FEET := Vector2(1144, 288)
+const DRAIN_VALVE_FEET := Vector2(1176, 288)
 ## 抽水井单向捷径：上层绕过地面门（2744）后踩下东侧压板（2784），打通回连 EmberNestConduit 的平地捷径。
 const SHORTCUT_PLATE_FEET := Vector2(2784, 320)
 const SHORTCUT_DOOR_POS := Vector2(2744, 256)
@@ -152,7 +157,7 @@ const PROPS: Array = [
 	["pipe_valve", Vector2(770, 320)],
 	["warning_plate", Vector2(900, 320)],
 	["rubble", Vector2(1108, 320)],
-	["pipe_valve", Vector2(1144, 288)],
+	["pipe_valve", DRAIN_VALVE_FEET],
 	["rubble", Vector2(1232, 272)],
 	["rubble", Vector2(1672, 272)],
 	["pipe_valve", Vector2(1330, 352)],

@@ -28,7 +28,7 @@ const PRESET_RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1024, 768),   ## 4:3 XGA
 ]
 
-static var _current_fit_mode: FitMode = FitMode.ADAPTIVE
+static var _current_fit_mode: FitMode = FitMode.INTEGER
 static var _saved_mode_applied := false
 
 
@@ -42,10 +42,8 @@ static func _get_root_window(win: Window = null) -> Window:
 
 
 static func apply(win: Window = null) -> void:
-	if DisplayServer.get_name() == "headless":
-		return
 	_apply_saved_window_mode()
-	apply_fit_mode(_current_fit_mode, win)
+	apply_fit_mode(int(Settings.value(&"display_fit", FitMode.INTEGER)) as FitMode, win)
 
 
 ## 启动后第一次 apply 时恢复玩家在设置里选的全屏（只做一次，之后窗口模式归玩家说了算）。
@@ -53,21 +51,35 @@ static func _apply_saved_window_mode() -> void:
 	if _saved_mode_applied:
 		return
 	_saved_mode_applied = true
+	apply_vsync(bool(Settings.value(&"vsync", true)), false)
+	var saved: Variant = Settings.value(&"resolution", Vector2i.ZERO)
+	if saved is Vector2i and saved in PRESET_RESOLUTIONS:
+		apply_resolution(saved, null, false)
+	if DisplayServer.get_name() == "headless":
+		return
 	if bool(Settings.value(&"fullscreen", false)) and not is_fullscreen():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 
-static func apply_fit_mode(mode: FitMode, win: Window = null) -> void:
-	# Keep the legacy enum inputs accepted, but use the single canvas-items
-	# presentation path so world and UI share one final content rectangle.
-	_current_fit_mode = FitMode.INTEGER
+static func apply_fit_mode(mode: FitMode, win: Window = null, persist: bool = false) -> void:
+	_current_fit_mode = clampi(int(mode), 0, 2) as FitMode
+	if persist:
+		Settings.set_value(&"display_fit", int(_current_fit_mode))
 	var root := _get_root_window(win)
-	if root == null or DisplayServer.get_name() == "headless":
+	if root == null:
 		return
-
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+	# Every presentation and bound UI uses the same metrics and refresh signal.
+	root.size_changed.emit()
+
+
+static func apply_vsync(enabled: bool, persist: bool = true) -> void:
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if enabled else DisplayServer.VSYNC_DISABLED)
+	if persist:
+		Settings.set_value(&"vsync", enabled)
 
 
 static func get_fit_mode() -> FitMode:
@@ -87,7 +99,7 @@ static func fit_mode_label(mode: FitMode = _current_fit_mode) -> String:
 
 static func cycle_fit_mode(win: Window = null) -> String:
 	var next_val := (int(_current_fit_mode) + 1) % 3
-	apply_fit_mode(next_val as FitMode, win)
+	apply_fit_mode(next_val as FitMode, win, true)
 	return fit_mode_label()
 
 
@@ -138,10 +150,15 @@ static func get_resolution_string() -> String:
 	return "%d×%d  %s" % [sz.x, sz.y, get_aspect_ratio_name(sz)]
 
 
-static func apply_resolution(res: Vector2i, win: Window = null) -> void:
+static func apply_resolution(res: Vector2i, win: Window = null, persist: bool = true) -> void:
+	if not res in PRESET_RESOLUTIONS:
+		return
+	if persist:
+		Settings.set_value(&"resolution", res)
+		Settings.set_value(&"fullscreen", false)
 	if DisplayServer.get_name() == "headless":
 		return
-	if is_fullscreen():
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_size(res)
 	var screen_idx := DisplayServer.window_get_current_screen()

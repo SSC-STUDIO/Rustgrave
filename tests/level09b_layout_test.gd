@@ -1,305 +1,346 @@
 extends TestCase
-## Level09b "炉风崖道": the cliff road descends in 32px steps to the wind bridge,
-## floating stones crossed under a periodic rockfall, the bridge plate opens the
-## gate into the wind lee outpost, the climb reaches the lee deck, a final drop
-## lands on the ash road that dead-ends at the boss hall; a tether branch above the
-## bridge is the only way to the herald's landmark stele + core; three checkpoints,
-## a pre-boss nest, and the exit hops to level10.
-
-const LAYOUT_PATH := "res://scripts/levels/chapters/level09b_layout.gd"
-const SCENE_PATH := "res://scenes/levels/Level09b_EmberwindCliffs.tscn"
-const JUMP_RISE_MAX := 32.0
-const JUMP_GAP_MAX := 72.0
-const FLOOR_Y := 320.0
-
+const LAYOUT := preload("res://scripts/levels/chapters/level09b_layout.gd")
+const TRIAL_CATALOG := preload("res://scripts/data/trial_catalog.gd")
+var _flags: PackedStringArray
+var _consumed: PackedStringArray
 var _layout: ChapterLayout
-var _host: Node2D
 
 
 func setup() -> void:
+	_flags = SaveData.flags.duplicate()
+	_consumed = SaveData.consumed.duplicate()
 	SaveData.flags.clear()
+	SaveData.consumed.clear()
+	Director.abort()
+	Director.resume()
+	Director._set_lock(false)
 
 
 func teardown() -> void:
-	SaveData.flags.clear()
+	Input.action_release("move_right")
+	Input.action_release("move_left")
+	Input.action_release("jump")
+	SaveData.flags = _flags
+	SaveData.consumed = _consumed
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 	Director.abort()
 
 
-func _consts() -> Dictionary:
-	return (load(LAYOUT_PATH) as GDScript).get_script_constant_map()
-
-
 func _build() -> Node2D:
-	_host = Node2D.new()
-	_host.name = "Level09b_EmberwindCliffs"
-	_host.scene_file_path = SCENE_PATH
-	_host.add_to_group("game_world")
-	add_child(_host)
-	_layout = (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
+	var host := Node2D.new()
+	host.name = "Level09b_EmberwindCliffs"
+	host.scene_file_path = GameContext.LEVELS["level09b"]
+	host.add_to_group("game_world")
+	add_child(host)
+	_layout = LAYOUT.new()
 	add_child(_layout)
-	_layout.build(_host)
-	return _host
+	_layout.build(host)
+	return host
 
 
-func _rect_named(host: Node2D, plat_name: String) -> Rect2:
-	var p := host.get_node_or_null("Platforms/" + plat_name) as SolidPlatform
-	ok(p != null, "%s exists" % plat_name)
-	return Rect2(p.position, p.size) if p != null else Rect2()
+func _rect(host: Node2D, name_: String) -> Rect2:
+	var p := host.get_node("Platforms/" + name_) as SolidPlatform
+	return Rect2(p.position, p.size)
 
 
-## One hop from deck `a` onto deck `b`: rise <= 32, edge gap <= 72
-## (drops may reach further, mirroring LevelSanity).
-func _one_hop(a: Rect2, b: Rect2) -> bool:
-	var gap := 0.0
-	if b.position.x > a.end.x:
-		gap = b.position.x - a.end.x
-	elif a.position.x > b.end.x:
-		gap = a.position.x - b.end.x
-	var rise := a.position.y - b.position.y
-	if rise > JUMP_RISE_MAX + 0.01:
-		return false
-	var reach := JUMP_GAP_MAX if rise >= 0.0 else minf(160.0, JUMP_GAP_MAX + (-rise) * 0.5)
-	return gap <= reach + 0.01
-
-
-func _chain_ok(host: Node2D, names: Array) -> void:
-	for i in range(1, names.size()):
-		var a := _rect_named(host, String(names[i - 1]))
-		var b := _rect_named(host, String(names[i]))
-		ok(a.has_area() and b.has_area(), "%s and %s exist" % [names[i - 1], names[i]])
-		ok(_one_hop(a, b), "%s -> %s is one hop" % [names[i - 1], names[i]])
-
-
-func test_metadata_and_vertical_room() -> void:
-	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	eq(layout.level_id(), "level09b")
-	eq(layout.title(), ChapterText.title_of("level09b"), "title comes from ChapterText")
-	ok(layout.title().contains("炉风崖道"), "title names the emberwind cliffs")
-	eq(layout.wake_line(), ChapterText.wake_of("level09b"), "wake line comes from ChapterText")
-	ok(layout.wake_line() != "", "one wake line")
-	eq(layout.east_limit(), 3400)
-	ok(layout.east_limit() >= 3200, "at least 3200px wide")
-	eq(layout.theme(), "ramparts")
-	ok(not layout.indoors(), "the cliff road is outdoors")
-	eq(layout.camera_top(), -400)
-	eq(layout.motes(), "cinders")
+func test_metadata_story_and_basic_route_preserve_the_campaign_contract() -> void:
 	var host := _build()
-	var lowest := 10000.0
-	var highest := -10000.0
-	for child in host.get_node("Platforms").get_children():
-		if child is SolidPlatform and not String(child.name).begins_with("Wall"):
-			var p := child as SolidPlatform
-			lowest = maxf(lowest, p.position.y + p.size.y)
-			highest = minf(highest, p.position.y)
-	ok(lowest - highest >= 720.0, "vertical + horizontal room is at least 720px tall (%.0f)" % (lowest - highest))
-	ok(host.get_node_or_null("ParallaxBackdrop") is CanvasLayer, "outdoor rampart backdrop built")
-	ok(host.get_node_or_null("IndoorZone") == null, "no indoor zone outdoors")
-	layout.free()
+	eq(_layout.entry_spawn(), Vector2(96, -340))
+	eq(_layout.camera_top(), -400)
+	eq(_layout.theme(), "ramparts")
+	eq(_layout.east_limit(), 3400)
+	eq(_layout.title(), ChapterText.title_of("level09b"))
+	eq(_layout.wake_line(), ChapterText.wake_of("level09b"))
+	var problems := LevelSanity.check(host, Rect2(0, -400, 3400, 800))
+	for problem in problems:
+		ok(false, problem)
+	ok(problems.is_empty(), "actual solids, hazards and props pass sanity")
+	for name_ in ["WindGatePlate", "WindGateDoor", "SteleAsh", "SteleHerald", "SteleGate", "Exit"]:
+		var node := host.get_node("Props/" + name_) as Node2D
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LevelSanity.feet_of(node), false), "%s uses the basic route" % name_)
+	var exit := host.get_node("Props/Exit") as LevelExit
+	eq(exit.flag_id, "level09b_done")
+	eq(exit.requires_flag, "herald_dead")
+	eq(exit.target_scene, GameContext.LEVELS["level10"])
+	eq(exit.spawn, ChapterLayout.entry_spawn_of("level10"))
+	for name_ in ["SteleAsh", "SteleHerald", "SteleGate"]:
+		var stele := host.get_node("Props/" + name_) as LoreStele
+		eq(stele.lore_text, String(ChapterText.stele_of("level09b", name_).text))
 
 
-func test_cliff_steps_and_wind_bridge_are_single_hops() -> void:
+func test_three_terraces_reverse_direction_and_keep_the_lower_recovery_road() -> void:
 	var host := _build()
-	_chain_ok(host, ["CliffTop", "StepA1", "StepA2", "StepA3", "LedgeB",
-			"StepB1", "StepB2", "BridgeWest", "Stone1", "Stone2", "Stone3", "Stone4", "BridgeEast"])
-	# Every step is a 32px step at most; the bridge stones never float higher than one hop.
-	for i in range(1, 10):
-		pass
-	var bridge_w := _rect_named(host, "BridgeWest")
-	var bridge_e := _rect_named(host, "BridgeEast")
-	ok(is_equal_approx(bridge_w.position.y, -96.0), "bridge starts one hop below the last step")
-	ok(is_equal_approx(bridge_e.position.y, -32.0), "bridge descends toward the outpost")
-	# The gate: plate on the bridge opens the door into the lee outpost.
-	var props := host.get_node("Props")
-	var plate := props.get_node_or_null("WindGatePlate") as PressurePlate
-	var door := props.get_node_or_null("WindGateDoor") as ArenaDoor
-	ok(plate != null and door != null, "the wind bridge has a plate/door pair")
-	if plate == null or door == null:
-		return
-	ok(plate.activated.is_connected(door.open_door), "the bridge plate opens the outpost gate")
-	ok(not door.is_open, "the outpost gate starts closed")
-	ok(absf(plate.global_position.x - 1600.0) < 8.0, "the plate stands on the bridge east deck")
-	var outpost := _rect_named(host, "OutpostDeck")
-	ok(is_equal_approx(door.position.y + 64.0, outpost.position.y), "the gate foot meets the outpost deck")
-	plate.slam()
-	ok(door.is_open, "pressing the bridge plate rusts the gate open")
+	var chains := [
+		["CliffTop", "EastTurnHigh", "EastTurnLow", "BridgeEast", "BridgeWest"],
+		["BridgeWest", "WestTurnHigh", "WestTurnLow", "LowerWest", "CollapseWest", "CollapsePier", "CollapseEast", "OutpostDeck"],
+		["OutpostDeck", "Climb1", "Climb2", "GateDeck", "DescentLedge", "FloorLow"],
+	]
+	for chain in chains:
+		for i in range(1, chain.size()):
+			var a := _rect(host, chain[i - 1])
+			var b := _rect(host, chain[i])
+			var gap := maxf(0.0, maxf(b.position.x - a.end.x, a.position.x - b.end.x))
+			ok(a.position.y - b.position.y <= 32.0, "route never needs an extra jump")
+			ok(gap <= 72.0, "%s -> %s has a normal-jump edge gap" % [chain[i - 1], chain[i]])
+	var top := _rect(host, "CliffTop")
+	var middle := _rect(host, "BridgeWest")
+	var lower := _rect(host, "LowerWest")
+	ok(top.position.y == -320.0 and middle.position.y == -160.0 and lower.position.y == 0.0)
+	ok(_rect(host, "BridgeEast").position.x > middle.position.x, "middle run travels west from the east bend")
+	ok(_rect(host, "OutpostDeck").position.x > lower.end.x, "lower run travels east after west bend")
+	ok(middle.position.y - top.end.y >= 128.0 and lower.position.y - middle.end.y >= 128.0, "folds have real body and jumping headroom")
+	almost(_rect(host, "FloorLow").size.x, 3400.0)
+	almost(_rect(host, "FloorLow").position.y, 320.0)
 
 
-func test_climb_deck_and_final_drop_land_on_the_ash_road() -> void:
+func test_checkpoint_runs_follow_the_switchbacks_and_stay_near_a_thousand_pixels() -> void:
 	var host := _build()
-	_chain_ok(host, ["OutpostDeck", "Climb1", "Climb2", "Climb3", "GateDeck"])
-	var gate_deck := _rect_named(host, "GateDeck")
-	var ledge := _rect_named(host, "DescentLedge")
-	ok(_one_hop(gate_deck, ledge), "the lee deck drops onto the descent ledge within one hop")
-	var floor_low := _rect_named(host, "FloorLow")
-	ok(floor_low.size.x >= 3200.0, "the ash road spans the whole cliff run (soft-lock net)")
-	ok(_one_hop(ledge, floor_low), "the descent ledge lands on the ash road")
-	# The ash road itself is one continuous walkable line (no unjumpable holes).
-	ok(is_equal_approx(floor_low.position.y, FLOOR_Y), "the ash road is the y=320 floor line")
+	for row in LAYOUT.NESTS:
+		var node := host.get_node("Props/" + String(row[0])) as EmberNest
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LevelSanity.feet_of(node), false), "%s reachable without optional cores" % row[0])
+	var runs := [
+		[Vector2(176,-320), Vector2(944,-320)],
+		[Vector2(944,-320), Vector2(1104,-320), Vector2(1152,-256), Vector2(1216,-224), Vector2(1152,-160), Vector2(592,-160)],
+		[Vector2(592,-160), Vector2(488,-160), Vector2(456,-96), Vector2(456,-32), Vector2(504,0), Vector2(1088,0)],
+		[Vector2(1088,0), Vector2(1248,0), Vector2(1360,0), Vector2(1472,0), Vector2(1848,0)],
+		[Vector2(1848,0), Vector2(2096,0), Vector2(2200,64), Vector2(2328,128), Vector2(2472,192), Vector2(2600,256), Vector2(2680,320)],
+	]
+	var tops := LevelSanity.top_segments(host)
+	for run in runs:
+		var distance := 0.0
+		for i in range(run.size()):
+			ok(LevelSanity.standing_on(tops, run[i], 1.0, 1.0) != null, "checkpoint route sample has support at %s" % run[i])
+			if i > 0:
+				distance += (run[i] as Vector2).distance_to(run[i-1])
+		ok(distance <= 1050.0, "authored run is %.0fpx, including the turnbacks" % distance)
 
 
-func test_hook_branch_is_the_only_way_to_the_herald_stele() -> void:
+func test_mid_terrace_drop_returns_to_bridge_nest_in_one_direction() -> void:
 	var host := _build()
-	var props := host.get_node("Props")
-	var anchor := host.get_node("Hooks").get_node_or_null("HookLee") as HookAnchor
-	var ledge := _rect_named(host, "LeeLedge")
-	var reward := host.get_node_or_null("Pickups/CoreReward") as CorePickup
-	ok(anchor != null, "tether anchor above the wind bridge")
-	ok(reward != null, "branch reward exists")
-	if anchor == null or reward == null:
-		return
-	var stone2 := _rect_named(host, "Stone2")
-	var launch := Vector2(clampf(anchor.position.x, stone2.position.x, stone2.end.x), stone2.position.y - 48.0)
-	ok(launch.distance_to(anchor.position) <= LevelSanity.HOOK_REACH, "anchor is within tether reach of the bridge")
-	var drop := ledge.position.y - anchor.position.y
-	ok(drop > 0.0 and drop <= LevelSanity.HOOK_LAND_BELOW, "lee ledge is a tether drop under the anchor")
-	ok(absf((ledge.position.x + ledge.size.x * 0.5) - anchor.position.x) <= LevelSanity.HOOK_LAND_X,
-			"lee ledge is centred under the anchor")
-	var spawn: Vector2 = _consts()["ENTRY_SPAWN"]
-	ok(not LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(reward), false),
-			"the main route cannot grab the herald stele reward")
-	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(reward), true),
-			"the hookshot reaches the herald stele reward")
-	# Landmark stele text comes from ChapterText.
-	var stele := props.get_node_or_null("SteleGate") as LoreStele
-	ok(stele != null, "the gate stele stands on the lee deck")
-	if stele != null:
-		var entry := ChapterText.stele_of("level09b", "SteleGate")
-		eq(String(stele.lore_title), String(entry.get("title", "")), "SteleGate text comes from ChapterText")
-		ok(String(stele.lore_text) != "", "SteleGate says something")
-		var tops := LevelSanity.top_segments(host)
-		ok(LevelSanity.standing_on(tops, LevelSanity.feet_of(stele)) != null, "SteleGate stands on the lee deck")
+	var tops := LevelSanity.top_segments(host)
+	var upper := LevelSanity.standing_on(tops, Vector2(1064,-160))
+	var lower := LevelSanity.standing_on(tops, Vector2(1032,0))
+	ok(upper != null and lower != null)
+	if upper != null and lower != null:
+		ok(LevelSanity._can_hop(upper, lower), "48px shaft drops back to the lower checkpoint")
+		ok(not LevelSanity._can_hop(lower, upper), "160px drop is not reversible in one jump")
+	for entry in LevelSanity.solid_entries(host):
+		ok(not (entry.rect as Rect2).intersects(LAYOUT.RETURN_DROP.grow(-1)), "return shaft remains unobstructed")
+	ok(LevelSanity.is_reachable(host, Vector2(1032,0), Vector2(1088,0), false))
 
 
-func test_wind_weather_and_lee_outpost() -> void:
-	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	var ambient := layout.ambient()
-	eq(String(ambient.get("weather", "")), "ember_wind", "the cliff road opens in ember wind")
-	var recipe := layout.weather_recipe()
-	var allowed: Array = recipe.get("allowed", [])
-	for kind in allowed:
-		var w := int(kind)
-		ok(w >= WorldClock.Weather.HAZE and w <= WorldClock.Weather.CLEAR, "allowed weather ids are real")
-	var regions := layout.weather_regions()
-	eq(regions.size(), 2, "two local wind regions (gale bridge + lee outpost)")
-	var gale: Dictionary = {}
-	var lee: Dictionary = {}
-	for spec in regions:
-		var s: Dictionary = spec
-		if String(s.get("name", "")) == "GaleBridge":
-			gale = s
-		elif String(s.get("name", "")) == "GaleLee":
-			lee = s
-	ok(not gale.is_empty() and not lee.is_empty(), "the gale and the lee pocket are named")
-	var limit := float(layout.east_limit())
-	var top := float(layout.camera_top()) - 64.0
-	for s in [gale, lee]:
-		if s.is_empty():
-			continue
-		var rect: Rect2 = s["rect"]
-		ok(rect.position.x >= 0.0 and rect.end.x <= limit + 0.5, "%s stays inside east_limit" % s["name"])
-		ok(rect.position.y >= top - 0.5 and rect.end.y <= 400.5, "%s stays between camera_top and the floor" % s["name"])
-		var wind := float(s.get("wind_scale", 1.0))
-		ok(wind >= 0.0 and wind <= 2.0, "%s wind_scale is in range" % s["name"])
-	if not gale.is_empty() and not lee.is_empty():
-		ok(float(gale.get("wind_scale", 1.0)) > 1.5, "the wind bridge is the gale")
-		ok(float(lee.get("wind_scale", 1.0)) < 0.5, "the outpost is in the wind lee")
-		ok(float(lee.get("intensity", 1.0)) < 0.5, "the lee pocket is calm")
-		var rect: Rect2 = lee["rect"]
-		ok(rect.has_point(Vector2(1848.0, 0.0)), "the safe outpost nest sits inside the lee pocket")
+func test_ember_wind_is_a_real_gust_with_safe_first_encounter_landings() -> void:
 	var host := _build()
-	var outpost_nest := host.get_node_or_null("Props/EmberNestOutpost") as Node2D
-	ok(outpost_nest != null, "the safe outpost checkpoint exists")
-	layout.free()
+	var tops := LevelSanity.top_segments(host)
+	for row in LAYOUT.WINDS:
+		var zone := host.get_node("Props/" + row[0]) as ForceZone
+		eq(zone.skin, "ember")
+		ok(absf(zone.push.x) >= 72.0 and absf(zone.push.x) <= 80.0)
+		ok(absf(zone.push.x) < ForceZone.MAX_PUSH)
+		almost(zone.gust_duty, 0.5)
+		ok(zone.gust_period >= 4.0 and zone.gust_period <= 6.0)
+		ok(ForceZone.WARN_TIME >= 0.5)
+		ok(zone.get_node_or_null("HazardHint") is HintArea)
+	for x in [304.0, 512.0]:
+		ok(LevelSanity.standing_on(tops, Vector2(x,-320)) != null, "first wind has 48px reading area on both sides")
+	for enemy in host.get_node("Enemies").get_children():
+		enemy.queue_free()
+	await flush(2)
+	var wind := host.get_node("Props/EmberLesson") as ForceZone
+	wind._t = 0.5
+	var player := await spawn_player(host, Vector2(376,-340))
+	var start := player.position.x
+	await flush(24)
+	ok(player.position.x > start + 14.0, "authored ember wind physically pushes the real knight")
 
 
-func test_bridge_rockfall_is_a_readable_periodic_hazard() -> void:
+func test_collapsing_bridge_is_separate_from_rockfall_and_has_fixed_safe_spaces() -> void:
 	var host := _build()
-	var rig := host.get_node_or_null("Arenas/BridgeRockfallRig") as BossArena
-	ok(rig != null, "a hazard rig is mounted over the wind bridge")
-	if rig != null:
-		eq(rig.arena_left, 1100.0)
-		eq(rig.arena_right, 1740.0)
-		ok(not rig.start_on_intro and not rig.start_immediately, "the bridge rig never steals pause/camera control")
-		ok(not rig.clamp_player and not rig.clamp_boss, "the bridge rig never clamps the knight or a boss")
-		ok(rig.arena_left < 1120.0 and rig.arena_right > 1720.0, "rig bounds cover the whole bridge")
-		eq(rig.get_child_count(), 0, "no rock is armed before the first timer tick")
-	var timer := host.get_node_or_null("Props/RockfallTimer") as Timer
-	ok(timer != null, "the rockfall is driven by a timer")
-	if timer != null:
-		ok(timer.wait_time >= 2.5, "rocks fall on a slow, readable cadence (%.1fs)" % timer.wait_time)
-		ok(not timer.one_shot, "the timer keeps running (periodic rocks, not one shot)")
-		ok(timer.autostart or timer.time_left > 0.0, "the timer starts with the level")
+	var tops := LevelSanity.top_segments(host)
+	for row in LAYOUT.COLLAPSES:
+		var bridge := host.get_node("Platforms/" + row[0]) as CollapsingPlatform
+		ok(bridge.shake_time >= 1.4, "96px slab gives a full run and acceleration window")
+		ok(bridge.respawn_time >= 4.0)
+		ok(bridge.get_node_or_null("HazardHint") is HintArea)
+		for spot in LAYOUT.ROCKFALL_SPOTS:
+			ok(not _rect(host, row[0]).grow(40).has_point(spot), "rocks do not cover collapse bridge")
+	for feet in [Vector2(1152,0), Vector2(1360,0), Vector2(1584,0)]:
+		var seg := LevelSanity.standing_on(tops, feet)
+		ok(seg != null and seg.kind == "", "permanent read/rest surface at %s" % feet)
+	for feet in [Vector2(1248,96), Vector2(1440,96)]:
+		ok(LevelSanity.standing_on(tops, feet) != null)
+		ok(LevelSanity.is_reachable(host, feet, Vector2(1584,0), false), "fall climbs out in ordinary 32px steps")
+
+
+func test_actual_collapse_lands_on_the_recovery_shelf_and_a_basic_jump_exits() -> void:
+	var host := _build()
+	for enemy in host.get_node("Enemies").get_children():
+		enemy.queue_free()
+	await flush(2)
+	var bridge := host.get_node("Platforms/CollapseWest") as CollapsingPlatform
+	var player := await spawn_player(host, Vector2(1248,-20))
+	ok(bridge.state() == CollapsingPlatform.State.SHAKING, "real player starts the shake")
+	await flush(120)
+	ok(bridge.is_collapsed())
+	ok(player.is_on_floor() and absf(player.position.y - 96.0) < 1.0, "a real body lands on the 96px recovery shelf")
+	player.position = Vector2(1476,76)
+	player.velocity = Vector2.ZERO
+	await flush(24)
+	Input.action_press("move_right")
+	Input.action_press("jump")
+	await flush(25)
+	Input.action_release("jump")
+	Input.action_release("move_right")
+	ok(player.position.y < 96.0, "first ordinary jump climbs the escape staircase")
+
+
+func test_bridge_rockfall_keeps_its_timer_three_spots_and_readable_telegraph() -> void:
+	var host := _build()
+	var timer := host.get_node("Props/RockfallTimer") as Timer
+	var rig := host.get_node("Arenas/BridgeRockfallRig") as BossArena
+	almost(timer.wait_time, 3.2)
+	ok(not timer.one_shot)
+	ok(not rig.start_on_intro and not rig.start_immediately)
+	ok(not rig.clamp_player and not rig.clamp_boss)
+	eq(LAYOUT.ROCKFALL_SPOTS.size(), 3)
+	for i in 3:
 		timer.timeout.emit()
-		ok(rig != null and rig.get_child_count() >= 1, "a tick arms one falling-rock hazard with its telegraph")
+		var rock := rig.get_child(i) as Node2D
+		eq(rock.position, LAYOUT.ROCKFALL_SPOTS[i])
+		ok(float(rock.get("telegraph")) >= 0.55, "rock warning remains readable")
 
 
-func test_checkpoints_exit_and_boss_slot() -> void:
+func test_preserved_plate_opens_the_outpost_gate_and_lore_has_support() -> void:
 	var host := _build()
-	var props := host.get_node("Props")
-	var nests: Array[Node] = []
-	for child in props.get_children():
-		if child is EmberNest:
-			nests.append(child)
-	ok(nests.size() >= 3, "at least two checkpoints plus the pre-boss nest (%d)" % nests.size())
-	var spawn: Vector2 = _consts()["ENTRY_SPAWN"]
-	for nest in nests:
-		ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest), false),
-				"nest %s is reachable from spawn" % nest.name)
-	var exit := props.get_node_or_null("Exit") as LevelExit
-	ok(exit != null, "the furnace gate exit exists")
-	if exit != null:
-		eq(exit.door_label, ChapterText.exit_label_of("level09b"))
-		eq(exit.captions, ChapterText.exit_captions_of("level09b"))
-		eq(exit.flag_id, "level09b_done")
-		eq(exit.target_scene, String(GameContext.LEVELS["level10"]), "the furnace gate leads to level10")
-		eq(exit.spawn, ChapterLayout.entry_spawn_of("level10"))
-		var tops := LevelSanity.top_segments(host)
-		ok(LevelSanity.standing_on(tops, LevelSanity.feet_of(exit)) != null, "the exit stands on the ash road")
-		ok(exit.position.x <= float(_consts()["EAST_LIMIT"]) - LevelSanity.EXIT_WALL_CLEAR,
-				"exit keeps clear of the east wall")
-		ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit), false),
-				"the exit is reachable without optional abilities")
-	var arena_left := float(_consts()["ARENA_LEFT"])
-	var pre_boss := props.get_node_or_null("EmberNestGate") as Node2D
-	ok(pre_boss != null, "pre-boss checkpoint exists")
-	if pre_boss == null:
-		return
-	ok(LevelSanity.feet_of(pre_boss).x < arena_left, "the pre-boss nest sits before the arena gate")
-	ok(ChapterLayout.ENEMY_SCENES.has("emberwind_herald"), "EmberwindHerald is registered in the boss-slot table")
-	var boss_scene := String(ChapterLayout.ENEMY_SCENES.get("emberwind_herald", ""))
-	if not ResourceLoader.exists(boss_scene):
-		ok(true, "EmberwindHerald scene not delivered yet — the arena slot is skipped by feature detection")
-		return
-	ok(host.get_node_or_null("Enemies/EmberwindHerald") != null, "the EmberwindHerald slot spawns the boss")
-	var arena := _layout.boss_arena(host, "EmberwindHerald") as BossArena
-	ok(arena != null, "the boss arena is attached")
-	if arena != null:
-		ok(arena.arena_right - arena.arena_left >= 600.0, "arena is at least 600px wide")
-		var report := arena.checkpoint_report()
-		ok(bool(report["ok"]), "pre-boss checkpoint sits within 80px of the gate (nearest: %s)" % str(report["nest"]))
-		ok(arena.registered_hazard_ids().size() >= 2, "arena carries >=2 readable hazards")
+	var plate := host.get_node("Props/WindGatePlate") as PressurePlate
+	var door := host.get_node("Props/WindGateDoor") as ArenaDoor
+	ok(plate.activated.is_connected(door.open_door))
+	plate.slam()
+	ok(door.is_open)
+	var tops := LevelSanity.top_segments(host)
+	ok(LevelSanity.standing_on(tops, LAYOUT.PLATE_FEET) != null)
+	ok(LevelSanity.standing_on(tops, LAYOUT.WIND_DOOR_POS + Vector2(0,64)) != null)
+	for name_ in ["SteleAsh", "SteleHerald", "SteleGate"]:
+		ok(LevelSanity.standing_on(tops, LevelSanity.feet_of(host.get_node("Props/"+name_))) != null)
 
 
-func test_decor_follows_the_ramparts_allowlist() -> void:
+func test_hook_lee_branch_retains_the_core_and_adds_a_supported_equipment_reward() -> void:
 	var host := _build()
-	ok(_layout.prop_allowed("balustrade_wall"), "ramparts allow the cold parapet")
-	ok(not _layout.prop_allowed("grave_cross"), "ramparts never plant graveyard crosses")
-	ok(not _layout.prop_allowed("window"), "ramparts never plant cathedral windows outdoors")
-	var decor := host.get_node_or_null("Decor") as Node2D
-	ok(decor != null, "a decor layer exists")
-	if decor == null:
-		return
-	var grounded := 0
-	for child in decor.get_children():
-		var spr := child as Sprite2D
-		if spr == null or not spr.has_meta("prop_key"):
-			continue
-		var key := String(spr.get_meta("prop_key"))
-		ok(PropCatalog.allowed("ramparts", key), "'%s' is allowed in ramparts" % key)
-		if spr.is_in_group("grounded"):
-			grounded += 1
-			almost(spr.scale.x, 1.0, 0.001, "%s is planted at 1x" % key)
-	ok(grounded >= 5, "enough grounded set dressing (%d)" % grounded)
-	for child in decor.get_children():
-		ok(not (child is ColorRect), "no ColorRect placeholder in the decor")
+	var anchor := host.get_node("Hooks/HookLee") as HookAnchor
+	ok(anchor.position.y >= LAYOUT.CAMERA_TOP + 24, "hook body remains readable inside the camera ceiling")
+	for path in ["Pickups/CoreReward", "Props/RewardLee"]:
+		var node := host.get_node(path) as Node2D
+		var feet := LevelSanity.feet_of(node)
+		ok(not LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, false), "branch is optional")
+		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, feet, true), "hook reaches the lee reward")
+	var equipment := host.get_node("Props/RewardLee") as EquipmentPickup
+	eq(equipment.reward_ref, "bone_charm")
+	ok(LevelSanity.standing_on(LevelSanity.top_segments(host), equipment.position+Vector2(0,7)) != null)
+	var core := host.get_node("Pickups/CoreReward") as CorePickup
+	eq(core.core.id, &"ember_core")
+
+
+func test_authored_encounters_and_arena_terrain_keep_enemy_support_and_boss_contract() -> void:
+	var host := _build()
+	var tops := LevelSanity.top_segments(host)
+	for row in LAYOUT.ENEMIES:
+		var enemy := host.get_node("Enemies/"+row[0]) as EnemyBase
+		if not (enemy is FlyingDemonEnemy or enemy is GhostEnemy):
+			ok(LevelSanity.standing_on(tops, enemy.position) != null, "ground combatant is supported")
+	eq(host.get_node("Enemies/Spitter1").variant, &"scatter_spitter")
+	eq(host.get_node("Enemies/Scrapper1").variant, &"armored_scrapper")
+	eq(host.get_node("Enemies/GearShield1").variant, &"heavy_guard")
+	var arena := host.get_node("Arenas/EmberwindHeraldArena") as BossArena
+	ok(bool(arena.checkpoint_report().ok), "old Gate nest is within 80px")
+	almost(arena.arena_left, 2740.0)
+	almost(arena.arena_right, 3400.0)
+	ok(arena.registered_hazard_ids().has(&"herald_rockfall"))
+	ok(arena.registered_hazard_ids().has(&"herald_furnace"))
+	for name_ in ["HeraldWestPerch", "HeraldEastPerch"]:
+		var r := _rect(host, name_)
+		ok(r.position.y == 288.0 and r.size.x >= 64.0, "arena side perch is only one jump high")
+		ok(not r.intersects(LevelSanity.node_aabb(host.get_node("Props/Exit"))), "perches leave the furnace doorway clear")
+	var boss := host.get_node("Enemies/EmberwindHerald") as Node2D
+	ok(not boss.is_physics_processing(), "boss waits until player crosses the arena threshold")
+	var kit := boss.call("boss_kit") as BossKit
+	eq(kit.validate().size(), 0)
+	eq(kit.max_phases(), 2)
+
+
+func test_herald_starts_after_crossing_the_actual_arena_threshold() -> void:
+	var host := _build()
+	var boss := host.get_node("Enemies/EmberwindHerald") as Node2D
+	var player := await spawn_player(host, Vector2(2690,300))
+	ok(not boss.call("is_announced"), "nest approach does not auto-start a boss")
+	player.position = Vector2(2760,300)
+	await flush(12)
+	ok(boss.is_physics_processing())
+	ok(boss.call("is_announced"), "original boss AI starts inside its arena")
+
+
+func test_herald_kill_survives_disk_reload_and_leaves_the_exit_unlocked() -> void:
+	var original_path := SaveData.save_path
+	SaveData.save_path = "user://level09b_herald_persistence_test.cfg"
+	SaveData.delete_save()
+	var host := _build()
+	var player := await spawn_player(host, Vector2(LAYOUT.NEST_GATE_X, 300))
+	var nest := host.get_node("Props/EmberNestGate") as EmberNest
+	nest.interact(player)
+	ok(SaveData.has_save(), "real nest writes the checkpoint")
+	var boss = host.get_node("Enemies/EmberwindHerald")
+	boss.health.take_damage(999, player) # Unit-only kill; input fixture fights normally.
+	await flush(3)
+	ok(SaveData.has_flag("herald_dead"))
+	host.free()
+	await flush(1)
+	SaveData.flags.clear()
+	ok(SaveData.load_game(), "reloads the real story write from disk")
+	ok(SaveData.has_flag("herald_dead"))
+	host = _build()
+	ok(host.get_node_or_null("Enemies/EmberwindHerald") == null, "disk flag prevents Herald resurrection")
+	ok(host.get_node_or_null("Arenas/EmberwindHeraldArena") == null, "cleared Boss hazards are not rebuilt")
+	ok(host.get_node_or_null("Props/HeraldApproach") == null)
+	ok(not (host.get_node("Props/Exit") as LevelExit).is_locked(), "saved kill leaves the real exit open")
+	SaveData.delete_save()
+	SaveData.save_path = original_path
+
+
+func test_herald_can_still_spawn_for_its_unlocked_boss_rush_rematch() -> void:
+	var original_pending := GameContext.pending_world_path
+	SaveData.mark_flag("trial_unlocked")
+	SaveData.mark_flag("herald_dead")
+	TrialRun.set_scene_requester(func(_path: String) -> void: pass)
+	ok(TrialRun.start(TRIAL_CATALOG.Track.BOSS_RUSH, "emberwind_herald"))
+	ok(TrialRun.forces_boss_spawn())
+	var host := _build()
+	ok(host.get_node_or_null("Enemies/EmberwindHerald") != null, "trial gets its real rematch Boss")
+	ok(host.get_node_or_null("Arenas/EmberwindHeraldArena") != null)
+	TrialRun.abandon()
+	TrialRun.clear_scene_requester()
+	GameContext.pending_world_path = original_pending
+	ok(SaveData.flags.has("herald_dead"), "trial preserves the stored campaign kill")
+
+
+func _quiet(rows: Array) -> void:
+	for row in rows:
+		var host := _build()
+		var calls := {"attacks": 0}
+		for enemy in host.get_node("Enemies").get_children():
+			(enemy as EnemyBase).telegraph_started.connect(func(_kind, _duration) -> void: calls.attacks += 1)
+		var player := await spawn_player(host, Vector2(float(row[1])+6,float(row[2])-20))
+		var hp := player.health.current
+		await flush(360)
+		eq(player.health.current, hp, "%s is safe for six seconds" % row[0])
+		eq(calls.attacks, 0, "%s does not wake combat" % row[0])
+		var boss := host.get_node("Enemies/EmberwindHerald") as Node2D
+		ok(not boss.call("is_announced"), "rest does not announce the Herald")
+		host.free()
+		await flush(1)
+
+
+func test_cliff_wind_and_fold_nests_remain_quiet_for_six_seconds() -> void:
+	await _quiet(LAYOUT.NESTS.slice(0,3))
+
+
+func test_bridge_outpost_and_gate_nests_remain_quiet_for_six_seconds() -> void:
+	await _quiet(LAYOUT.NESTS.slice(3,6))

@@ -1,376 +1,233 @@
 extends TestCase
-## Level06 "墓园夜雨": authored geometry stays jumpable, mounds are dug into the
-## ground, the pressure plate opens the mausoleum door, props/enemies stand on
-## solid ground, the tree-top core hangs by its hook, and the bell door leads
-## to level07 under the open graveyard sky.
-
-const LAYOUT_PATH := "res://scripts/levels/chapters/level06_layout.gd"
-const JUMP_RISE_MAX := 32.0
-const JUMP_GAP_MAX := 72.0
+const LAYOUT := preload("res://scripts/levels/chapters/level06_layout.gd")
+var _flags: PackedStringArray
 
 
 func setup() -> void:
+	_flags = SaveData.flags.duplicate()
 	SaveData.flags.clear()
+	Director.abort()
+	Director.resume()
+	Director._set_lock(false)
 
 
 func teardown() -> void:
-	SaveData.flags.clear()
+	SaveData.flags = _flags
+	Director.abort()
+	WorldClock.reset()
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 
 
-func _consts() -> Dictionary:
-	return (load(LAYOUT_PATH) as GDScript).get_script_constant_map()
-
-
-func _host() -> Node2D:
+func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level06_NightGraveyard"
 	host.scene_file_path = GameContext.LEVELS["level06"]
 	host.add_to_group("game_world")
 	add_child(host)
+	var layout := LAYOUT.new()
+	add_child(layout)
+	layout.build(host)
 	return host
 
 
-func _build() -> Node2D:
-	var host := _host()
-	var level := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	add_child(level)
-	level.build(host)
-	return host
+func test_main_route_and_all_checkpoints_remain_reachable_without_optional_cores() -> void:
+	var host := _build()
+	var problems := LevelSanity.check(host)
+	for problem in problems:
+		ok(false, problem)
+	ok(problems.is_empty(), "LevelSanity passes")
+	var previous := LAYOUT.NEST_START_X
+	for row in LAYOUT.NESTS:
+		var node := host.get_node("Props/" + String(row[0])) as EmberNest
+		var feet := LevelSanity.feet_of(node)
+		ok(LevelSanity.is_reachable(host, Vector2(96, 300), feet, false), "%s is on the basic route" % row[0])
+		ok(float(row[1]) - previous <= 1010.0, "death run stays close to 1000px")
+		previous = float(row[1])
+	for name_ in ["MausoleumPlate", "MausoleumDoor", "Exit", "SteleHallen", "SteleVeil"]:
+		var node := host.get_node("Props/" + name_) as Node2D
+		ok(LevelSanity.is_reachable(host, Vector2(96, 300), LevelSanity.feet_of(node), false), "%s is reachable" % name_)
+	var exit := host.get_node("Props/Exit") as LevelExit
+	eq(exit.flag_id, "level06_done")
+	eq(exit.target_scene, GameContext.LEVELS["level07"])
+	eq(exit.spawn, ChapterLayout.entry_spawn_of("level07"))
 
 
-func _solids(host: Node2D) -> Array[Rect2]:
-	var rects: Array[Rect2] = []
-	for child in host.get_node("Platforms").get_children():
-		if child is SolidPlatform:
-			rects.append(Rect2(child.position, child.size))
-	return rects
-
-
-func _standing_on(rects: Array[Rect2], feet: Vector2, slack: float = 0.5) -> bool:
-	for r in rects:
-		if feet.x >= r.position.x - 0.01 and feet.x <= r.end.x + 0.01 and absf(feet.y - r.position.y) <= slack:
-			return true
-	return false
-
-
-func _plat(host: Node2D, plat_name: String) -> SolidPlatform:
-	return host.get_node_or_null("Platforms/" + plat_name) as SolidPlatform
-
-
-func _right(plat: SolidPlatform) -> float:
-	return plat.position.x + plat.size.x
-
-
-func _bottom(plat: SolidPlatform) -> float:
-	return plat.position.y + plat.size.y
-
-
-func _on_top_of(plat: SolidPlatform, feet: Vector2) -> bool:
-	return feet.x > plat.position.x and feet.x < _right(plat) and is_equal_approx(feet.y, plat.position.y)
-
-
-func test_step_chains_are_single_jumps() -> void:
+func test_mausoleum_has_two_walkable_routes_and_a_one_way_return_drop() -> void:
 	var host := _build()
 	var tops := LevelSanity.top_segments(host)
-	for chain in _consts()["CHAINS"]:
+	for chain in LAYOUT.CHAINS:
 		for i in range(1, chain.size()):
 			var a := LevelSanity.standing_on(tops, chain[i - 1])
 			var b := LevelSanity.standing_on(tops, chain[i])
-			ok(a != null and b != null, "authored points stand on actual platforms")
+			ok(a != null and b != null, "route points have real support")
 			if a != null and b != null:
-				ok(LevelSanity._can_hop(a, b), "edge-to-edge jump %s -> %s" % [a.owner_name, b.owner_name])
+				ok(LevelSanity._can_hop(a, b), "outer route uses only ordinary jumps")
+	for feet in [Vector2(1504, 320), Vector2(2304, 320), Vector2(1648, 160), Vector2(2368, 160)]:
+		ok(LevelSanity.is_reachable(host, Vector2(96, 300), feet, false), "both routes reachable at %s" % feet)
+	var roof := LevelSanity.standing_on(tops, Vector2(1592, 160))
+	var crypt := LevelSanity.standing_on(tops, Vector2(1552, 320))
+	ok(roof != null and crypt != null)
+	if roof != null and crypt != null:
+		ok(LevelSanity._can_hop(roof, crypt), "return drops straight to the previous crypt nest")
+		ok(not LevelSanity._can_hop(crypt, roof), "160px drop cannot be reversed by one jump")
+	var rect := LAYOUT.RETURN_DROP
+	for node in host.get_node("Platforms").get_children():
+		if node is SolidPlatform:
+			ok(not Rect2(node.position, node.size).intersects(Rect2(rect.position + Vector2(1, 0), Vector2(46, 159))), "return shaft stays clear")
 
 
-func test_chains_land_on_authored_platforms() -> void:
+func test_mausoleum_plate_opens_the_preserved_door() -> void:
 	var host := _build()
-	var rects := _solids(host)
-	for chain in _consts()["CHAINS"]:
-		for p in chain:
-			ok(_standing_on(rects, p as Vector2), "chain point %s stands on a platform" % [p])
+	var plate := host.get_node("Props/MausoleumPlate") as PressurePlate
+	var door := host.get_node("Props/MausoleumDoor") as ArenaDoor
+	ok(plate.activated.is_connected(door.open_door))
+	plate.activated.emit()
+	await flush(2)
+	ok(door.is_open, "the existing plate opens the real door")
+	var tops := LevelSanity.top_segments(host)
+	ok(LevelSanity.standing_on(tops, LAYOUT.PLATE_FEET) != null)
+	ok(LevelSanity.standing_on(tops, LAYOUT.DOOR_POS + Vector2(0, 64)) != null)
 
 
-func test_terrain_is_graveyard_ground_with_two_pits() -> void:
+func test_mud_is_skippable_and_the_first_patch_has_safe_reading_space() -> void:
 	var host := _build()
-	var consts := _consts()
-	var limit := float(consts["EAST"])
-	for f in consts["FLOORS"]:
-		var plat := _plat(host, String(f[0]))
-		ok(plat != null, "%s exists" % f[0])
-		if plat == null:
-			continue
-		eq(plat.position, Vector2(float(f[1]), 320.0), "%s top sits on the floor line" % f[0])
-		almost(plat.size.x, float(f[2]) - float(f[1]), 0.01, "%s spans its strip" % f[0])
-		eq(plat.skin, "ground", "%s wears grass-topped earth" % f[0])
-	for p in consts["PITS"]:
-		var bed := _plat(host, String(p[0]) + "Bed")
-		var pool := host.get_node_or_null("Props/%sPool" % p[0]) as ToxinPool
-		ok(bed != null and pool != null, "%s has a bed and a pool" % p[0])
-		if bed == null or pool == null:
-			continue
-		almost(bed.position.y, 352.0, 0.01, "%s bed is one hop (32) below the floor" % p[0])
-		almost(pool.position.y, 336.0, 0.01, "%s liquid sits below the grass lips" % p[0])
-		almost(pool.surface_rect().size.x, float(p[2]) - float(p[1]), 0.01, "%s liquid fills the pit" % p[0])
-		eq(bed.skin, "ground", "%s bed is dug into the same earth" % p[0])
-	for m in consts["MOUNDS"]:
-		var mound := _plat(host, String(m[0]))
-		ok(mound != null, "%s exists" % m[0])
-		if mound == null:
-			continue
-		eq(mound.position, m[1] as Vector2)
-		eq(mound.size, m[2] as Vector2)
-		eq(mound.skin, "ground", "%s is an earth mound" % m[0])
-		# One row buried into the surface below: 32 rise + 16 sunk = 48 thick.
-		almost(mound.size.y, 48.0, 0.01, "%s is one tile thicker than its 32px rise" % m[0])
-	var t1 := _plat(host, "TerraceE1")
-	var t2 := _plat(host, "TerraceE2")
-	if t1 != null and t2 != null:
-		almost(t1.position.y - t2.position.y, 32.0, 0.01, "second terrace rises one hop above the first")
-		ok(t2.position.x > t1.position.x and _right(t2) < _right(t1), "second terrace sits within the first")
-		almost(_bottom(t2), t1.position.y + 16.0, 0.01, "second terrace sinks one row into the first")
-	for s in consts["STONES"]:
-		var stone := _plat(host, String(s[0]))
-		ok(stone != null, "%s exists" % s[0])
-		if stone == null:
-			continue
-		eq(stone.skin, "floating", "%s is a hovering church slab" % s[0])
-		almost(stone.size.y, 16.0, 0.01, "%s is a thin step" % s[0])
-		almost(stone.size.x, float(s[2]), 0.01)
-	var wall_r := _plat(host, "WallRight")
-	var wall_l := _plat(host, "WallLeft")
-	ok(wall_l != null and wall_r != null, "walls close both ends")
-	if wall_r != null:
-		almost(wall_r.position.x, limit, 0.01, "east wall stands at the camera limit")
-	ok(_plat(host, "Ceiling") == null and _plat(host, "CeilingWest") == null, "open sky: no ceiling")
-	for r in _solids(host):
-		ok(r.position.x >= -16.01 and r.end.x <= limit + 16.01, "%s lies within the level" % [r])
+	var tops := LevelSanity.top_segments(host)
+	for row in LAYOUT.MUD:
+		var mud := host.get_node("Props/" + String(row[0])) as ForceZone
+		eq(mud.skin, "mud")
+		almost(mud.drag, 0.4)
+		ok(mud.toxin_per_second >= 12.0 and mud.toxin_per_second <= 16.0)
+		eq(mud.push, Vector2.ZERO)
+	var lesson := host.get_node("Props/MudLesson") as ForceZone
+	var r := lesson.zone_rect()
+	for feet in [Vector2(r.position.x - 48, 320), Vector2(r.end.x + 48, 320), Vector2(400, 288)]:
+		ok(LevelSanity.standing_on(tops, feet) != null, "first mud has dry landing at %s" % feet)
+		ok(not r.has_point(feet - Vector2(0, 2)), "dry wait is outside the toxic drag")
+	for row in LAYOUT.NESTS:
+		var feet := LevelSanity.feet_of(host.get_node("Props/" + String(row[0])))
+		for spec in LAYOUT.MUD:
+			ok(not (spec[1] as Rect2).grow(24).has_point(feet), "nest does not share the mud")
 
 
-func test_plate_on_the_mound_opens_the_mausoleum_door() -> void:
+func test_clustered_skeletons_wake_peers_and_the_exploder_has_retreat_room() -> void:
 	var host := _build()
-	var rects := _solids(host)
-	var consts := _consts()
-	var plate := host.get_node_or_null("Props/MausoleumPlate") as PressurePlate
-	var door := host.get_node_or_null("Props/MausoleumDoor") as ArenaDoor
-	ok(plate != null and door != null, "plate and door exist")
-	if plate == null or door == null:
-		return
-	ok(plate.activated.is_connected(door.open_door), "plate opens the door")
-	var plate_feet: Vector2 = consts["PLATE_FEET"]
-	ok(_standing_on(rects, plate.position + Vector2(12, 8), 4.0), "plate rests on the mound top")
-	var mound := _plat(host, "MoundD")
-	ok(mound != null and plate_feet.x > mound.position.x and plate_feet.x < _right(mound)
-			and is_equal_approx(plate_feet.y, mound.position.y), "plate stands on MoundD")
-	almost(320.0 - plate_feet.y, 32.0, 0.01, "the plate mound is a single hop up")
-	ok(_standing_on(rects, door.position + Vector2(0, 64)), "door foot meets the floor")
-	ok(door.position.x > plate_feet.x, "the door stands east of the plate, on the way forward")
-	almost(door.position.y, 256.0, 0.01, "door is 64 tall and grounded")
+	for names in [["Skeleton1", "Skeleton2", "Skeleton5"], ["Skeleton3", "Skeleton4"], ["Skeleton6", "Skeleton7"]]:
+		var lead := host.get_node("Enemies/" + String(names[0])) as SkeletonEnemy
+		var peer := host.get_node("Enemies/" + String(names[1])) as SkeletonEnemy
+		almost(lead.alert_radius, 160.0)
+		almost(lead.lose_range, 260.0)
+		eq(peer.state(), SkeletonEnemy.State.BURIED)
+		lead.alert_peers()
+		eq(peer.state(), SkeletonEnemy.State.RISE, "nearby buried skeleton answers its peer")
+	var blast := host.get_node("Enemies/Skeleton4") as SkeletonEnemy
+	eq(blast.variant, &"exploder_skeleton")
+	ok(blast.has_meta("variant_blast"))
+	var tops := LevelSanity.top_segments(host)
+	for dx in [-80.0, 80.0]:
+		ok(LevelSanity.standing_on(tops, blast.position + Vector2(dx, 0)) != null, "blast can be escaped in either direction")
+	for row in LAYOUT.ENEMIES:
+		var enemy := host.get_node("Enemies/" + String(row[0])) as Node2D
+		eq(enemy.position, row[2])
+		if not enemy is GhostEnemy:
+			ok(LevelSanity.standing_on(tops, enemy.position) != null, "ground enemy is supported")
 
 
-func test_props_checkpoints_and_exit_are_placed() -> void:
+func test_tree_branch_keeps_lore_core_and_an_equipment_reward_optional() -> void:
 	var host := _build()
-	var rects := _solids(host)
-	var consts := _consts()
-	var props := host.get_node("Props")
-	var nest_a := props.get_node_or_null("EmberNestStart") as EmberNest
-	var nest_b := props.get_node_or_null("EmberNestGrove") as EmberNest
-	ok(nest_a != null and nest_b != null, "two checkpoints")
-	if nest_a != null and nest_b != null:
-		ok(_standing_on(rects, nest_a.position + Vector2(6, 14)), "start nest stands on FloorA")
-		ok(_standing_on(rects, nest_b.position + Vector2(6, 14)), "grove nest stands on FloorD")
-		var long_pit: Array = consts["PITS"][1]
-		ok(nest_b.position.x < float(long_pit[1]), "grove checkpoint comes before the long toxin ditch")
-	for stele_name in ["SteleHallen", "SteleVeil"]:
-		var stele := props.get_node_or_null(stele_name) as LoreStele
-		ok(stele != null, "%s exists" % stele_name)
-		if stele != null:
-			ok(_standing_on(rects, stele.position), "%s stands on the ground" % stele_name)
-			ok(String(stele.lore_title).begins_with("墓志"), "%s is an epitaph" % stele_name)
-			ok(String(stele.lore_text) != "", "%s says something" % stele_name)
-	var exit := props.get_node_or_null("Exit") as LevelExit
-	ok(exit != null, "the bell door ends the level")
-	var nest_east := props.get_node_or_null("EmberNestEast") as EmberNest
-	ok(nest_east != null, "the widened stretch has a bell-gate checkpoint")
-	if nest_east != null:
-		ok(_standing_on(rects, nest_east.position + Vector2(6, 14)), "east nest stands on FloorJ")
-		var grove_x := float(consts.get("NEST_GROVE_X", 2120.0))
-		var exit_x := float(consts.get("EXIT_X", 3840.0))
-		ok(nest_east.position.x - grove_x <= 1400.0,
-				"checkpoint spacing stays <= 1400px (%.0f)" % (nest_east.position.x - grove_x))
-		ok(nest_east.position.x < exit_x, "east nest comes before the bell door")
-	if exit != null:
-		eq(exit.target_scene, GameContext.LEVELS["level07"], "bell door hops to level07")
-		eq(exit.flag_id, "level06_done")
-		eq(exit.door_label, "钟楼门")
-		ok(_standing_on(rects, exit.position), "exit door stands on FloorJ")
-		ok(float(consts["EAST"]) - exit.position.x >= 80.0, "exit keeps clear of the east wall")
-	var pickup := host.get_node_or_null("Pickups/EmberCoreTreeTop") as CorePickup
-	var anchor := host.get_node_or_null("Hooks/HookTreeTop") as HookAnchor
-	var stone := _plat(host, "TreeTopStone")
-	ok(pickup != null and anchor != null and stone != null, "tree-top core, hook and stone exist")
-	if pickup != null and anchor != null and stone != null:
-		ok(pickup.position.x > stone.position.x and pickup.position.x < _right(stone), "core hangs over the stone")
-		var hover := stone.position.y - pickup.position.y
-		ok(hover > 0.0 and hover <= 64.0, "core hovers %.0f <= 64 above the stone" % hover)
-		ok(anchor.position.y < pickup.position.y and anchor.position.distance_to(pickup.position) <= 96.0,
-				"hook anchor hangs right above the core")
-		ok(320.0 - stone.position.y > JUMP_RISE_MAX, "the tree-top stone needs the hook, not a plain jump")
-		ok(320.0 - anchor.position.y <= 250.0, "anchor is within hookshot reach of the ground")
-		ok(stone.position.y - anchor.position.y <= 110.0, "landing stone is under the anchor")
-	for w in consts["WAYMARKS"]:
-		var sign := host.get_node_or_null("Waymarks/Sign_%s" % w[1]) as Node2D
-		ok(sign != null, "sign %s exists" % w[1])
-		if sign != null:
-			ok(_standing_on(rects, sign.position), "sign %s stands on the ground" % w[1])
-			eq(String(w[1]).length(), 2, "sign %s is two characters" % w[1])
+	for name_ in ["SteleTree", "RewardTreeTop"]:
+		var feet := LevelSanity.feet_of(host.get_node("Props/" + name_))
+		ok(LevelSanity.standing_on(LevelSanity.top_segments(host), feet) != null)
+		ok(not LevelSanity.is_reachable(host, Vector2(96, 300), feet, false), "tree reward requires the optional hook")
+		ok(LevelSanity.is_reachable(host, Vector2(96, 300), feet, true), "hook reaches the reward")
+	var reward := host.get_node("Props/RewardTreeTop") as EquipmentPickup
+	eq(reward.reward_kind, "equipment")
+	eq(reward.reward_ref, "bone_charm")
+	var core := host.get_node("Pickups/EmberCoreTreeTop") as CorePickup
+	var hook := host.get_node("Hooks/HookTreeTop") as HookAnchor
+	ok(core.position.distance_to(hook.position) <= 96.0)
+	var tree := host.get_node("Props/SteleTree") as LoreStele
+	ok(tree.lore_text != "")
 
 
-func test_enemies_stand_where_they_are_placed() -> void:
+func test_local_interior_matches_the_mausoleum_and_weather_leaves_checkpoints_clear() -> void:
 	var host := _build()
-	var rects := _solids(host)
-	var enemies := host.get_node("Enemies")
-	var kinds := {}
-	for e in _consts()["ENEMIES"]:
-		var kind := String(e[1])
-		var available := ResourceLoader.exists(ChapterLayout.ENEMY_SCENES[kind])
-		var enemy := enemies.get_node_or_null(String(e[0])) as Node2D
-		if not available:
-			# 骸骨还在制作中：被 enemy() 跳过，但脚点必须已经踩在台面上，等它来了就能站。
-			ok(enemy == null, "%s is skipped while its scene is missing" % e[0])
-			ok(_standing_on(rects, e[2] as Vector2), "%s has ground waiting at %s" % [e[0], e[2]])
-			continue
-		ok(enemy != null, "%s spawned" % e[0])
-		if enemy == null:
-			continue
-		kinds[kind] = int(kinds.get(kind, 0)) + 1
-		eq(enemy.position, e[2] as Vector2, "%s stands where authored" % e[0])
-		if enemy is GhostEnemy:
-			ok(not _standing_on(rects, enemy.position, 8.0), "%s floats free of the floor" % e[0])
-			ok(not LevelSanity.inside_solid(rects, enemy.position), "%s is not buried" % e[0])
-		else:
-			ok(_standing_on(rects, enemy.position, 4.0), "%s stands on a platform" % e[0])
-	eq(int(kinds.get("ghost", 0)), 3, "three ghosts haunt the graveyard")
-	eq(int(kinds.get("spitter", 0)), 1, "one spitter on the tomb terrace")
-	eq(int(kinds.get("scrapper", 0)), 2, "two scrappers on the grave-road")
-	var spitter := enemies.get_node_or_null("Spitter1") as Node2D
-	var terrace := _plat(host, "TerraceE2")
-	if spitter != null and terrace != null:
-		ok(spitter.position.x > terrace.position.x and spitter.position.x < _right(terrace)
-				and is_equal_approx(spitter.position.y, terrace.position.y), "spitter holds the upper terrace")
-	var scrapper := enemies.get_node_or_null("Scrapper1") as Node2D
-	var t1 := _plat(host, "TerraceE1")
-	if scrapper != null and t1 != null:
-		ok(scrapper.position.y > t1.position.y and scrapper.position.x < t1.position.x, "scrapper patrols the ground west of the terrace")
-	var ghost2 := enemies.get_node_or_null("Ghost2") as Node2D
-	var door := host.get_node_or_null("Props/MausoleumDoor") as Node2D
-	if ghost2 != null and door != null:
-		ok(ghost2.position.x > door.position.x, "second ghost waits behind the mausoleum door")
-
-
-func test_level_passes_sanity_and_goals_are_reachable() -> void:
-	var host := _build()
-	var level := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	var spawn: Vector2 = level.entry_spawn()
-	level.free()
-	var problems := LevelSanity.check(host)
-	for p in problems:
-		ok(false, p)
-	ok(problems.is_empty(), "LevelSanity clean on a bare host (%d problems)" % problems.size())
-	var props := host.get_node("Props")
-	for nest_name in ["EmberNestStart", "EmberNestGrove"]:
-		var nest := props.get_node_or_null(nest_name)
-		ok(nest != null and LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(nest)), "%s reachable from spawn" % nest_name)
-	var exit := props.get_node_or_null("Exit")
-	ok(exit != null and LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit)), "bell door reachable from spawn")
-	# 主路线不靠钩锁：拿掉锚点后仍然走得通。
-	for hook in host.get_node("Hooks").get_children():
-		hook.free()
-	ok(exit != null and LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit)), "bell door reachable without the hookshot")
-
-
-func test_backdrop_is_the_open_graveyard_night() -> void:
-	var host := _build()
-	var level := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	eq(level.theme(), "graveyard")
-	ok(not level.indoors(), "graveyard is outdoors: rain and wind allowed")
-	eq(level.level_id(), "level06")
-	eq(level.title(), "锈墓・捌 — 墓园夜雨")
-	ok(level.wake_line() != "", "an opening line")
-	eq(level.east_limit(), 4000)
-	level.free()
-	var backdrop := host.get_node_or_null("ParallaxBackdrop") as CanvasLayer
-	ok(backdrop != null, "Level01's sky stack")
-	if backdrop != null:
-		for plate_name in ["Far", "Mid", "Hills"]:
-			ok(backdrop.get_node_or_null(plate_name) is Parallax2D, "%s sky plate" % plate_name)
-	ok(host.get_node_or_null("ParallaxForeground") != null, "foreground silhouette strip")
-	ok(host.get_node_or_null("IndoorZone") == null, "no indoor atmosphere zone")
-	var decor := host.get_node_or_null("Decor")
-	ok(decor != null)
-	if decor != null:
-		var grounded := 0
-		var torches := 0
-		for child in decor.get_children():
-			if child.is_in_group("grounded"):
-				grounded += 1
-			if child is TorchLight:
-				torches += 1
-		ok(grounded >= 18, "graveyard dressing is dense (%d grounded pieces)" % grounded)
-		eq(torches, 0, "open graveyard has no indoor torch wall plates")
-
-
-## 本章的玩法变化是能见度：坟堆上空压一片浓雾、长毒沟上空落斜锈雨。
-## 两个区域只覆盖各自路段，基础天气/存档不变；雾里的骸骨是巡逻节奏的一部分。
-func test_visibility_pockets_and_tree_branch() -> void:
-	var layout := (load(LAYOUT_PATH) as GDScript).new() as ChapterLayout
-	var regions := layout.weather_regions()
-	eq(regions.size(), 3, "three local visibility pockets")
-	var fog: Dictionary = {}
-	var squall: Dictionary = {}
-	var east_fog: Dictionary = {}
-	for spec in regions:
-		var s: Dictionary = spec
-		if String(s.get("name", "")) == "GraveFog":
-			fog = s
-		elif String(s.get("name", "")) == "DitchSquall":
-			squall = s
-		elif String(s.get("name", "")) == "EastGraveFog":
-			east_fog = s
-	ok(not fog.is_empty() and not squall.is_empty(), "the fog and squall are named")
-	ok(not east_fog.is_empty(), "the widened east stretch keeps the visibility theme")
-	if not east_fog.is_empty():
-		var east_rect: Rect2 = east_fog["rect"]
-		eq(int(east_fog["weather"]), WorldClock.Weather.FOG, "the east graves sit under fog")
-		ok(east_rect.position.x <= 2880.0 and east_rect.end.x >= 4000.0, "east fog covers the widened stretch")
-	if not fog.is_empty():
-		var fog_rect: Rect2 = fog["rect"]
-		eq(int(fog["weather"]), WorldClock.Weather.FOG, "the graves sit under fog")
-		almost(float(fog["intensity"]), 1.0, 0.01, "the fog pocket is thick")
-		ok(float(fog["wind_scale"]) < 1.0, "the fog pocket is still air")
-		ok(fog_rect.position.x <= 448.0 and fog_rect.end.x >= 928.0, "fog covers the mound stretch")
-	if not squall.is_empty():
-		var squall_rect: Rect2 = squall["rect"]
-		eq(int(squall["weather"]), WorldClock.Weather.RUST_RAIN, "the long ditch is under rust rain")
-		almost(float(squall["intensity"]), 1.0, 0.01, "the squall is at full strength")
-		ok(float(squall["wind_scale"]) > 1.0, "the squall is windier than the rest of the graveyard")
-		ok(squall_rect.position.x <= 2304.0 and squall_rect.end.x >= 2608.0, "the squall covers the long ditch")
+	var zone := host.get_node("Props/MausoleumShelterIndoor") as AtmosphereZone
+	eq(zone.world_rect(), LAYOUT.CRYPT_RECT)
+	ok(zone.contains_point(Vector2(1800, 300)))
+	ok(not zone.contains_point(Vector2(1800, 144)), "roof stays outdoors")
+	var shelter := host.get_node("Props/MausoleumShelter") as WeatherRegion
+	eq(shelter.weather, WorldClock.Weather.CLEAR)
+	almost(shelter.intensity, 0.0)
+	for fog in ["GraveFog", "RoofFog", "EastGraveFog"]:
+		var region := host.get_node("Props/" + fog) as WeatherRegion
+		for row in LAYOUT.NESTS:
+			ok(not Rect2(region.position, region.rect).has_point(Vector2(row[1], 300)), "fog does not cover the checkpoint")
+	var layout := LAYOUT.new()
+	eq(layout.theme(), "graveyard")
+	ok(not layout.indoors())
+	eq(layout.title(), ChapterText.title_of("level06"))
 	layout.free()
+
+
+func _check_rest(names: Array) -> void:
+	for name_ in names:
+		var host := _build()
+		var nest := host.get_node("Props/" + name_) as EmberNest
+		var calls := {"attacks": 0}
+		for enemy in host.get_node("Enemies").get_children():
+			(enemy as EnemyBase).telegraph_started.connect(func(_kind, _duration) -> void: calls.attacks += 1)
+		var player := await spawn_player(host, LevelSanity.feet_of(nest) - Vector2(0, 20))
+		var hp := player.health.current
+		await flush(360)
+		eq(player.health.current, hp, "%s stays safe for six seconds" % name_)
+		eq(calls.attacks, 0, "%s does not wake an encounter" % name_)
+		host.free()
+		await flush(1)
+
+
+func test_start_rain_and_crypt_checkpoints_remain_quiet_for_six_seconds() -> void:
+	await _check_rest(["EmberNestStart", "EmberNestRain", "EmberNestCrypt"])
+
+
+func test_grove_and_east_checkpoints_remain_quiet_for_six_seconds() -> void:
+	await _check_rest(["EmberNestGrove", "EmberNestEast"])
+
+
+func test_first_mud_can_be_read_from_either_dry_side_without_an_ambush() -> void:
+	# Isolate the mud lesson from the global, independently toxic rust rain.
+	# A full suite may arrive here with a different outdoor weather profile.
+	WorldClock.reset()
+	WorldClock.set_weather(WorldClock.Weather.CLEAR, true)
+	WorldClock.set_weather_hold(30.0)
+	for x in [304.0, 480.0]:
+		var host := _build()
+		var calls := {"attacks": 0}
+		for enemy in host.get_node("Enemies").get_children():
+			(enemy as EnemyBase).telegraph_started.connect(func(_kind, _duration) -> void: calls.attacks += 1)
+		var player := await spawn_player(host, Vector2(x, 300))
+		var hp := player.health.current
+		var toxin: float = player.toxin.toxin
+		await flush(360)
+		eq(player.health.current, hp, "first mud wait remains safe at %s" % x)
+		eq(calls.attacks, 0, "first mud wait does not awaken the grave cluster")
+		almost(player.toxin.toxin, toxin, 0.01, "clear-weather dry wait does not gain toxin: %.3f -> %.3f" % [toxin, player.toxin.toxin])
+		host.free()
+		await flush(1)
+
+
+func test_rust_rain_still_exposes_the_knight_outside_the_mud() -> void:
+	WorldClock.reset()
+	WorldClock.set_weather(WorldClock.Weather.RUST_RAIN, true)
+	WorldClock.set_weather_hold(30.0)
 	var host := _build()
-	var stele := host.get_node_or_null("Props/SteleTree") as LoreStele
-	ok(stele != null, "the tree branch carries a stele")
-	if stele != null:
-		ok(String(stele.lore_title).begins_with("墓志"), "tree stele is an epitaph")
-		ok(_standing_on(_solids(host), LevelSanity.feet_of(stele)), "tree stele stands on the tree-top stone")
-		var feet := LevelSanity.feet_of(stele)
-		ok(not LevelSanity.is_reachable(host, Vector2(96, 300), feet, false),
-				"the main route cannot read the tree stele")
-		ok(LevelSanity.is_reachable(host, Vector2(96, 300), feet, true),
-				"the hookshot reaches the tree stele")
-	# The extra skeleton waits inside the fog pocket, not at the entry checkpoint.
-	var skeleton := host.get_node_or_null("Enemies/Skeleton5") as SkeletonEnemy
-	ok(skeleton != null, "the fog pocket has its own buried skeleton")
-	if skeleton != null:
-		eq(skeleton.position, Vector2(864, 320), "it waits between the mounds and the poison ditch")
-		var fog_center := Rect2(448, 0, 480, 324)
-		ok(fog_center.has_point(skeleton.position), "it rises inside the fog pocket")
-		ok(_standing_on(_solids(host), skeleton.position, 4.0), "it has ground under its feet")
+	var player := await spawn_player(host, Vector2(304, 300))
+	var mud := host.get_node("Props/MudLesson") as ForceZone
+	ok(not mud.zone_rect().has_point(player.position - Vector2(0, 2)), "knight is on the real dry approach")
+	var toxin: float = player.toxin.toxin
+	var hp := player.health.current
+	await flush(180)
+	ok(player.toxin.toxin > toxin, "ambient rust rain independently adds toxin outside the mud")
+	eq(player.health.current, hp, "reading the lesson does not trigger an enemy attack")
+	host.free()
+	await flush(1)
+	WorldClock.reset()

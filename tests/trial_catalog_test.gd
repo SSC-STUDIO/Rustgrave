@@ -128,7 +128,7 @@ func test_boss_rush_lists_only_delivered_and_cleared_bosses() -> void:
 	eq(String(stages[0]["level_id"]), "level01")
 	eq(String(stages[0]["scene"]), GameContext.LEVELS["level01"])
 	eq(String(stages[1]["level_id"]), "level10")
-	eq((stages[0]["spawn"] as Vector2), Vector2(1696, 300), "Boss 竞技场落点可配置")
+	eq((stages[0]["spawn"] as Vector2), Vector2(Level01EastWing.ARENA_CENTER_X - 204.0, Level01EastWing.STAGE_Y - 20.0), "Boss 竞技场落点来自当前布局")
 
 
 func test_chapter_track_has_a_single_stage_at_the_level_start() -> void:

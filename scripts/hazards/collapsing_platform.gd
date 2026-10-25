@@ -19,7 +19,7 @@ const GROUP := &"hazards"
 const SENSOR_HEIGHT := 8.0
 const FALL_GRAVITY := 900.0
 const RETURN_TIME := 0.35
-const MIN_SHAKE := 0.3
+const MIN_SHAKE := 0.5
 
 @export var shake_time: float = 0.6
 @export var fall_time: float = 0.45
@@ -259,3 +259,16 @@ func _player_inside_body() -> bool:
 	query.collide_with_bodies = true
 	query.collide_with_areas = false
 	return not space.intersect_shape(query, 4).is_empty()
+
+
+## 现在踏上台面并停留 duration 秒，台面是否始终有实体支撑；查询不触发塌陷。
+func safe_window(duration: float = 0.0) -> bool:
+	var stay := maxf(0.0, duration)
+	match _state:
+		State.IDLE:
+			return stay < maxf(MIN_SHAKE, shake_time)
+		State.SHAKING:
+			return stay < _timer
+		State.RETURNING:
+			return stay < _timer + maxf(MIN_SHAKE, shake_time)
+	return false

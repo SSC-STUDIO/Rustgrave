@@ -23,7 +23,6 @@ $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
 $outputDir = Join-Path $workspace ($OutDir -replace '/', '\')
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-$env:APPDATA = Join-Path $outputDir 'isolated-userdata'
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $Win, '--rendering-method', 'gl_compatibility', 'res://scenes/tools/PeekLive.tscn', '--', ('--hold=' + $Hold), ('--out=' + $resOut), ('--win=' + $Win))
 if ($Spots) { $arguments += @('--spots=' + $Spots) }
@@ -36,14 +35,19 @@ if ($Level) { $arguments += @('--level=' + $Level) }
 if ($CamY -ne 220.0) { $arguments += @('--cam_y=' + $CamY) }
 $stdoutFile = Join-Path $outputDir 'stdout.log'
 $stderrFile = Join-Path $outputDir 'stderr.log'
-$process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+$previousAppData = $env:APPDATA
+try {
+    $env:APPDATA = Join-Path $outputDir 'isolated-userdata'
+    $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+} finally { $env:APPDATA = $previousAppData }
 if (-not $process.WaitForExit(180000)) {
     Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $process.Id) | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
     if (-not $process.HasExited) { $process.Kill() }
     throw 'peek_live timed out'
 }
 Get-Content -LiteralPath $stdoutFile | Where-Object { $_ -match '^PEEK ' }
-$errors = @(Get-Content -LiteralPath $stderrFile | Where-Object { $_ -match '^SCRIPT ERROR:' })
+$errors = @(Get-Content -LiteralPath $stderrFile | Where-Object { $_ -match '^(?:SCRIPT ERROR|ERROR):' })
 if ($errors.Count -gt 0) { $errors; exit 1 }
+if ($null -ne $process.ExitCode -and $process.ExitCode -ne 0) { throw 'peek_live failed' }
 Get-ChildItem -LiteralPath $outputDir -Filter 'live_*.png' | ForEach-Object { $_.FullName }
 exit 0

@@ -1,0 +1,538 @@
+{
+  "generator": "tools/gen_original_choir_warden.py",
+  "external_inputs": [],
+  "method": "project-original integer pixel contours and joint poses",
+  "actions": {
+    "idle": 6,
+    "windup": 6,
+    "cast": 6,
+    "recover": 4,
+    "hurt": 3,
+    "broken": 4,
+    "death": 7
+  },
+  "palette": {
+    "ink": "#211b36",
+    "deep": "#34213f",
+    "dark": "#4b2d57",
+    "purple": "#67416f",
+    "mid": "#85618c",
+    "light": "#a98aaa",
+    "waxdark": "#b6adac",
+    "wax": "#d9d3c9",
+    "white": "#f0e9d4",
+    "pale": "#fff3d3",
+    "brassdark": "#6f563f",
+    "brass": "#ad8a56",
+    "gold": "#d3b77b",
+    "flame": "#efbc72",
+    "core": "#fff0b0",
+    "void": "#141a2b"
+  },
+  "frames": [
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        7,
+        84,
+        117
+      ],
+      "pixel_sha256": "43b65dfe52c33b6708bfb9a99ee7e2df8d96ed0ed95ea0cd515b44faf28b76c2"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        7,
+        84,
+        117
+      ],
+      "pixel_sha256": "61f7d39981385bf5d9d8ed82e1117ab50e72dafc9059798d0699339a625afa3e"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        6,
+        84,
+        117
+      ],
+      "pixel_sha256": "334678fa5e66fd2e8cdd26a1c84f466b0aec5ead754db5e1799580e671b71776"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        8,
+        84,
+        117
+      ],
+      "pixel_sha256": "a927a66dfd491f03bef4bbbc75e4d372bf61afaf8e85c4772694cf20be555b13"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_4.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        8,
+        84,
+        117
+      ],
+      "pixel_sha256": "50f2efc7a21076c36d644d43486a746b2634af67e3313eafb17d7f76fdcb8055"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/idle/idle_5.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        8,
+        84,
+        117
+      ],
+      "pixel_sha256": "e1006f6183d1a03d73fcc3654dc05cc5231a15290e7bc281796fc1a6c1480544"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        7,
+        82,
+        117
+      ],
+      "pixel_sha256": "ec0f3d4e667347bab93471b2d8acc186b19a3ca4cf8be50d9eb357eb7795ad46"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        8,
+        82,
+        117
+      ],
+      "pixel_sha256": "6dd3da01f1a2e92905461ff6583aa00b5063fca76d9b975bc2d14143734a63ff"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        17,
+        6,
+        82,
+        117
+      ],
+      "pixel_sha256": "6135d59f87aeb4f1b17574b8cd4371c59fb2a57722cb3f74ce26161fe1eaf850"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        7,
+        82,
+        117
+      ],
+      "pixel_sha256": "57eb0d259228d6a7bfd7ef2143a6155a2797252c00f908826939eed8be7f3ebb"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_4.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        5,
+        82,
+        117
+      ],
+      "pixel_sha256": "18a00cfdd01d2fec01e01d8697488ce889868156a93142763504bdfc25ce0268"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/windup/windup_5.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        17,
+        6,
+        82,
+        117
+      ],
+      "pixel_sha256": "92e1bb1f40676b8a8edc9f9ba0acca263cce05902b34a211130bf1fc1cc44826"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        10,
+        7,
+        90,
+        117
+      ],
+      "pixel_sha256": "d7712b5c876d2d1cc962b3bf221f352f17feb58609ca2d1218fc02f0842fb2a6"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        11,
+        8,
+        90,
+        118
+      ],
+      "pixel_sha256": "594002df57627e6429634b7d9f057330e4a00da087a06169fa387adba80d1676"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        12,
+        7,
+        90,
+        119
+      ],
+      "pixel_sha256": "6913ad7c7ac520e5ea4c9d5edfbb9266ba5e4d204cdbeaebd7c7b9f2c8feacdc"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        13,
+        8,
+        90,
+        118
+      ],
+      "pixel_sha256": "cd580adf2b160205f4db05d150afa1e5e5581e78e73c7c9b631add68a533c39b"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_4.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        14,
+        7,
+        90,
+        117
+      ],
+      "pixel_sha256": "8c9193b5fe2d2327783042d3c83764a42312567e5bb424422edfef0eac3c4614"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/cast/cast_5.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        8,
+        90,
+        116
+      ],
+      "pixel_sha256": "e9f18df952d8ec5918e1b5a5c934d2a1dd612eb28b07123995fcbebc63d3aae1"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/recover/recover_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        7,
+        87,
+        117
+      ],
+      "pixel_sha256": "12c134c47ac5fbee7eba82c5699665813eea2f88a1363a15e4d685bf1487fa6f"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/recover/recover_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        9,
+        87,
+        117
+      ],
+      "pixel_sha256": "43ee1e3c579babe1b369671c2e68800e78a64f69ae19985501c0a9f45208ac5d"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/recover/recover_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        8,
+        87,
+        117
+      ],
+      "pixel_sha256": "7ef3529be9c7098d0fcb326f9e1ed02aea8e2485640a8bbcf47ab55c8bb383fb"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/recover/recover_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        8,
+        87,
+        117
+      ],
+      "pixel_sha256": "f770ca5d92e42b05339c84d3e8d76d5b7b4658fce8f96af31024cbe467d04cee"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/hurt/hurt_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        9,
+        87,
+        117
+      ],
+      "pixel_sha256": "a274d080a16402ad937681eceaa67931d4a560f420e9cf37d2fdf2ae95c9ddeb"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/hurt/hurt_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        12,
+        87,
+        117
+      ],
+      "pixel_sha256": "c35894679b5bdedb64b5f2c218db6ded589b934b70efdaffeb04bfd004041622"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/hurt/hurt_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        9,
+        87,
+        117
+      ],
+      "pixel_sha256": "71bd49bcf487a10093abe92cf60d1c247c171a41cd44388bba241434e486095f"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/broken/broken_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        15,
+        79,
+        117
+      ],
+      "pixel_sha256": "aa66239da763ae5a8ef7c26f20e0865c6b373a7723418834e548a373d2e4c164"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/broken/broken_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        16,
+        17,
+        77,
+        117
+      ],
+      "pixel_sha256": "5e19dd18edaf3828f57687c11fc04f96533474ca38867b8ee514cb43cb9dd9f5"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/broken/broken_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        17,
+        15,
+        78,
+        117
+      ],
+      "pixel_sha256": "6d06fe3d6e4b005061c5e723e9c24e2aa6133f965807f76311fb7920e64ad4ad"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/broken/broken_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        17,
+        79,
+        117
+      ],
+      "pixel_sha256": "e65842631ef4e9e84210cc89c01a6a2d1cac6fe85ba75a3fb0441e26471313f1"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_0.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        10,
+        85,
+        120
+      ],
+      "pixel_sha256": "948e76e74e376608bbecb785537af6bb9adc6ea21c98797c94431e9332994533"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_1.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        17,
+        85,
+        120
+      ],
+      "pixel_sha256": "9bd042a97458134e966bc04eee7db98a7d99bd43efa7c7179507666dce9e7723"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_2.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        22,
+        85,
+        120
+      ],
+      "pixel_sha256": "a9ddc840198767cf0bad5856202d0c30e94019a0f661d5103862c7736ec13d2a"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_3.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        35,
+        85,
+        120
+      ],
+      "pixel_sha256": "164cf5659871d574794c2126c0baf5e6361f3843b635f9372959e4ffc8c473c7"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_4.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        44,
+        85,
+        120
+      ],
+      "pixel_sha256": "fb736fef55e9ef9474c8887b603730c6783a5ed8d75767aaea3ae80198df9f87"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_5.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        51,
+        85,
+        120
+      ],
+      "pixel_sha256": "997350fb80d0a067dc75c1cb11d4a3594780141f914a18510e89ea970def2d6b"
+    },
+    {
+      "path": "assets/characters/original_silent_choir/death/death_6.png",
+      "size": [
+        96,
+        144
+      ],
+      "bbox": [
+        15,
+        55,
+        85,
+        120
+      ],
+      "pixel_sha256": "cc37db046f56971155505f436c91dd1261a5eb1bc1e4f9b0c4db0fad5f0943c9"
+    }
+  ]
+}

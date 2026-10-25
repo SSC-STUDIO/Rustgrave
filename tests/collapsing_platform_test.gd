@@ -129,3 +129,22 @@ func test_sanity_refuses_a_nest_on_a_collapsing_beam() -> void:
 		if p.contains("collapsing") and p.contains("NestOnBeam"):
 			found = true
 	ok(found, "a nest on a collapsing beam is reported: %s" % [problems])
+
+
+func test_safe_window_predicts_loss_of_support_without_triggering_or_advancing_it() -> void:
+	var plat := _platform(_host(), Vector2(200, -48), 96.0, {"shake_time": 0.1})
+	plat.set_physics_process(false)
+	ok(plat.shake_time >= 0.5, "even a short configured shake gives half a second of warning")
+	ok(plat.safe_window(0.4))
+	ok(not plat.safe_window(0.5), "crossing must finish before support disappears")
+	eq(plat.state(), CollapsingPlatform.State.IDLE, "asking does not trigger the beam")
+	plat.trigger()
+	plat.tick(0.2)
+	var left := plat.time_left()
+	ok(plat.safe_window(0.2))
+	ok(not plat.safe_window(0.4))
+	almost(plat.time_left(), left, 0.0001, "asking does not spend the remaining support time")
+	plat.tick(0.4)
+	ok(not plat.safe_window(), "fallen beam provides no landing support")
+	plat.tick(plat.respawn_time + 0.1)
+	ok(plat.safe_window(0.4), "returning beam has restored its collision")

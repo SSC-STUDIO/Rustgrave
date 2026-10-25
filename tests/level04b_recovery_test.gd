@@ -1,0 +1,93 @@
+extends TestCase
+
+const DRIVER := preload("res://tests/fixtures/navigation_driver.gd")
+const LAYOUT := preload("res://scripts/levels/chapters/level04b_layout.gd")
+
+
+func setup() -> void:
+	Director.abort()
+	Director._set_lock(false)
+	SaveData.flags.clear()
+	SaveData.consumed.clear()
+
+
+func teardown() -> void:
+	for action in [&"move_left", &"move_right", &"jump", &"dash", &"attack", &"interact"]:
+		Input.action_release(action)
+	SaveData.flags.clear()
+	SaveData.consumed.clear()
+
+
+func test_vault_checkpoint_climbs_to_the_choir_without_hitting_the_return_launch() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var layout := LAYOUT.new()
+	add_child(layout)
+	layout.build(host)
+	for e in host.get_node("Enemies").get_children(): e.queue_free()
+	for h in LevelSanity.hazards(host): h.queue_free()
+	await flush(2)
+	var start := LevelSanity.feet_of(host.get_node("Props/EmberNestVault"))
+	var goal := LevelSanity.feet_of(host.get_node("Props/EmberNestChoir"))
+	var player := await spawn_player(host, start - Vector2(0, 20))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	driver._nv_goal = goal
+	var route := driver._nv_path(driver._nv_segments(), goal)
+	ok(not route.is_empty())
+	if route.is_empty(): return
+	for i in range(1, route.size()):
+		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+		ok(crossed, "crypt recovery edge %d uses basic inputs; feet=%s" % [i, player.position])
+		if not crossed:
+			driver._release()
+			return
+	ok(await driver._nv_flat(goal.x, goal.y, false))
+	ok(not player.controller.extra_jumps_unlocked)
+	ok(not player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER))
+	driver._release()
+
+func test_vault_stair_returns_west_via_the_real_launch_and_high_gallery() -> void:
+	var host := Node2D.new()
+	add_child(host)
+	var layout := LAYOUT.new()
+	add_child(layout)
+	layout.build(host)
+	# Isolate real traversal geometry; no actor, platform or collision is moved.
+	for enemy in host.get_node("Enemies").get_children(): enemy.queue_free()
+	for hazard in LevelSanity.hazards(host): hazard.queue_free()
+	await flush(2)
+	var player := await spawn_player(host, Vector2(2848, 268))
+	var driver := DRIVER.new()
+	driver.world = host
+	add_child(driver)
+	var goal := LevelSanity.feet_of(host.get_node("Props/EmberNestVault"))
+	driver._nv_goal = goal
+	var segments: Array[Dictionary] = driver._nv_segments()
+	var route: Array[Dictionary] = []
+	for name_ in ["VaultStairB", "ReturnLaunch", "ReturnD", "ReturnC", "ReturnB", "ReturnEnd", "FloorVault"]:
+		for segment in segments:
+			if segment.get("name", "") == name_:
+				route.append(segment)
+				break
+	ok(route.size() == 7, "west return uses the launch and every real fixed gallery span")
+	ok(player.is_on_floor() and absf(player.position.y - 288.0) < 2.0,
+			"start settled on the real VaultStairB")
+	print("[CRYPT WEST] start=%s goal=%s supports=%d" % [player.position, goal, route.size()])
+	if route.size() != 7:
+		driver._release()
+		return
+	for i in range(1, route.size()):
+		var crossed: bool = await driver._nv_cross(route[i - 1], route[i])
+		print("[CRYPT WEST EDGE] %s -> %s crossed=%s feet=%s on_floor=%s" % [
+				route[i - 1].name, route[i].name, crossed, player.position, player.is_on_floor()])
+		ok(crossed, "west return edge %s -> %s uses real inputs" % [route[i - 1].name, route[i].name])
+		if not crossed:
+			driver._release()
+			return
+	ok(await driver._nv_flat(goal.x, goal.y, false), "walk from the one-way drop to the actual Vault nest")
+	ok(not player.controller.extra_jumps_unlocked, "west return needs no extra jump")
+	ok(not player.inventory.has_ability(AbilityIds.HOOKSHOT_TETHER), "west return needs no Hookshot")
+	print("[CRYPT WEST NEST] feet=%s target=%s hp=%d" % [player.position, goal, player.health.current])
+	driver._release()

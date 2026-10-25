@@ -90,12 +90,17 @@ func _ready() -> void:
 	add_child(presentation)
 	for i in 5:
 		await RenderingServer.frame_post_draw
+	# Project starts maximized. Windows can deliver that resize after the first
+	# windowed assignment; settle again once GamePresentation has initialized.
+	if not await _settle_window(win, win_size):
+		return
 	Director.abort()
 	Director.set_letterbox(false, true)
 	var player := get_tree().get_first_node_in_group("player") as Player
 	var camera := get_tree().get_first_node_in_group("game_camera") as GameCamera
 	player.set_physics_process(false)
 	player.cutscene_locked = true
+	player.health.invincible = true # Parked render fixture, never an input run.
 	camera.set_physics_process(false)
 	if not active:
 		for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -128,15 +133,34 @@ func _ready() -> void:
 			continue
 		camera.global_position = Vector2(x, cam_y)
 		camera.force_update_scroll()
-		# Park the knight at the camera height (vertical levels): floor y when cam_y is default.
-		player.global_position = Vector2(x - 120.0, 320.0 if is_equal_approx(cam_y, 220.0) else cam_y + 100.0)
+		# Camera fixtures must also respect rebuilt terrain. The old fixed y320
+		# buried the actor in raised floors and left him floating over sunken ones.
+		var feet := park_feet(GameContext.world_root(player), Vector2(x - 120.0, cam_y + 100.0))
+		if not feet.is_finite():
+			push_error("peek_live: no clear fixed support at camera " + str(spot))
+			get_tree().quit(1)
+			return
+		player.global_position = feet
+		GameEvents.interact_prompt.emit("")
+		print("PEEK park ", spot, " feet=", feet, " (camera fixture)")
 		await get_tree().create_timer(hold).timeout
+		# Entering a boss trigger may stage an intro after the initial abort.
+		# Capture the terrain after that presentation, and refresh the prompt
+		# because the parked player does not run its usual physics interaction tick.
+		Director.abort()
+		Director.set_letterbox(false, true)
+		player.cutscene_locked = true
+		camera.global_position = Vector2(x, cam_y)
+		camera.force_update_scroll()
+		var focus := player.sensor.get_focus()
+		GameEvents.interact_prompt.emit(focus.get_prompt(player) if focus != null else "")
 		if layers:
 			# Freeze motion so the two captures differ only where the backdrop shows through.
 			Engine.time_scale = 0.0
 			for i in 3:
 				await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		if not await _settle_window(win, win_size):
+			return
 		var image := win.get_texture().get_image()
 		var tag := "" if is_equal_approx(cam_y, 220.0) else "_y%d" % int(cam_y)
 		var err := image.save_png("%s/live_%s%s%s.png" % [out_dir, spot, tag, suffix])
@@ -151,6 +175,56 @@ func _ready() -> void:
 				layer.visible = true
 			Engine.time_scale = 1.0
 	get_tree().quit(0)
+
+
+## A named resolution is evidence only when the actual render target matches it.
+## Require three consecutive correctly sized draws so delayed maximize events
+## cannot silently produce a desktop-sized PNG in a folder called "1080p".
+func _settle_window(win: Window, wanted: Vector2i) -> bool:
+	var stable := 0
+	for frame in 120:
+		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
+			win.mode = Window.MODE_WINDOWED
+			win.size = wanted
+			win.position = Vector2i(-12000, -12000)
+			stable = 0
+		await RenderingServer.frame_post_draw
+		var actual := win.get_texture().get_image().get_size()
+		stable = stable + 1 if actual == wanted and win.size == wanted else 0
+		if stable >= 3:
+			return true
+	push_error("peek_live: render target did not settle at %s (window=%s)" % [wanted, win.size])
+	get_tree().quit(1)
+	return false
+
+
+## Nearest fixed support with room for the whole 14x26 knight body. Moving and
+## temporary platform endpoints are unsuitable for a parked, physics-disabled actor.
+static func park_feet(world: Node, wanted: Vector2) -> Vector2:
+	var best := Vector2.INF
+	var best_score := INF
+	var solids := LevelSanity.solid_rects(world)
+	for top in LevelSanity.top_segments(world):
+		if top.owner_name.contains("@") or top.kind in ["collapsing", "conveyor", "candle"]:
+			continue
+		if top.x1 - top.x0 < 16.0 or absf(top.y - wanted.y) > 160.0:
+			continue
+		var px := clampf(wanted.x, top.x0 + 8.0, top.x1 - 8.0)
+		if absf(px - wanted.x) > 96.0:
+			continue
+		var body := Rect2(px - 7.0, top.y - 26.0, 14.0, 26.0)
+		var clear := true
+		for solid in solids:
+			if solid.grow(-0.1).intersects(body):
+				clear = false
+				break
+		if not clear:
+			continue
+		var score := absf(top.y - wanted.y) + absf(px - wanted.x) * 2.0
+		if score < best_score:
+			best_score = score
+			best = Vector2(px, top.y)
+	return best
 
 
 ## Backdrop = every CanvasLayer drawn under the world (layer < 0) that is visible.

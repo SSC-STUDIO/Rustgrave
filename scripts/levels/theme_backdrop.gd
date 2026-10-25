@@ -47,7 +47,7 @@ const THEMES := {
 		"void": Color(0.07, 0.02, 0.015),
 		"mood": Color(1.0, 0.8, 0.66),
 		"layers": [
-			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color.WHITE},
+			{"path": BACKDROP_DIR + "forge_sky.png", "scroll": Vector2(0.04, 0.02), "pos": Vector2(0, 0), "scale": 2.25, "tint": Color.WHITE, "fade_bottom": Vector2(0.6, 1.0)},
 			{"path": BACKDROP_DIR + "forge_far.png", "scroll": Vector2(0.18, 0.06), "pos": Vector2(0, 40), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_mid.png", "scroll": Vector2(0.4, 0.1), "pos": Vector2(0, 8), "scale": 2.25, "tint": Color.WHITE},
 			{"path": BACKDROP_DIR + "forge_near.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 120), "scale": 2.1, "tint": Color(1, 1, 1, 0.9)},
@@ -327,6 +327,13 @@ func _add_layer(parent: Node, layer_name: String, def: Dictionary) -> Parallax2D
 	var k: float = def.get("scale", 1.0)
 	spr.scale = Vector2(k, k)
 	spr.modulate = def.get("tint", Color.WHITE)
+	if def.has("fade_bottom"):
+		# Raised routes expose the sky plate's flat orange bottom behind the hall.
+		# Blend that authored edge into the void; keep the chapter's glow layer.
+		var fade := ShaderMaterial.new()
+		fade.shader = preload("res://assets/shaders/backdrop_bottom_fade.gdshader")
+		fade.set_shader_parameter("fade_rows", def.fade_bottom)
+		spr.material = fade
 	var region: Rect2 = def.get("region", Rect2())
 	if region.has_area():
 		spr.region_enabled = true

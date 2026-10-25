@@ -17,6 +17,9 @@ var light_radius := 86.0
 var tint := Color(1.0, 0.68, 0.34)
 ## 0 = steady flame (the 'give' ending), 1 = normal flicker.
 var flicker := 1.0
+## Fourteen visible fixtures share five physical light pools, within the eight-light budget.
+var emits_light := true
+var casts_shadows := false
 
 var _body: Sprite2D
 var _halo: Sprite2D
@@ -50,15 +53,16 @@ func _ready() -> void:
 	_halo.scale = Vector2.ONE * (light_radius * 0.5 / 64.0)
 	_halo.visible = false
 	add_child(_halo)
-	_light = PointLight2D.new()
-	_light.name = "Light"
-	_light.texture = load(GLOW) as Texture2D
-	_light.texture_scale = light_radius * 2.0 / 128.0
-	_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_light.shadow_enabled = false
-	_light.energy = 0.0
-	_light.enabled = false
-	add_child(_light)
+	if emits_light:
+		_light = PointLight2D.new()
+		_light.name = "Light"
+		_light.texture = load(GLOW) as Texture2D
+		_light.texture_scale = light_radius * 2.0 / 128.0
+		_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		_light.shadow_enabled = casts_shadows
+		_light.energy = 0.0
+		_light.enabled = false
+		add_child(_light)
 	_on_sway()
 	_refresh(true)
 
@@ -95,7 +99,8 @@ func _on_sway() -> void:
 	_body.position = b
 	var core := b + CORE
 	_halo.position = core
-	_light.position = core
+	if _light != null:
+		_light.position = core
 
 
 func _process(delta: float) -> void:
@@ -127,9 +132,10 @@ func _refresh(force: bool) -> void:
 	_last_energy = energy
 	_body.frame = 1 if amount > 0.08 else 0
 	var on := amount > 0.01
-	_light.enabled = on
-	_light.energy = energy
-	_light.color = tint
+	if _light != null:
+		_light.enabled = on
+		_light.energy = energy
+		_light.color = tint
 	_halo.visible = on
 	if on:
 		# the additive halo sits on the ambient-dimmed canvas, so push it up to read

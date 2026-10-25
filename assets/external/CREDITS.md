@@ -255,3 +255,61 @@
   per stem with ffmpeg EBU R128 — beds -19.5 LUFS, hi layers -23.0 LUFS).
   `Music.BOSS_TRACKS_BY_LEVEL` maps level ids to tracks (level-first, then theme).
 - License: part of this project (CC0); no external samples are used.
+
+## Original Executioner pixel animation
+- Author/source: Rustgrave project original integer-pixel drawing, authored in
+  `tools/art/gen_original_executioner_nightmare.py`; no external source URL,
+  no sampled input pictures, tracing or downloaded character sheets.
+- Output: `assets/characters/original_executioner/`, 38 transparent PNG frames
+  for idle, guard, charge, axe, skill and death. Used by ExecutionerBoss only.
+  The ordinary gear-shield guard retains its separately credited legacy art.
+- Rights: project-authored source and output, delivered with this repository
+  for project use. Authorship manifest records generator, palette and hashes.
+
+## Original Nightmare pixel animation
+- Source/author: project-original pixel clusters and joint poses in
+  `tools/art/gen_original_executioner_nightmare.py --only nightmare`.
+- Output: `assets/characters/original_nightmare/`, 53 transparent frames covering
+  eight actual combat states, including the collapse. No source picture, tracing
+  or legacy horse pixels are read; this replaces NightmareBoss's old horse art.
+- Rights: source and output delivered for project use; the authorship manifest
+  includes palette, dimensions and per-frame hashes. No external source URL.
+
+## Original Capstan Warden pixel animation
+- Project-original contour and articulated pose source:
+  `tools/gen_original_choir_warden.py`; no image inputs or external source URL.
+- `assets/characters/original_capstan_warden/`: 40 native-size pixel frames,
+  diving armor, horizontal winch and chain anchor. Replaces the guard recolor.
+- Source and output delivered for project use. `authorship.json` records
+  the palette and individual frame pixel hashes.
+
+## Original Silent Choir pixel animation
+- Source: project-original contour and articulated poses in
+  `tools/gen_original_choir_warden.py`, without source image inputs.
+- `assets/characters/original_silent_choir/`: 36 conductor frames and
+  24 frames for three individually drawn cantor masks. Replaces all reused
+  ghost sprites, including singing, broken and death poses.
+- Source and output supplied for project use; no external URL. Manifests
+  record the palette, dimensions and exact frame pixel hashes.
+
+## Original Emberwind Herald pixel animation
+- Source: `tools/gen_original_bell_bosses.py`, project-authored integer-pixel
+  drawing without image inputs, tracing or external source URLs.
+- `assets/characters/original_emberwind_herald/`: 68 native-size transparent
+  frames for a mechanical bird with segmented wings, lens-tail blades,
+  beak crown and lantern chest. All four attacks and the real down window
+  select separate cold/hot poses, including the death fold.
+- Source and output delivered for project use. Authorship manifest records
+  palette, dimensions and exact pixel hashes.
+
+## Original HollowBell and BellFounder pixel animations
+- Both use independent project-authored integer-pixel contours and poses in
+  `tools/gen_original_bell_bosses.py`, with no source pictures, tracing,
+  downloaded character pixels or external API inputs.
+- `assets/characters/original_hollow_bell/`: 72 transparent frames for a
+  suspended cracked bell and a separate articulated clapper weakpoint.
+- `assets/characters/original_bell_founder/`: 128 transparent frames for a
+  four-course foundry automaton and its independent segmented hammer.
+- Source and output delivered for project use; palettes are explicit in source.
+  `tools/art/review_original_bosses.py --reproduce` compares the exact pixels
+  redrawn from source for all seven bosses and records their hashes.

@@ -186,7 +186,7 @@ func weather_regions() -> Array:
    `$env:RUSTGRAVE_LEVEL_FILTER='levelNN'; powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter level_sanity -TimeoutSeconds 240`
    看输出里 `[FAIL]` 下面的每一条，修到 `OK`。
 4. 你的专属测试：`powershell ... tools/run_tests.ps1 -CaseFilter levelNN_layout`（用 `Level02` 的 `tests/level02_layout_test.gd` 作范本：在一个加了 `game_world` 组、`scene_file_path` 指向你场景的空 `Node2D` 上 `load("res://scripts/levels/chapters/levelNN_layout.gd").new().build(host)`，断言你的关键台阶链、机关接线、敌人落点）。
-5. 看图：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_peek_live.ps1 -Level levelNN -OutDir screenshots/peek/levelNN -Spots 320,960,1600,2240,2880 -Hold 2 -Lit`（`-Spots` 给镜头中心 x，一屏 640 宽；`-Active` 让敌人动起来）。用读文件工具打开 PNG 逐张看：有没有悬空、埋地、遮挡、空荡、颜色打架。改完再截。
+5. 看图：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_peek_live.ps1 -Level levelNN -OutDir screenshots/peek/levelNN -Spots '320,960,1600,2240,2880' -Hold 2 -Lit -Active -Win 1280x720`。PowerShell 的逗号列表必须加引号，避免只传入第一个机位。`-Spots` 给镜头中心 x，一屏640世界像素；竖向章节另设 `-CamY`。至少五机位分别拍1280×720和1920×1080；逐张核对PNG真实像素尺寸和画面，不能从目录名推断分辨率。PeekLive在保存前要求窗口及渲染目标连续三帧精确匹配目标尺寸。检查悬空、埋地、遮挡、落脚和机关预警；改完再截。
 6. 运行全量测试及正常输入验收，检查跌落脱困、入口、机关、难点、存档点与出口。每个完整改动验证后立即 Git 提交；记录实际结果和截图路径。
 
 ## 6. 常见坑
@@ -257,6 +257,10 @@ func weather_regions() -> Array:
 | `ConveyorBelt` | `conveyor(host, name, pos, width, speed, skin, props, height)` | 传送带 | 继承 `SolidPlatform`，用 `constant_linear_velocity` 带人；`speed` 上限 54；`flip_period` 反向前先停转 0.6s |
 | `PendulumHazard` | `pendulum(host, name, pivot, length, props)` | 钟舌 / 铁锤 / 压碎机走廊 | 正弦摆动，摆幅 ≤70°、周期 ≥1.8s；每次过最低点重新武装；`head_over(x0, x1, t)` 供 bot 读 |
 
+五类都提供只读 `safe_window(duration)`，查询不推进相位、不触发机关、不撤销判定。周期机关表示整段无伤害；塌陷台表示整段有实体支撑（按立即踩上开始抖动计算）；外力区表示整段无推力、减速或毒素；传送带表示整段停转。运动中的传送带仍可通行，不能把“没有静止空窗”误读成路线不可达。摆锤可另传世界坐标 `x0,x1`（缺省为吊点下方14px通道），计算整段球头扫过范围，调用方另检竖向净空。常风和持续泥沼不会虚报等待后可出现的空窗。
+
+塌陷台的最低抖动预警为0.5秒；当前章节使用默认0.6秒或显式0.7、0.8、1.4秒，不能依赖更短预警制造难度。各类的时段边界、查询无副作用和摆锤中途横扫由对应工具箱测试保护。
+
 通用规则（`LevelSanity` 会拒绝，见 `tests/level_sanity_hazards_test.gd`）：
 
 1. 周期机关预警 ≥0.5s，且每个周期里"休止 + 预警"≥1.2s，判定期 ≤1.6s。
@@ -272,3 +276,30 @@ func weather_regions() -> Array:
 
 `PlayerController.add_environment(push, drag)` 是唯一的外力入口（`ForceZone` 每个物理帧写入，
 2 个物理帧没人写就当作离开区域）；不要在别处直接改玩家 `velocity` 来"推"人。
+
+## 9. 高低路线与真实输入恢复（v3续作）
+
+静态 `LevelSanity.is_reachable()` 是快速设计检查，不是整个人体沿真实轨迹通过的证明。新增高低路线必须另做 `tests/*_recovery_test.gd`：使用真实布局和 Player，以 `tests/fixtures/navigation_driver.gd` 驱动普通移动、单跳和冲刺，不授予额外跳跃。可移除敌人/机关来隔离几何，但必须明确这不是有敌人的整章通关。
+
+- 低层回到高层的最后一级必须有起跳净空。角色身体14×26，台阶边缘/头顶不能仅按点处理；台下32px缝只有在左右起跳的身体路径也清楚时才成立。
+- 偏离主路、塌台失误、掉入下沉巷、任何检查点读档后，都必须能返回未打开门的压板或继续主路。测试要保留门关闭状态，不能直接传送上压板。
+- 加返程阶梯后检查是否形成跳过压板门的旁路；第三章新增门上砖楣就是为保留原机关意义。测试同时覆盖“能回压板”和“关闭的门不能绕过”。
+- 吊台终点要给骑士落地交接空间，固定猫道不能覆盖骑士头部。完整骑乘、顶端单跳冲刺下船、到下一固定台面都用真实物理验证。
+- Boss应在玩家进入场地后唤醒，不能在相邻安全巢前挪动并远程夹持玩家。章节可用本地入场门槛；保持Boss原尺寸、攻击ID和战斗判定。逐巢真实AI静置至少六秒，复活不应立刻遭遇攻击。
+- 崖道折返/钟楼不能按x排序当作行进顺序。战役工具读取当前节点脚点，用章节必经目标次序规划，读档从实际已保存巢恢复；禁止设置位置、HP、死亡旗标或门状态来跳过障碍。
+
+导航回归还须保留实际可破坏杂物。`_nv_solids()` 读取尚未破坏的杂物碰撞，`_nv_tops()` 将宽度至少16px的杂物顶面纳入路线；普通地形仍用24px下限。不能移除钟前骨灰瓮或祭坛废料堆后，声称真实Boss入口已经通过。接近点应处于有支撑、身体净空足够的位置，不能只是Boss坐标向西减一个固定值。
+
+同高相邻台面构成连续地面，只有走完实际边缘才能下落。图连边须考虑中间落脚面与下落刹车的整个人体净空；短台缘的有效落脚仍应保留。等跳数的路径优先宽地面和较低爬升，失败后从真实当前落脚重新规划。低顶板下的连续台阶须以普通输入走到台阶面，单跳清出台面高度后才冲刺，不能通过改位置或授予额外跳跃消除卡点。上述规则由 `input_navigation_test` 及第二章/水渠真实布局的 `*_recovery_test` 共同回归。
+
+## 10. 门禁与证据口径
+
+1. 每章先提交 `docs/level-redesign/levelNN.md` 蓝图，再提交实现。每个完整修正也单独提交；只暂存本次明确路径，保留并行工作和导入噪声。
+2. 定向运行章节布局、相关机关、全章Sanity、route_audit、chapter_progression及章节路由；`RUSTGRAVE_LEVEL_FILTER`仅用于局部体检，最终全量必须清除该环境变量。
+3. 当前测试runner每个用例有30秒看门狗。跨多章重建场景的集成测试按章节组拆分，保留全部断言；不要用放宽成功条件或删除章节来解决超时。并发重渲染时保留失败日志并低负载复跑。
+4. 通过必须同时有终结行 `OK N/N passed; 0 engine errors`，以及包装脚本 `summary.json` 的 `passed=true`、`completed=true`。仅进程退出、部分PASS或缺少终结报告均不是通过。
+5. 固定机位可以停放角色、点巢、冻结AI/过场，用于构图；BossFixture可摆位和注入伤害，用于各阶段/死亡演出。二者均不能计为正常输入通关。
+6. 正常输入战役使用隔离APPDATA、公开辅助倍率和基本能力；最终需要从新游戏完成14章且 `resumed=false`。从真实输入检查点续跑仅用于定位问题，必须保留 `resumed=true` 标记。
+7. 性能报告须声明渲染器、窗口/视口尺寸、GPU、取样范围、冻结哪些系统以及并发负载。Godot的CPU process/physics监视器不是显示器呈现帧率；不能把它们的倒数声称为实机FPS。
+
+证据统一归档 `screenshots/acceptance/overhaul-v3/`（本地ignored目录），在 `docs/acceptance.md` 和唯一清单 `docs/overhaul-v3.md` 引用精确路径。真机触屏、手柄实机手感、真人试玩与实体显示器表现仍须分别注明未验证。

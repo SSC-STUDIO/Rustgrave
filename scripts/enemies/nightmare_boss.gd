@@ -27,7 +27,7 @@ enum State { IDLE, WINDUP, CHARGE, REST, NEIGH, QUAKE, HEAT_WAVE }
 @export var arena_left: float = -INF
 @export var arena_right: float = INF
 
-const HORSE_CHAR := "boss_nightmare"
+const HORSE_CHAR := "original_nightmare"
 ## idle 128×96 / gallop 144×96，蹄底都贴画布底边：centered Sprite 中心抬 48px。
 const HORSE_POS := Vector2(0.0, -48.0)
 const IDLE_FPS := 6.0
@@ -137,6 +137,11 @@ func _build_visual() -> void:
 	_anim = _build_frame_anim(HORSE_CHAR, [
 		["idle", "", IDLE_FPS, true, HORSE_POS],
 		["gallop", "", GALLOP_FPS, true, HORSE_POS],
+		["windup", "", 8.0, false, HORSE_POS],
+		["rest", "", 7.0, true, HORSE_POS],
+		["neigh", "", 6.0, true, HORSE_POS],
+		["quake", "", 7.0, true, HORSE_POS],
+		["heat_wave", "", 7.0, true, HORSE_POS],
 	])
 	if _anim != null:
 		_anim.play("idle")
@@ -674,6 +679,15 @@ func _enter_rest() -> void:
 	show_opening(rest_time)
 
 
+func _interrupt_for_poise() -> void:
+	hitbox.disarm()
+	_dismiss_lane()
+	_disarm_poise_hitboxes(_transient)
+	_state = State.REST
+	_timer = 0.0
+	_clear_tint()
+
+
 ## 嘶鸣：停 neigh_time，震屏，从鬃毛里落下火骷髅。
 func _begin_neigh() -> void:
 	_state = State.NEIGH
@@ -791,8 +805,15 @@ func _update_anim() -> void:
 		State.CHARGE:
 			_anim.play("gallop")
 		State.WINDUP:
-			_anim.set_fps("idle", WINDUP_IDLE_FPS)
-			_anim.play("idle")
+			_anim.pin_frame("windup", clampi(int((1.0 - _timer / maxf(windup_time, 0.1)) * 5.0), 0, 4))
+		State.REST:
+			_anim.play("rest")
+		State.NEIGH:
+			_anim.play("neigh")
+		State.QUAKE:
+			_anim.play("quake")
+		State.HEAT_WAVE:
+			_anim.play("heat_wave")
 		_:
 			_anim.set_fps("idle", IDLE_FPS)
 			_anim.play("idle")
@@ -832,7 +853,7 @@ func _on_died() -> void:
 	GameEvents.boss_defeated.emit()
 	SaveData.mark_flag("nightmare_dead")
 	SaveData.persist_story()
-	_death_burst([] as Array[Texture2D], 12.0, _facing > 0.0, 0.0, "梦魇跪进炉灰里")
+	_death_burst(CharFrames.anim(HORSE_CHAR, "death"), 12.0, _facing > 0.0, HORSE_POS.y, "梦魇跪进炉灰里")
 
 
 func _cleanup_transient() -> void:

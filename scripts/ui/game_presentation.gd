@@ -70,6 +70,7 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var metrics := PresentationMetrics.for_window(get_tree().root)
+	world_viewport.size = metrics["world_size"]
 	var rect: Rect2 = metrics["canvas_rect"]
 	world_image.position = rect.position
 	world_image.size = rect.size
@@ -104,7 +105,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			GameContext.suppress_gameplay_input()
 			return
 		var transform := Transform2D.IDENTITY
-		transform = transform.scaled(Vector2(PresentationMetrics.WORLD_SIZE) / rect.size)
+		transform = transform.scaled(Vector2(world_viewport.size) / rect.size)
 		transform.origin = -rect.position * transform.get_scale()
 		forwarded = event.xformed_by(transform)
 	world_viewport.push_input(forwarded, true)

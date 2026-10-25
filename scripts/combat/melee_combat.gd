@@ -191,7 +191,10 @@ func is_busy() -> bool:
 
 
 func is_parry_window() -> bool:
-	return _state == State.ACTIVE and not _host_locked()
+	if _host_locked():
+		return false
+	return _state == State.ACTIVE or (_state == State.WINDUP \
+			and phase_progress() >= CombatRules.parry_windup_start())
 
 
 ## 本刀是否已经「打实」：造成了伤害或弹反成功。盾面挡下不算。
@@ -342,8 +345,25 @@ func tick(delta: float) -> void:
 func _process(_delta: float) -> void:
 	if hitbox == null or not is_parry_window():
 		return
-	for area in hitbox.get_overlapping_areas():
-		_on_hitbox_area_entered(area)
+	if hitbox.monitoring:
+		for area in hitbox.get_overlapping_areas():
+			_on_hitbox_area_entered(area)
+	else:
+		# Assisted windup can parry before the damage volume is enabled. Query
+		# projectiles alone so this never starts sword damage ahead of ACTIVE.
+		var shape := hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if shape == null or shape.shape == null or shape.disabled:
+			return
+		var query := PhysicsShapeQueryParameters2D.new()
+		query.shape = shape.shape
+		query.transform = shape.global_transform
+		query.collision_mask = 16
+		query.collide_with_areas = true
+		query.collide_with_bodies = false
+		for hit in get_world_2d().direct_space_state.intersect_shape(query, 16):
+			var bolt := hit.get("collider") as Projectile
+			if bolt != null:
+				try_deflect(bolt)
 
 
 ## Attempt a slash bypassing the input layer. Returns false while busy/cooldown.
@@ -370,6 +390,7 @@ func _begin_windup() -> void:
 	_link_buffered = false
 	_late_link_left = 0.0
 	_jump_during_swing = false
+	_parried_swing = false
 	_state = State.WINDUP
 	_timer = float(COMBO_WINDUP[_combo_index])
 	_set_lock(true)
@@ -380,7 +401,6 @@ func _begin_windup() -> void:
 func _begin_active() -> void:
 	_state = State.ACTIVE
 	_timer = float(COMBO_ACTIVE[_combo_index])
-	_parried_swing = false
 	if hitbox:
 		var face := 1.0
 		var band: StringName = &"cold"

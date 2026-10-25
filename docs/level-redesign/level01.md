@@ -110,3 +110,9 @@ x:   0     800  900 1000 1100  1300  1560  1664   1900  2112   2288..2464 2584  
 - 路线 `Level01EastLayout` 的 `theme()` 沿用 "graveyard"，但 `prop_allowed()` 放开了工坊残骸与砖屋立面
   （`SceneDetails.ALLOWED_KEYS` 的同源清单 + `brick_house` / `ruin_tower`）；若以后要把它收进 `PropCatalog` 主题白名单，改 `ALLOWED_DECOR` 即可。
 - 以上都是几何 + 输入 bot 的证据；**真人手感**（单跳的 36px 横跨、塌陷梁 0.8s、炉口窗口）仍需真人试玩确认。
+
+## 8. 整合分支最终机位与基本能力输入（2026-10-24）
+
+旧 `level01/final/` 的14图实际都是1280×720，因此未将其当成双分辨率矩阵。整合分支重新以 `run_peek_live -Level level01 -Lit -Active -Hold 2` 拍摄320/1450/1750/2350/3000/3420六机位，分别输出1280×720和1920×1080，共12图。`screenshots/acceptance/overhaul-v3/level01/final-matrix/manifest.json` 记录实际尺寸与SHA256；四张联系表已逐图检查。教学台/毒坑、上下偏殿、工坊、喷火廊、下沉长阶/巢、中央高台/Boss轮廓均可辨，骑士脚点依次为200/320、1330/320、1630/320、2230/320、2880/352、3300/304。
+
+相机/骑士停放，真实AI和世界时钟继续运行；Boss介绍由工具收起。此图组证明构图、支撑与当前材质，不证明正常输入通关。正常输入另见 `screenshots/acceptance/input-20261024-201053-832/{rekindle,snuff}.json`：从标题新游戏开始，基本单跳/冲刺/热锻、默认100%辅助，实际击败刽子手，真实死亡/复活并验证Continue；重燃路线进入第二章，熄灭路线返回标题。两轮均PASS、0引擎错误、各1次死亡，`resumed=false`。它们不代表14章完整战役。

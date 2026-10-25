@@ -92,3 +92,17 @@ func test_the_timeline_freezes_during_a_cutscene() -> void:
 	Director._set_lock(false)
 	p.tick(0.02)
 	ok((p.get_node("PendulumHitbox") as Hitbox).monitoring)
+
+
+func test_safe_window_detects_an_intermediate_sweep_and_never_changes_the_clock() -> void:
+	var swing := _pendulum(_host(), Vector2(200, -100), 96.0,
+			{"period": 3.2, "phase": 0.25})
+	swing.set_physics_process(false)
+	var before := swing.clock()
+	ok(swing.safe_window(0.2), "the central corridor is clear near a swing end")
+	ok(not swing.safe_window(0.8), "the head returns through the central corridor")
+	ok(not swing.safe_window(1.6), "clear endpoints cannot hide a crossing in the middle")
+	ok(swing.safe_window(9.6, 600.0, 640.0), "a corridor outside the entire arc stays clear")
+	ok(not swing.safe_window(9.6), "a full cycle always sweeps under the pivot")
+	almost(swing.clock(), before, 0.0001, "query does not alter the swing phase")
+	ok((swing.get_node("PendulumHitbox") as Hitbox).monitoring, "query does not disarm damage")

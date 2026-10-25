@@ -26,6 +26,12 @@ const RESERVED_PAD_BUTTONS: Array[int] = [JOY_BUTTON_START, JOY_BUTTON_GUIDE]
 const MOVE_AXIS_DEADZONE := 0.2
 ## Slider drags would otherwise rewrite the file dozens of times per second.
 const SAVE_DELAY := 0.4
+## Public assist ranges. 1.0 always preserves the authored combat values.
+const ASSIST_LIMITS := {
+ &"assist_incoming": Vector2(0.5, 1.5), &"assist_parry": Vector2(1.0, 1.5),
+ &"assist_toxin": Vector2(0.5, 1.5), &"subtitle_speed": Vector2(0.6, 1.5),
+ &"text_scale": Vector2(0.85, 1.35),
+}
 
 ## Redirectable for tests; production keeps PATH.
 var save_path: String = PATH
@@ -74,12 +80,13 @@ func load_settings() -> bool:
 					_key_overrides[action] = code
 		if cfg.has_section("gamepad"):
 			for action in REBINDABLE:
-				var token := String(cfg.get_value("gamepad", String(action), ""))
-				if _is_valid_pad_token(token):
-					_pad_overrides[action] = token
+				var bindings := _read_pad_bindings(action, cfg.get_value("gamepad", String(action), ""))
+				if not bindings.is_empty():
+					_pad_overrides[action] = bindings
 		if cfg.has_section("extra"):
 			for key in cfg.get_section_keys("extra"):
 				_extra[StringName(key)] = cfg.get_value("extra", key)
+	_resolve_pad_conflicts()
 	_loaded = true
 	apply_all()
 	return ok
@@ -113,7 +120,7 @@ func save_settings() -> bool:
 	for action in _key_overrides:
 		cfg.set_value("keys", String(action), int(_key_overrides[action]))
 	for action in _pad_overrides:
-		cfg.set_value("gamepad", String(action), String(_pad_overrides[action]))
+		cfg.set_value("gamepad", String(action), _pad_overrides[action])
 	for key in _extra:
 		cfg.set_value("extra", String(key), _extra[key])
 	var tmp := save_path + ".tmp"
@@ -132,7 +139,8 @@ func apply_all() -> void:
 		_apply_volume(bus)
 	for action in REBINDABLE:
 		_apply_key(action, key_for(action))
-		_apply_pad(action, pad_for(action))
+		_apply_pad(action, pad_bindings_for(action))
+	UiKit.apply_text_scale(assist(&"text_scale"))
 	if InputMap.has_action(&"move_left"):
 		InputMap.action_set_deadzone(&"move_left", MOVE_AXIS_DEADZONE)
 	if InputMap.has_action(&"move_right"):
@@ -235,13 +243,18 @@ func rebind_action(action: StringName, physical: int, persist: bool = true) -> S
 # --- gamepad bindings -------------------------------------------------------
 
 func pad_for(action: StringName) -> String:
-	if _pad_overrides.has(action):
-		return String(_pad_overrides[action])
-	return String(_default_pads.get(action, ""))
+	var bindings := pad_bindings_for(action)
+	return bindings[0] if not bindings.is_empty() else ""
+
+
+## Full ordered bindings, including alternate triggers and D-pad directions.
+func pad_bindings_for(action: StringName) -> PackedStringArray:
+	return PackedStringArray(_pad_overrides.get(action, _default_pads.get(action, PackedStringArray())))
 
 
 func default_pad_for(action: StringName) -> String:
-	return String(_default_pads.get(action, ""))
+	var bindings := PackedStringArray(_default_pads.get(action, PackedStringArray()))
+	return bindings[0] if not bindings.is_empty() else ""
 
 
 func pad_label(action: StringName) -> String:
@@ -250,9 +263,58 @@ func pad_label(action: StringName) -> String:
 
 func pad_owner(token: String, except: StringName = &"") -> StringName:
 	for action in REBINDABLE:
-		if action != except and pad_for(action) == token:
+		if action != except and pad_bindings_for(action).has(token):
 			return action
 	return &""
+
+
+## Legacy settings stored only the primary token. New files store the complete
+## list so removing or swapping an alternate binding survives the next launch.
+func _read_pad_bindings(action: StringName, value: Variant) -> PackedStringArray:
+	if value is String or value is StringName:
+		var token := String(value)
+		if _is_valid_pad_token(token):
+			return _with_primary_pad(PackedStringArray(_default_pads.get(action, PackedStringArray())), token)
+	elif value is Array or value is PackedStringArray:
+		var bindings := PackedStringArray()
+		for item in value:
+			var token := String(item)
+			if not _is_valid_pad_token(token):
+				return PackedStringArray()
+			if not bindings.has(token):
+				bindings.append(token)
+		return bindings
+	return PackedStringArray()
+
+
+func _with_primary_pad(bindings: PackedStringArray, token: String) -> PackedStringArray:
+	var rebuilt := PackedStringArray([token])
+	for i in range(1, bindings.size()):
+		if not rebuilt.has(bindings[i]):
+			rebuilt.append(bindings[i])
+	return rebuilt
+
+
+## An explicit saved binding wins over a default alternate. This also repairs
+## old primary-only files which allowed jump=RT while dash still retained RT.
+func _resolve_pad_conflicts() -> void:
+	var order: Array[StringName] = []
+	for action in REBINDABLE:
+		if _pad_overrides.has(action):
+			order.append(action)
+	for action in REBINDABLE:
+		if not _pad_overrides.has(action):
+			order.append(action)
+	var claimed: Dictionary = {}
+	for action in order:
+		var bindings := pad_bindings_for(action)
+		var unique := PackedStringArray()
+		for token in bindings:
+			if not claimed.has(token):
+				unique.append(token)
+				claimed[token] = action
+		if unique != bindings:
+			_set_pad_bindings(action, unique)
 
 
 static func encode_pad_event(event: InputEvent) -> String:
@@ -309,9 +371,21 @@ func rebind_pad_action(action: StringName, binding: Variant, persist: bool = tru
 		return &"reserved"
 	var old := pad_for(action)
 	var other := pad_owner(token, action)
-	_set_pad_override(action, token)
-	if other != &"" and not old.is_empty():
-		_set_pad_override(other, old)
+	_set_pad_bindings(action, _with_primary_pad(pad_bindings_for(action), token))
+	for owner in REBINDABLE:
+		if owner == action:
+			continue
+		var bindings := pad_bindings_for(owner)
+		if not bindings.has(token):
+			continue
+		var rebuilt := PackedStringArray()
+		for current in bindings:
+			var replacement := old if current == token and owner == other else current
+			if current == token and owner != other:
+				continue
+			if not replacement.is_empty() and not rebuilt.has(replacement):
+				rebuilt.append(replacement)
+		_set_pad_bindings(owner, rebuilt)
 	if persist:
 		save_settings()
 	changed.emit(&"keys")
@@ -323,7 +397,7 @@ func reset_keys(persist: bool = true) -> void:
 	_pad_overrides.clear()
 	for action in REBINDABLE:
 		_apply_key(action, default_key_for(action))
-		_apply_pad(action, default_pad_for(action))
+		_apply_pad(action, pad_bindings_for(action))
 	if persist:
 		save_settings()
 	changed.emit(&"keys")
@@ -337,12 +411,12 @@ func _set_override(action: StringName, physical: int) -> void:
 	_apply_key(action, physical)
 
 
-func _set_pad_override(action: StringName, token: String) -> void:
-	if token == default_pad_for(action):
+func _set_pad_bindings(action: StringName, bindings: PackedStringArray) -> void:
+	if bindings == PackedStringArray(_default_pads.get(action, PackedStringArray())):
 		_pad_overrides.erase(action)
 	else:
-		_pad_overrides[action] = token
-	_apply_pad(action, token)
+		_pad_overrides[action] = bindings
+	_apply_pad(action, bindings)
 
 
 func _capture_default_keys() -> void:
@@ -351,13 +425,15 @@ func _capture_default_keys() -> void:
 	for action in REBINDABLE:
 		if not InputMap.has_action(action):
 			continue
+		var bindings := PackedStringArray()
 		for event in InputMap.action_get_events(action):
 			if not _default_keys.has(action) and event is InputEventKey:
 				_default_keys[action] = int((event as InputEventKey).physical_keycode)
-			elif not _default_pads.has(action) and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
+			elif event is InputEventJoypadButton or event is InputEventJoypadMotion:
 				var tok := encode_pad_event(event)
-				if not tok.is_empty():
-					_default_pads[action] = tok
+				if not tok.is_empty() and not bindings.has(tok):
+					bindings.append(tok)
+		_default_pads[action] = bindings
 
 
 ## Replace the first keyboard event of `action` in the live InputMap.
@@ -380,23 +456,18 @@ func _apply_key(action: StringName, physical: int) -> void:
 		InputMap.action_add_event(action, event)
 
 
-func _apply_pad(action: StringName, token: String) -> void:
-	if token.is_empty() or not InputMap.has_action(action):
-		return
-	var pad_ev := decode_pad_token(token)
-	if pad_ev == null:
+func _apply_pad(action: StringName, bindings: PackedStringArray) -> void:
+	if not InputMap.has_action(action):
 		return
 	var events := InputMap.action_get_events(action)
-	var replaced := false
 	var rebuilt: Array[InputEvent] = []
 	for event in events:
-		if not replaced and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
-			rebuilt.append(pad_ev)
-			replaced = true
-		else:
+		if not (event is InputEventJoypadButton or event is InputEventJoypadMotion):
 			rebuilt.append(event)
-	if not replaced:
-		rebuilt.append(pad_ev)
+	for token in bindings:
+		var pad_ev := decode_pad_token(token)
+		if pad_ev != null:
+			rebuilt.append(pad_ev)
 	InputMap.action_erase_events(action)
 	for event in rebuilt:
 		InputMap.action_add_event(action, event)
@@ -415,8 +486,20 @@ func value(key: StringName, default: Variant = null) -> Variant:
 	return _extra.get(key, default)
 
 
+func assist(key: StringName) -> float:
+	var limits: Vector2 = ASSIST_LIMITS.get(key, Vector2.ONE)
+	var result := float(value(key, 1.0))
+	return clampf(result, limits.x, limits.y) if is_finite(result) else 1.0
+
+
 func set_value(key: StringName, v: Variant, persist: bool = true) -> void:
+	if ASSIST_LIMITS.has(key):
+		var limits: Vector2 = ASSIST_LIMITS[key]
+		var number := float(v)
+		v = clampf(number, limits.x, limits.y) if is_finite(number) else 1.0
 	_extra[key] = v
+	if key == &"text_scale":
+		UiKit.apply_text_scale(assist(key))
 	if persist:
 		save_settings()
 	changed.emit(key)

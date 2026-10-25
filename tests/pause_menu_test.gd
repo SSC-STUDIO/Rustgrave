@@ -93,3 +93,64 @@ func test_map_snapshot_collects_the_live_world() -> void:
 	world.queue_free()
 	empty.queue_free()
 	await flush(1)
+
+
+func test_map_hotkey_opens_directly_and_returns_to_play() -> void:
+	Director.abort()
+	GameContext._blocked_through_frame = -1
+	var menu := PauseMenu.new()
+	add_child(menu)
+	await flush(1)
+	var event := InputEventAction.new()
+	event.action = &"map"
+	event.pressed = true
+	menu._unhandled_input(event)
+	ok(menu.map_screen().visible, "dedicated hotkey goes directly to map")
+	ok(get_tree().paused, "map pauses play")
+	menu.map_screen().close()
+	await flush(20)
+	ok(not menu.is_open(), "closing direct map returns to play")
+	ok(not get_tree().paused)
+
+
+func test_real_start_event_opens_closes_and_returns_from_submenus() -> void:
+	Director.abort()
+	GameContext._blocked_through_frame = -1
+	var menu := PauseMenu.new()
+	add_child(menu)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _tap_start()
+	ok(menu.is_open(), "真实 Start 经 InputMap 打开暂停菜单")
+	ok(get_tree().paused, "Start 打开菜单后暂停游戏")
+	await _tap_start()
+	await flush(20)
+	ok(not menu.is_open(), "再次按 Start 关闭暂停菜单")
+	ok(not get_tree().paused, "Start 关闭菜单后恢复游戏")
+
+	await _tap_start()
+	for submenu in [PauseMenu.ID_SETTINGS, PauseMenu.ID_TUTORIAL, PauseMenu.ID_CONTROLS, PauseMenu.ID_MAP]:
+		menu._on_chosen(submenu)
+		await flush(20)
+		ok(menu.sub_screen_open(), "%s 子页已打开" % String(submenu))
+		await _tap_start()
+		await flush(20)
+		ok(not menu.sub_screen_open(), "Start 从 %s 返回暂停菜单" % String(submenu))
+		ok(menu.is_open() and get_tree().paused, "子页返回后仍停在暂停菜单")
+	await _tap_start()
+	await flush(20)
+	ok(not menu.is_open() and not get_tree().paused, "子页返回后可继续用 Start 恢复游戏")
+
+
+func _tap_start() -> void:
+	var event := InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_START
+	event.pressed = true
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+	event = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_START
+	event.pressed = false
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+
