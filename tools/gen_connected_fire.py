@@ -37,6 +37,38 @@ def frame(index):
     # Body already forms one connected component; sparks are authored separately.
     return image
 
+def build_forge():
+    """A deep hearth with rolling fire behind stationary iron bars (60x66/frame)."""
+    strip=Image.new('RGBA',(60*COUNT,66))
+    for i in range(COUNT):
+        im=Image.new('RGBA',(60,66),'#25100e')
+        d=ImageDraw.Draw(im)
+        # Charred firebrick: dark at the throat, red reflected light near the bed.
+        for y in range(66):
+            for x in range(60):
+                h=(x*37+y*19+x*y*3)%71
+                c=['#25100e','#351610','#4a1e13'][min(2,y//24)]
+                if h<7: c='#59251a'
+                if y%9==0 or (x+(y//9%2)*7)%15==0: c='#1c0d0c'
+                d.point((x,y),fill=c)
+        for x,offset,scale in [(9,2,1.30),(29,7,1.55),(49,12,1.20)]:
+            tongue=frame((i+offset)%COUNT)
+            size=(round(W*scale),round(H*scale))
+            tongue=tongue.resize(size,Image.Resampling.NEAREST)
+            im.alpha_composite(tongue,(x-round(16*scale),62-round(BASE*scale)))
+        d=ImageDraw.Draw(im)
+        # Individual clinker pieces; no broad pale stripe at the foot of the fire.
+        for y in range(60,66):
+            for x in range(60):
+                h=(x*11+y*17)%23
+                d.point((x,y),fill=['#38150f','#69281a','#b84720','#ed7928'][min(3,h//6)])
+        for x in range(5,60,12):
+            d.line((x,0,x,65),fill='#160e10',width=2)
+            d.line((x-1,8,x-1,64),fill='#65402c')
+            d.line((x-1,48,x-1,63),fill='#9b5730')
+        strip.paste(im,(i*60,0))
+    strip.save(ROOT/'assets/title/forge_mouth.png')
+
 def main():
     output=ROOT/'assets/fx/connected_flame.png'
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -49,5 +81,6 @@ def main():
         'authorship':'Original project pixel drawing; no image inputs','cell':[W,H],
         'frames':COUNT,'fps':12,'root':[16,BASE],'palette':PAL,'pixel_sha256':hashes},indent=2)+'\n',encoding='utf-8')
     print('Authored',output,strip.size)
+    build_forge()
 
 if __name__=='__main__': main()
