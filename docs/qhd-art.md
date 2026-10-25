@@ -85,6 +85,10 @@ world detail; 4K output scales this density rather than claiming native 4K art.
 
 ## Rendered acceptance, 2026-10-25
 
+- Final unfiltered regression at runtime/art commit `7ed677ad`: 1,471/1,471,
+  29,062 assertions, zero engine errors. `qhd/full-tests-verified/summary.json`
+  records completed/pass with no timeout. Existing guard/anchor warnings and
+  three ObjectDB instances leaked at exit remain; this is not a zero-warning run.
 - Material integration: `qhd_material` 3/3; logical rectangles, ground contact
   and packed-scene transforms preserved.
 - Prop-fit regression: 7/7, zero engine errors. The first complete run found
@@ -106,12 +110,12 @@ world detail; 4K output scales this density rather than claiming native 4K art.
   chapter-two entry, pit crossing and checkpoint Continue pass. Public assists
   remain 1.0/1.0/1.0; one death, zero engine errors. All 38 PNGs decode at
   2560×1440. This is a fresh first-chapter run, not a new 14-chapter playthrough.
-- QHD offscreen performance probes: title callback interval p95 3.355 ms;
-  level05 active p95 3.302 ms. These short fixed-camera callback measurements
+- Final QHD offscreen performance probes: title callback interval p95 2.910 ms;
+  level05 active p95 2.801 ms. These short fixed-camera callback measurements
   exclude physical presentation and do not establish worst-case gameplay FPS.
 
 Evidence remains local under ignored `screenshots/acceptance/`:
-`qhd/{art,sampling,perf}/`, `display/report.json`, `qhd-title/`, `qhd-chapters/`
+`qhd/{art,sampling,perf-verified}/`, `display/report.json`, `qhd-title/`, `qhd-chapters-verified/`
 and `input-20261025-121524-769/`. The input report records captured image size
 (the root texture's logical size can differ on HiDPI Windows);
 its fixed-60-Hz accelerated simulation is not a display benchmark.
