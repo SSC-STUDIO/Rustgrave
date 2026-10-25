@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/bg_column_skulls_cut.png",
+  "source_sha256": "94e3ce392e6e906f7d4e3464ab3a7e0617fc45c171a9e113b91093b026658807",
+  "density": 12,
+  "size": [
+    1536,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    1536,
+    2304
+  ],
+  "logical_size": [
+    128,
+    192
+  ],
+  "variants": [
+    "assets/env/bg_column_skulls_cut.png"
+  ]
+}

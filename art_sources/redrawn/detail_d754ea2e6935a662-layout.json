@@ -1,0 +1,23 @@
+{
+  "source": "assets/env/backdrop/machinery_core.png",
+  "source_sha256": "b01c2bc70f537eb1580311e3e7e34f62851dc482890e9e7a12d86874442ffefc",
+  "density": 6,
+  "size": [
+    3840,
+    1280
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3840,
+    768
+  ],
+  "logical_size": [
+    640,
+    128
+  ],
+  "variants": [
+    "assets/env/backdrop/machinery_core.png",
+    "assets/env/backdrop/machinery_forge.png"
+  ]
+}

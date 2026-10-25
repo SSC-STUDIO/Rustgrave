@@ -1,0 +1,940 @@
+{
+  "assets": {
+    "res://assets/env/parallax_sky.png": {
+      "texture": "res://assets/redrawn/env/parallax_sky.png",
+      "logical_size": [
+        352,
+        224
+      ],
+      "physical_size": [
+        2816,
+        1792
+      ],
+      "density": 8,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/parallax_sky.png",
+      "redraw_source": "art_sources/redrawn/faithful_parallax_sky.png",
+      "returned_canvas": [
+        2816,
+        1792
+      ],
+      "reference_canvas": [
+        2816,
+        1792
+      ],
+      "sha256": "5b4368b6fcdd57e639ada6de347dc21207deea2d3dda3edcea054e59a944d555"
+    },
+    "res://assets/env/parallax_mountains.png": {
+      "texture": "res://assets/redrawn/env/parallax_mountains.png",
+      "logical_size": [
+        192,
+        179
+      ],
+      "physical_size": [
+        1536,
+        1432
+      ],
+      "density": 8,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/parallax_mountains.png",
+      "redraw_source": "art_sources/redrawn/faithful_parallax_mountains.png",
+      "returned_canvas": [
+        1536,
+        1440
+      ],
+      "reference_canvas": [
+        1536,
+        1440
+      ],
+      "sha256": "df238a10178bfc27a98b16adb9d1b464bd510063d9a81897c3d2d886e0524856"
+    },
+    "res://assets/env/parallax_graveyard.png": {
+      "texture": "res://assets/redrawn/env/parallax_graveyard.png",
+      "logical_size": [
+        384,
+        123
+      ],
+      "physical_size": [
+        3072,
+        984
+      ],
+      "density": 8,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/parallax_graveyard.png",
+      "redraw_source": "art_sources/redrawn/faithful_parallax_graveyard.png",
+      "returned_canvas": [
+        3072,
+        1024
+      ],
+      "reference_canvas": [
+        3072,
+        1024
+      ],
+      "sha256": "43f02a8d775f5150d9bf8cfa035884cd15a8dccc8031e3468e6786b33fcb2294"
+    },
+    "res://assets/env/backdrop/core_hall.png": {
+      "texture": "res://assets/redrawn/env/backdrop/core_hall.png",
+      "logical_size": [
+        960,
+        304
+      ],
+      "physical_size": [
+        3840,
+        1216
+      ],
+      "density": 4,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/core_hall.png",
+      "redraw_source": "art_sources/redrawn/detail_4cb006bd6abc5f2d.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "a60be81fcf8080d639d8b5802f981273673ab90aa200d45132cd7982b681b5bf"
+    },
+    "res://assets/env/backdrop/forge_far.png": {
+      "texture": "res://assets/redrawn/env/backdrop/forge_far.png",
+      "logical_size": [
+        213,
+        142
+      ],
+      "physical_size": [
+        2556,
+        1704
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_far.png",
+      "redraw_source": "art_sources/redrawn/detail_0e776fce60f2b81d.png",
+      "returned_canvas": [
+        2560,
+        1712
+      ],
+      "reference_canvas": [
+        2560,
+        1712
+      ],
+      "sha256": "8f2d2781339cec1f3edb0b702e2b64d48ab8975634e1e7907d097345289a6934"
+    },
+    "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0002_far-buildings.png": {
+      "texture": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0002_far-buildings.png",
+      "logical_size": [
+        213,
+        142
+      ],
+      "physical_size": [
+        2556,
+        1704
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_far.png",
+      "redraw_source": "art_sources/redrawn/detail_0e776fce60f2b81d.png",
+      "returned_canvas": [
+        2560,
+        1712
+      ],
+      "reference_canvas": [
+        2560,
+        1712
+      ],
+      "sha256": "b69c278cf02b7043aaeea9a3e749eac8fda49113ae3aa2c6ba9b0636fb043807"
+    },
+    "res://assets/env/backdrop/forge_mid.png": {
+      "texture": "res://assets/redrawn/env/backdrop/forge_mid.png",
+      "logical_size": [
+        272,
+        150
+      ],
+      "physical_size": [
+        3264,
+        1800
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_mid.png",
+      "redraw_source": "art_sources/redrawn/detail_09254da1fa92a0ce.png",
+      "returned_canvas": [
+        3264,
+        1808
+      ],
+      "reference_canvas": [
+        3264,
+        1808
+      ],
+      "sha256": "7e35b29c0c20c7cd73dce2ffbbc28eed33fb348122215a9dfde46c201b9b2a41"
+    },
+    "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0001_buildings.png": {
+      "texture": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0001_buildings.png",
+      "logical_size": [
+        272,
+        150
+      ],
+      "physical_size": [
+        3264,
+        1800
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_mid.png",
+      "redraw_source": "art_sources/redrawn/detail_09254da1fa92a0ce.png",
+      "returned_canvas": [
+        3264,
+        1808
+      ],
+      "reference_canvas": [
+        3264,
+        1808
+      ],
+      "sha256": "cb5fc6c6aa6f759a3d90f5efeb7d6c3fb4f09d7677cd698598476c573b943b53"
+    },
+    "res://assets/env/backdrop/forge_near.png": {
+      "texture": "res://assets/redrawn/env/backdrop/forge_near.png",
+      "logical_size": [
+        272,
+        104
+      ],
+      "physical_size": [
+        3264,
+        1248
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_near.png",
+      "redraw_source": "art_sources/redrawn/detail_0318fccc1e082117.png",
+      "returned_canvas": [
+        3264,
+        1248
+      ],
+      "reference_canvas": [
+        3264,
+        1248
+      ],
+      "sha256": "bf5497ccf475fd934ea9bead2e7fa3a44c5ec414241ce1d39b76eb90aabd6886"
+    },
+    "res://assets/env/backdrop/forge_sky.png": {
+      "texture": "res://assets/redrawn/env/backdrop/forge_sky.png",
+      "logical_size": [
+        272,
+        160
+      ],
+      "physical_size": [
+        3264,
+        1920
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_sky.png",
+      "redraw_source": "art_sources/redrawn/detail_ede06294cb79897e.png",
+      "returned_canvas": [
+        3264,
+        1920
+      ],
+      "reference_canvas": [
+        3264,
+        1920
+      ],
+      "sha256": "adfb51a78d099db091f56773005e546c61c49a5bb3c52385bf59718c350804f2"
+    },
+    "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0003_bg.png": {
+      "texture": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0003_bg.png",
+      "logical_size": [
+        272,
+        160
+      ],
+      "physical_size": [
+        3264,
+        1920
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/forge_sky.png",
+      "redraw_source": "art_sources/redrawn/detail_ede06294cb79897e.png",
+      "returned_canvas": [
+        3264,
+        1920
+      ],
+      "reference_canvas": [
+        3264,
+        1920
+      ],
+      "sha256": "a2e3829e55717ecc0ef2f35a10617ec770a1bebf4c942cb6cc920e46c690ae05"
+    },
+    "res://assets/env/backdrop/machinery_core.png": {
+      "texture": "res://assets/redrawn/env/backdrop/machinery_core.png",
+      "logical_size": [
+        640,
+        128
+      ],
+      "physical_size": [
+        3840,
+        768
+      ],
+      "density": 6,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/machinery_core.png",
+      "redraw_source": "art_sources/redrawn/detail_d754ea2e6935a662.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "1848d03787678381be45cf7b35365bba35509afb956ff4bc1ed2bdd69907e173"
+    },
+    "res://assets/env/backdrop/machinery_forge.png": {
+      "texture": "res://assets/redrawn/env/backdrop/machinery_forge.png",
+      "logical_size": [
+        640,
+        128
+      ],
+      "physical_size": [
+        3840,
+        768
+      ],
+      "density": 6,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/machinery_core.png",
+      "redraw_source": "art_sources/redrawn/detail_d754ea2e6935a662.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "9266042cd0ec9c80c3e53d223fbe12ece82dc73979bd84162529ab3f736b8f5a"
+    },
+    "res://assets/env/backdrop/machinery_iron.png": {
+      "texture": "res://assets/redrawn/env/backdrop/machinery_iron.png",
+      "logical_size": [
+        640,
+        128
+      ],
+      "physical_size": [
+        3840,
+        768
+      ],
+      "density": 6,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/machinery_iron.png",
+      "redraw_source": "art_sources/redrawn/detail_867a8d70ddb19e86.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "ca7e0acaca0710fb055cdbed4494b62f2e3ceda144fed258c2a896d070fb782c"
+    },
+    "res://assets/env/backdrop/tower_wall.png": {
+      "texture": "res://assets/redrawn/env/backdrop/tower_wall.png",
+      "logical_size": [
+        192,
+        192
+      ],
+      "physical_size": [
+        2304,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/tower_wall.png",
+      "redraw_source": "art_sources/redrawn/detail_247b69482620cb90.png",
+      "returned_canvas": [
+        2304,
+        2304
+      ],
+      "reference_canvas": [
+        2304,
+        2304
+      ],
+      "sha256": "dfc10f1b95ff9833a5d2221e5496510aa8a9c5328cb120aa88edf113294381ea"
+    },
+    "res://assets/env/backdrop/truss_core.png": {
+      "texture": "res://assets/redrawn/env/backdrop/truss_core.png",
+      "logical_size": [
+        320,
+        96
+      ],
+      "physical_size": [
+        3840,
+        1152
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/truss_core.png",
+      "redraw_source": "art_sources/redrawn/detail_9e65fd92f71ca145.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "3f4277aede402f89a2aa6af8043ebb4a4d1a76496ce3b20e417cdb108172d8c0"
+    },
+    "res://assets/env/backdrop/truss_forge.png": {
+      "texture": "res://assets/redrawn/env/backdrop/truss_forge.png",
+      "logical_size": [
+        320,
+        96
+      ],
+      "physical_size": [
+        3840,
+        1152
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/truss_core.png",
+      "redraw_source": "art_sources/redrawn/detail_9e65fd92f71ca145.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "a8d157ff7860fc6d39df0e4a327155764a3757a4bdfe9bdf6c6bd63cf08f546a"
+    },
+    "res://assets/env/backdrop/truss_iron.png": {
+      "texture": "res://assets/redrawn/env/backdrop/truss_iron.png",
+      "logical_size": [
+        320,
+        96
+      ],
+      "physical_size": [
+        3840,
+        1152
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/truss_core.png",
+      "redraw_source": "art_sources/redrawn/detail_9e65fd92f71ca145.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "bb623337e2c2d08e7cfa9fd7dd327219573cd2a5ced7d02f51420ab880815e66"
+    },
+    "res://assets/env/backdrop/truss_slate.png": {
+      "texture": "res://assets/redrawn/env/backdrop/truss_slate.png",
+      "logical_size": [
+        320,
+        96
+      ],
+      "physical_size": [
+        3840,
+        1152
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/truss_core.png",
+      "redraw_source": "art_sources/redrawn/detail_9e65fd92f71ca145.png",
+      "returned_canvas": [
+        3840,
+        1280
+      ],
+      "reference_canvas": [
+        3840,
+        1280
+      ],
+      "sha256": "9ab2ff9e595d955b1d5fdd1d187c65d9f5df7492ea585aa8f16b27ae3c11ecdd"
+    },
+    "res://assets/env/backdrop/wall_clouds.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_clouds.png",
+      "logical_size": [
+        256,
+        176
+      ],
+      "physical_size": [
+        3072,
+        2112
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_clouds.png",
+      "redraw_source": "art_sources/redrawn/detail_7839960e502e7660.png",
+      "returned_canvas": [
+        3072,
+        2112
+      ],
+      "reference_canvas": [
+        3072,
+        2112
+      ],
+      "sha256": "4b858e997417ba6bc5b7709b934d8afdb8b443f8816e07eadc3e524204de6bf9"
+    },
+    "res://assets/env/backdrop/wall_forge.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_forge.png",
+      "logical_size": [
+        192,
+        192
+      ],
+      "physical_size": [
+        2304,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_forge.png",
+      "redraw_source": "art_sources/redrawn/detail_37422796bfb6ff0c.png",
+      "returned_canvas": [
+        2304,
+        2304
+      ],
+      "reference_canvas": [
+        2304,
+        2304
+      ],
+      "sha256": "1cbfcf045cc445c905f1d5d3ae2675db0ea2e4ff0062ea15f3496d3ba1fc2a4f"
+    },
+    "res://assets/env/backdrop/wall_iron.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_iron.png",
+      "logical_size": [
+        192,
+        192
+      ],
+      "physical_size": [
+        2304,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_iron.png",
+      "redraw_source": "art_sources/redrawn/detail_f0a9a4fbd430ad4f.png",
+      "returned_canvas": [
+        2304,
+        2304
+      ],
+      "reference_canvas": [
+        2304,
+        2304
+      ],
+      "sha256": "473693a47c6eff6ca33972479cce93a1d4718d118a39ae7dcb6bc4d351fc5d14"
+    },
+    "res://assets/env/backdrop/wall_town.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_town.png",
+      "logical_size": [
+        256,
+        176
+      ],
+      "physical_size": [
+        3072,
+        2112
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_town.png",
+      "redraw_source": "art_sources/redrawn/detail_8cd518d9dd92b499.png",
+      "returned_canvas": [
+        3072,
+        2112
+      ],
+      "reference_canvas": [
+        3072,
+        2112
+      ],
+      "sha256": "01e5a7adf6439285344fd1d51d2b71d86f7e69696f299954cb0e615d6e6c88f0"
+    },
+    "res://assets/env/bg_altar.png": {
+      "texture": "res://assets/redrawn/env/bg_altar.png",
+      "logical_size": [
+        128,
+        192
+      ],
+      "physical_size": [
+        1536,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_altar.png",
+      "redraw_source": "art_sources/redrawn/detail_7b5fa0b8f554962f.png",
+      "returned_canvas": [
+        1536,
+        2304
+      ],
+      "reference_canvas": [
+        1536,
+        2304
+      ],
+      "sha256": "cbb060af9049ba2bdad4cc2dbe911cef201bccb467559a66d7abf681d6ab5848"
+    },
+    "res://assets/env/bg_column_skulls.png": {
+      "texture": "res://assets/redrawn/env/bg_column_skulls.png",
+      "logical_size": [
+        128,
+        192
+      ],
+      "physical_size": [
+        1536,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_column_skulls.png",
+      "redraw_source": "art_sources/redrawn/detail_0c97e7913f9ee983.png",
+      "returned_canvas": [
+        1536,
+        2304
+      ],
+      "reference_canvas": [
+        1536,
+        2304
+      ],
+      "sha256": "1a457248e9001526fffe8b1c5a95e9a2a2e3df463ab28a715a3685ff2055bbc1"
+    },
+    "res://assets/env/bg_gargoyle.png": {
+      "texture": "res://assets/redrawn/env/bg_gargoyle.png",
+      "logical_size": [
+        80,
+        192
+      ],
+      "physical_size": [
+        960,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_gargoyle.png",
+      "redraw_source": "art_sources/redrawn/detail_0258bf21594f9389.png",
+      "returned_canvas": [
+        960,
+        2304
+      ],
+      "reference_canvas": [
+        960,
+        2304
+      ],
+      "sha256": "3ad965a584bf668d2483c8c35cccc37e3f1c59c9750114604d13264128749a76"
+    },
+    "res://assets/env/bg_gargoyle_cut.png": {
+      "texture": "res://assets/redrawn/env/bg_gargoyle_cut.png",
+      "logical_size": [
+        80,
+        192
+      ],
+      "physical_size": [
+        960,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_gargoyle_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_52a8b2c053a1e12d.png",
+      "returned_canvas": [
+        960,
+        2304
+      ],
+      "reference_canvas": [
+        960,
+        2304
+      ],
+      "sha256": "e5f77c0c69f8b7651d39207fc72db7462134518a95240310a808dd542f74535e"
+    },
+    "res://assets/env/bg_wall_torch_cut.png": {
+      "texture": "res://assets/redrawn/env/bg_wall_torch_cut.png",
+      "logical_size": [
+        64,
+        192
+      ],
+      "physical_size": [
+        768,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_wall_torch_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_d503ffac8333f4ed.png",
+      "returned_canvas": [
+        768,
+        2304
+      ],
+      "reference_canvas": [
+        768,
+        2304
+      ],
+      "sha256": "d1968055b98f966cfdfd5abb148ea621ebd175865c87ee214a77ff7785a7a74e"
+    },
+    "res://assets/env/bg_wall_window.png": {
+      "texture": "res://assets/redrawn/env/bg_wall_window.png",
+      "logical_size": [
+        160,
+        192
+      ],
+      "physical_size": [
+        1920,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_wall_window.png",
+      "redraw_source": "art_sources/redrawn/detail_6171547562b15651.png",
+      "returned_canvas": [
+        1920,
+        2304
+      ],
+      "reference_canvas": [
+        1920,
+        2304
+      ],
+      "sha256": "c2b1768263d909b3203e03db480e30e2ce4183a9c06b66a89e9857ff59c242a0"
+    },
+    "res://assets/env/bg_wall_window_cut.png": {
+      "texture": "res://assets/redrawn/env/bg_wall_window_cut.png",
+      "logical_size": [
+        160,
+        192
+      ],
+      "physical_size": [
+        1920,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_wall_window_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_71ddd6c7953000c9.png",
+      "returned_canvas": [
+        1920,
+        2304
+      ],
+      "reference_canvas": [
+        1920,
+        2304
+      ],
+      "sha256": "f27cad750c25de7a90e776e7adba6a4feca7df698079ada51c6e2d2f2f402ef3"
+    },
+    "res://assets/env/column_big.png": {
+      "texture": "res://assets/redrawn/env/column_big.png",
+      "logical_size": [
+        114,
+        190
+      ],
+      "physical_size": [
+        1368,
+        2280
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/column_big.png",
+      "redraw_source": "art_sources/redrawn/detail_cf9fdb9deae6f70a.png",
+      "returned_canvas": [
+        1376,
+        2288
+      ],
+      "reference_canvas": [
+        1376,
+        2288
+      ],
+      "sha256": "78a9a3e39f1f14b26daa6b3579769d8d73fa3cd3836ab93acf0175533feee9c4"
+    },
+    "res://assets/env/column_big_cut.png": {
+      "texture": "res://assets/redrawn/env/column_big_cut.png",
+      "logical_size": [
+        114,
+        190
+      ],
+      "physical_size": [
+        1368,
+        2280
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/column_big_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_3da50eacf8536d5c.png",
+      "returned_canvas": [
+        1376,
+        2288
+      ],
+      "reference_canvas": [
+        1376,
+        2288
+      ],
+      "sha256": "0094ce73feab11a5da83c7f64c10b96d5030f11335832f2189d849aaa5b23d86"
+    },
+    "res://assets/env/gh_brick_house.png": {
+      "texture": "res://assets/redrawn/env/gh_brick_house.png",
+      "logical_size": [
+        384,
+        176
+      ],
+      "physical_size": [
+        3840,
+        1760
+      ],
+      "density": 10,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/gh_brick_house.png",
+      "redraw_source": "art_sources/redrawn/detail_bb747aef6c008cc5.png",
+      "returned_canvas": [
+        3840,
+        1760
+      ],
+      "reference_canvas": [
+        3840,
+        1760
+      ],
+      "sha256": "7edae48a2b2f0d9e0f9335f43851b0371cc9bd54ca13d64c5c659ab8eaba759b"
+    },
+    "res://assets/env/gh_ruin_tower.png": {
+      "texture": "res://assets/redrawn/env/gh_ruin_tower.png",
+      "logical_size": [
+        254,
+        154
+      ],
+      "physical_size": [
+        3048,
+        1848
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/gh_ruin_tower.png",
+      "redraw_source": "art_sources/redrawn/detail_72cffd91d853194a.png",
+      "returned_canvas": [
+        3056,
+        1856
+      ],
+      "reference_canvas": [
+        3056,
+        1856
+      ],
+      "sha256": "82b23d04d3b94dbfd8e88dcdb4ba769fc34700ead86c85180104a769293f566d"
+    },
+    "res://assets/env/backdrop/wall_core.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_core.png",
+      "logical_size": [
+        192,
+        192
+      ],
+      "physical_size": [
+        1920,
+        1920
+      ],
+      "density": 10,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_core.png",
+      "redraw_source": "art_sources/redrawn/detail_3c8fdfcd89faff10.png",
+      "returned_canvas": [
+        2048,
+        2048
+      ],
+      "reference_canvas": [
+        2304,
+        2304
+      ],
+      "sha256": "17ba73837d203d4de10379ebb005dcaa6f68d878c9fbce8dfc385de56d9810a8"
+    },
+    "res://assets/env/backdrop/wall_slate.png": {
+      "texture": "res://assets/redrawn/env/backdrop/wall_slate.png",
+      "logical_size": [
+        192,
+        192
+      ],
+      "physical_size": [
+        1920,
+        1920
+      ],
+      "density": 10,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/backdrop/wall_slate.png",
+      "redraw_source": "art_sources/redrawn/detail_2f30f0fa2a1b38a2.png",
+      "returned_canvas": [
+        2048,
+        2048
+      ],
+      "reference_canvas": [
+        2304,
+        2304
+      ],
+      "sha256": "119cb18ad21c4dc0d38be06a1f2c20ada69f876bab85978c28ffec3c09fc0c9a"
+    },
+    "res://assets/env/bg_altar_cut.png": {
+      "texture": "res://assets/redrawn/env/bg_altar_cut.png",
+      "logical_size": [
+        128,
+        192
+      ],
+      "physical_size": [
+        1536,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_altar_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_a55da0404cff2a00.png",
+      "returned_canvas": [
+        1664,
+        2432
+      ],
+      "reference_canvas": [
+        1536,
+        2304
+      ],
+      "sha256": "9cbe4f8daf4dbab61ab7f1c7506c95007915120bc4afb5ddb4024af57ce80cbf"
+    },
+    "res://assets/env/bg_column_skulls_cut.png": {
+      "texture": "res://assets/redrawn/env/bg_column_skulls_cut.png",
+      "logical_size": [
+        128,
+        192
+      ],
+      "physical_size": [
+        1536,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_column_skulls_cut.png",
+      "redraw_source": "art_sources/redrawn/detail_a05dd54eca20b557.png",
+      "returned_canvas": [
+        1664,
+        2432
+      ],
+      "reference_canvas": [
+        1536,
+        2304
+      ],
+      "sha256": "50f264fbcf06a42bc66d64a8b9b41ced8bf6cab954e5223dc53c6e21fc493005"
+    },
+    "res://assets/env/bg_wall_torch.png": {
+      "texture": "res://assets/redrawn/env/bg_wall_torch.png",
+      "logical_size": [
+        64,
+        192
+      ],
+      "physical_size": [
+        768,
+        2304
+      ],
+      "density": 12,
+      "method": "original image edit; original alpha/composition/palette locked; new AI-drawn fine detail",
+      "detail_reference_original": "assets/env/bg_wall_torch.png",
+      "redraw_source": "art_sources/redrawn/detail_bc23f3c56a8f27ad.png",
+      "returned_canvas": [
+        1280,
+        3072
+      ],
+      "reference_canvas": [
+        768,
+        2304
+      ],
+      "sha256": "f3ca80190bfbf37b8bcb59a5d8676232323d59a299b45db4d21c6a8cfc96e571"
+    }
+  }
+}

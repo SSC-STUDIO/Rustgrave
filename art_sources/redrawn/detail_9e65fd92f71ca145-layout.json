@@ -1,0 +1,25 @@
+{
+  "source": "assets/env/backdrop/truss_core.png",
+  "source_sha256": "e5c541ec898f75675a2a800fa0d82df58d015e21a8fc6328064692ed4443cbfc",
+  "density": 12,
+  "size": [
+    3840,
+    1280
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3840,
+    1152
+  ],
+  "logical_size": [
+    320,
+    96
+  ],
+  "variants": [
+    "assets/env/backdrop/truss_core.png",
+    "assets/env/backdrop/truss_forge.png",
+    "assets/env/backdrop/truss_iron.png",
+    "assets/env/backdrop/truss_slate.png"
+  ]
+}

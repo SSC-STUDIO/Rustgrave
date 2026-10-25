@@ -1,0 +1,23 @@
+{
+  "source": "assets/env/backdrop/forge_far.png",
+  "source_sha256": "5ff66a29b95955a2131b9501678ab72c7c4f5ee60acd43984a4863efad136aca",
+  "density": 12,
+  "size": [
+    2560,
+    1712
+  ],
+  "image_bounds": [
+    0,
+    0,
+    2556,
+    1704
+  ],
+  "logical_size": [
+    213,
+    142
+  ],
+  "variants": [
+    "assets/env/backdrop/forge_far.png",
+    "assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0002_far-buildings.png"
+  ]
+}

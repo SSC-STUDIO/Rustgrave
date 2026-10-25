@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/core_hall.png",
+  "source_sha256": "fc4418affb3ced5e75671b8d548401ac164e90674bde9313b9e1a32148231c2f",
+  "density": 4,
+  "size": [
+    3840,
+    1280
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3840,
+    1216
+  ],
+  "logical_size": [
+    960,
+    304
+  ],
+  "variants": [
+    "assets/env/backdrop/core_hall.png"
+  ]
+}

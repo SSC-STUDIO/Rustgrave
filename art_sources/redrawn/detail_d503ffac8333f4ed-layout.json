@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/bg_wall_torch_cut.png",
+  "source_sha256": "98228645b032fadf656b50493cc5dfff0d85bc881ba091fa1fe3dab5f5c70ca2",
+  "density": 12,
+  "size": [
+    768,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    768,
+    2304
+  ],
+  "logical_size": [
+    64,
+    192
+  ],
+  "variants": [
+    "assets/env/bg_wall_torch_cut.png"
+  ]
+}

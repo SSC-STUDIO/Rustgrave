@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/wall_town.png",
+  "source_sha256": "26364fd2c0d646fbdad00bf5724e35b5c81c38f2c79dd766223f056cad592e8b",
+  "density": 12,
+  "size": [
+    3072,
+    2112
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3072,
+    2112
+  ],
+  "logical_size": [
+    256,
+    176
+  ],
+  "variants": [
+    "assets/env/backdrop/wall_town.png"
+  ]
+}

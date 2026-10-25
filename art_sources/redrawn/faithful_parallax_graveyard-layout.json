@@ -1,0 +1,18 @@
+{
+  "source": "assets/env/parallax_graveyard.png",
+  "density": 8,
+  "size": [
+    3072,
+    1024
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3072,
+    984
+  ],
+  "logical_size": [
+    384,
+    123
+  ]
+}

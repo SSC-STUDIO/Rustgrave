@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/backdrop/wall_forge.png",
+  "source_sha256": "e278b3c467e8997df8ab99e039f1e63371bb74b0faf7cf8709fed63f54c32297",
+  "density": 12,
+  "size": [
+    2304,
+    2304
+  ],
+  "image_bounds": [
+    0,
+    0,
+    2304,
+    2304
+  ],
+  "logical_size": [
+    192,
+    192
+  ],
+  "variants": [
+    "assets/env/backdrop/wall_forge.png"
+  ]
+}

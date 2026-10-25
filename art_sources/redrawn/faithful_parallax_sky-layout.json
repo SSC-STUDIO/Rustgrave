@@ -1,0 +1,18 @@
+{
+  "source": "assets/env/parallax_sky.png",
+  "density": 8,
+  "size": [
+    2816,
+    1792
+  ],
+  "image_bounds": [
+    0,
+    0,
+    2816,
+    1792
+  ],
+  "logical_size": [
+    352,
+    224
+  ]
+}

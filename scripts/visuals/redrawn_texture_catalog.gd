@@ -1,4 +1,43 @@
 extends RefCounted
-## Only original-based redraws are registered. Logical sizes always come from
-## the original texture, so replacement artwork cannot reflow scene geometry.
-const REPLACEMENTS := {}
+## Generated from original-based redraws. Logical size always comes from the source.
+const REPLACEMENTS := {
+  "res://assets/env/parallax_sky.png": "res://assets/redrawn/env/parallax_sky.png",
+  "res://assets/env/parallax_mountains.png": "res://assets/redrawn/env/parallax_mountains.png",
+  "res://assets/env/parallax_graveyard.png": "res://assets/redrawn/env/parallax_graveyard.png",
+  "res://assets/env/backdrop/core_hall.png": "res://assets/redrawn/env/backdrop/core_hall.png",
+  "res://assets/env/backdrop/forge_far.png": "res://assets/redrawn/env/backdrop/forge_far.png",
+  "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0002_far-buildings.png": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0002_far-buildings.png",
+  "res://assets/env/backdrop/forge_mid.png": "res://assets/redrawn/env/backdrop/forge_mid.png",
+  "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0001_buildings.png": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0001_buildings.png",
+  "res://assets/env/backdrop/forge_near.png": "res://assets/redrawn/env/backdrop/forge_near.png",
+  "res://assets/env/backdrop/forge_sky.png": "res://assets/redrawn/env/backdrop/forge_sky.png",
+  "res://assets/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0003_bg.png": "res://assets/redrawn/external/oga_parallax/pack/parallax-industrial-pack/layers/skill-desc_0003_bg.png",
+  "res://assets/env/backdrop/machinery_core.png": "res://assets/redrawn/env/backdrop/machinery_core.png",
+  "res://assets/env/backdrop/machinery_forge.png": "res://assets/redrawn/env/backdrop/machinery_forge.png",
+  "res://assets/env/backdrop/machinery_iron.png": "res://assets/redrawn/env/backdrop/machinery_iron.png",
+  "res://assets/env/backdrop/tower_wall.png": "res://assets/redrawn/env/backdrop/tower_wall.png",
+  "res://assets/env/backdrop/truss_core.png": "res://assets/redrawn/env/backdrop/truss_core.png",
+  "res://assets/env/backdrop/truss_forge.png": "res://assets/redrawn/env/backdrop/truss_forge.png",
+  "res://assets/env/backdrop/truss_iron.png": "res://assets/redrawn/env/backdrop/truss_iron.png",
+  "res://assets/env/backdrop/truss_slate.png": "res://assets/redrawn/env/backdrop/truss_slate.png",
+  "res://assets/env/backdrop/wall_clouds.png": "res://assets/redrawn/env/backdrop/wall_clouds.png",
+  "res://assets/env/backdrop/wall_forge.png": "res://assets/redrawn/env/backdrop/wall_forge.png",
+  "res://assets/env/backdrop/wall_iron.png": "res://assets/redrawn/env/backdrop/wall_iron.png",
+  "res://assets/env/backdrop/wall_town.png": "res://assets/redrawn/env/backdrop/wall_town.png",
+  "res://assets/env/bg_altar.png": "res://assets/redrawn/env/bg_altar.png",
+  "res://assets/env/bg_column_skulls.png": "res://assets/redrawn/env/bg_column_skulls.png",
+  "res://assets/env/bg_gargoyle.png": "res://assets/redrawn/env/bg_gargoyle.png",
+  "res://assets/env/bg_gargoyle_cut.png": "res://assets/redrawn/env/bg_gargoyle_cut.png",
+  "res://assets/env/bg_wall_torch_cut.png": "res://assets/redrawn/env/bg_wall_torch_cut.png",
+  "res://assets/env/bg_wall_window.png": "res://assets/redrawn/env/bg_wall_window.png",
+  "res://assets/env/bg_wall_window_cut.png": "res://assets/redrawn/env/bg_wall_window_cut.png",
+  "res://assets/env/column_big.png": "res://assets/redrawn/env/column_big.png",
+  "res://assets/env/column_big_cut.png": "res://assets/redrawn/env/column_big_cut.png",
+  "res://assets/env/gh_brick_house.png": "res://assets/redrawn/env/gh_brick_house.png",
+  "res://assets/env/gh_ruin_tower.png": "res://assets/redrawn/env/gh_ruin_tower.png",
+  "res://assets/env/backdrop/wall_core.png": "res://assets/redrawn/env/backdrop/wall_core.png",
+  "res://assets/env/backdrop/wall_slate.png": "res://assets/redrawn/env/backdrop/wall_slate.png",
+  "res://assets/env/bg_altar_cut.png": "res://assets/redrawn/env/bg_altar_cut.png",
+  "res://assets/env/bg_column_skulls_cut.png": "res://assets/redrawn/env/bg_column_skulls_cut.png",
+  "res://assets/env/bg_wall_torch.png": "res://assets/redrawn/env/bg_wall_torch.png"
+}

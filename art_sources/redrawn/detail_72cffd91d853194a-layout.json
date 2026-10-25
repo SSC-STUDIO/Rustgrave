@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/gh_ruin_tower.png",
+  "source_sha256": "e05409eeb296dbb2d9e4bc57902941acf52c5738634170f77e01bb99ede70b47",
+  "density": 12,
+  "size": [
+    3056,
+    1856
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3048,
+    1848
+  ],
+  "logical_size": [
+    254,
+    154
+  ],
+  "variants": [
+    "assets/env/gh_ruin_tower.png"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "source": "assets/env/gh_brick_house.png",
+  "source_sha256": "1607b90a0a755f240df18f90fa800adfe3c08fc346f0688e49fdfdbc106ba951",
+  "density": 10,
+  "size": [
+    3840,
+    1760
+  ],
+  "image_bounds": [
+    0,
+    0,
+    3840,
+    1760
+  ],
+  "logical_size": [
+    384,
+    176
+  ],
+  "variants": [
+    "assets/env/gh_brick_house.png"
+  ]
+}
