@@ -1,128 +1,160 @@
 extends ChapterLayout
-## 锈墓・陆 — 墓园夜雨。从工坊的运渣道爬回地面，是墓园的另一侧：锈雨、幽魂、
-## 从土里起来的骸骨。室外，第一关同款天空（graveyard 主题）。
+## 锈墓・捌 — 墓园夜雨。从工坊的运渣道爬回地面，是墓园的另一侧：锈雨、浓雾、
+## 锈泥沼与从土里成群起身的骸骨。室外，第一关同款天空（graveyard 主题，冷月色阶）。
 ##
-## 玩法变化（能见度与巡逻节奏）：墓园不是一片均匀的雨。坟堆段压着一片浓雾，
-## 骸骨在雾里起身，巡逻范围读不出来，只能靠土丘轮廓和墓碑定位；长毒沟上空的
-## 锈雨被风扯斜，能见度最差的一段正好是最长的一次跳石。走出雾/雨区，视野恢复。
-## 这两块局部天气由 weather_regions() 装配，存档只记基础天气。
-##
-## 结构（地面 y=320，一跳 ≤32px 高 / ≤72px 远）：
-##   ① 出土口   0–450     运渣道石门洞、余烬巢、墓志、老树、路牌「墓园」
-##   ② 坟堆丛   450–928   一座 32px 土坟（顶上十字）、骸骨 ×2、墓碑密集
-##   ③ 腐液沟   928–1152  毒坑上两块浮石（288 / 272），落点一只幽魂
-##   ④ 陵门     1152–1520 压板在 32px 土丘上，闸门在地面，两侧壁炬石墩；门后守着第二只幽魂
-##   ⑤ 高坟台   1520–1900 两级 32px 土台，台顶喷吐者，台下碎铁犬巡逻
-##   ⑥ 骸骨林   1900–2304 骸骨 ×2、第二余烬巢、墓志；老树顶上一块浮石，
-##                     钩锁锚点通向余烬核 + 碑文「树」——本章支路（世界信息）
-##   ⑦ 长毒沟   2304–2608 更长的毒坑，三块浮石（288 / 272 / 288）
-##   ⑧ 钟楼门   2608–2880 路牌「钟楼」、两侧壁炬石墩夹着出口
-##
-## 土台约定：踩在地面上的土丘比上升高度多铺一格（32 高 → 48 厚），底行埋进草皮，
-## 读作从土里鼓起来的坟，而不是放在草上的箱子。
+## v3 重做结构（宽 4000，打破 y=320 单线：下沉陵室/泥沟 y=352、地面 y=320、土坟 y=288/256、
+## 外圈陵顶 y=224→192→176→208、树顶支路 y=232）：
+##   ① 出土口     0–448     运渣道石门洞、起点巢（176）、墓志「哈伦」、老树、路牌「墓园」
+##   ② 西坟群     448–832   落地浓雾（GraveFog）+ 土坟 MoundB；三具骸骨成群埋伏（alert_radius 160 / lose_range 260）
+##   ③ 首遇锈泥沼 832–1008  安全教学泥沼（MudIntro，前后各 ≥80px 安全平地）+ 两块跳石（StoneC1/C2）
+##   ④ 陵门分岔   1008–1312 压板土丘 MoundD 开陵门（MausoleumDoor）、陵门后第二巢（EmberNestCrypt 1184）、路牌「陵墓」
+##   ⑤ 中央大陵墓 1312–1888 环绕陵墓的双路线（两条路都能到出口）：
+##                          · 外圈露天墓道（y=288→256→224→192→176→208）：长但覆浓雾（RoofFog），陵顶喷吐者 + 骸骨守卫，
+##                            东侧单向落下（RoofDropLedge 240 → 地面 320）
+##                          · 内圈陵墓捷径（下沉陵室 y=352）：短但幽暗危险（CryptShade），窄道爆裂骸骨（留 192px 西退路）+
+##                            陵室泥沼（MudCrypt + 跳石）+ 幽魂；东口压板门（CryptShortcut）打通双向捷径
+##   ⑥ 骸骨林     1888–2304 第三巢（EmberNestGrove 2120）、墓志「薇尔」；老树顶钩锁支路（TreeTopStone y=232）
+##                          含余烬核 + 墓志「战马」+ 可选挑战奖励位（RewardTreeTop「滤毒符印」）
+##   ⑦ 斜雨泥沼沟 2304–2608 下沉泥沟（y=352）+ 斜锈雨（DitchSquall）+ 锈泥沼（MudSquall）+ 三块浮石（StoneG1..G3）
+##   ⑧ 荒坟坡     2608–3136 第四巢（EmberNestMire 2680）；东段浓雾（EastGraveFog）+ 第二处坟群起身 + 幽魂
+##   ⑨ 东墓泥洼   3136–3360 下沉泥洼（y=352）+ 锈泥沼（MudEast）+ 两块浮石（StoneK1/K2）
+##   ⑩ 钟楼门前   3360–4000 第五巢（EmberNestEast 3424）、双层高坟台（TerraceJ1/J2）+ 装甲碎铁犬守门、出口「钟楼门」
 
 const EAST := 4000
-const PIT_DEPTH := 32.0
-## 毒坑床顶 = FLOOR_Y + PIT_DEPTH；两侧一跳 32px 爬出。
-const PIT_BED_Y := FLOOR_Y + PIT_DEPTH
-## 墓园里毒液保持原色（第一关同款）；地窟的酸黄绿是给青砖苔盖用的。
-const TOXIN_TINT := Color.WHITE
-## 墓园里不该出现教堂的淡紫石板。浮石仍是教堂浮石皮肤（测试锁定），但乘一道
-## 干土色：紫被压成湿石头的暖灰，和锈月/青草的环境色是一家。
+const SUNKEN_Y := 352.0
 const SLAB_TONE := Color(0.98, 0.9, 0.62)
 
-## [name, x0, x1, cap_left, cap_right]
+## [name, x0, x1, cap_left, cap_right, top_y]
 const FLOORS: Array = [
-	["FloorA", 0.0, 928.0, false, true],
-	["FloorD", 1152.0, 2304.0, true, true],
-	["FloorH", 2608.0, 3200.0, true, true],
-	["FloorJ", 3360.0, 4000.0, true, false],
+	["FloorA", 0.0, 1312.0, false, true, FLOOR_Y],
+	["FloorCrypt", 1312.0, 1888.0, false, false, SUNKEN_Y],
+	["FloorD", 1888.0, 2304.0, true, true, FLOOR_Y],
+	["FloorSquall", 2304.0, 2608.0, false, false, SUNKEN_Y],
+	["FloorH", 2608.0, 3136.0, true, true, FLOOR_Y],
+	["FloorHollow", 3136.0, 3360.0, false, false, SUNKEN_Y],
+	["FloorJ", 3360.0, 4000.0, true, false, FLOOR_Y],
 ]
-## [name, x0, x1]
-const PITS: Array = [
-	["PitC", 928.0, 1152.0],
-	["PitG", 2304.0, 2608.0],
-	["PitK", 3200.0, 3360.0],
-]
+
 ## 土丘 / 土台：[name, pos, size]（ground 皮肤，48 厚 = 32 上升 + 一格埋进下方台面）
 const MOUNDS: Array = [
 	["MoundB", Vector2(560, 288), Vector2(96, 48)],
-	["MoundD", Vector2(1232, 288), Vector2(80, 48)],
-	["TerraceE1", Vector2(1632, 288), Vector2(208, 48)],
-	["TerraceE2", Vector2(1696, 256), Vector2(96, 48)],
-	## ⑨⑪ 扩章中段 / 钟楼门前的坟台
-	["MoundI", Vector2(2800, 288), Vector2(96, 48)],
+	["MoundD", Vector2(1024, 288), Vector2(80, 48)],
+	["MoundI", Vector2(2880, 288), Vector2(96, 48)],
 	["TerraceJ1", Vector2(3504, 288), Vector2(160, 48)],
 	["TerraceJ2", Vector2(3536, 256), Vector2(96, 48)],
 ]
-## 浮石：[name, pos, width]（floating 皮肤，16 厚）
+
+## 浮石与外圈陵墓石阶：[name, pos, width]（floating 皮肤，16 厚）
 const STONES: Array = [
-	["StoneC1", Vector2(976, 288), 48.0],
-	["StoneC2", Vector2(1064, 272), 48.0],
-	["TreeTopStone", Vector2(2022, 232), 48.0],
+	# ③ 首遇锈泥沼跳石
+	["StoneC1", Vector2(856, 288), 48.0],
+	["StoneC2", Vector2(936, 288), 48.0],
+	# ⑤ 外圈露天墓道（陵墓顶环线）与东侧单向落台
+	["RoofStepW1", Vector2(1248, 288), 48.0],
+	["RoofStepW2", Vector2(1312, 256), 48.0],
+	["RoofStepW3", Vector2(1376, 224), 48.0],
+	["MausoleumRoofW", Vector2(1440, 192), 160.0],
+	["MausoleumRoofTop", Vector2(1616, 176), 96.0],
+	["MausoleumRoofE", Vector2(1728, 208), 112.0],
+	["RoofDropLedge", Vector2(1848, 240), 48.0],
+	# ⑤ 内圈地下陵室泥沼跳石
+	["StoneCrypt", Vector2(1600, 320), 48.0],
+	# ⑥ 树顶钩锁支路（加宽以容纳碑文、余烬核与挑战奖励位）
+	["TreeTopStone", Vector2(2016, 232), 80.0],
+	# ⑦ 斜锈雨泥沟跳石
 	["StoneG1", Vector2(2352, 288), 48.0],
 	["StoneG2", Vector2(2448, 272), 48.0],
 	["StoneG3", Vector2(2544, 288), 48.0],
-	["StoneK1", Vector2(3248, 288), 48.0],
-	["StoneK2", Vector2(3296, 272), 48.0],
+	# ⑨ 东墓泥洼跳石
+	["StoneK1", Vector2(3184, 288), 48.0],
+	["StoneK2", Vector2(3264, 272), 48.0],
 ]
-## 主路线台阶链（测试用）：每一步上升 ≤32、横跨 ≤72。
+
+## 锈泥沼外力区：[name, rect, drag, toxin_per_second]
+const MUD_ZONES: Array = [
+	["MudIntro", Rect2(832, 296, 176, 24), 0.40, 12.0],
+	["MudCrypt", Rect2(1536, 328, 176, 24), 0.42, 14.0],
+	["MudSquall", Rect2(2320, 328, 272, 24), 0.42, 15.0],
+	["MudEast", Rect2(3152, 328, 192, 24), 0.45, 16.0],
+]
+
+## 主路线与双路线台阶链（测试用）：每一步上升 ≤32、横跨 ≤72（下落可更远）。
 const CHAINS: Array = [
-	# ② 坟堆：地面 → 土坟顶 → 地面
+	# ② 西坟堆：地面 → 土坟顶 → 地面
 	[Vector2(556, 320), Vector2(564, 288), Vector2(652, 288), Vector2(660, 320)],
-	# ③ 腐液沟：坑沿 → 浮石 → 浮石 → 对岸
-	[Vector2(928, 320), Vector2(976, 288), Vector2(1064, 272), Vector2(1152, 320)],
-	# ④ 陵门：地面 → 压板土丘
-	[Vector2(1228, 320), Vector2(1236, 288)],
-	# ⑤ 高坟台：地面 → 一级 → 二级 → 一级 → 地面
-	[Vector2(1628, 320), Vector2(1636, 288), Vector2(1700, 256), Vector2(1796, 288), Vector2(1844, 320)],
-	# ⑦ 长毒沟：坑沿 → 三块浮石 → 对岸
-	[Vector2(2304, 320), Vector2(2352, 288), Vector2(2448, 272), Vector2(2544, 288), Vector2(2608, 320)],
-	# ⑨ 荒坟坡：地面 → 土坟顶 → 地面
-	[Vector2(2796, 320), Vector2(2804, 288), Vector2(2892, 288), Vector2(2900, 320)],
-	# ⑩ 东墓沟：坑沿 → 两块浮石 → 对岸
-	[Vector2(3200, 320), Vector2(3248, 288), Vector2(3296, 272), Vector2(3360, 320)],
-	# ⑪ 钟楼门前坟台：地面 → 一级 → 二级 → 地面
-	[Vector2(3500, 320), Vector2(3508, 288), Vector2(3540, 256), Vector2(3636, 288), Vector2(3668, 320)],
+	# ③ 首遇泥沼跳石：地面 → 浮石 → 浮石 → 地面
+	[Vector2(828, 320), Vector2(864, 288), Vector2(952, 288), Vector2(1012, 320)],
+	# ④ 陵门压板：地面 → 压板土丘
+	[Vector2(1020, 320), Vector2(1032, 288)],
+	# ⑤A 外圈露天墓道：地面 → 西阶三级 → 陵顶三段 → 单向落台 → 东庭地面
+	[Vector2(1240, 320), Vector2(1264, 288), Vector2(1328, 256), Vector2(1392, 224),
+			Vector2(1456, 192), Vector2(1632, 176), Vector2(1744, 208), Vector2(1864, 240), Vector2(1900, 320)],
+	# ⑤B 内圈陵墓内部捷径：西口地面 → 下沉陵室 → 陵室跳石 → 下沉陵室 → 东口地面
+	[Vector2(1304, 320), Vector2(1320, 352), Vector2(1592, 352), Vector2(1616, 320),
+			Vector2(1656, 352), Vector2(1880, 352), Vector2(1896, 320)],
+	# ⑦ 斜雨泥沼沟：沟沿 → 三块浮石 → 对岸
+	[Vector2(2300, 320), Vector2(2360, 288), Vector2(2464, 272), Vector2(2560, 288), Vector2(2612, 320)],
+	# ⑧ 荒坟坡：地面 → 土坟顶 → 地面
+	[Vector2(2876, 320), Vector2(2888, 288), Vector2(2968, 288), Vector2(2980, 320)],
+	# ⑨ 东墓泥洼：洼沿 → 两块浮石 → 对岸
+	[Vector2(3132, 320), Vector2(3192, 288), Vector2(3280, 272), Vector2(3364, 320)],
+	# ⑩ 钟楼门前坟台：地面 → 一级 → 二级 → 一级 → 地面
+	[Vector2(3500, 320), Vector2(3512, 288), Vector2(3544, 256), Vector2(3640, 288), Vector2(3668, 320)],
 ]
-const PLATE_FEET := Vector2(1272, 288)
-const DOOR_POS := Vector2(1400, 256)
+
+const PLATE_FEET := Vector2(1064, 288)
+const DOOR_POS := Vector2(1120, 256)
+## 陵室东口的单向/双向捷径门：从内圈走出或从外圈屋顶落台跳下均可踩开，打通回程捷径。
+const CRYPT_SHORTCUT_PLATE_FEET := Vector2(1896, 320)
+const CRYPT_SHORTCUT_DOOR_POS := Vector2(1928, 256)
+
 const HOOK_POS := Vector2(2046, 144)
-## 核悬在石面上方 48；碑文站在石面东端，和核错开（核 184，碑顶 196）。
 const PICKUP_POS := Vector2(2046, 184)
 const STELE_TREE_POS := Vector2(2030, 232)
+## 树顶钩锁支路奖励位：滤毒符印（EquipmentPickup 的 Fill 底边在 +7px，落在 232 台面）。
+const REWARD_POS := Vector2(2076, 225)
+const REWARD_KIND := "equipment"
+const REWARD_REF := "toxic_ward"
+const REWARD_LABEL := "滤毒符印"
+
+## 五处余烬巢：间距 ≤1008px（176 → 1184 → 2120 → 2680 → 3424 → 出口 3840）。
 const NEST_START_X := 176.0
+const NEST_CRYPT_X := 1184.0
 const NEST_GROVE_X := 2120.0
-## Phase 3: past the mausoleum door, before the high grave terrace (route audit: the start ->
-## grove gap was 1944 px). Ghost2 hovers ~64 px east; the nest flame is lit only by the player.
-const NEST_CRYPT_X := 1504.0
-## ⑪ 钟楼门前的第四巢：扩章后出口在 3840，最后一段回程 1720px，门前补一口余火。
-## 巢距上一巢 2120 只有 1304px（检查点间距 ≤1400），且离新敌人 >215px 仇恨圈。
+const NEST_MIRE_X := 2680.0
 const NEST_EAST_X := 3424.0
+
 const STELE_A_POS := Vector2(256, 320)
 const STELE_B_POS := Vector2(2176, 320)
 const EXIT_X := 3840.0
-## [name, kind, pos]：落地敌人给脚点，幽魂给悬停中心。
+
+## [name, kind, pos, overrides]：雾中坟群骸骨带 alert_radius / lose_range；内圈窄道配爆裂骸骨。
 const ENEMIES: Array = [
-	["Skeleton1", "skeleton", Vector2(500, 320)],
-	["Skeleton2", "skeleton", Vector2(740, 320)],
-	["Ghost1", "ghost", Vector2(1192, 240)],
-	["Ghost2", "ghost", Vector2(1568, 236)],
-	["Scrapper1", "scrapper", Vector2(1592, 320)],
-	["Spitter1", "spitter", Vector2(1744, 256)],
-	["Skeleton3", "skeleton", Vector2(2020, 320)],
-	["Skeleton4", "skeleton", Vector2(2236, 320)],
-	# 雾里多一具：站在坟堆与毒沟之间，等玩家按脚步靠近才发现。
-	["Skeleton5", "skeleton", Vector2(864, 320)],
-	## ⑨⑪ 扩章中段 / 钟楼门外：雾里再起身的骸骨、荒坟坡上的幽魂、门前的碎铁犬。
-	["Skeleton6", "skeleton", Vector2(2920, 320)],
-	["Ghost3", "ghost", Vector2(3104, 236)],
-	["Skeleton7", "skeleton", Vector2(3700, 320)],
-	["Scrapper2", "scrapper", Vector2(3800, 320)],
+	# ② 西坟群（GraveFog 浓雾内成群起身）
+	["Skeleton1", "skeleton", Vector2(520, 320), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	["Skeleton2", "skeleton", Vector2(608, 288), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	["Skeleton5", "skeleton", Vector2(704, 320), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	# ⑤A 外圈露天陵顶遭遇
+	["Ghost1", "ghost", Vector2(1384, 168), {}],
+	["Spitter1", "spitter", Vector2(1664, 176), {}],
+	["SkeletonRoof", "skeleton", Vector2(1784, 208), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 120.0}],
+	# ⑤B 内圈地下陵室窄道遭遇（爆裂骸骨西侧留 192px 退路）
+	["Scrapper1", "scrapper", Vector2(1416, 352), {"patrol_range": 24.0}],
+	["Skeleton3", "skeleton", Vector2(1504, 352), {"variant": &"exploder_skeleton", "alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	["Ghost2", "ghost", Vector2(1624, 280), {}],
+	["Skeleton4", "skeleton", Vector2(1760, 352), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	# ⑧⑩ 东段浓雾坟群与钟楼门前守卫
+	["Skeleton6", "skeleton", Vector2(2928, 288), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	["Skeleton7", "skeleton", Vector2(3024, 320), {"alert_radius": 160.0, "lose_range": 260.0, "wake_range": 130.0}],
+	["Ghost3", "ghost", Vector2(3088, 236), {}],
+	["Scrapper2", "scrapper", Vector2(3744, 320), {"variant": &"armored_scrapper", "patrol_range": 24.0}],
 ]
-## 陵门 / 钟楼门两侧：低石栏，不用 bg_wall_torch（室外墓园天空上的室内墙板）。
-const GATE_RAILS: Array = [1360.0, 1456.0, 2708.0, 2812.0]
-const WAYMARKS: Array = [[Vector2(416, 320), "墓园"], [Vector2(3788, 320), "钟楼"]]
+
+const WAYMARKS: Array = [
+	[Vector2(384, 320), "墓园"],
+	[Vector2(1216, 320), "陵墓"],
+	[Vector2(3788, 320), "钟楼"],
+]
 
 
 func level_id() -> String:
@@ -137,7 +169,6 @@ func wake_line() -> String:
 	return ChapterText.wake_of(level_id())
 
 
-## 碑文文本只从 ChapterText 取；位置常量留在这里（几何归关卡，文本归注册表）。
 func _stele(host: Node2D, node_name: String, pos: Vector2) -> void:
 	var entry := ChapterText.stele_of(level_id(), node_name)
 	stele(host, node_name, pos, String(entry.get("title", "")), String(entry.get("text", "")))
@@ -163,12 +194,10 @@ func theme() -> String:
 	return "graveyard"
 
 
-## 墓园夜雨：名字是什么，天就是什么。
 func ambient() -> Dictionary:
 	return {"time": 0.82, "weather": "rain", "hold": 420.0}
 
 
-## 这一关的招牌就是锈雨：夜里几乎天天下，强度拉满，偶尔放晴让月亮照一下坟头。
 func weather_recipe() -> Dictionary:
 	return {
 		"allowed": [WorldClock.Weather.RAIN, WorldClock.Weather.RUST_RAIN,
@@ -182,24 +211,30 @@ func weather_recipe() -> Dictionary:
 	}
 
 
-## 能见度就是这一关的玩法：两段局部天气把「看路」变成压力。
-##   · 坟堆 448–928 压一片落地浓雾：骸骨在雾里起身，巡逻边界读不出来；
-##   · 长毒沟 2304–2608 的锈雨被风扯斜：最长的跳石正好在最差的视野里。
-## 区域只改经过这里时的生效天气，基础天气和存档不变。
+## 局部天气区域：
+##   · GraveFog（448–928）：西坟群落地浓雾
+##   · RoofFog（1360–1888）：中央大陵墓外圈露天墓道浓雾
+##   · CryptShade（1312–1888）：中央大陵墓内圈地下陵室（切室内，幽暗无雨）
+##   · DitchSquall（2304–2608）：长泥沟上空斜锈雨
+##   · EastGraveFog（2848–4000）：东段荒坟坡浓雾
 func weather_regions() -> Array:
 	return [
 		{"name": "GraveFog", "rect": Rect2(448, 96, 480, 160),
 			"weather": WorldClock.Weather.FOG, "intensity": 1.0, "wind_scale": 0.35},
+		{"name": "RoofFog", "rect": Rect2(1360, 80, 528, 144),
+			"weather": WorldClock.Weather.FOG, "intensity": 0.95, "wind_scale": 0.4},
+		{"name": "CryptShade", "rect": Rect2(1312, 264, 576, 120),
+			"intensity": 0.0, "wind_scale": 0.0, "indoor": true},
 		{"name": "DitchSquall", "rect": Rect2(2304, 128, 304, 160),
 			"weather": WorldClock.Weather.RUST_RAIN, "intensity": 1.0, "wind_scale": 1.35},
-		## ⑨ 扩章中段：荒坟坡被东段浓雾接住，骸骨在雾里起身。
-		{"name": "EastGraveFog", "rect": Rect2(2880, 96, 1120, 160),
+		{"name": "EastGraveFog", "rect": Rect2(2848, 96, 1152, 160),
 			"weather": WorldClock.Weather.FOG, "intensity": 0.85, "wind_scale": 0.45},
 	]
 
 
 func build(host: Node2D) -> void:
 	_build_terrain(host)
+	_build_hazards(host)
 	_build_props(host)
 	_build_enemies(host)
 	_build_decor(host)
@@ -211,10 +246,8 @@ func build(host: Node2D) -> void:
 
 func _build_terrain(host: Node2D) -> void:
 	for f in FLOORS:
-		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "ground", bool(f[3]), bool(f[4]))
-	for p in PITS:
-		toxin_pit(host, String(p[0]), float(p[1]), float(p[2]), PIT_DEPTH, "ground", TOXIN_TINT)
-	# 先铺低的再铺高的：后加的画在前面，二级台才盖住一级台的草皮。
+		floor_strip(host, String(f[0]), float(f[1]), float(f[2]), "ground",
+				bool(f[3]), bool(f[4]), float(f[5]))
 	for m in MOUNDS:
 		platform(host, String(m[0]), m[1] as Vector2, m[2] as Vector2, "ground")
 	for s in STONES:
@@ -222,70 +255,77 @@ func _build_terrain(host: Node2D) -> void:
 	walls(host, "ground")
 
 
+func _build_hazards(host: Node2D) -> void:
+	for z in MUD_ZONES:
+		force_zone(host, String(z[0]), z[1] as Rect2, "mud", Vector2.ZERO,
+				{"drag": float(z[2]), "toxin_per_second": float(z[3])})
+
+
 func _build_props(host: Node2D) -> void:
 	nest(host, "EmberNestStart", NEST_START_X)
 	nest(host, "EmberNestCrypt", NEST_CRYPT_X)
 	nest(host, "EmberNestGrove", NEST_GROVE_X)
+	nest(host, "EmberNestMire", NEST_MIRE_X)
 	nest(host, "EmberNestEast", NEST_EAST_X)
 	_stele(host, "SteleHallen", STELE_A_POS)
 	_stele(host, "SteleVeil", STELE_B_POS)
 	plate_door(host, "Mausoleum", PLATE_FEET, DOOR_POS)
+	plate_door(host, "CryptShortcut", CRYPT_SHORTCUT_PLATE_FEET, CRYPT_SHORTCUT_DOOR_POS)
 	hook(host, "HookTreeTop", HOOK_POS)
 	pickup(host, "EmberCoreTreeTop", PICKUP_POS, &"ember_core")
-	# 树顶支路：一枚可选的核之外，补一块只有钩锁能读的墓志。
 	_stele(host, "SteleTree", STELE_TREE_POS)
+	reward(host, "RewardTreeTop", REWARD_POS, REWARD_KIND, REWARD_REF, REWARD_LABEL)
+	destructible(host, "CryptUrnWest", &"rust_urn", Vector2(1360, 352))
+	destructible(host, "CryptHeapEast", &"scrap_heap", Vector2(1832, 352))
 	for w in WAYMARKS:
 		waymark(host, w[0] as Vector2, String(w[1]))
 
 
 func _build_enemies(host: Node2D) -> void:
 	for e in ENEMIES:
-		enemy(host, String(e[0]), String(e[1]), e[2] as Vector2)
+		enemy(host, String(e[0]), String(e[1]), e[2] as Vector2,
+				e[3] as Dictionary if e.size() > 3 else {})
 
 
-## foliage(): feet.x 是贴图左下角；prop(): feet.x 是底边中点。
 func _build_decor(host: Node2D) -> void:
-	# ① 出土口：运渣道的石门洞压暗成背景，读作「刚从这里爬出来」。
+	# ① 出土口
 	prop(host, "door_arch", Vector2(40, 320), 1.0, Color(0.62, 0.6, 0.72))
 	foliage(host, "bush_s", Vector2(112, 320), 1.0)
 	prop(host, "stone_1", Vector2(222, 320))
 	foliage(host, "tree_2_px", Vector2(296, 320), 1.0, true)
 	prop(host, "stone_3", Vector2(452, 320))
-	# ② 坟堆丛
-	foliage(host, "bush_l_px", Vector2(508, 320), 1.0)
+	# ② 西坟群
+	foliage(host, "bush_l_px", Vector2(492, 320), 1.0)
 	prop(host, "grave_cross", Vector2(608, 288))
-	prop(host, "stone_4", Vector2(688, 320))
-	# 0.5 倍的树冠铺到 x≈859，会盖住 888 的十字墓。左脚收到石块东侧。
-	foliage(host, "tree_1_px", Vector2(712, 320), 1.0, true)
-	prop(host, "grave_cross", Vector2(888, 320))
-	# ④ 陵门：石墩 + 闸门 + 守墓者
-	prop(host, "stone_1", Vector2(1216, 320))
-	prop(host, "statue", Vector2(1512, 320))
-	# ⑤ 高坟台：台上两块小碑，台下一段石栏
-	prop(host, "stone_2", Vector2(1648, 288))
-	prop(host, "stone_4", Vector2(1816, 288))
-	prop(host, "balustrade", Vector2(1900, 320))
-	# ⑥ 骸骨林：浮石压在老树的树冠上
+	prop(host, "stone_4", Vector2(680, 320))
+	foliage(host, "tree_1_px", Vector2(728, 320), 1.0, true)
+	prop(host, "grave_cross", Vector2(800, 320))
+	# ④ 陵门分岔
+	prop(host, "stone_1", Vector2(1016, 320))
+	prop(host, "balustrade", Vector2(1152, 320))
+	# ⑤ 中央大陵墓（内圈下沉陵室 y=352 + 外圈露天墓道 y=192/176/208）
+	prop(host, "door_arch", Vector2(1344, 352), 1.0, Color(0.55, 0.54, 0.66))
+	prop(host, "stone_2", Vector2(1464, 352))
+	prop(host, "grave_cross", Vector2(1504, 192))
+	prop(host, "statue", Vector2(1664, 176))
+	prop(host, "stone_4", Vector2(1800, 208))
+	prop(host, "door_arch", Vector2(1856, 352), 1.0, Color(0.55, 0.54, 0.66))
+	# ⑥ 骸骨林
 	foliage(host, "tree_1_px", Vector2(1996, 320), 1.0, true)
 	prop(host, "stone_3", Vector2(2080, 320))
-	foliage(host, "tree_2_px", Vector2(2184, 320), 1.0, true)
-	foliage(host, "bush_s", Vector2(2270, 320), 1.0)
-	# ⑧ 钟楼门
+	foliage(host, "tree_2_px", Vector2(2204, 320), 1.0, true)
+	foliage(host, "bush_s", Vector2(2272, 320), 1.0)
+	# ⑧ 荒坟坡
 	prop(host, "stone_2", Vector2(2632, 320))
-	for x in GATE_RAILS:
-		prop(host, "balustrade", Vector2(float(x), FLOOR_Y))
-	# ⑨ 荒坟坡：又一片坟与老树，雾里只有十字和石头的轮廓。
-	prop(host, "grave_cross", Vector2(2864, 320))
-	prop(host, "stone_4", Vector2(2944, 320))
-	foliage(host, "tree_2_px", Vector2(3008, 320), 1.0, true)
-	foliage(host, "bush_l_px", Vector2(3104, 320), 1.0)
-	prop(host, "stone_1", Vector2(3168, 320))
-	# ⑩ 东墓沟两岸：碎石抵住坑沿，读作塌下去的坟沟。
-	prop(host, "stone_3", Vector2(3200, 320))
-	prop(host, "stone_4", Vector2(3376, 320))
-	# ⑪ 钟楼门外：门前坟台 + 石像守门，墙边碎碑。
-	prop(host, "grave_cross", Vector2(3508, 288))
-	prop(host, "stone_1", Vector2(3560, 256))
-	prop(host, "statue", Vector2(3744, 320))
-	prop(host, "balustrade", Vector2(3820, 320))
-	foliage(host, "tree_1_px", Vector2(3888, 320), 1.0, true)
+	prop(host, "balustrade", Vector2(2744, 320))
+	prop(host, "grave_cross", Vector2(2928, 288))
+	prop(host, "stone_4", Vector2(3000, 320))
+	foliage(host, "tree_2_px", Vector2(3048, 320), 1.0, true)
+	prop(host, "stone_1", Vector2(3112, 320))
+	# ⑩ 钟楼门前
+	prop(host, "stone_4", Vector2(3384, 320))
+	prop(host, "grave_cross", Vector2(3524, 288))
+	prop(host, "stone_1", Vector2(3584, 256))
+	prop(host, "statue", Vector2(3704, 320))
+	prop(host, "balustrade", Vector2(3912, 320))
+	foliage(host, "tree_1_px", Vector2(3948, 320), 1.0, true)
