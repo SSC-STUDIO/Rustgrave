@@ -18,6 +18,9 @@ func setup() -> void:
 
 
 func teardown() -> void:
+	for child in get_children():
+		child.free()
+	ThemeBackdrop.clear_cache()
 	WorldClock.reset()
 
 
@@ -270,6 +273,8 @@ func test_every_theme_has_its_signature_layers() -> void:
 		if theme_id == "graveyard":
 			ok(backdrop != null, "%s reuses the Level01 stack" % layout_id)
 			layout.free()
+			director.free()
+			host.free()
 			continue
 		ok(backdrop != null, "%s builds a ParallaxBackdrop CanvasLayer" % layout_id)
 		ok(ThemeBackdrop.has_theme(theme_id), "%s names a known theme (%s)" % [layout_id, theme_id])
@@ -301,6 +306,8 @@ func test_every_theme_has_its_signature_layers() -> void:
 		# 的约束（见 world_atmosphere_test.test_backdrop_stays_subordinate_at_every_phase），
 		# 作者写的 tint 允许为白（1.0）——夜幕由 WorldAtmosphere 统一压暗，不在此断言。
 		layout.free()
+		director.free()
+		host.free()
 	# 每章身份色必须至少登记一次；登记表本身要覆盖 build() 用得到的主题。
 	ok(seen.size() >= 8, "chapters cover at least 8 distinct themes (got %d)" % seen.size())
 	# 登记表覆盖 THEMES 全部键：新增主题忘了登记 SIGNATURE_LAYERS 就过不了。

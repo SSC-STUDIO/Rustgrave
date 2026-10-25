@@ -291,6 +291,14 @@ static func _extras_panels(t: Theme) -> void:
 	# 顶部只占 24 设计像素高，不再是一条压在画面上的大横幅。
 	t.set_type_variation(&"HintPanelTiny", &"PanelContainer")
 	t.set_stylebox("panel", &"HintPanelTiny", _sb(TEX_PANEL_HUD, 8, Vector4(16, 3, 16, 3)))
+	# 紧凑提示条的余烬前缀：12px 的提示行首一颗小火星，和 24px 教学条共用
+	# cursor_spike 的同一个"这里有情况"信号，只是缩到 8px 宽。
+	t.set_type_variation(&"HintSparkLabel", &"Label")
+	t.set_font_size("font_size", &"HintSparkLabel", 12)
+	t.set_color("font_color", &"HintSparkLabel", EMBER)
+	t.set_color("font_outline_color", &"HintSparkLabel", Color(0.04, 0.03, 0.06, 0.92))
+	t.set_constant("outline_size", &"HintSparkLabel", 1)
+	t.set_constant("line_spacing", &"HintSparkLabel", 0)
 	# 交互提示的键帽：一块小铁牌装一个 24px 键名，和设置页的键位写法同源。
 	t.set_type_variation(&"KeyCapPanel", &"PanelContainer")
 	t.set_stylebox("panel", &"KeyCapPanel", _sb(TEX_BTN_NORMAL, 8, Vector4(12, 1, 12, 1)))
@@ -340,6 +348,11 @@ static func _extras_buttons(t: Theme) -> void:
 		t.set_color("font_hover_pressed_color", variation, EMBER)
 		t.set_color("font_disabled_color", variation, Color("#5E574F"))
 		t.set_font_size("font_size", variation, 24)
+		# 悬停 / 按下 / 聚焦时整块轻微提亮：像素画不加滤镜，用 modulate 让
+		# "这一格活了"的信号在面板上更明确（主题的 stylebox 自带亮边，但
+		# 文字区域仍是同一亮度，12px 小字容易看不出选中了哪行）。
+		t.set_color("font_outline_color", variation, Color(0.04, 0.03, 0.06, 0.92))
+		t.set_constant("outline_size", variation, 2)
 	t.set_color("font_color", &"KeyCapButton", EMBER)
 	t.set_color("font_hover_color", &"KeyCapButton", Color("#FFE0A0"))
 	t.set_color("font_focus_color", &"KeyCapButton", Color("#FFE0A0"))

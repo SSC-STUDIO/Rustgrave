@@ -183,6 +183,8 @@ func _impact_terrain(point: Vector2, normal: Vector2, collider: Object) -> void:
 
 
 func _on_body_entered(body: Node2D) -> void:
+	if Director.is_input_locked():
+		return
 	if body is Player:
 		return
 	# 物理信号没有命中点：用弹丸当前位置 + 反方向法线近似一次，保证即使射线

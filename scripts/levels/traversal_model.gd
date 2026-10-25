@@ -34,6 +34,7 @@ const BACKOFFS: Array[float] = [8.0, 16.0, 24.0, 32.0]
 const FALL_LIMIT := 640.0
 
 static var _envelope: Dictionary = {}
+static var _values: Dictionary = {}
 
 
 ## 输出：gravity / max_speed / jump_velocity / apex_window / apex_scale /
@@ -45,11 +46,11 @@ static func envelope() -> Dictionary:
 	var gravity := float(ProjectSettings.get_setting("physics/2d/default_gravity", 980.0))
 	var vy: float = float(values["jump_velocity"])
 	var feet := 0.0
-	var t := 0.0
+	var frames := 0
 	var apex := 0.0
-	var air := MAX_FLIGHT
+	var air := float(MAX_FLIGHT)
 	# 起跳后一直积到落回同一高度（脚底 y 回到 0）。
-	while t < MAX_FLIGHT:
+	while float(frames) * STEP < MAX_FLIGHT:
 		var scale := 1.0
 		if absf(vy) < float(values["apex_window"]):
 			scale = float(values["apex_gravity_scale"])
@@ -59,10 +60,10 @@ static func envelope() -> Dictionary:
 		if vy > float(values["max_fall_speed"]):
 			vy = float(values["max_fall_speed"])
 		feet += vy * STEP
-		t += STEP
+		frames += 1
 		apex = minf(apex, feet)
-		if feet >= 0.0 and t > 0.1:
-			air = t
+		if feet >= 0.0 and frames > 6:
+			air = float(frames) * STEP
 			break
 	_envelope = {
 		"gravity": gravity,
@@ -116,21 +117,46 @@ static func gap_for_drop(drop: float) -> float:
 static func can_hop(a: LevelSanity.TopSeg, b: LevelSanity.TopSeg, solids: Array[Rect2]) -> bool:
 	if b.y < a.y - max_rise():
 		return false
+	var gap := LevelSanity._gap(a, b)
+	if gap > gap_for_drop(maxf(0.0, b.y - a.y)):
+		return false
 	var dir := 1.0 if (b.x0 + b.x1) * 0.5 >= (a.x0 + a.x1) * 0.5 else -1.0
-	# 起跳点从"最靠近 b 的边缘"起：贴着边缘跳最远，往里退只是为了躲开
-	# 起跳瞬间就贴脸的墙；退 32px 足够，再往里只是白扔速度。
+	if absf(a.y - b.y) <= 0.5 and gap <= 0.5 and _walk_clear(a, b, solids):
+		return true
 	var edge: float = a.x1 + PLAYER_HALF - EDGE_MARGIN if dir > 0.0 else a.x0 - PLAYER_HALF + EDGE_MARGIN
-	var min_x := a.x0 + PLAYER_HALF - EDGE_MARGIN
-	var max_x := a.x1 - PLAYER_HALF + EDGE_MARGIN
+	# Stepping off a lower ledge needs no upward arc; low roofs can forbid jumping
+	# while leaving the intended walk-off route completely clear.
+	if b.y > a.y + 0.5:
+		var drop_x := a.x1 + PLAYER_HALF + 0.1 if dir > 0.0 else a.x0 - PLAYER_HALF - 0.1
+		for fraction: float in [1.0, 0.75, 0.5, 0.25]:
+			if _arc_lands(drop_x, a.y, dir * fraction, b, solids, false):
+				return true
+	var lo := a.x0 - PLAYER_HALF + EDGE_MARGIN
+	var hi := a.x1 + PLAYER_HALF - EDGE_MARGIN
 	var candidates: Array[float] = [edge]
 	for back: float in BACKOFFS:
-		var px: float = edge - dir * back
-		if px >= min_x and px <= max_x:
-			candidates.append(px)
+		candidates.append(clampf(edge - dir * back, lo, hi))
+	# A long floor can be below a short ledge. Sample near that ledge instead of
+	# jumping from the unrelated far end of the floor.
+	for x: float in [b.x0 - 12.0, b.x1 + 12.0, (b.x0 + b.x1) * 0.5]:
+		candidates.append(clampf(x, lo, hi))
 	for from_x in candidates:
-		if _arc_lands(from_x, a.y, dir, b, solids):
-			return true
+		if _body_hits(solids, from_x, a.y):
+			continue
+		for fraction: float in [1.0, 0.75, 0.5, 0.25, 0.0]:
+			if _arc_lands(from_x, a.y, dir * fraction, b, solids):
+				return true
 	return false
+
+
+static func _walk_clear(a: LevelSanity.TopSeg, b: LevelSanity.TopSeg, solids: Array[Rect2]) -> bool:
+	var from_x := clampf((b.x0 + b.x1) * 0.5, a.x0, a.x1)
+	var to_x := clampf(from_x, b.x0, b.x1)
+	var steps := maxi(1, int(ceil(absf(to_x - from_x) / 2.0)))
+	for i in range(steps + 1):
+		if _body_hits(solids, lerpf(from_x, to_x, float(i) / steps), a.y):
+			return false
+	return true
 
 
 ## 站上去头顶够不够。`solids` 里 y 上沿低于 top 的实体才算天花板。
@@ -151,11 +177,11 @@ static func headroom_ok(solids: Array[Rect2], x0: float, x1: float, top: float) 
 
 ## 从 (from_x, top) 起跳，按真实重力积分，落到 b 上且不撞实体就返回 true。
 static func _arc_lands(from_x: float, top: float, dir: float, b: LevelSanity.TopSeg,
-		solids: Array[Rect2]) -> bool:
+		solids: Array[Rect2], jumping: bool = true) -> bool:
 	var values := _controller_values()
 	var gravity := float(ProjectSettings.get_setting("physics/2d/default_gravity", 980.0))
 	var speed := float(values["max_speed"])
-	var vy: float = float(values["jump_velocity"])
+	var vy: float = float(values["jump_velocity"]) if jumping else 0.0
 	var feet := top
 	var x := from_x
 	var t := 0.0
@@ -170,15 +196,20 @@ static func _arc_lands(from_x: float, top: float, dir: float, b: LevelSanity.Top
 		vy += gravity * scale * STEP
 		if vy > float(values["max_fall_speed"]):
 			vy = float(values["max_fall_speed"])
+		var previous_feet := feet
 		feet += vy * STEP
 		x += dir * speed * STEP
 		t += STEP
 		if feet > top + FALL_LIMIT:
 			return false
 		# 落到 b 上：脚下已经到/过上表面，且身体与 b 的台面有重叠。
-		if vy > 0.0 and feet >= b.y and feet <= b.y + PLAYER_HEIGHT \
-				and x >= land_lo and x <= land_hi:
-			return true
+		# 落点窗口按一帧位移放宽：欧拉积分累加的 x 在临界 gap 上会和台缘
+		# 差一个 ulp（108px/s × 1/60s），而物理引擎是在跨过台面的那一帧
+		# 就把角色停住的，不会因为浮点尾巴把他弹出落地窗口。
+		var frame_travel := speed * STEP
+		if vy > 0.0 and previous_feet <= b.y and feet >= b.y \
+				and x >= land_lo - frame_travel and x <= land_hi:
+			return not _body_hits(solids, x, b.y)
 		if _body_hits(solids, x, feet):
 			return false
 		if dir > 0.0 and x > land_hi:
@@ -199,6 +230,8 @@ static func _body_hits(solids: Array[Rect2], x: float, feet: float) -> bool:
 
 
 static func _controller_values() -> Dictionary:
+	if not _values.is_empty():
+		return _values
 	var script := load(PLAYER_CONTROLLER) as GDScript
 	if script == null or not script.can_instantiate():
 		return _fallback_values()
@@ -214,7 +247,8 @@ static func _controller_values() -> Dictionary:
 	probe.free()
 	if out["max_speed"] <= 0.0 or out["jump_velocity"] >= 0.0:
 		return _fallback_values()
-	return out
+	_values = out
+	return _values
 
 
 ## 兜底：控制器读不到时也别让体检崩掉，用当前实测值。

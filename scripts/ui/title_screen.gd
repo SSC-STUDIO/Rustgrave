@@ -1671,6 +1671,8 @@ func confirm_open() -> bool:
 
 
 func _on_confirm_chosen(id: StringName) -> void:
+	if _started or _quitting:
+		return
 	if id == ID_OVERWRITE:
 		_confirm.visible = false
 		_confirm_menu.active = false
@@ -1757,6 +1759,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _start(continue_game: bool) -> void:
+	if _started or _quitting:
+		return
 	_started = true
 	_menu.active = false
 	# 标题进关不沿用上一局死亡排队：继续走存档坐标，新开清档。

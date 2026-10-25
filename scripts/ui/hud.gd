@@ -29,6 +29,8 @@ const TOXIN_BAR_SIZE := Vector2(96, 14)
 const TOXIN_ROW_HEIGHT := 16.0
 ## 毒素档位字（"溢 100%"）占的槽宽。12px 字最宽是 3 位数，"溢 100%" 约 39 设计像素。
 const TOXIN_LABEL_WIDTH := 46.0
+## 剑核插座：拿到第一枚锈核之前整条隐藏。
+const SOCKET_BREATH_PERIOD := 2.4
 const SOCKET_ICON := 26.0
 ## 与 assets/ui/banner.png 的高度一致（21 设计像素 * 2）。
 const BANNER_HEIGHT := 42.0
@@ -37,6 +39,9 @@ const BANNER_TOP := 14.0
 const PROMPT_BOTTOM := 10.0
 ## 交互提示里键帽与文案的间距。
 const PROMPT_KEY_GAP := 10.0
+## 交互提示出场：向上浮 6px 的同时淡入（像素栅格上取整，不出灰边）。
+const PROMPT_SLIDE := 6.0
+const PROMPT_FADE := 0.18
 ## Boss 条在底边中央占的高度（12px 名字行 + 2 + 12 血条 + 上下 10 内容边距）；
 ## 交互提示在 Boss 战中抬到它上面，两者不重叠。
 const BOSS_BAR_HEIGHT := 50.0
@@ -139,12 +144,16 @@ var _peek_was_on := false
 var _peek_alpha := 0.0
 var _boss_name := ""
 var _insets := Vector4.ZERO
+var _critical_font_sizes: Dictionary = {}
+var _small_window := false
 
 var _boss_bar_panel: PanelContainer
 var _boss_title_label: Label
 var _boss_hp_bar: ProgressBar
 var _boss_phase_pips: PhasePips
 var _boss_max_hp: int = 1
+## 交互提示出场补间（换可交互物时先掐掉上一段）。
+var _prompt_tween: Tween
 
 ## 右下角技能冷却条（Q/E）。
 var _skill_row: HBoxContainer
@@ -408,6 +417,8 @@ func _glass_panel(variation: StringName) -> PanelContainer:
 
 
 ## 一个插座：26x26 的铁环 + 按核着色的宝石 + 下方一行键名。
+## 铁环在袋里有核、插座还空着时会缓慢呼吸 —— "这里空着、袋里有货"的暗示，
+## 让玩家知道该按 1 / 2 了；镶满之后呼吸停下，环稳定压亮。
 func _make_socket(index: int) -> Control:
 	var cell := VBoxContainer.new()
 	cell.name = "Socket%d" % index
@@ -935,21 +946,40 @@ func _on_prompt(text: String) -> void:
 	_prompt_label.text = String(parts.body)
 	_fit_single_line(_prompt_label, _prompt_label.text, PROMPT_MAX_WIDTH)
 	_sync_prompt()
-
-
 func _sync_prompt() -> void:
 	if _prompt_panel == null:
 		return
 	var cap := Director.caption()
 	var cap_busy := cap != null and cap.is_busy()
 	var dead := _death_overlay != null and _death_overlay.visible
-	_prompt_panel.visible = _prompt_text != "" and not cap_busy and not dead
+	var want := _prompt_text != "" and not cap_busy and not dead
+	var was := _prompt_panel.visible
+	_prompt_panel.visible = want
+	if want and not was:
+		_play_prompt_intro()
 	_sync_prompt_offsets()
+
+
+## 交互提示的出场：从下方 6px 处浮上来并淡入。位置取整到像素栅格，
+## 1-bit 的墨带边缘不会出现半像素灰边。重复触发（换一个可交互物）时
+## 先掐掉上一段，避免两段 tween 抢同一个属性。
+func _play_prompt_intro() -> void:
+	if _prompt_tween != null and _prompt_tween.is_valid():
+		_prompt_tween.kill()
+	_prompt_panel.modulate.a = 0.0
+	var base_top := _prompt_panel.offset_top
+	_prompt_panel.offset_top = base_top + PROMPT_SLIDE
+	_prompt_tween = create_tween()
+	_prompt_tween.set_parallel(true)
+	_prompt_tween.tween_property(_prompt_panel, "modulate:a", 1.0, PROMPT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_prompt_tween.tween_property(_prompt_panel, "offset_top", base_top, PROMPT_FADE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 ## 交互提示贴底边；Boss 条在场时抬到它之上。底边再让开触屏安全区。
 func _sync_prompt_offsets() -> void:
-	var lift := BOSS_BAR_LIFT if _boss_bar_panel != null and _boss_bar_panel.visible else 0.0
+	var lift := (BOSS_BAR_LIFT + (12.0 if _small_window else 0.0)) if _boss_bar_panel != null and _boss_bar_panel.visible else 0.0
 	var bottom := PROMPT_BOTTOM + _insets.w + lift
 	_prompt_panel.offset_top = -bottom
 	_prompt_panel.offset_bottom = -bottom
@@ -1171,7 +1201,35 @@ func _refresh_cores() -> void:
 ## 触屏刘海 / 圆角的安全区（设计单位，已换算到 HUD 层坐标）。桌面与 headless 为零。
 ## 只在窗口尺寸变化时重算，不逐帧问 DisplayServer。
 func _apply_safe_area() -> void:
+	_apply_readable_text(get_tree().root.size)
 	apply_safe_insets(PresentationMetrics.safe_layer_insets(get_tree().root))
+
+
+## The 640px world picture uses half-size UI at a small window. Promote critical
+## readouts to 24 design pixels there so Chinese glyphs retain 12 physical pixels.
+## Secondary weather copy still appears only on request; the world pixel grid stays intact.
+## A headless root is a 64x64 stub that PresentationMetrics clamps up to 640x360,
+## which would read as "1x window": require a genuine window (>= 640x360) before
+## promoting, so headless layout tests keep the desktop typography.
+func _apply_readable_text(window_size: Vector2i) -> void:
+	var genuine := window_size.x >= 640 and window_size.y >= 360
+	_small_window = genuine and int(PresentationMetrics.calculate(window_size)["scale"]) == 1
+	var labels: Array[Label] = [_toxin_label, _objective_label, _socket_label,
+		_pouch_label, _boss_title_label]
+	for socket in _sockets:
+		labels.append(socket.get_node("Key") as Label)
+	for label in labels:
+		if label == null: continue
+		var id := label.get_instance_id()
+		if not _critical_font_sizes.has(id):
+			_critical_font_sizes[id] = label.get_theme_font_size("font_size")
+		var base: int = _critical_font_sizes[id]
+		label.add_theme_font_size_override("font_size", maxi(base, 24) if _small_window else base)
+	if _toxin_label != null:
+		(_toxin_label.get_parent() as Control).custom_minimum_size = Vector2(
+			TOXIN_LABEL_WIDTH, TOXIN_ROW_HEIGHT) * (2.0 if _small_window else 1.0)
+	if _boss_bar_panel != null:
+		_boss_bar_panel.custom_minimum_size.y = BOSS_BAR_HEIGHT + (12.0 if _small_window else 0.0)
 
 
 ## 把一组安全区边距摆进 HUD 各条：状态带 / 横幅 / 天气行 / Boss 条 / 交互提示。
@@ -1190,7 +1248,7 @@ func apply_safe_insets(insets: Vector4) -> void:
 	if _hints != null:
 		_hints.set_top(HintService.TOP + insets.y)
 	var bottom := 22.0 + insets.w
-	_boss_bar_panel.offset_top = -(bottom + BOSS_BAR_HEIGHT)
+	_boss_bar_panel.offset_top = -(bottom + BOSS_BAR_HEIGHT + (12.0 if _small_window else 0.0))
 	_boss_bar_panel.offset_bottom = -bottom
 	_sync_prompt_offsets()
 

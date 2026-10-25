@@ -106,7 +106,7 @@ static func should_play() -> bool:
 		return false
 	if SaveData.has_flag(WAKE_FLAG):
 		return false
-	if SaveData.has_save():
+	if SaveData.has_save() and not SaveData.opening_pending:
 		return false
 	if SaveData.ending != "":
 		return false
@@ -548,6 +548,8 @@ static func _on_script_finished() -> void:
 	_active = false
 	SaveData.mark_flag(FLAG)
 	SaveData.mark_flag(WAKE_FLAG)
+	SaveData.opening_pending = false
+	SaveData.persist_story()
 	if is_instance_valid(_dolly):
 		# Skipped while the camera was out on the corridor: put it back on the knight now.
 		var cam := _camera()

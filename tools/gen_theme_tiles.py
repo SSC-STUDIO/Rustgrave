@@ -4,6 +4,7 @@ Every chapter used to walk on the same purple church slab. This tool gives the
 themes their own ground without new art:
 
   brick_*    Gothic Horror brick + plank ledges        -> 锈城街巷 (town)
+             (green moss on the source tops is remapped to warm mortar)
   castle_*   Gothic Castle olive brick with gold trim  -> 钟楼 (bell tower)
   iron_*     church slabs gradient-mapped to rust iron -> 齿轮工坊 (workshop)
   basalt_*   church slabs gradient-mapped to hot slag  -> 熔渣深渊 / 炉心 (forge)
@@ -75,6 +76,29 @@ def shade(img, k):
         for x in range(img.width):
             r, g, b, a = px[x, y]
             po[x, y] = (int(r * k), int(g * k), int(b * k), a)
+    return out
+
+
+def rust_moss(img):
+    """Turn Gothic Horror green moss into warm brick mortar.
+
+    Town platforms were cutting the mossy top row from tiles.png; under a rust
+    street that reads as undercroft algae. Only green pixels move, so brick and
+    mortar stay, and the run stays deterministic.
+    """
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 8:
+                continue
+            if g > r + 6 and g > b + 4:
+                lum = 0.299 * r + 0.587 * g + 0.114 * b
+                nr = int(min(255, lum * 1.08 + 20))
+                ng = int(min(255, lum * 0.70 + 10))
+                nb = int(min(255, lum * 0.46 + 6))
+                px[x, y] = (nr, ng, nb, a)
     return out
 
 
@@ -208,21 +232,21 @@ def brick_family(h):
     bricks = [tile(h, 32, 80), tile(h, 64, 80)]
     dark = [shade(b, 0.72) for b in bricks]
     flip = [b.transpose(Image.FLIP_LEFT_RIGHT) for b in bricks]
-    # Moss tops are rare: one per sheet, in a different column each time.
-    save(slab([[tops[0], tops[1], tops[2]], [bricks[0], bricks[1], flip[0]], [dark[1], dark[0], dark[1]]]), "brick_slab_a.png")
-    save(slab([[tops[1], tops[3], tops[0]], [flip[1], bricks[0], bricks[1]], [dark[0], dark[1], dark[0]]]), "brick_slab_b.png")
-    save(slab([[tops[2], tops[0], tops[4]], [bricks[1], flip[1], bricks[0]], [dark[1], dark[0], dark[0]]]), "brick_slab_c.png")
-    save(shade(bricks[0], 0.62), "brick_fill.png")
-    save(shade(bricks[1].transpose(Image.FLIP_LEFT_RIGHT), 0.5), "brick_fill_b.png")
+    # Moss tops are remapped to warm mortar so the street does not read as a crypt.
+    save(rust_moss(slab([[tops[0], tops[1], tops[2]], [bricks[0], bricks[1], flip[0]], [dark[1], dark[0], dark[1]]])), "brick_slab_a.png")
+    save(rust_moss(slab([[tops[1], tops[3], tops[0]], [flip[1], bricks[0], bricks[1]], [dark[0], dark[1], dark[0]]])), "brick_slab_b.png")
+    save(rust_moss(slab([[tops[2], tops[0], tops[4]], [bricks[1], flip[1], bricks[0]], [dark[1], dark[0], dark[0]]])), "brick_slab_c.png")
+    save(rust_moss(shade(bricks[0], 0.62)), "brick_fill.png")
+    save(rust_moss(shade(bricks[1].transpose(Image.FLIP_LEFT_RIGHT), 0.5)), "brick_fill_b.png")
     small = Image.new("RGBA", (32, T), (0, 0, 0, 0))
     small.alpha_composite(tile(h, 48, 16), (0, 0))
     small.alpha_composite(tile(h, 64, 16), (T, 0))
-    save(small, "brick_float_small.png")
+    save(rust_moss(small), "brick_float_small.png")
     # Plank ledge: 80px long piece -> caps + three mids.
-    save(tile(h, 32, 16), "brick_float_left.png")
-    save(tile(h, 96, 16), "brick_float_right.png")
+    save(rust_moss(tile(h, 32, 16)), "brick_float_left.png")
+    save(rust_moss(tile(h, 96, 16)), "brick_float_right.png")
     for i, s in enumerate(("a", "b", "c")):
-        save(tile(h, 48 + i * T, 16), "brick_float_mid_%s.png" % s)
+        save(rust_moss(tile(h, 48 + i * T, 16)), "brick_float_mid_%s.png" % s)
 
 
 def castle_family(c):

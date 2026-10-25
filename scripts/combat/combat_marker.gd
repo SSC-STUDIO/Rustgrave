@@ -76,6 +76,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Telegraphs and openings must stay in time with the AI/attack windows that
+	# they describe; a cinematic must not spend a warning while the AI is held.
+	if Director.is_input_locked():
+		return
 	_age += delta
 	if lifetime > 0.0 and _age >= lifetime:
 		queue_free()

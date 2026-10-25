@@ -31,40 +31,40 @@ follow_viewport_enabled = false
 
 [node name="Far" type="Parallax2D" parent="ParallaxBackdrop" unique_id=1792823595]
 scroll_scale = Vector2(0.08, 0.04)
-repeat_size = Vector2(668, 0)
+repeat_size = Vector2(704, 0)
 repeat_times = 4
 follow_viewport = false
 
 [node name="Sprite" type="Sprite2D" parent="ParallaxBackdrop/Far" unique_id=934848741]
 texture_filter = 1
 position = Vector2(0, -24)
-scale = Vector2(1.9, 1.9)
+scale = Vector2(2, 2)
 texture = ExtResource("15_sky")
 centered = false
 
 [node name="Mid" type="Parallax2D" parent="ParallaxBackdrop" unique_id=1125287443]
 scroll_scale = Vector2(0.22, 0.06)
-repeat_size = Vector2(326, 0)
+repeat_size = Vector2(384, 0)
 repeat_times = 4
 follow_viewport = false
 
 [node name="Sprite" type="Sprite2D" parent="ParallaxBackdrop/Mid" unique_id=1491931592]
 texture_filter = 1
 position = Vector2(0, 48)
-scale = Vector2(1.7, 1.7)
+scale = Vector2(2, 2)
 texture = ExtResource("16_far")
 centered = false
 
 [node name="Hills" type="Parallax2D" parent="ParallaxBackdrop" unique_id=1673364233]
 scroll_scale = Vector2(0.48, 0.1)
-repeat_size = Vector2(710, 0)
+repeat_size = Vector2(768, 0)
 repeat_times = 4
 follow_viewport = false
 
 [node name="Sprite" type="Sprite2D" parent="ParallaxBackdrop/Hills" unique_id=1073068007]
 texture_filter = 1
 position = Vector2(0, 168)
-scale = Vector2(1.85, 1.85)
+scale = Vector2(2, 2)
 texture = ExtResource("17_near")
 centered = false
 
@@ -131,8 +131,8 @@ size = Vector2(88, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"
 
-[node name="Plat_420_236" parent="Platforms" unique_id=1057811403 instance=ExtResource("2_plat")]
-position = Vector2(420, 236)
+[node name="Plat_440_236" parent="Platforms" unique_id=1057811403 instance=ExtResource("2_plat")]
+position = Vector2(440, 236)
 size = Vector2(72, 16)
 fill = Color(0.368627, 0.352941, 0.337255, 1)
 skin = "floating"

@@ -179,7 +179,11 @@ func _grade_materials(platforms: Node2D) -> void:
 		if grade == Color.WHITE:
 			continue
 		plat.apply_tone(plat.tone * grade)
-	# 毒池调酸：墓园的青绿液体和草地同一个绿，读不出"危险"。
+	# 齿轮也复用原石板纹理，和可站立石台保持同一材质色阶。
+	var gear := platforms.get_node_or_null("Gear") as CanvasItem
+	if gear != null:
+		gear.modulate = FLOAT_TONE
+	# 草地去饱和后保留毒池的独立青绿，危险边界不靠亮度区分。
 	var toxin := get_node_or_null("Props/ToxinPool") as ToxinPool
 	if toxin != null:
 		toxin.tint = TOXIN_TINT

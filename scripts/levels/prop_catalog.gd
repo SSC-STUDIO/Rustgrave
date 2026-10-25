@@ -103,6 +103,10 @@ const THEME_PROPS := {
 		"tree_1", "tree_2", "bush_l", "bush_s",
 		# 1x 像素裁切的植被（整数缩放；小数缩放会把树冠的像素拉成半格）。
 		"tree_1_px", "tree_2_px", "bush_l_px",
+		# 锈炉城埋在墓园下：断梁 / 断链 / 骨渣走 ground 族 1x 变体，不是教堂件。
+		"rubble_dry", "rubble_dry_b", "rubble_dry_c", "rock_pile", "bones",
+		"pipe_valve", "broken_machine", "girder_l", "girder_r", "fence", "chain",
+		"fire_vent", "life_remains", "skull_arch",
 	],
 	# 地窟：青黑苔砖、拱窗壁龛（Level02 同款）。管道与遗弃设施属于「城沉下去之前」
 	# 的生活残留。

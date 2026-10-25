@@ -35,8 +35,11 @@ const THEMES := {
 		"void": Color(0.035, 0.07, 0.085),
 		"mood": Color(0.66, 0.82, 0.84),
 		"layers": [
+			# 远景：更深的拱顶大厅剪影（慢速 0.16，只留窗光），和苔砖墙之间拉开
+			# 一层空气。原 2 层叠在一起时墙与柱糊成一张纸。
+			{"name": "HallFar", "path": GOTHIC_CASTLE, "scroll": Vector2(0.16, 0.06), "pos": Vector2(0, 40), "scale": 1.0, "tint": Color(0.34, 0.46, 0.48), "region": Rect2(0, 0, 480, 200)},
 			{"path": CASTLE_INTERIOR, "scroll": Vector2(0.42, 0.18), "pos": Vector2(0, 48), "scale": 1.0, "tint": Color(0.78, 0.9, 0.9)},
-			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 171), "scale": 0.9, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
+			{"path": COLUMN_PATH, "scroll": Vector2(0.66, 0.3), "pos": Vector2(96, 336 - 190), "scale": 1.0, "tint": Color(0.16, 0.24, 0.25, 0.9), "repeat": 352.0},
 		],
 	},
 	# 熔渣深渊：同一套工业剪影，离线映射成炉口的红光（天在下面烧，不在上面亮）。
@@ -103,10 +106,15 @@ const THEMES := {
 		"void": Color(0.06, 0.1, 0.11),
 		"mood": Color(0.8, 0.86, 0.86),
 		"layers": [
-			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 1.8, "tint": Color(0.8, 0.9, 0.92)},
+			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 2.0, "tint": Color(0.8, 0.9, 0.92)},
 			{"path": BACKDROP_DIR + "wall_clouds.png", "scroll": Vector2(0.07, 0.03), "pos": Vector2(0, -60), "scale": 2.0, "tint": Color(1, 1, 1, 0.85)},
-			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.14, 0.05), "pos": Vector2(0, 20), "scale": 1.6, "tint": Color(0.82, 0.9, 0.9)},
-			{"path": BACKDROP_DIR + "wall_town.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 160), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.14, 0.05), "pos": Vector2(0, 20), "scale": 2.0, "tint": Color(0.82, 0.9, 0.9)},
+			# 城墙脚下整座锈城：远一层的楼房剪影视差最慢（0.3），熄灯；近一层
+			# （0.44）只有零星窗火——站在墙顶往下看，城是压暗的、有光的，不是
+			# 一块贴纸。wall_town 的 0.62 是最后一道墙沿，仍然最快。
+			{"name": "CityFar", "path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 210), "scale": 2.0, "tint": Color(0.7, 0.78, 0.8)},
+			{"name": "CityLights", "path": TOWN_DIR + "night-town-background-mountains-lights.png", "scroll": Vector2(0.44, 0.12), "pos": Vector2(0, 240), "scale": 2.0, "tint": Color(0.85, 0.8, 0.7)},
+			{"path": BACKDROP_DIR + "wall_town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 160), "scale": 2.0, "tint": Color.WHITE},
 		],
 	},
 	# 锈城：夜色小镇——天、云、山、林、远屋、近屋。室外，有天气与风。
@@ -116,12 +124,12 @@ const THEMES := {
 		"void": Color(0.04, 0.08, 0.09),
 		"mood": Color(0.74, 0.82, 0.84),
 		"layers": [
-			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 1.8, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-clouds.png", "scroll": Vector2(0.08, 0.03), "pos": Vector2(0, -20), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.16, 0.05), "pos": Vector2(0, -4), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-forest.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 168), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.42, 0.1), "pos": Vector2(0, 200), "scale": 1.6, "tint": Color.WHITE},
-			{"path": TOWN_DIR + "night-town-background-town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 178), "scale": 1.6, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-sky.png", "scroll": Vector2(0.03, 0.02), "pos": Vector2(0, -40), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-clouds.png", "scroll": Vector2(0.08, 0.03), "pos": Vector2(0, -20), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-mountains.png", "scroll": Vector2(0.16, 0.05), "pos": Vector2(0, -4), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-forest.png", "scroll": Vector2(0.3, 0.08), "pos": Vector2(0, 168), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-far-buildings.png", "scroll": Vector2(0.42, 0.1), "pos": Vector2(0, 200), "scale": 2.0, "tint": Color.WHITE},
+			{"path": TOWN_DIR + "night-town-background-town.png", "scroll": Vector2(0.62, 0.14), "pos": Vector2(0, 178), "scale": 2.0, "tint": Color.WHITE},
 		],
 	},
 	# 锈厂：工业剪影——脚手架、厂房、烟囱。有顶棚，算室内（无雨），暖灰色调。
@@ -170,6 +178,14 @@ var _t := 0.0
 ## WorldAtmosphere darkens the backdrop CanvasLayer by this step below the play canvas
 ## (shared constant; tests/world_atmosphere_test.gd pins it).
 const BACKDROP_SUBORDINATE := 0.24
+
+
+static func clear_cache() -> void:
+	_beam_tex = null
+	_glow_tex = null
+	_pixel_tex = null
+	_add_mat = null
+	_luma_cache.clear()
 
 
 static func has_theme(theme_id: String) -> bool:

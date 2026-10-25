@@ -113,6 +113,13 @@ func live_count() -> int:
 	return n
 
 
+## `_draw` is one draw call for the whole pool, but queue_redraw() still marks
+## the canvas item dirty every frame and re-runs the draw script for all 40
+## motes even when nothing moved (a paused menu, a frozen clock). Only redraw
+## when the simulation actually advanced something.
+var _needs_redraw := true
+
+
 func _process(delta: float) -> void:
 	# A frozen clock (pause menu, cinematic, fade) holds every other ambient
 	# layer still — LeafShed and WeatherFx already bail here. Motes must too,
@@ -131,6 +138,7 @@ func _process(delta: float) -> void:
 func step(delta: float, origin: Vector2) -> void:
 	if _spec.is_empty() or delta <= 0.0:
 		return
+	_needs_redraw = true
 	var burst := String(_spec["spawn"]) == "burst"
 	if not _primed:
 		# First real frame: scatter the pool across the actual view with random ages,

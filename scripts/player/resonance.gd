@@ -32,6 +32,9 @@ func pulse() -> void:
 
 
 func _process(delta: float) -> void:
+	var player := get_parent() as Player
+	if Director.is_input_locked() or (player != null and player.cutscene_locked):
+		return
 	if _time <= 0.0:
 		return
 	_time = maxf(0.0, _time - delta)
