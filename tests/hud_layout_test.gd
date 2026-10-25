@@ -423,3 +423,28 @@ func test_peek_hint_is_compact_and_never_covers_the_death_screen() -> void:
 	hud.queue_free()
 	HintService.forget_all()
 	await flush(1)
+
+
+func test_small_window_keeps_critical_glyphs_twelve_physical_pixels_and_restores() -> void:
+	var hud := HUD_SCENE.instantiate()
+	add_child(hud)
+	await flush(3)
+	var toxin := hud.find_child("ToxinLabel", true, false) as Label
+	var objective := hud.find_child("ObjectiveLabel", true, false) as Label
+	var boss := hud.find_child("BossTitle", true, false) as Label
+	var original := toxin.get_theme_font_size("font_size")
+	hud._apply_readable_text(Vector2i(960, 540))
+	for label in [toxin, objective, boss]:
+		ok(label.get_theme_font_size("font_size") * 0.5 >= 12.0, "critical Chinese glyphs stay legible at integer 1x")
+	GameEvents.toxin_changed.emit(100.0, 100.0)
+	GameEvents.boss_appeared.emit("炉约刽子手 · 铸渣残躯", 13, 13)
+	hud.apply_safe_insets(Vector4(28, 16, 24, 30))
+	await flush(3)
+	ok(toxin.get_global_rect().size.x >= toxin.get_minimum_size().x, "overflow readout fits its widened slot")
+	ok(hud.plate_rect().end.x < 640.0, "compact HUD leaves the central playfield clear")
+	var boss_panel := boss.get_parent().get_parent().get_parent() as Control
+	ok(boss_panel.size.y >= boss_panel.get_combined_minimum_size().y, "larger Boss title fits vertically")
+	hud._apply_readable_text(Vector2i(1280, 720))
+	eq(toxin.get_theme_font_size("font_size"), original, "resizing restores the desktop typography")
+	hud.queue_free()
+	await flush(1)

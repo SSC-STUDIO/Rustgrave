@@ -262,9 +262,10 @@ func _process(delta: float) -> void:
 	_tick_hint(delta)
 	if Director.playing:
 		_hint_age += delta
-		var touch := DisplayServer.is_touchscreen_available()
+		var touch := TouchInput.wants_overlay()
 		if Director.skips_whole_script():
-			skip_button.text = "点此跳过开场" if touch else "Enter · 跳过开场"
+			var subject := "跳过开场" if OpeningCinematic.is_active() else "跳过"
+			skip_button.text = "点此" + subject if touch else "Enter · " + subject
 		else:
 			skip_button.text = "点此继续" if touch else "Enter · 继续"
 	else:

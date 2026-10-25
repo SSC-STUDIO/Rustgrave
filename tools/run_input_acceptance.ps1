@@ -4,6 +4,12 @@ param(
     [switch]$Campaign,
     [switch]$BasicAbilities,
     [switch]$Fast,
+    [ValidateSet('1920x1080', '1280x720', '960x540')][string]$Window = '1920x1080',
+    [ValidateSet('ember_vanguard', 'scrap_scavenger', 'rust_automaton')][string]$Origin = 'ember_vanguard',
+    [ValidateSet('give', 'keep')][string]$FinalEnding = 'give',
+    [switch]$Onscreen,
+    [switch]$WatchOpening,
+    [switch]$NoShots,
     [string]$ResumeSave = '',
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe'
 )
@@ -31,10 +37,17 @@ foreach ($kind in $endings) {
     }
     $arguments = @('--path', ('"' + $workspace + '"'))
     if (-not $Rendered) { $arguments += '--headless' }
-    else { $arguments += @('--windowed', '--position', '-12000,-12000', '--resolution', '1920x1080') }
+    else {
+        $windowPosition = if ($Onscreen) { '40,40' } else { '-12000,-12000' }
+        $arguments += @('--windowed', '--position', $windowPosition, '--resolution', $Window)
+    }
     if ($Fast) { $arguments += @('--fixed-fps', '60') }
     $scene = if ($Campaign -and $kind -eq 'rekindle') { 'res://scenes/tools/CampaignWalkthrough.tscn' } else { 'res://scenes/tools/InputWalkthrough.tscn' }
     $arguments += @($scene, '--', ('--ending=' + $kind))
+    $arguments += @('--window=' + $Window, '--origin=' + $Origin, '--final-ending=' + $FinalEnding)
+    if ($Onscreen) { $arguments += '--onscreen' }
+    if ($WatchOpening) { $arguments += '--watch-opening' }
+    if ($NoShots) { $arguments += '--no-shots' }
     if ($Campaign) { $arguments += '--campaign' }
     if ($BasicAbilities) { $arguments += '--basic-abilities' }
     if ($ResumeSave) { $arguments += '--resume' }

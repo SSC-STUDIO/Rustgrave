@@ -26,13 +26,36 @@ func _count_lights(root: Node, out_enabled: Array, out_total: Array) -> void:
 	for c in root.get_children():
 		if c is PointLight2D:
 			out_total.append(c)
-			var is_enabled := true
-			if "enabled" in c:
-				is_enabled = c.enabled
-			if is_enabled:
+			if c.enabled and c.is_visible_in_tree() and c.energy > 0.001:
 				out_enabled.append(c)
 		_count_lights(c, out_enabled, out_total)
 
+
+func _touches_screen(light: PointLight2D, view: Rect2) -> bool:
+	if light.texture == null: return false
+	var size := light.texture.get_size() * light.texture_scale
+	var bounds := light.global_transform * Rect2(light.offset - size * 0.5, size)
+	return bounds.intersects(view)
+
+
+## Scan the 640x360 world camera footprint over the authored geometry. Lights
+## outside it cost no screen overdraw; a whole chapter is not one screen.
+func _peak_visible(level: Node, lights: Array) -> int:
+	var tops := LevelSanity.top_segments(level)
+	var max_x := 640.0
+	var min_y := 0.0
+	for top in tops:
+		max_x = maxf(max_x, float(top.x1))
+		min_y = minf(min_y, float(top.y) - 180.0)
+	var peak := 0
+	for x in range(0, int(max_x) + 1, 80):
+		for y in range(int(min_y), 361, 60):
+			var view := Rect2(Vector2(x, y), Vector2(640, 360))
+			var count := 0
+			for light in lights:
+				if _touches_screen(light, view): count += 1
+			peak = maxi(peak, count)
+	return peak
 
 func test_light_count_per_level() -> void:
 	for path in LEVELS:
@@ -47,10 +70,10 @@ func test_light_count_per_level() -> void:
 		var total_lights: Array = []
 		_count_lights(level, enabled_lights, total_lights)
 		var lvl_name: String = String(path.get_file().get_basename())
-		print("%s: enabled=%d total=%d" % [lvl_name, enabled_lights.size(), total_lights.size()])
-		ok(enabled_lights.size() <= BUDGET,
-				"%s keeps its enabled lights within the %d budget (got %d)" % [
-						lvl_name, BUDGET, enabled_lights.size()])
+		var peak := _peak_visible(level, enabled_lights)
+		print("%s: peak_screen=%d enabled_chapter=%d total_chapter=%d" % [lvl_name, peak, enabled_lights.size(), total_lights.size()])
+		ok(peak <= BUDGET,
+				"%s keeps its same-screen lights within the %d budget (got %d)" % [lvl_name, BUDGET, peak])
 		level.queue_free()
 		await get_tree().process_frame
 
@@ -67,14 +90,15 @@ func test_slash_arc_light_spam() -> void:
 		host.add_child(arc)
 		arcs.append(arc)
 	await flush(4)
-	var lights := 0
-	for c in host.get_children():
-		if c is PointLight2D:
-			lights += 1
-	print("slash arcs: %d children, %d PointLight2D" % [host.get_child_count(), lights])
-	ok(lights <= 20, "each arc has at most one light (got %d)" % lights)
-	# The real risk: 20 simultaneous lights, each with a per-frame apply().
-	for a in arcs:
-		a.queue_free()
+	var enabled_lights: Array = []
+	var all_lights: Array = []
+	_count_lights(host, enabled_lights, all_lights)
+	eq(all_lights.size(), 20, "recursive measurement sees the real light inside every arc")
+	await flush(60)
+	all_lights.clear()
+	enabled_lights.clear()
+	_count_lights(host, enabled_lights, all_lights)
+	eq(all_lights.size(), 0, "all nested lights leave with their expired slashes")
+	eq(host.get_child_count(), 0, "temporary arcs reclaim their nodes")
 	host.queue_free()
-	await get_tree().process_frame
+	await flush(1)

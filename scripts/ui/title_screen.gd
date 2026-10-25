@@ -619,6 +619,8 @@ func confirm_open() -> bool:
 
 
 func _on_confirm_chosen(id: StringName) -> void:
+	if _started or _quitting:
+		return
 	if id == ID_OVERWRITE:
 		_confirm.visible = false
 		_confirm_menu.active = false
@@ -640,37 +642,27 @@ func _build_character_select() -> void:
 
 
 func _on_char_select_cancelled() -> void:
-	_char_select.close()
+	if _started or _quitting:
+		return
 	_menu.active = true
 
 
 func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
-	_char_select.close()
+	if _started or _quitting:
+		return
 	_started = true
 	_menu.active = false
-	SaveData.pending_spawn = Vector2.INF
-	SaveData.entering_from_checkpoint = false
-	if SaveData.has_method("init_new_game"):
-		SaveData.call("init_new_game", origin_id, loadout)
-	else:
-		SaveData.delete_save()
-		var w = loadout.get("weapon", "broken_sword")
-		var a = loadout.get("armor", "broken_armor")
-		var t = loadout.get("trinket", "broken_pendant")
-		var w_id = w.id if (w != null and "id" in w) else String(w)
-		var a_id = a.id if (a != null and "id" in a) else String(a)
-		var t_id = t.id if (t != null and "id" in t) else String(t)
-		SaveData.data = {
-			"player": { "origin": String(origin_id) },
-			"equipment": {
-				"weapon": String(w_id),
-				"armor": String(a_id),
-				"trinket": String(t_id),
-				"bag": []
-			}
-		}
+	if not _initialize_new_game(origin_id, loadout):
+		_started = false
+		_char_select.open()
+		_char_select.show_start_error()
+		return
 	Sfx.play(&"gate")
 	Director.fade_to(LEVEL_PATH, FADE_OUT)
+
+
+func _initialize_new_game(origin_id: StringName, loadout: Dictionary) -> bool:
+	return SaveData.init_new_game(origin_id, loadout)
 
 
 func character_select_screen() -> CharacterSelectScreen:
@@ -691,6 +683,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _start(continue_game: bool) -> void:
+	if _started or _quitting:
+		return
 	_started = true
 	_menu.active = false
 	# 标题进关不沿用上一局死亡排队：继续走存档坐标，新开清档。

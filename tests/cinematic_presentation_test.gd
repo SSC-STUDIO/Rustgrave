@@ -191,3 +191,17 @@ func test_ability_card_names_the_new_verb_without_locking_combat() -> void:
 			card = step
 	eq(String(card.get("title", "")), "热锻", "core_steps carries the ability name")
 	eq(String(card.get("subtitle", "")), "新 的 动 词", "and the new-verb subtitle")
+
+
+func test_nonopening_skip_copy_and_caption_first_frame() -> void:
+	Director.play([{"kind": "wait", "seconds": 10.0}], true)
+	presentation._process(0.8)
+	eq(presentation.skip_button.text, "点此跳过" if TouchInput.wants_overlay() else "Enter · 跳过")
+	var caption := Caption.new()
+	add_child(caption)
+	caption.enqueue("炉心仍在跳。")
+	ok(caption._panel.visible)
+	eq(caption._label.text, "炉", "caption panel and first glyph appear together")
+	caption.clear()
+	ok(not caption._panel.visible)
+	caption.queue_free()

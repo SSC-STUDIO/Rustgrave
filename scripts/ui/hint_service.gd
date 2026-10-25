@@ -401,7 +401,8 @@ func _scan_state() -> void:
 		offer(&"nest")
 	if not has_seen(&"hookshot") and _anchor_in_reach(player):
 		offer(&"hookshot")
-	if not has_seen(&"projectile") and _bolt_near(player):
+	if not has_seen(&"projectile") and not has_seen(&"parry_reward") \
+			and not _parry_reward_pending and not SaveData.has_flag("parry") and _bolt_near(player):
 		offer(&"projectile")
 
 

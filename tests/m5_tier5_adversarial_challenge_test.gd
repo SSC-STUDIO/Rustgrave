@@ -112,7 +112,7 @@ func test_cross_feature_integration_ember_vanguard() -> void:
 
 	var dmg_taken := player.health.take_damage(2, null)
 	ok(dmg_taken, "Player took 2 damage")
-	eq(player.health.current, 6, "Player health dropped from 8 to 6")
+	eq(player.health.current, 7, "Defense absorbs damage with a one-point floor")
 
 	# 6. Register Checkpoint & Save State
 	SaveData.register_lit_nest("Props/EmberNest_01")
@@ -146,8 +146,8 @@ func test_cross_feature_integration_ember_vanguard() -> void:
 	eq(respawned.equipment.get_equipped(SLOT_WEAPON).id, &"scavenger_blade", "Mutated weapon scavenger_blade preserved")
 	eq(respawned.equipment.bag.size(), 1, "Bag contains 1 item")
 	eq(respawned.equipment.bag[0].id, &"broken_sword", "Bag item broken_sword preserved")
-	eq(respawned.health.max_hp, 7, "Max HP updated for 2pc broken knight (8 - 1 = 7)")
-	eq(respawned.health.current, 7, "Health fully restored to effective max HP on respawn")
+	eq(respawned.health.max_hp, 8, "Armor and pendant retain the two-piece HP bonus")
+	eq(respawned.health.current, 7, "Raw player restoration retains saved damage")
 
 	var panel2: CharacterEquipmentPanel = UI_PANEL_SCENE.instantiate()
 	add_child(panel2)
@@ -232,7 +232,7 @@ func test_cross_feature_integration_scrap_scavenger() -> void:
 	eq(respawned.equipment.bag[0].id, &"scavenger_rags", "Bag contains scavenger_rags")
 	# Base 5 + Bone Amulet 1 + Broken Armor 1 = 7 HP
 	eq(respawned.health.max_hp, 7, "Max HP with broken_armor and bone_amulet is 7")
-	eq(respawned.health.current, 7, "Health restored to full 7 on respawn")
+	eq(respawned.health.current, 5, "Raw player restoration retains saved damage after max-HP growth")
 
 	var panel2: CharacterEquipmentPanel = UI_PANEL_SCENE.instantiate()
 	add_child(panel2)
@@ -317,7 +317,7 @@ func test_cross_feature_integration_rust_automaton() -> void:
 	eq(respawned.equipment.bag[0].id, &"scholar_probe", "Bag contains scholar_probe")
 	almost(respawned.stats.get_toxin_resistance(), 0.40, 0.001, "Toxin resist preserved")
 	almost(respawned.stats.get_toxin_decay_bonus(), 1.00, 0.001, "Toxin decay preserved")
-	eq(respawned.health.current, 5, "Health restored to full 5 on respawn")
+	eq(respawned.health.current, 4, "Raw player restoration does not grant free healing")
 
 	var panel2: CharacterEquipmentPanel = UI_PANEL_SCENE.instantiate()
 	add_child(panel2)

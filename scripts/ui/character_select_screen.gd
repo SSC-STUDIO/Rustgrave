@@ -18,6 +18,8 @@ extends CanvasLayer
 signal embark_requested(origin_id: StringName, loadout: Dictionary)
 signal cancelled
 
+const NAV_HINT := "方向键/点击 切换流派与信物 · Enter 启程 · Esc 取消"
+
 const Modal := preload("res://scripts/ui/ui_modal.gd")
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Plate := preload("res://scripts/ui/menu_plate.gd")
@@ -94,7 +96,7 @@ func _build() -> void:
 		"title": "身 份 与 启 程 配 装",
 		"kicker": "陵 墓 废 土 · 战 斗 流 派",
 		"size": Vector2(1120.0, 646.0),
-		"hint": "方向键/点击 切换流派与信物 · Enter 启程 · Esc 取消",
+		"hint": NAV_HINT,
 		"back": "",
 		"veil": 0.60,
 		"embers": true,
@@ -641,6 +643,10 @@ func _on_trinket_button_pressed(trinket_id: StringName) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
+	if _closing:
+		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept"):
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("ui_cancel"):
 		cancel()
 		get_viewport().set_input_as_handled()
@@ -659,6 +665,10 @@ func open() -> void:
 	if visible:
 		return
 	_closing = false
+	_set_buttons_disabled(false)
+	var hint := _shell.get("hint") as Label
+	if hint != null:
+		hint.text = NAV_HINT
 	_refresh_ui()
 	visible = true
 	if _shell.has("play_intro"):
@@ -703,37 +713,61 @@ func _setup_focus_chain() -> void:
 
 
 var _closing := false
+var _close_generation := 0
 
 
 func close() -> void:
+	_close_with_result()
+
+
+## Latch the outcome before the asynchronous animation. Exactly one outcome is
+## emitted after the veil is gone; keyboard repeat and double clicks cannot race it.
+func _close_with_result(on_done: Callable = Callable()) -> void:
 	if not visible or _closing:
 		return
 	_closing = true
+	_close_generation += 1
+	var generation := _close_generation
+	_set_buttons_disabled(true)
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused != null and _root.is_ancestor_of(focused):
+		focused.release_focus()
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
-	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit cancelled/embark。
 	(_shell.get("play_outro") as Callable).call(func() -> void:
-		if not is_instance_valid(self):
+		if not is_instance_valid(self) or not _closing or generation != _close_generation:
 			return
 		_closing = false
 		visible = false
+		if on_done.is_valid():
+			on_done.call()
 	)
 
 
+func _set_buttons_disabled(disabled: bool) -> void:
+	for button in _origin_buttons + _trinket_buttons + [_embark_btn, _cancel_btn]:
+		if button != null:
+			button.disabled = disabled
+
+
+func show_start_error() -> void:
+	var hint := _shell.get("hint") as Label
+	if hint != null:
+		hint.text = "保存失败，原进度已保留。请重试或取消。"
+
+
 func cancel() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
-	close()
-	cancelled.emit()
+	_close_with_result(func() -> void: cancelled.emit())
 
 
 func embark() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
 	var origin_id := _selected_origin_id
-	var loadout := get_selected_loadout()
-	close()
-	embark_requested.emit(origin_id, loadout)
+	var loadout := get_selected_loadout().duplicate(true)
+	_close_with_result(func() -> void: embark_requested.emit(origin_id, loadout))
 
 
 func is_open() -> bool:
@@ -741,6 +775,8 @@ func is_open() -> bool:
 
 
 func select_origin(origin_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(origin_id))
 	if not OriginCatalog.has_origin(sym):
 		return
@@ -753,6 +789,8 @@ func get_selected_origin_id() -> StringName:
 
 
 func select_trinket(trinket_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(trinket_id))
 	var pool := OriginCatalog.get_trinket_pool()
 	if not pool.has(sym):
@@ -766,6 +804,8 @@ func get_selected_trinket_id() -> StringName:
 
 
 func cycle_trinket(direction: int) -> void:
+	if _closing:
+		return
 	var pool := OriginCatalog.get_trinket_pool()
 	var idx := pool.find(_selected_trinket_id)
 	if idx == -1:

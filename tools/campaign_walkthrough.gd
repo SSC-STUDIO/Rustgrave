@@ -4,6 +4,10 @@ extends "res://tools/input_walkthrough.gd"
 
 var _fight_tick := 0
 var _final_caption_recorded := false
+## 当前导航目标（世界 x）与方向。_combat 的威胁逼近分支在两者不一致时让位，
+## 否则挡路的远程敌人会把骑士从目标点往回拽，造成来回拉锯。
+var _nav_x := INF
+var _nav_dir := 0.0
 
 func _run() -> void:
 	if not "--resume" in OS.get_cmdline_user_args():
@@ -11,9 +15,7 @@ func _run() -> void:
 		return
 	get_tree().change_scene_to_file(TITLE)
 	await _frames(12)
-	_ui(&"ui_down")
-	await _frames(3)
-	_ui(&"ui_accept")
+	await _title_continue()
 	if not await _wait_world(): return
 	_record("resume_input_checkpoint")
 	if not await _after_undercroft(): return
@@ -69,7 +71,10 @@ func _after_undercroft() -> bool:
 				await _frames(12)
 				if has_ending_choice:
 					if not _require(Director.choice_hold, "final ending menu opens through interact"): return false
-					_ui(&"ui_accept") # Default final choice: give the sword.
+					if _final_ending == "keep":
+						_ui(&"ui_down")
+						await _frames(3)
+					_ui(&"ui_accept")
 					await _frames(12)
 			else:
 				await _frames(12)
@@ -80,6 +85,7 @@ func _after_undercroft() -> bool:
 				var next := GameContext.LEVELS.get("level%02d" % (n + 1), TITLE) as String
 				if not await _await_scene(next): return false
 	if not _require(SaveData.has_flag("game_complete") and SaveData.has_flag("nightmare_dead"), "final completion saved"): return false
+	if not _require(SaveData.peek_ending() == _final_ending, "chosen final ending persists"): return false
 	_record("campaign_complete")
 	return true
 
@@ -123,13 +129,6 @@ func _settle_fade() -> void:
 		await _frames(1)
 
 
-## 标题菜单有存档时光标默认停在「继续」（scripts/ui/title_screen.gd:216-218）。
-## 以前这里固定按一次 ↓，标题改成默认停在继续之后会落到「设置」。
-func _title_continue() -> void:
-	if not SaveData.has_save():
-		_ui(&"ui_down")
-		await _frames(3)
-	_ui(&"ui_accept")
 
 func _segments() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
@@ -290,6 +289,10 @@ func _steer(x: float) -> void:
 	var p := _player()
 	var dx := x - p.position.x
 	var speed := p.velocity.x
+	# 记录当前导航目标：战斗分支不得把人往回拽。level02 的 LedgeB 上
+	# 喷吐者站在起跳点和落脚点之间，面朝威胁走只会和导航来回拉锯。
+	_nav_x = x
+	_nav_dir = signf(dx) if absf(dx) > 2.0 else 0.0
 	var brake := speed * speed / (2.0 * (400.0 if p.is_on_floor() else 270.0) * 1.55)
 	if absf(dx) < 2 and absf(speed) < 10:
 		_move(0)
@@ -301,6 +304,11 @@ func _steer(x: float) -> void:
 func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 	_fight_tick += 1
 	var p := _player()
+	# 没有活跃导航目标时清掉记忆：_release() 之后（Boss 战、死亡重载）
+	# 旧目标不得继续影响威胁逼近分支。
+	if _nav_x == INF or p == null:
+		_nav_x = INF
+		_nav_dir = 0.0
 	var melt := false
 	for gate in _world().get_node("Props").get_children():
 		if gate is RustyGate and LevelSanity.feet_of(gate).distance_to(p.position) < 42: melt = true
@@ -334,8 +342,15 @@ func _combat(allow_dash: bool = true, hold_ground: bool = false) -> void:
 			dash = p.position.x < threat.position.x and distance < 42 and _fight_tick % 6 == 0
 		else:
 			var hold_distance := 30
-			_move(side if distance > hold_distance or p.controller.facing != side else 0.0)
-			attack = distance < 48 and p.controller.facing == side and _fight_tick % 20 == 0
+			# 正在导航、且目标点在威胁另一侧时，先走过去再理它：后退只会
+			# 和 _steer 的目标来回拉锯（level02 LedgeB 上的喷吐者即此）。
+			var passing := _nav_dir != 0.0 and signf(_nav_x - threat.position.x) == _nav_dir
+			if passing:
+				_move(_nav_dir if absf(_nav_x - p.position.x) > 4.0 else 0.0)
+				attack = distance < 48 and p.controller.facing == side and _fight_tick % 20 == 0
+			else:
+				_move(side if distance > hold_distance or p.controller.facing != side else 0.0)
+				attack = distance < 48 and p.controller.facing == side and _fight_tick % 20 == 0
 	_set_action(&"attack", attack)
 	_set_action(&"dash", dash)
 
@@ -372,6 +387,12 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 			if (right and _player().position.x >= launch) or (not right and _player().position.x <= launch): break
 			await _frames(1)
 	elif a.lift == null:
+		# 下降跳到一段重叠地面（LedgeB→FloorB）时，起跳点应取出发段靠目的地那一侧
+		# 的边缘，而不是目的段边缘减 8——后者会把人拉回段中心，和随后的落点
+		# 来回拉锯，骑士在跳台上原地抖到超时。
+		if br.position.y > ar.position.y and ar.end.x > br.position.x and br.end.x > ar.position.x:
+			launch = clampf(ar.end.x - 12.0 if right else ar.position.x + 12.0,
+					ar.position.x + 8.0, ar.end.x - 8.0)
 		if not await _flat(launch, ar.position.y, false): return false
 		_release()
 		while _player() != null and (_player().controller._dash_cd > 0 or _player().controller._commit_lock): await _frames(1)
@@ -397,6 +418,11 @@ func _cross(a: Dictionary, b: Dictionary) -> bool:
 			if not is_instance_valid(b.lift): return false
 			r.position = b.lift.position
 		var landing := r.position.x + minf(18, r.size.x * 0.5) if right else r.end.x - minf(18, r.size.x * 0.5)
+		# 目的段与出发段在 x 上重叠时，朝段中心走只会让骑士在原地站定：
+		# 例如 LedgeB(944-1040) 掉到 FloorB(928-1120)，落脚点 962 仍在跳台上。
+		# 这种时候要一路推向出发段边缘之外，先把人送出重叠区再落下。
+		if r.end.x > ar.position.x and r.position.x < ar.end.x and r.position.y > ar.position.y:
+			landing = (ar.end.x + 16.0) if right else (ar.position.x - 16.0)
 		_steer(landing)
 		_set_action(&"jump", i < 24 and not (gap < 4 and br.position.y > ar.position.y))
 		var dash_frame := 11 if ar.position.y - br.position.y > 24 else (16 if ar.position.y == br.position.y else 8)

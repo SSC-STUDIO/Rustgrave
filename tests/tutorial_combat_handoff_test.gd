@@ -146,6 +146,15 @@ func test_parry_teaching_waits_for_busy_hint_slot_and_appears_once() -> void:
 	GameEvents.parried.emit(null, rig.player)
 	hints._scan_state()
 	ok(hints.queued_id() != &"parry_reward", "seen teaching does not recur on every parry")
+	# A later hostile bolt must not resurrect the discarded pre-success lesson.
+	const PROJECTILE := preload("res://scenes/combat/Projectile.tscn")
+	var bolt: Projectile = PROJECTILE.instantiate()
+	bolt.setup(rig.player.global_position + Vector2(100.0, -20.0), Vector2.LEFT,
+			40.0, &"enemy", null)
+	rig.arena.add_child(bolt)
+	bolt.set_physics_process(false)
+	hints._scan_state()
+	ok(hints.queued_id() != &"projectile", "successful play replaces the earlier how-to tip")
 	ok(not Director.playing)
 
 

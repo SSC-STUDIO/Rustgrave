@@ -20,27 +20,40 @@ var _last_frame_usec := 0
 var _campaign := false
 var _basic_abilities := false
 var _skip_captions := true
+var _window_size := Vector2i(1920, 1080)
+var _onscreen := false
+var _origin := "ember_vanguard"
+var _final_ending := "give"
+var _watch_opening := false
+var _opening_recorded := false
+var _shots := true
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rendered = DisplayServer.get_name() != "headless"
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--ending="): _ending = arg.trim_prefix("--ending=")
+		elif arg.begins_with("--origin="): _origin = arg.trim_prefix("--origin=")
+		elif arg.begins_with("--final-ending="): _final_ending = arg.trim_prefix("--final-ending=")
+		elif arg.begins_with("--window="):
+			var parts := arg.trim_prefix("--window=").split("x")
+			if parts.size() == 2: _window_size = Vector2i(int(parts[0]), int(parts[1]))
+		elif arg == "--onscreen": _onscreen = true
+		elif arg == "--watch-opening": _watch_opening = true
+		elif arg == "--no-shots": _shots = false
+		elif arg == "--campaign": _campaign = true
+		elif arg == "--basic-abilities": _basic_abilities = true
 	if _rendered:
 		get_tree().root.mode = Window.MODE_WINDOWED
 		get_tree().root.borderless = true
-		get_tree().root.size = Vector2i(1920, 1080)
-		get_tree().root.position = Vector2i(-12000, -12000)
+		get_tree().root.size = _window_size
+		get_tree().root.position = Vector2i(40, 40) if _onscreen else Vector2i(-12000, -12000)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-		Engine.max_fps = 60
+		Engine.max_fps = 0 if "--fast" in OS.get_cmdline_user_args() else 60
 	_errors = ERROR_COLLECTOR.new()
 	OS.add_logger(_errors)
 	_started = Time.get_ticks_msec()
-	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--ending="):
-			_ending = arg.trim_prefix("--ending=")
-		elif arg == "--campaign": _campaign = true
-		elif arg == "--basic-abilities": _basic_abilities = true
-		elif arg == "--fast": Engine.max_fps = 0
 	SaveData.save_path = "user://input_walkthrough_%s.cfg" % _ending
 	GameEvents.player_died.connect(func() -> void: _deaths += 1)
 	# Keep the driver beside the real current scene while all normal scene
@@ -71,7 +84,10 @@ func _process(_delta: float) -> void:
 		_fail("walkthrough exceeded its time budget")
 	if not _errors.errors().is_empty():
 		_fail("engine error: " + _errors.errors()[0])
-	if _skip_captions and Director.playing and not get_tree().paused and Time.get_ticks_msec() - _last_skip > 180:
+	if OpeningCinematic.is_active() and Director.caption()._holding and not _opening_recorded:
+		_opening_recorded = true
+		_record("opening_caption")
+	if _skip_captions and not (_watch_opening and OpeningCinematic.is_active()) and Director.playing and not get_tree().paused and Time.get_ticks_msec() - _last_skip > 180:
 		_last_skip = Time.get_ticks_msec()
 		_ui(&"ui_accept")
 
@@ -79,7 +95,35 @@ func _process(_delta: float) -> void:
 func _run() -> void:
 	get_tree().change_scene_to_file(TITLE)
 	await _frames(12)
-	_ui(&"ui_accept") # title: new game
+	_record("title")
+	if not await _choose_title(&"new"): return
+	var selection: CharacterSelectScreen = null
+	for i in 180:
+		await _frames(1)
+		var title := get_tree().current_scene
+		if title != null and title.has_method("character_select_screen"):
+			selection = title.character_select_screen()
+			if selection != null and selection.visible: break
+	if not _require(selection != null and selection.visible, "new game opens character selection"): return
+	await _frames(15)
+	# Follow the same focus chain as keyboard navigation: Embark -> trinket -> origins.
+	if _origin != "ember_vanguard":
+		_ui(&"ui_up")
+		await _frames(3)
+		_ui(&"ui_left")
+		await _frames(3)
+		if _origin == "scrap_scavenger":
+			_ui(&"ui_left")
+			await _frames(3)
+		_ui(&"ui_accept")
+		await _frames(3)
+		_ui(&"ui_down")
+		await _frames(3)
+		_ui(&"ui_right")
+		await _frames(3)
+	if not _require(str(selection.get_selected_origin_id()) == _origin, "origin chosen with keyboard focus"): return
+	_record("character_select")
+	_ui(&"ui_accept")
 	if not await _wait_world():
 		return
 	_record("new_game")
@@ -240,15 +284,24 @@ func _wait_world() -> bool:
 	return false
 
 
-## 标题菜单：有存档时光标默认停在「继续」（scripts/ui/title_screen.gd:216-218），
-## 所以不能再按一次 ↓ —— 那会把光标落到「设置」上，世界永远不加载。
-## 只有没有存档（不可能走 Continue）时才需要 ↓。返回时确认键已按下。
-func _title_continue() -> void:
-	if not SaveData.has_save():
-		_ui(&"ui_down")
+## Observe actual focus rather than assuming a fixed title menu index.
+func _choose_title(id: StringName) -> bool:
+	for i in 180:
+		var scene := get_tree().current_scene
+		var menu := scene.get_node_or_null("Menu") as MenuList if scene != null else null
+		if menu != null and menu.active:
+			if menu.selected_id() == id:
+				_ui(&"ui_accept")
+				await _frames(3)
+				return true
+			_ui(&"ui_down")
 		await _frames(3)
-	_ui(&"ui_accept")
+	_fail("title menu could not select " + str(id))
+	return false
 
+
+func _title_continue() -> void:
+	await _choose_title(&"continue")
 
 func _walk_to(target_x: float, jump: bool) -> bool:
 	_step = "walk_to_%.0f" % target_x
@@ -588,7 +641,7 @@ func _record(name_: String) -> void:
 		"position": str(player.global_position) if player else "title", "deaths": _deaths}
 	_records.append(record)
 	print("[MILESTONE] ", JSON.stringify(record))
-	if _rendered and name_ in ["new_game", "grapple_ember", "boss_slain", "ending_rekindle", "ending_snuff"]:
+	if _rendered and _shots:
 		get_tree().root.get_texture().get_image().save_png("user://%s_%s.png" % [_ending, name_])
 		_last_frame_usec = Time.get_ticks_usec() # PNG encoding is excluded from gameplay frame timings.
 
@@ -610,6 +663,10 @@ func _fail(message: String) -> void:
 func _write_result(passed: bool) -> void:
 	var result := {"passed": passed, "ending": _ending, "input_only": true,
 		"milestones": _records, "engine_errors": Array(_errors.errors()), "deaths": _deaths}
+	result["window_size"] = str(_window_size)
+	result["origin"] = _origin
+	result["final_ending"] = _final_ending
+	result["evidence_type"] = "scripted normal input; not a human or mobile device playtest"
 	result["campaign"] = _campaign
 	result["basic_abilities"] = _basic_abilities
 	result["resumed"] = "--resume" in OS.get_cmdline_user_args()
@@ -622,7 +679,7 @@ func _write_result(passed: bool) -> void:
 		for sample in _frame_ms: total += sample
 		result["frame_timing"] = {"samples": _frame_ms.size(), "mean_ms": total / _frame_ms.size(),
 			"p95_ms": _frame_ms[int((_frame_ms.size() - 1) * 0.95)], "max_ms": _frame_ms.back(),
-			"scope": "1080p offscreen window; PNG encoding excluded; " + ("accelerated fixed 60 Hz simulation" if "--fast" in OS.get_cmdline_user_args() else "60 FPS cap")}
+			"scope": "%dx%d %s window; PNG encoding excluded; " % [_window_size.x, _window_size.y, "visible" if _onscreen else "offscreen"] + ("accelerated fixed 60 Hz simulation" if "--fast" in OS.get_cmdline_user_args() else "60 FPS cap")}
 	var output := FileAccess.open("user://walkthrough_%s.json" % _ending, FileAccess.WRITE)
 	if output: output.store_string(JSON.stringify(result, "\t"))
 

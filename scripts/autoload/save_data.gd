@@ -12,6 +12,8 @@ const CharacterOriginScript := preload("res://scripts/data/character_origin.gd")
 const OriginCatalogScript := preload("res://scripts/data/origin_catalog.gd")
 
 const SAVE_VERSION := 1
+## First playable foot point; must agree with Level01Static.DEFAULT_SPAWN.
+const NEW_GAME_SPAWN := Vector2(96, 320)
 
 const DEFAULT_EQUIPMENT := {
 	"weapon": "broken_sword",
@@ -53,6 +55,9 @@ var flags: PackedStringArray = []
 ## Empty until a finished ending: "snuff" at the remnant, "give" / "keep" at the forge door.
 ## Chapter-1 rekindle is a promise to continue, not an ending.
 var ending: String = ""
+## A selected identity is saved before entering the world. This distinguishes that
+## untouched new game from a Continue after the opening has already finished.
+var opening_pending: bool = false
 
 
 func _ready() -> void:
@@ -87,113 +92,72 @@ func get_current_origin() -> StringName:
 	return &""
 
 
-## Initialize a brand new game session with selected character origin and starting loadout.
-## Clears old save, sets up in-memory data, and writes directly to disk so has_save() is true.
-func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary = {}) -> void:
-	delete_save()
-
+## Commit a fresh identity/loadout before replacing the current session. A failed
+## write leaves the old save and all in-memory progress available to Continue.
+func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary = {}) -> bool:
 	var o_sym := StringName(str(origin_id)) if origin_id != null else &"ember_vanguard"
 	var o_str := String(o_sym).strip_edges()
 	if o_str == "":
 		o_sym = &"ember_vanguard"
 		o_str = "ember_vanguard"
-
-	var w_val = loadout.get("weapon", "broken_sword")
-	var a_val = loadout.get("armor", "broken_armor")
-	var t_val = loadout.get("trinket", "broken_pendant")
-	var bag_val = loadout.get("bag", [])
-
-	var w_str := _item_to_id(w_val)
-	if w_str == "":
-		w_str = "broken_sword"
-	var a_str := _item_to_id(a_val)
-	if a_str == "":
-		a_str = "broken_armor"
-	var t_str := _item_to_id(t_val)
-	if t_str == "":
-		t_str = "broken_pendant"
-
+	var equip_state := {}
+	for slot in ["weapon", "armor", "trinket"]:
+		var item_id := _item_to_id(loadout.get(slot, DEFAULT_EQUIPMENT[slot]))
+		equip_state[slot] = item_id if item_id != "" else DEFAULT_EQUIPMENT[slot]
 	var clean_bag: Array = []
-	if bag_val is Array:
-		for b in bag_val:
-			var bid := _item_to_id(b)
-			if bid != "":
-				clean_bag.append(bid)
-
-	var preview: Dictionary = OriginCatalogScript.calculate_preview_stats(o_sym, w_str, a_str, t_str)
-	var max_hp: int = int(preview.get("max_hp", 5))
-
-	data = {
-		"meta": {
-			"version": SAVE_VERSION,
-			"scene": GameContext.WORLD_PATH,
-			"saved_at": Time.get_datetime_string_from_system(),
-			"ending": "",
-		},
-		"player": {
-			"origin": o_str,
-			"hp": max_hp,
-			"max_hp": max_hp,
-			"toxin": 0.0,
-			"max_toxin": 100.0,
-			"pos": Vector2.ZERO,
-			"facing": 1,
-			"pouch": [],
-			"sockets": [],
-		},
-		"equipment": {
-			"weapon": w_str,
-			"armor": a_str,
-			"trinket": t_str,
-			"bag": clean_bag,
-		},
-		"world": {},
+	var raw_bag: Variant = loadout.get("bag", [])
+	if raw_bag is Array:
+		for item in raw_bag:
+			var item_id := _item_to_id(item)
+			if item_id != "" and clean_bag.size() < EquipmentInventory.MAX_BAG_CAPACITY:
+				clean_bag.append(item_id)
+	equip_state["bag"] = clean_bag
+	var preview: Dictionary = OriginCatalogScript.calculate_preview_stats(
+			o_sym, equip_state["weapon"], equip_state["armor"], equip_state["trinket"])
+	var max_hp := int(preview.get("max_hp", 5))
+	var saved_at := Time.get_datetime_string_from_system()
+	var atmosphere := {
+		"time_of_day": WorldClock.DEFAULT_TIME, "weather": "haze",
+		"zone": "outdoors", "wind_heading": -1.0,
 	}
-
+	var next_data := {
+		"meta": {"version": SAVE_VERSION, "scene": GameContext.WORLD_PATH,
+				"saved_at": saved_at, "ending": ""},
+		"player": {"origin": o_str, "hp": max_hp, "max_hp": max_hp,
+				"toxin": 0.0, "max_toxin": 100.0, "pos": NEW_GAME_SPAWN,
+				"facing": 1, "pouch": [], "sockets": []},
+		"equipment": equip_state, "world": {}, "atmosphere": atmosphere,
+	}
+	var cfg := ConfigFile.new()
+	for key in next_data["meta"]:
+		cfg.set_value("meta", key, next_data["meta"][key])
+	for key in next_data["player"]:
+		if key != "pos":
+			cfg.set_value("player", key, next_data["player"][key])
+	cfg.set_value("player", "pos_x", NEW_GAME_SPAWN.x)
+	cfg.set_value("player", "pos_y", NEW_GAME_SPAWN.y)
+	for key in equip_state:
+		cfg.set_value("equipment", key, equip_state[key])
+	cfg.set_value("consumed", "paths", [])
+	cfg.set_value("lit_nests", "paths", [])
+	cfg.set_value("story", "flags", [])
+	cfg.set_value("story", "opening_pending", true)
+	for key in atmosphere:
+		cfg.set_value("atmosphere", key, atmosphere[key])
+	if not _write_cfg(cfg):
+		push_warning("SaveData: new game could not be saved; previous progress kept")
+		return false
+	data = next_data
 	consumed.clear()
 	lit_nests.clear()
 	flags.clear()
 	ending = ""
+	opening_pending = true
 	pending_spawn = Vector2.INF
 	entering_from_checkpoint = false
 	WorldClock.reset()
-	var atmosphere := WorldClock.snapshot()
-	data["atmosphere"] = atmosphere
-
-	var cfg := ConfigFile.new()
-	cfg.set_value("meta", "version", SAVE_VERSION)
-	cfg.set_value("meta", "scene", GameContext.WORLD_PATH)
-	cfg.set_value("meta", "saved_at", data["meta"]["saved_at"])
-	cfg.set_value("meta", "ending", ending)
-
-	cfg.set_value("player", "origin", o_str)
-	cfg.set_value("player", "hp", max_hp)
-	cfg.set_value("player", "max_hp", max_hp)
-	cfg.set_value("player", "toxin", 0.0)
-	cfg.set_value("player", "max_toxin", 100.0)
-	cfg.set_value("player", "pos_x", 0.0)
-	cfg.set_value("player", "pos_y", 0.0)
-	cfg.set_value("player", "facing", 1)
-	cfg.set_value("player", "pouch", [])
-	cfg.set_value("player", "sockets", [])
-
-	cfg.set_value("equipment", "weapon", w_str)
-	cfg.set_value("equipment", "armor", a_str)
-	cfg.set_value("equipment", "trinket", t_str)
-	cfg.set_value("equipment", "bag", clean_bag)
-
-	cfg.set_value("consumed", "paths", [])
-	cfg.set_value("lit_nests", "paths", [])
-	cfg.set_value("story", "flags", [])
-
-	cfg.set_value("atmosphere", "time_of_day", float(atmosphere.get("time_of_day", WorldClock.DEFAULT_TIME)))
-	cfg.set_value("atmosphere", "weather", String(atmosphere.get("weather", "haze")))
-	cfg.set_value("atmosphere", "zone", String(atmosphere.get("zone", "outdoors")))
-	cfg.set_value("atmosphere", "wind_heading", float(atmosphere.get("wind_heading", -1.0)))
-
-	if not _write_cfg(cfg):
-		push_warning("SaveData: failed to save in init_new_game to %s" % save_path)
 	GameEvents.game_saved.emit()
+	return true
 
 
 ## `spawn_override`: where the knight should stand when this save is loaded —
@@ -258,6 +222,7 @@ func save_game(scene_path: String, player: Node, spawn_override: Vector2 = Vecto
 	cfg.set_value("consumed", "paths", Array(consumed))
 	cfg.set_value("lit_nests", "paths", Array(lit_nests))
 	cfg.set_value("story", "flags", Array(flags))
+	cfg.set_value("story", "opening_pending", opening_pending)
 	cfg.set_value("meta", "ending", ending)
 	var atmosphere := WorldClock.snapshot()
 	data["atmosphere"] = atmosphere
@@ -326,6 +291,8 @@ func load_game() -> bool:
 	for f in cfg.get_value("story", "flags", []):
 		flags.append(String(f))
 	ending = String(cfg.get_value("meta", "ending", ""))
+	opening_pending = bool(cfg.get_value("story", "opening_pending", false))
+	_repair_unstarted_save(cfg)
 	var atmosphere := {
 		"time_of_day": float(cfg.get_value("atmosphere", "time_of_day", WorldClock.DEFAULT_TIME)),
 		"weather": String(cfg.get_value("atmosphere", "weather", "haze")),
@@ -337,6 +304,37 @@ func load_game() -> bool:
 	return true
 
 
+## Repair only the obsolete pristine identity initializer, never a progressed save.
+## Its zero coordinate was written before the first world frame was ever entered.
+func _repair_unstarted_save(cfg: ConfigFile) -> void:
+	if cfg.has_section_key("story", "opening_pending"):
+		return
+	var player: Dictionary = data.get("player", {})
+	if data.get("meta", {}).get("scene", "") != GameContext.WORLD_PATH \
+			or player.get("pos", Vector2.INF) != Vector2.ZERO:
+		return
+	if not OriginCatalogScript.has_origin(player.get("origin", "")) \
+			or not cfg.has_section("equipment"):
+		return
+	if not flags.is_empty() or not consumed.is_empty() or not lit_nests.is_empty() \
+			or ending != "" or not (data["world"] as Dictionary).is_empty():
+		return
+	if not player.get("pouch", []).is_empty() \
+			or int(player.get("hp", 0)) != int(player.get("max_hp", 5)) \
+			or not is_zero_approx(float(player.get("toxin", 0.0))) \
+			or not data.get("equipment", {}).get("bag", []).is_empty():
+		return
+	for core_id in player.get("sockets", []):
+		if String(core_id) != "":
+			return
+	data["player"]["pos"] = NEW_GAME_SPAWN
+	opening_pending = true
+	cfg.set_value("player", "pos_x", NEW_GAME_SPAWN.x)
+	cfg.set_value("player", "pos_y", NEW_GAME_SPAWN.y)
+	cfg.set_value("story", "opening_pending", true)
+	_write_cfg(cfg)
+
+
 func delete_save() -> void:
 	_remove_if_exists(save_path)
 	_remove_if_exists(_backup_path())
@@ -346,6 +344,7 @@ func delete_save() -> void:
 	lit_nests.clear()
 	flags.clear()
 	ending = ""
+	opening_pending = false
 	pending_spawn = Vector2.INF
 	entering_from_checkpoint = false
 	WorldClock.reset()
@@ -416,6 +415,7 @@ func persist_story() -> void:
 	if cfg == null:
 		return
 	cfg.set_value("story", "flags", Array(flags))
+	cfg.set_value("story", "opening_pending", opening_pending)
 	cfg.set_value("meta", "ending", ending)
 	cfg.set_value("consumed", "paths", Array(consumed))
 	cfg.set_value("lit_nests", "paths", Array(lit_nests))
@@ -852,11 +852,18 @@ func _write_cfg(cfg: ConfigFile) -> bool:
 	var err := cfg.save(tmp)
 	if err != OK:
 		return false
-	if FileAccess.file_exists(save_path):
-		DirAccess.copy_absolute(save_path, _backup_path())
-		DirAccess.remove_absolute(save_path)
+	var had_save := FileAccess.file_exists(save_path)
+	if had_save:
+		# Never remove the only good copy if its recovery copy cannot be made.
+		if DirAccess.copy_absolute(save_path, _backup_path()) != OK:
+			_remove_if_exists(tmp)
+			return false
+		if DirAccess.remove_absolute(save_path) != OK:
+			_remove_if_exists(tmp)
+			return false
 	err = DirAccess.rename_absolute(tmp, save_path)
 	if err != OK:
-		err = cfg.save(save_path)
+		if had_save:
+			DirAccess.copy_absolute(_backup_path(), save_path)
 		_remove_if_exists(tmp)
 	return err == OK
