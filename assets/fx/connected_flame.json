@@ -1,0 +1,40 @@
+{
+  "source": "tools/gen_connected_fire.py",
+  "authorship": "Original project pixel drawing; no image inputs",
+  "cell": [
+    32,
+    40
+  ],
+  "frames": 16,
+  "fps": 12,
+  "root": [
+    16,
+    36
+  ],
+  "palette": [
+    "#a73520",
+    "#d95220",
+    "#ed7928",
+    "#ffad38",
+    "#ffd967",
+    "#fff1b4"
+  ],
+  "pixel_sha256": [
+    "7a8587eece78ed8d216a71fc56eae0eb3a59e0e98ebee8e5c58c8b9945c5bcf2",
+    "2586fe536f6cf36ca462438a3526b19439b6017bba12a61ddbd955bd07f67717",
+    "7dbb48f2d516a36f154e2300c4725de4ec3e1e8058f2e0277d43af2bba042d10",
+    "413325549b95d5a640a48ad289ba14b428c42383f054ccc62af3251b7e44b6a5",
+    "098f37d559679f844c39f171e0aeb83810894e864f31702ba48d94079ee0e5e3",
+    "b7c48a53b8f511c07e8a7cada28e6f045d0a03e2c35abb8150bc16cd26cfb5ec",
+    "253e8b4ed99f13eb7202f800736faff93e32158f40e551dc9228346cc541906e",
+    "8d517cfb881f10a705814f263b18ef1852009860af7fd983d6ce2fb2f09f18b1",
+    "745b24118f393dc57877063a0398ce65176fa2c0c1d2aa6c9c674d3d9df408b3",
+    "c7b9fcb9acf347f7879ce22a4a378025d511c0748114c28f44428ecc2aef4ecf",
+    "c13066f726cd81ea555f772c04746cfa49d7f8c5a94ca347a603cf7985c3e575",
+    "11b2b29ed431f9f15b03c7e1d533094e924fca0ec5f732aad0eb92831b7e0755",
+    "a4ad6989d737ff1104dfa203af32ab88dee57b9955d012ca0302588557d5c86e",
+    "23a9c6cf6ebcd18821ebb260f77d91bbf4298dba8364859189406c93b1a33bfb",
+    "3f082a836aae1c478d44bf5482633fb47f4596604179775d10b85641c10bfccd",
+    "b599c958393ec1fd41e41a1aec967dde8319980aac845936b9b680df32833f98"
+  ]
+}
