@@ -61,7 +61,9 @@ func _ready() -> void:
 	var packed := load(GameContext.pending_world_path) as PackedScene
 	if packed == null:
 		packed = load(GameContext.WORLD_PATH) as PackedScene
-	world_viewport.add_child(packed.instantiate())
+	var world := packed.instantiate()
+	DensityTextures.apply_to_scene(world)
+	world_viewport.add_child(world)
 	get_tree().root.size_changed.connect(_layout)
 	_layout()
 	GameContext.suppress_gameplay_input()

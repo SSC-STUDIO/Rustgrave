@@ -5,6 +5,22 @@ extends RefCounted
 ## Weak caching shares live textures without retaining every visited chapter.
 
 static var _cache: Dictionary = {}
+const REDRAWS := preload("res://scripts/visuals/redrawn_texture_catalog.gd")
+
+
+## Authored scene sprites are instantiated before their _ready hooks. Replacing
+## their backing texels here keeps logical sizes, atlas regions and all physics.
+static func apply_to_scene(node: Node) -> void:
+	if node is Sprite2D:
+		var sprite := node as Sprite2D
+		if sprite.texture != null:
+			var path := source_path(sprite.texture)
+			if path.begins_with("res://assets/") and path.ends_with(".png"):
+				var detailed := load_texture(path)
+				if detailed != null:
+					sprite.texture = detailed
+	for child in node.get_children():
+		apply_to_scene(child)
 
 
 static func load_texture(path: String) -> Texture2D:
@@ -17,7 +33,7 @@ static func load_texture(path: String) -> Texture2D:
 	var original := load(path) as Texture2D
 	if original == null:
 		return null
-	var companion := path.replace("res://assets/", "res://assets/qhd/")
+	var companion: String = REDRAWS.REPLACEMENTS.get(path, path.replace("res://assets/", "res://assets/qhd/"))
 	if companion == path or not ResourceLoader.exists(companion):
 		return original
 	var detail := load(companion) as Texture2D
