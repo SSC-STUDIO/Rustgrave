@@ -245,15 +245,6 @@ func _process(delta: float) -> void:
 	_tick_ground_fx(delta)
 
 
-## Any drop currently drawn. Used by the frozen-clock early exit so the rain
-## is parked visibly-off exactly once instead of every frame.
-func _drops_active() -> bool:
-	for spr in _drops:
-		if spr.visible:
-			return true
-	return false
-
-
 func _tick_drop(i: int, delta: float, rain_col: Color, vis: float) -> void:
 	var spr := _drops[i]
 	var p := spr.position

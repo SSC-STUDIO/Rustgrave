@@ -113,13 +113,6 @@ func live_count() -> int:
 	return n
 
 
-## `_draw` is one draw call for the whole pool, but queue_redraw() still marks
-## the canvas item dirty every frame and re-runs the draw script for all 40
-## motes even when nothing moved (a paused menu, a frozen clock). Only redraw
-## when the simulation actually advanced something.
-var _needs_redraw := true
-
-
 func _process(delta: float) -> void:
 	# A frozen clock (pause menu, cinematic, fade) holds every other ambient
 	# layer still — LeafShed and WeatherFx already bail here. Motes must too,

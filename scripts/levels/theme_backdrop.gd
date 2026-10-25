@@ -173,6 +173,11 @@ var _mood: CanvasModulate
 var _base_mood := Color.WHITE
 var _indoors := true
 var _t := 0.0
+static var _beam_tex: Texture2D
+static var _glow_tex: Texture2D
+static var _pixel_tex: Texture2D
+static var _add_mat: CanvasItemMaterial
+static var _luma_cache: Dictionary = {}
 
 
 ## WorldAtmosphere darkens the backdrop CanvasLayer by this step below the play canvas

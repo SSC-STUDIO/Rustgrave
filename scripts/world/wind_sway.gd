@@ -53,7 +53,8 @@ static func clock_angle() -> float:
 
 
 func _process(delta: float) -> void:
-	phase += delta * freq
+	if not WorldClock.is_frozen():
+		phase += delta * freq
 	_apply()
 
 

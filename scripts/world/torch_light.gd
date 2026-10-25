@@ -21,11 +21,8 @@ const GLOW_TEX := "res://assets/env/glow_soft.png"
 @export var base_energy: float = 0.60
 @export var light_radius: float = 64.0
 
-const GLOW_TEX := "res://assets/env/glow_soft.png"
-
 var _light: WorldLight
 var _sprite: Node2D
-var _halo: Sprite2D
 var _time: float = 0.0
 var _seed: float = 0.0
 var _halo: Sprite2D

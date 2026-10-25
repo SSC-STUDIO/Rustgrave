@@ -95,10 +95,11 @@ func is_busy() -> bool:
 	return _typing or _holding or not _queue.is_empty()
 
 
-func enqueue(text: String, hold: float = DEFAULT_HOLD) -> void:
+func enqueue(text: String, hold: float = DEFAULT_HOLD, who: String = "") -> void:
 	if text == "":
 		return
-	_queue.append({"text": text, "hold": hold})
+	# who 由导演传入（「说话人：内容」以外的显式名牌）。字幕条只画正文，名字留在字典里。
+	_queue.append({"text": text, "hold": hold, "who": who})
 	if not _typing and not _holding:
 		_start_next()
 
