@@ -60,20 +60,10 @@ func _apply() -> void:
 
 
 func _draw() -> void:
-	var w := size.x
 	var h := size.y
-	# 阶梯切角（2px 栅格）：芯片与档案卡、铁条用同一种边角语汇。
-	draw_rect(Rect2(2.0, 0.0, w - 4.0, h), FILL)
-	draw_rect(Rect2(0.0, 2.0, w, h - 4.0), FILL)
-	var edge := EDGE_LIT if lit else EDGE
-	draw_rect(Rect2(2.0, 0.0, w - 4.0, 1.0), edge)
-	draw_rect(Rect2(2.0, h - 1.0, w - 4.0, 1.0), edge)
-	draw_rect(Rect2(0.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-	draw_rect(Rect2(w - 1.0, 2.0, 1.0, h - 4.0), Color(edge.r, edge.g, edge.b, 0.55))
-	# 顶光 / 底影：一点钢板厚度。
-	draw_rect(Rect2(3.0, 1.0, w - 6.0, 1.0), Color(0.9, 0.7, 0.5, 0.06))
-	draw_rect(Rect2(3.0, h - 2.0, w - 6.0, 1.0), Color(0.0, 0.0, 0.0, 0.22))
-	draw_rect(Rect2(0.0, 2.0, 3.0, h - 4.0), STRIPE_LIT if lit else STRIPE)
-	# 标签和值之间一道 1px 内分隔，四枚芯片看起来像同一套仪表。
-	draw_rect(Rect2(28.0, 6.0, 1.0, h - 12.0),
-			Color(EDGE.r, EDGE.g, EDGE.b, 0.9))
+	# 刻在炉壁上的一行小字：没有底板。有记录时左端一点余烬。
+	var mark := STRIPE_LIT if lit else STRIPE
+	draw_rect(Rect2(0.0, h * 0.5 - 1.0, 6.0, 2.0), mark)
+	if lit:
+		draw_rect(Rect2(1.0, h * 0.5 - 2.0, 2.0, 4.0), Color(1.0, 0.85, 0.5, 0.85))
+	draw_rect(Rect2(0.0, h - 1.0, size.x, 1.0), Color(EDGE.r, EDGE.g, EDGE.b, 0.35 if lit else 0.16))

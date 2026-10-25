@@ -1,6 +1,7 @@
 extends TestCase
-## 标题屏版式回归（v3 活景版）：菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开
-## 四组、七行、每行 52px 触控高度）、右侧是旅程标尺 + 数据片（悬停 / Tab 展开完整档案）、
+## 标题屏版式回归（灯标版）：菜单是左下一列刻字（行动 / 模式 / 系统 / 离开
+## 四组、七行、每行 52px 触控高度），光标是 LampCursor 那盏吊灯；右侧是旅程标尺 +
+## 数据片（悬停 / Tab 展开完整档案）、
 ## 底部是打字机墓志与页脚；所有区块在 1280x720 / 1920x1080 / 非 16:9 窗口里互不重叠、
 ## 都落在内容矩形内。异形板（menu_plate.gd）仍服务暂停菜单等其它屏，这里一并守住它。
 
@@ -60,12 +61,42 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 	for i in mini(items.size(), EXPECTED_KINDS.size()):
 		eq(items[i].kind, EXPECTED_KINDS[i], "第 %d 格的档位" % i)
 	for item in items:
-		ok(item.strip, "铁条版式")
+		ok(item.lamp, "灯标版式：字刻在场景上")
+		ok(not item.strip, "标题屏不再铺铁条")
 		ok(item.custom_minimum_size.y >= UiKit.TOUCH_MIN, "行高不低于触控下限 %.0f" % UiKit.TOUCH_MIN)
 	# 三档宽度递减：行动 > 模式/系统 > 离开
 	ok(items[0].custom_minimum_size.x > items[2].custom_minimum_size.x, "行动条比模式条宽")
 	ok(items[2].custom_minimum_size.x > items[6].custom_minimum_size.x, "离开条最窄")
 
+	var lamp := title.find_child("LampCursor", true, false) as TitleLampCursor
+	ok(lamp != null, "光标是一盏吊灯")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 吊灯跟着选中行走：停在离开行时，那一行被照亮，最上面一行不在光照里。
+func test_lamp_cursor_follows_the_selected_row() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var lamp := title.find_child("LampCursor", true, false) as TitleLampCursor
+	var menu := title.get_node("Menu") as MenuList
+	ok(lamp != null, "吊灯存在")
+	if lamp == null:
+		title.queue_free()
+		return
+	menu.select(0, false)
+	lamp.snap()
+	var y_top := lamp.lantern_y()
+	var top_light: float = (_items(title)[0] as MenuItem).lamp_light
+	ok(top_light > 0.8, "灯停在第一行时，第一行被照亮 (%.2f)" % top_light)
+	menu.select(6, false)
+	lamp.snap()
+	var y_quit := lamp.lantern_y()
+	ok(y_quit > y_top + 80.0, "灯从第一行落到离开行 (%.0f -> %.0f)" % [y_top, y_quit])
+	var quit_light: float = (_items(title)[6] as MenuItem).lamp_light
+	var far_light: float = (_items(title)[0] as MenuItem).lamp_light
+	ok(quit_light > 0.8, "离开行被照亮")
+	ok(far_light < quit_light, "光照不到的行更暗 (%.2f < %.2f)" % [far_light, quit_light])
 	title.queue_free()
 	await get_tree().process_frame
 

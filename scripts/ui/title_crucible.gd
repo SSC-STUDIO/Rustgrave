@@ -6,8 +6,9 @@ extends "res://scripts/ui/title_prop.gd"
 ## 炉温低整体放慢，炉温 ≈ 0（熄火结局）停在右端不动、不发光。
 ##
 ## 铁水落到河面那一刻发 poured（TitleWorld 在那里溅火星、让炉光闪一下），倒的过程中
-## 每 0.55 秒发一次 splashed（小簇火星）。节点：本体（导轨 / 小车 / 吊链 / 坩埚 / 铁水柱）
-## + Glow（坩埚口的光晕、铁水柱的亮边、落点的光团）= 2 个。
+## 每 0.55 秒发一次 splashed（小簇火星）。铁水从倾倒后的口沿沿弧落下，不是从吊点
+## 直着掉的一根柱子。节点：本体（导轨 / 小车 / 吊链 / 坩埚 / 铁水）
+## + Glow（坩埚口的光晕、弧上的亮边、落点的光团）= 2 个。
 
 signal poured(at: Vector2)
 signal splashed(at: Vector2)
@@ -154,9 +155,43 @@ func stream_max() -> float:
 	return RIVER_Y - STREAM_Y0
 
 
-## 铁水落到河面的位置（本节点坐标）。
+## 铁水落到河面的位置（本节点坐标）。火星和落点光团都用它。
 func impact_point() -> Vector2:
 	return Vector2(POUR_X, RIVER_Y)
+
+
+## 倾倒时的口沿：坩埚绕吊点转了 90°，铁水从口沿出去，不是从吊点笔直掉下来。
+const LIP_LOCAL := Vector2(8.0, 15.0)
+const ARC_BULGE := 10.0
+
+
+func lip_point() -> Vector2:
+	var pivot := Vector2(POUR_X, PIVOT_Y)
+	return (LIP_LOCAL.rotated(-PI * 0.5) + pivot).round()
+
+
+## u = 0 在口沿，u = 1 在河面。先往外送出去，再加速落下，中段鼓出一道弧。
+func stream_point(u: float) -> Vector2:
+	var k := clampf(u, 0.0, 1.0)
+	var lip := lip_point()
+	var hit := impact_point()
+	var bulge := sin(k * PI) * ARC_BULGE
+	return Vector2(roundf(lerpf(lip.x, hit.x, k) + bulge), roundf(lerpf(lip.y, hit.y, k * k)))
+
+
+## 当前看得见的那一段铁水（测试读形状）。没有铁水时是空的。
+func stream_polyline(steps: int = 8) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if _stream_bot <= _stream_top:
+		return out
+	var span := stream_max()
+	var u0 := _stream_top / span
+	var u1 := _stream_bot / span
+	var n := maxi(steps, 2)
+	for i in n:
+		var k := float(i) / float(n - 1)
+		out.append(stream_point(lerpf(u0, u1, k)))
+	return out
 
 
 func _moving() -> bool:
@@ -203,26 +238,51 @@ func _draw() -> void:
 				Rect2(float(frame * CUP_FRAME), 0.0, CUP_FRAME, CUP_FRAME))
 	var hot := heat01() > 0.1
 	draw_colored_polygon(_cup_points(0.0, SURFACE), em(HOT) if hot else Color(0.30, 0.11, 0.09))
-	# 铁水柱：白热的芯 + 更宽的橙边 + 往下流的暗节
-	if _stream_bot > _stream_top:
-		var sx := POUR_X - 3.0
-		var y0 := STREAM_Y0 + _stream_top
-		var y1 := STREAM_Y0 + _stream_bot
-		draw_rect(Rect2(sx, y0, 6.0, y1 - y0), em(HOT_DEEP))
-		draw_rect(Rect2(sx + 1.0, y0, 4.0, y1 - y0), em(HOT))
-		draw_rect(Rect2(sx + 2.0, y0, 2.0, y1 - y0), em(HOT_CORE))
-		var off := int(_t * 70.0) % 14
-		var yy := y0 + float(off)
-		while yy < y1 - 2.0:
-			draw_rect(Rect2(sx + 1.0, yy, 4.0, 3.0), em(HOT_DEEP))
-			yy += 14.0
-		if _landed:
-			# 落点的飞溅：几粒会跳的亮点，比柱身更醒目
-			var step := floorf(_t * 12.0)
-			for k in 8:
-				var jx := sin(step * 1.9 + float(k) * 2.3) * 11.0
-				var jy := absf(sin(step * 2.7 + float(k) * 1.1)) * 12.0
-				draw_rect(Rect2(floorf(POUR_X + jx), floorf(RIVER_Y - 4.0 - jy), 2.0, 2.0), em(HOT_CORE))
+	_draw_stream()
+
+
+## 铁水沿弧落下：口沿粗、落下变细、下段断成液滴；落到河面溅起一圈并在河上留一圈涟漪。
+func _draw_stream() -> void:
+	if _stream_bot <= _stream_top:
+		return
+	var span := stream_max()
+	var u0 := _stream_top / span
+	var u1 := _stream_bot / span
+	var prev := stream_point(u0)
+	var steps := 26
+	for i in steps:
+		var k := float(i + 1) / float(steps)
+		var u := lerpf(u0, u1, k)
+		var p := stream_point(u)
+		var broken := u > 0.78 and (i % 3 == 0)
+		if not broken:
+			var mid := ((prev + p) * 0.5).round()
+			var w := 4.0 if u < 0.4 else 2.0
+			draw_rect(Rect2(mid.x - w * 0.5 - 1.0, mid.y - 1.0, w + 2.0, 3.0), em(HOT_DEEP))
+			draw_rect(Rect2(mid.x - 1.0, mid.y - 1.0, 2.0, 3.0), em(HOT_CORE if u < 0.25 else HOT))
+		prev = p
+	var lead := stream_point(u1)
+	var n := int(_t * 14.0)
+	for k in 4:
+		var jx := roundf(sin(float(n + k) * 1.7) * (2.0 + float(k)))
+		var jy := roundf(float((n + k) % 4) + float(k))
+		draw_rect(Rect2(lead.x + jx, lead.y + jy, 2.0, 2.0), em(HOT))
+	if _landed:
+		_draw_splash(lead)
+
+
+func _draw_splash(at: Vector2) -> void:
+	var step := int(_t * 12.0)
+	for k in 7:
+		var ang := float(k) / 7.0 * PI
+		var reach := 3.0 + float(step % 6) + float(k % 3)
+		var px := roundf(at.x + cos(ang) * reach)
+		var py := roundf(at.y - sin(ang) * reach * 0.75)
+		draw_rect(Rect2(px, py, 2.0, 2.0), em(HOT_CORE))
+	var ripple := 6.0 + float(step % 10) * 1.5
+	var hit := impact_point()
+	draw_rect(Rect2(roundf(hit.x - ripple), hit.y, ripple * 2.0, 1.0), em(HOT))
+	draw_rect(Rect2(roundf(hit.x - ripple * 0.5), hit.y + 2.0, ripple, 1.0), em(HOT_DEEP))
 
 
 func _draw_overlay() -> void:
@@ -232,14 +292,17 @@ func _draw_overlay() -> void:
 	var cup_center := Vector2(roundf(_x) + _swing(), PIVOT_Y + 6.0)
 	_glow_at(cup_center, 44.0 + 18.0 * _tilt, Color(1.0, 0.55, 0.2, (0.28 + 0.22 * _tilt) * h))
 	if _stream_bot > _stream_top:
-		var y0 := STREAM_Y0 + _stream_top
-		var y1 := STREAM_Y0 + _stream_bot
-		_glow_rect(Rect2(POUR_X - 7.0, y0, 14.0, y1 - y0), Color(1.0, 0.42, 0.12, 0.22 * h))
-		_glow_rect(Rect2(POUR_X - 2.0, y0, 4.0, y1 - y0), Color(1.0, 0.92, 0.62, 0.55 * h))
+		var span := stream_max()
+		var u0 := _stream_top / span
+		var u1 := _stream_bot / span
+		for s in [0.2, 0.55, 0.85]:
+			var p := stream_point(lerpf(u0, u1, s))
+			_glow_at(p, 22.0, Color(1.0, 0.48, 0.14, 0.20 * h))
+		_glow_at(stream_point(u0), 16.0, Color(1.0, 0.92, 0.7, 0.35 * h))
 		if _landed:
 			var flick := 0.8 + 0.2 * sin(_t * 31.0)
-			_glow_at(Vector2(POUR_X, RIVER_Y - 2.0), 96.0, Color(1.0, 0.55, 0.18, 0.62 * h * flick))
-			_glow_at(Vector2(POUR_X, RIVER_Y - 6.0), 28.0, Color(1.0, 0.95, 0.7, 0.45 * h * flick))
+			_glow_at(impact_point() + Vector2(0.0, -2.0), 96.0, Color(1.0, 0.55, 0.18, 0.62 * h * flick))
+			_glow_at(impact_point() + Vector2(0.0, -6.0), 28.0, Color(1.0, 0.95, 0.7, 0.45 * h * flick))
 
 
 # --- 测试 / 工具用 ------------------------------------------------------------

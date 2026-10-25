@@ -165,7 +165,8 @@ func test_every_variant_stays_inside_the_budget_with_the_new_elements() -> void:
 		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "%s: 灯 %d <= 8" % [variant_id, world.light_count()])
 		ok(world.node_count() <= 250, "%s: 节点 %d <= 250" % [variant_id, world.node_count()])
 		ok(world.node_count() <= 150, "%s: 新元素之后仍留有余量 (%d)" % [variant_id, world.node_count()])
-		eq(world.lantern_count(), 5, "%s: 仍是五盏吊灯" % variant_id)
+		eq(world.lantern_count(), 14, "%s: 十四盏可见吊灯（其中五盏带光池）" % variant_id)
+		ok(world.get_node_or_null("FarHaze") != null, "%s: 厅尾有一层远雾" % variant_id)
 		var props := world.prop_nodes()
 		eq(props.size(), 7, "%s: 坩埚 / 锻锤 / 亡魂 / 火盆 / 两面旗 / 送剑链" % variant_id)
 		for prop in props:
@@ -301,6 +302,7 @@ func test_the_crucible_walks_pours_and_goes_back() -> void:
 	var seen := {}
 	var lo := 100000.0
 	var hi := -100000.0
+	var arc_checked := false
 	for i in 400:
 		crucible.advance(0.1)
 		seen[crucible.phase()] = true
@@ -308,6 +310,14 @@ func test_the_crucible_walks_pours_and_goes_back() -> void:
 		hi = maxf(hi, crucible.trolley_x())
 		if crucible.is_pouring():
 			ok(crucible.stream_length() <= crucible.stream_max() + 0.001, "铁水柱不会长过河面")
+			if crucible.has_landed() and not arc_checked:
+				arc_checked = true
+				var lip: Vector2 = crucible.lip_point()
+				ok(lip.x > Crucible.POUR_X + 4.0, "铁水从坩埚口沿出去，不是从吊点直着掉 (%.0f)" % lip.x)
+				var poly: PackedVector2Array = crucible.stream_polyline(6)
+				ok(poly.size() >= 2 and poly[0].y < poly[poly.size() - 1].y - 40.0, "铁水沿弧线往下落")
+				ok(poly[0].x > poly[poly.size() - 1].x, "口沿在落点右侧，铁水是一道弧不是直柱")
+	ok(arc_checked, "倒到河面时量过铁水的弧")
 	ok(landed[0] >= 1, "倒过铁水（%d 次）" % landed[0])
 	eq(crucible.pour_count(), landed[0], "poured 信号与计数一致")
 	ok(float(flare_at_landing[0]) >= 0.5, "铁水落到河面时炉光闪了一下 (%.2f)" % float(flare_at_landing[0]))

@@ -20,6 +20,7 @@ extends Node2D
 ## Living details (docs/title-live-scene.md §4–§6; each is 1-3 nodes, whole-pixel, additive
 ## light only — the light budget is full, so none of them adds a PointLight2D):
 ##
+##   far haze     cooler air, a second dust shaft and a few flickering windows behind the hall
 ##   crucible     a ladle on an overhead rail walks over the pit, tips and pours molten iron
 ##   hammer       a far trip-hammer strikes a white-hot billet, sparks
 ##   sword chain  named greatswords ride a chain into the furnace housing (the oath, drawn);
@@ -38,6 +39,7 @@ extends Node2D
 ## nodes, no per-frame allocation in the hot paths. Everything is NEAREST and whole-pixel placed.
 
 const CrucibleScript := preload("res://scripts/ui/title_crucible.gd")
+const FarHazeScript := preload("res://scripts/ui/title_far_haze.gd")
 const HammerScript := preload("res://scripts/ui/title_hammer.gd")
 const SwordChainScript := preload("res://scripts/ui/title_sword_chain.gd")
 const BannerScript := preload("res://scripts/ui/title_banner.gd")
@@ -487,6 +489,12 @@ func _build() -> void:
 	add_child(void_rect)
 
 	_layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	# 比厅尾墙再远一档（视差更大），雾和远窗才跟墙错开。
+	var haze := FarHazeScript.new()
+	haze.name = "FarHaze"
+	haze.z_index = 1
+	add_child(haze)
+	_register(haze, Vector2.ZERO, -0.42, CENTER)
 	# the molten river: emissive (unlit), driven by the furnace level
 	_river = _layer("PitRiver", "pit_river.png", Vector2(-32.0, 330.0), -0.30, 0, self)
 	var emissive := CanvasItemMaterial.new()

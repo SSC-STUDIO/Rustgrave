@@ -14,8 +14,10 @@ signal chosen(id: StringName)
 signal focus_changed(id: StringName)
 
 var active := true
-## 新加进来的项用铁条版式（标题屏；之后的 add_item 才生效）。
+## 新加进来的项用铁条版式（回看页、试炼、日志；之后的 add_item 才生效）。
 var strip_style := false
+## 标题屏：字刻在场景上，光标是外面那盏吊灯。和铁条互斥。
+var lamp_style := false
 
 var _items: Array[MenuItem] = []
 var _ids: Array[StringName] = []
@@ -28,7 +30,8 @@ func add_item(id: StringName, text: String, item_disabled: bool = false,
 	var item := MenuItem.new(text, kind)
 	item.id = id
 	item.compact = compact
-	item.strip = strip_style
+	item.lamp = lamp_style
+	item.strip = strip_style and not lamp_style
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))

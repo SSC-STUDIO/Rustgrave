@@ -50,6 +50,8 @@ const LAND_SHIFT := 28.0
 const STRIP_RUST := Color("#8B4513")
 const STRIP_IRON := Color("#4A3E44")
 const STRIP_EMBER := Color("#FFC14A")
+## 灯标行的字从这里开始，左边留给吊灯。
+const LAMP_LABEL_X := 56.0
 
 ## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
 var id: StringName = &""
@@ -57,6 +59,10 @@ var id: StringName = &""
 var compact := false
 ## 铁条版式（MenuList.strip_style 在 add_child 之前写入）。
 var strip := false
+## 标题屏的灯标版式：不画条，字本身被外面的吊灯照亮（TitleLampCursor 每帧写入 lamp_light）。
+var lamp := false
+## 0 = 这行在灯的照不到的地方，1 = 灯芯正对着这行。
+var lamp_light := 0.0
 ## 压在不透明深色面板上的铁条（回看页）：底色更深、几乎不透明，才不会和卡片的紫底混成一片。
 var dark_plate := false
 ## 开屏"落位"：1 = 整条向左偏移 LAND_SHIFT 并等着淡入，0 = 在原位。
@@ -104,6 +110,8 @@ func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
 func _ready() -> void:
 	if kind == Kind.DEFAULT:
 		_build_default_row()
+	elif lamp:
+		_build_lamp_row()
 	elif strip:
 		_build_strip_row()
 	else:
@@ -214,6 +222,36 @@ func _build_strip_row() -> void:
 	add_child(_cursor)
 
 
+## 灯标行：和铁条一样宽、一样高（触控区不变），但不画条身。字从左侧让开一盏灯的位置。
+func _build_lamp_row() -> void:
+	var width: float = STRIP_WIDTH[kind]
+	custom_minimum_size = Vector2(width, HEIGHT)
+	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	show_tick = false
+	_label = UiKit.label(_text, &"MenuItemLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_label.position = Vector2(LAMP_LABEL_X, 0.0)
+	_label.size = Vector2(width - LAMP_LABEL_X - 12.0, HEIGHT)
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(_label)
+	_note = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	_note.position = Vector2(width - 124.0, 0.0)
+	_note.size = Vector2(100.0, HEIGHT)
+	_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_note.visible = false
+	add_child(_note)
+
+
+## 吊灯每帧告诉这一行自己被照到多少。选中行还会自己呼吸，不依赖这个值。
+func set_lamp_light(amount: float) -> void:
+	var next := clampf(amount, 0.0, 1.0)
+	if is_equal_approx(lamp_light, next):
+		return
+	lamp_light = next
+	if lamp:
+		_paint_lamp()
+
+
 ## 条右端的小字（例如试炼未解锁时的"第七章后解锁"）；空串 = 不显示。
 func set_note(value: String) -> void:
 	if _note == null:
@@ -226,10 +264,10 @@ func set_note(value: String) -> void:
 
 
 func _apply_land() -> void:
-	if _label == null or not strip:
+	if _label == null or not (strip or lamp):
 		return
 	var ox := -land * LAND_SHIFT
-	_label.position.x = STRIP_LABEL_X + ox
+	_label.position.x = (LAMP_LABEL_X if lamp else STRIP_LABEL_X) + ox
 	if _note != null:
 		_note.position.x = size.x - 124.0 + ox
 	queue_redraw()
@@ -245,6 +283,10 @@ func _process(delta: float) -> void:
 	if not selected or disabled:
 		return
 	_time += delta
+	if lamp:
+		_paint_lamp()
+		queue_redraw()
+		return
 	var breath := lerpf(BREATH_MIN, BREATH_MAX, 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD))
 	# 只动 rgb：alpha 留给开屏淡入用，每帧整体覆盖会把淡入吃掉。
 	modulate = Color(breath, breath, breath, modulate.a)
@@ -310,6 +352,9 @@ func _draw_strip() -> void:
 
 
 func _draw() -> void:
+	if kind != Kind.DEFAULT and lamp:
+		_draw_lamp()
+		return
 	if kind != Kind.DEFAULT and strip:
 		_draw_strip()
 		return
@@ -336,6 +381,9 @@ func _refresh() -> void:
 		return
 	if kind == Kind.DEFAULT:
 		_refresh_default()
+	elif lamp:
+		_refresh_lamp()
+		queue_redraw()
 	elif strip:
 		_refresh_strip()
 		queue_redraw()
@@ -343,12 +391,53 @@ func _refresh() -> void:
 		_refresh_plate()
 		queue_redraw()
 	var lit := selected and not disabled
-	_cursor.visible = lit
-	_brazier.visible = lit
+	if _cursor != null:
+		_cursor.visible = lit
+	if _brazier != null:
+		_brazier.visible = lit
 	if not lit:
-		modulate = Color.WHITE
+		# 灯标行的淡入淡出走 modulate.a（开屏 / 退场）。这里不能把 alpha 打回 1。
+		if lamp:
+			modulate = Color(1.0, 1.0, 1.0, modulate.a)
+		else:
+			modulate = Color.WHITE
 		_time = 0.0
 	set_process(lit)
+
+
+## 灯标：字色跟着灯走。禁用行保持冷灰，灯照过来也不亮。
+func _refresh_lamp() -> void:
+	_paint_lamp()
+
+
+func _paint_lamp() -> void:
+	if _label == null or not lamp:
+		return
+	if disabled:
+		_label.add_theme_color_override("font_color", Color(0.42, 0.40, 0.40, 0.7))
+		return
+	var warmth := lamp_light
+	if selected:
+		var breath := 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD)
+		warmth = maxf(warmth, lerpf(0.78, 1.0, breath))
+	var col := Color(0.50, 0.44, 0.40).lerp(UiKit.EMBER, warmth)
+	if warmth > 0.92:
+		col = col.lerp(Color(1.0, 0.96, 0.84), (warmth - 0.92) / 0.08)
+	_label.add_theme_color_override("font_color", col)
+
+
+## 选中行底下一条烧着的细线，从字的左端亮起。不画条身。
+func _draw_lamp() -> void:
+	if _label == null or not selected or disabled:
+		return
+	var x := _label.position.x
+	var y := floorf(size.y * 0.5 + 12.0)
+	var span := minf(148.0, size.x - x - 16.0)
+	if span < 8.0:
+		return
+	draw_rect(Rect2(x, y, span, 1.0), Color(1.0, 0.45, 0.14, 0.45))
+	draw_rect(Rect2(x, y, 22.0, 1.0), Color(1.0, 0.92, 0.7, 0.95))
+	draw_rect(Rect2(x, y - 1.0, 4.0, 3.0), Color(1.0, 0.78, 0.35, 0.9))
 
 
 func _refresh_default() -> void:
@@ -403,14 +492,23 @@ func _apply_shift(lit: bool, instant: bool = false) -> void:
 
 ## 确认这一格：条身上一道白热闪光扫过（TitleScreen._confirm_effect 调用）。
 func flash() -> void:
-	if not strip or not is_inside_tree():
+	if not (strip or lamp) or not is_inside_tree():
 		return
 	var overlay := ColorRect.new()
 	overlay.name = "ConfirmFlash"
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var y0 := floorf((HEIGHT - STRIP_H) * 0.5)
-	overlay.position = Vector2(0.0, y0)
-	overlay.size = Vector2(size.x, STRIP_H)
+	var flash_h := STRIP_H
+	var flash_x := 0.0
+	var flash_w := size.x
+	if lamp:
+		# 灯标没有条身：白热只扫过字的那一条，不铺一整块板。
+		y0 = floorf(size.y * 0.5 - 10.0)
+		flash_h = 20.0
+		flash_x = LAMP_LABEL_X
+		flash_w = minf(160.0, size.x - flash_x)
+	overlay.position = Vector2(flash_x, y0)
+	overlay.size = Vector2(flash_w, flash_h)
 	overlay.color = Color(1.0, 0.9, 0.68, 0.0)
 	var blend := CanvasItemMaterial.new()
 	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
