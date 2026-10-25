@@ -430,6 +430,8 @@ func test_the_keyart_node_shows_the_live_viewport() -> void:
 	ok(keyart != null, "Keyart 还在")
 	eq(int(keyart.stretch_mode), int(TextureRect.STRETCH_KEEP_ASPECT_COVERED), "任何比例都铺满")
 	ok(keyart.texture is ViewportTexture, "Keyart 显示的是视口贴图")
+	eq(keyart.expand_mode, TextureRect.EXPAND_IGNORE_SIZE, "native texture cannot enlarge the title layout")
+	ok(keyart.size.is_equal_approx(title.size), "QHD texture fills the same UI rectangle")
 	var vp := title.get_node_or_null("WorldViewport") as SubViewport
 	ok(vp != null, "世界视口存在")
 	if vp != null:

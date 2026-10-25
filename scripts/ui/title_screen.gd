@@ -215,6 +215,7 @@ func _build_backdrop() -> void:
 	_keyart = TextureRect.new()
 	_keyart.name = "Keyart"
 	_keyart.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_keyart.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_keyart.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_keyart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_keyart.mouse_filter = Control.MOUSE_FILTER_IGNORE
