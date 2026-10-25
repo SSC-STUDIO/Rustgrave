@@ -60,7 +60,7 @@ func _ready() -> void:
 func _ensure_flame() -> void:
 	if _flame != null or not ResourceLoader.exists(FLAME_PATH):
 		return
-	var tex := load(FLAME_PATH) as Texture2D
+	var tex := ArtTexture.load_texture(FLAME_PATH)
 	if tex == null:
 		return
 	var spr := Sprite2D.new()

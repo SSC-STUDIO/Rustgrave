@@ -374,7 +374,8 @@ func _build() -> void:
 	var mass_right := _layer("MassRight", "mass_right.png", MASS_RIGHT_POS, 1.0, 40, self)
 	_mouth = Sprite2D.new()
 	_mouth.name = "ForgeMouth"
-	_mouth.texture = _tex("forge_mouth.png")
+	_mouth.texture = ArtTexture.load_texture(DIR + "forge_fire.png")
+	_mouth.hframes = 8
 	_mouth.centered = false
 	_mouth.position = MOUTH_IN_MASS
 	_mouth.show_behind_parent = true
@@ -650,7 +651,7 @@ func _place_nest(x: float) -> void:
 	_nest.add_child(coals)
 	_nest_flame = Sprite2D.new()
 	_nest_flame.name = "Flame"
-	_nest_flame.texture = load("res://assets/fx/shrine_flame.png") as Texture2D
+	_nest_flame.texture = ArtTexture.load_texture("res://assets/fx/shrine_flame.png")
 	_nest_flame.hframes = 8
 	_nest_flame.centered = false
 	_nest_flame.offset = Vector2(-8.0, -24.0)
@@ -747,6 +748,8 @@ func _apply_parallax(force: bool) -> void:
 
 
 func _animate_actors(delta: float) -> void:
+	if _mouth != null:
+		_mouth.frame = int(_t * 12.0) % 8
 	if _knight != null and is_instance_valid(_knight):
 		var sword := _knight.get_node_or_null("Visual/Greatsword") as Greatsword
 		if sword != null:

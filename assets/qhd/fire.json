@@ -1,0 +1,30 @@
+{
+  "res://assets/fx/shrine_flame.png": {
+    "texture": "res://assets/qhd/fx/shrine_flame.png",
+    "logical_size": [
+      128,
+      24
+    ],
+    "physical_size": [
+      512,
+      96
+    ],
+    "frames": 8,
+    "method": "original advected connected tongues, coal bed and iron grate",
+    "sha256": "3babf1129eb859a93779d207fe8ecda3f4dda90526860d1a95fd04c861de9d72"
+  },
+  "res://assets/title/forge_fire.png": {
+    "texture": "res://assets/qhd/title/forge_fire.png",
+    "logical_size": [
+      480,
+      66
+    ],
+    "physical_size": [
+      1920,
+      264
+    ],
+    "frames": 8,
+    "method": "original advected connected tongues, coal bed and iron grate",
+    "sha256": "4d3928e19482e7cc737ff892cf6436a36081ec2b8f403a8b81ed9644c8b1aa50"
+  }
+}

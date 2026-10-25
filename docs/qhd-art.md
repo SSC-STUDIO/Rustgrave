@@ -33,3 +33,16 @@ Validation (2026-10-25):
 
 These checks establish asset integrity and integration. Rendered appearance,
 whole-game acceptance and performance are recorded separately below as completed.
+
+## Connected fire
+
+`tools/art/gen_qhd_fire.py` draws new shrine and forge fire without external
+image inputs. Tongues bend and rise from a fixed root; the bright core remains
+near the fuel. Both strips have eight phases at 12 fps, with density-1 fallbacks
+and density-4 artwork. The forge includes refractory courses, coals and an iron
+grate; its flames now animate. Existing sparks remain the separate particle layer.
+
+The shrine keeps its 16×24 logical frame, bottom anchor and rain behavior. The
+forge keeps the 60×66 logical aperture and original scene node/placement.
+`qhd_fire` 2/2, `ember_nest` 9/9 and `title_world` 20/20 passed with zero engine
+errors. A QHD rendered title was inspected in `screenshots/acceptance/qhd-fire/`.
