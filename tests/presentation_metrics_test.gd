@@ -54,6 +54,32 @@ func test_ui_and_world_share_the_same_final_physical_rect() -> void:
 		ok((canvas_rect.size * physical_scale).is_equal_approx(physical.size))
 
 
+func test_world_viewport_uses_native_raster_density_without_changing_logical_view() -> void:
+	var viewport := SubViewport.new()
+	add_child(viewport)
+	var previous := DisplayFit.get_fit_mode()
+	var cases := [
+		[Vector2i(1280, 720), DisplayFit.FitMode.INTEGER, Vector2i(1280, 720)],
+		[Vector2i(1920, 1080), DisplayFit.FitMode.INTEGER, Vector2i(1920, 1080)],
+		[Vector2i(2560, 1440), DisplayFit.FitMode.INTEGER, Vector2i(2560, 1440)],
+		[Vector2i(3840, 2160), DisplayFit.FitMode.INTEGER, Vector2i(2560, 1440)],
+		[Vector2i(3440, 1440), DisplayFit.FitMode.EXPAND, Vector2i(3440, 1440)],
+	]
+	for item in cases:
+		var metrics := PresentationMetrics.calculate(item[0], item[1])
+		PresentationMetrics.configure_world(viewport, metrics)
+		eq(viewport.size, item[2], "%s raster uses the expected physical density" % str(item[0]))
+		eq(viewport.size_2d_override, metrics["world_size"], "logical view keeps its selected fit mode")
+		ok(viewport.size_2d_override_stretch, "logical coordinates map across the native raster")
+		var rect: Rect2 = metrics["canvas_rect"]
+		var transform := PresentationMetrics.world_input_transform(metrics["world_size"], rect)
+		ok((transform * rect.position).is_zero_approx(), "mouse input starts at logical world origin")
+		ok((transform * rect.end).is_equal_approx(Vector2(metrics["world_size"])),
+				"mouse input ends at the logical view edge")
+	DisplayFit.apply_fit_mode(previous)
+	viewport.queue_free()
+
+
 func test_world_image_runs_the_pixel_smoothing_shader() -> void:
 	var shader := load("res://assets/shaders/pixel_smooth.gdshader") as Shader
 	ok(shader != null, "pixel_smooth shader compiles and loads")
@@ -74,8 +100,8 @@ func test_world_image_runs_the_pixel_smoothing_shader() -> void:
 		var mat := image.material as ShaderMaterial
 		eq(mat.shader, shader)
 		eq(mat.get_shader_parameter("smoothing"), true, "on by default")
-		eq(int(mat.get_shader_parameter("scale_hint")), int(PresentationMetrics.for_window(get_tree().root)["scale"]),
-				"scale hint follows the window's integer scale")
+		eq(int(mat.get_shader_parameter("scale_hint")), 1,
+				"native raster bypasses low-resolution reconstruction")
 		eq(image.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "neighbour samples stay exact texels")
 		GamePresentation.set_pixel_smoothing(false)
 		eq(mat.get_shader_parameter("smoothing"), false, "pause-menu toggle reaches the live material")

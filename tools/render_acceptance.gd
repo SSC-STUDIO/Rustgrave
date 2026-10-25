@@ -231,14 +231,17 @@ func _capture(requested: Vector2i, fixture: String, overlays: Array[Control] = [
 		if body.get_world_2d() != physics_world:
 			wrong_world.append(String(body.get_path()))
 	var render_target_ok := actual == requested or actual == Vector2i(1280, 720)
+	var logical_world_size: Vector2i = metrics["world_size"]
 	var passed := render_target_ok and win.size == requested and png_error == OK \
-			and _presentation.world_viewport.size == Vector2i(640, 360) \
+			and _presentation.world_viewport.size == PresentationMetrics.world_render_size(metrics) \
+			and _presentation.world_viewport.size_2d_override == logical_world_size \
 			and wrong_world.is_empty() and physics_world != win.world_2d \
 			and overlays_fit
 	var entry := {
 		"fixture": fixture, "requested": _v(requested), "window_size": _v(win.size),
 		"window_position": _v(win.position), "rendered_image_size": _v(actual),
-		"world_viewport": _v(_presentation.world_viewport.size), "world_scale": metrics["scale"],
+		"world_viewport": _v(_presentation.world_viewport.size),
+		"world_logical_view": _v(logical_world_size), "world_scale": metrics["scale"],
 		"physical_content_rect": _rect(expected), "actual_world_image_rect": _rect(world_image_rect),
 		"actual_hud_root_rect": _rect(ui_bounds), "hud_design_size": _v(hud_root.size),
 		"widgets": widgets, "physics_body_count": bodies.size(), "wrong_world_nodes": wrong_world,

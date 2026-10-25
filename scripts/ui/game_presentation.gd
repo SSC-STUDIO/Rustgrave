@@ -1,9 +1,7 @@
 class_name GamePresentation
 extends Control
-## Only the world is rasterized at 640x360. Root-window UI is drawn at native size.
-## The world image goes through pixel_smooth.gdshader (Scale2x/3x) so the 3–4x
-## blow-up on 1080p/1440p rounds its stair-steps instead of reading as a mosaic;
-## `pixel_smoothing` is a session toggle exposed in the pause menu.
+## The world is rasterized at physical window density up to 4x its logical view.
+## Root-window UI remains vector/font drawing on the root canvas.
 
 const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
 
@@ -40,7 +38,8 @@ func _ready() -> void:
 			PresentationMetrics.bind_layer(node))
 	world_viewport = SubViewport.new()
 	world_viewport.name = "WorldViewport"
-	world_viewport.size = PresentationMetrics.WORLD_SIZE
+	PresentationMetrics.configure_world(world_viewport,
+			PresentationMetrics.for_window(get_tree().root))
 	world_viewport.world_2d = World2D.new()
 	world_viewport.disable_3d = true
 	world_viewport.snap_2d_transforms_to_pixel = true
@@ -70,12 +69,12 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var metrics := PresentationMetrics.for_window(get_tree().root)
-	world_viewport.size = metrics["world_size"]
+	PresentationMetrics.configure_world(world_viewport, metrics)
 	var rect: Rect2 = metrics["canvas_rect"]
 	world_image.position = rect.position
 	world_image.size = rect.size
 	if _smooth_material != null:
-		_smooth_material.set_shader_parameter("scale_hint", int(metrics["scale"]))
+		_smooth_material.set_shader_parameter("scale_hint", 1)
 
 
 ## Session toggle (pause menu). Applies to every live presentation at once.
@@ -104,9 +103,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not rect.has_point(mouse.position):
 			GameContext.suppress_gameplay_input()
 			return
-		var transform := Transform2D.IDENTITY
-		transform = transform.scaled(Vector2(world_viewport.size) / rect.size)
-		transform.origin = -rect.position * transform.get_scale()
+		var metrics := PresentationMetrics.for_window(get_tree().root)
+		var transform := PresentationMetrics.world_input_transform(metrics["world_size"], rect)
 		forwarded = event.xformed_by(transform)
 	world_viewport.push_input(forwarded, true)
 	if world_viewport.is_input_handled():

@@ -4,6 +4,33 @@ extends RefCounted
 
 const WORLD_SIZE := Vector2i(640, 360)
 const UI_SIZE := Vector2i(1280, 720)
+const MAX_WORLD_DENSITY := 4
+
+
+static func world_render_size(metrics: Dictionary) -> Vector2i:
+	var logical_size: Vector2i = metrics["world_size"]
+	var physical_size: Vector2 = (metrics["physical_rect"] as Rect2).size
+	var max_size := Vector2(logical_size * MAX_WORLD_DENSITY)
+	var density := minf(1.0, minf(max_size.x / maxf(physical_size.x, 1.0),
+			max_size.y / maxf(physical_size.y, 1.0)))
+	return Vector2i(maxi(1, roundi(physical_size.x * density)),
+			maxi(1, roundi(physical_size.y * density)))
+
+
+static func configure_world(viewport: SubViewport, metrics: Dictionary) -> void:
+	var logical_size: Vector2i = metrics["world_size"]
+	viewport.size_2d_override = logical_size
+	viewport.size_2d_override_stretch = true
+	var render_size := world_render_size(metrics)
+	if viewport.size != render_size:
+		viewport.size = render_size
+
+
+static func world_input_transform(logical_size: Vector2i, image_rect: Rect2) -> Transform2D:
+	var scale := Vector2(logical_size) / image_rect.size
+	var transform := Transform2D.IDENTITY.scaled(scale)
+	transform.origin = -image_rect.position * scale
+	return transform
 
 
 static func calculate(window_size: Vector2i, mode: int = DisplayFit.FitMode.INTEGER) -> Dictionary:
