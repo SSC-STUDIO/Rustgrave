@@ -366,7 +366,7 @@ Godot 控制台：`C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe`
    & "C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe" --headless --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave" --import
    ```
 
-2. **未运行** — 全量测试。发现方式是 `tests/run_tests.gd` 只扫 `res://tests` 顶层的 `*_test.gd`（不递归，`tests/probes/` 不进套件），没有手写清单。`tools/test_manifest_server.js` 只是更新服务的 HTTP 夹具。
+2. **未运行** — 全量测试。发现方式是 `tests/run_tests.gd` 只扫 `res://tests` 顶层的 `*_test.gd`（不递归，`tests/probes/` 不进套件），没有手写清单。`tools/test_manifest_server.cjs` 只是更新服务的 HTTP 夹具。
 
    ```powershell
    powershell -File tools\run_tests.ps1

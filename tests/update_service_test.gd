@@ -11,7 +11,7 @@ const NEWER_MANIFEST := '{"version":"9.9.9","notes_zh":"· 一条更新\\n· 又
 const OLDER_MANIFEST := '{"version":"0.0.1","notes_zh":"旧版","download_page":"http://example.invalid/old"}'
 const EMPTY_MANIFEST := '{"notes_zh":"没有版本号"}'
 
-const SERVER_SCRIPT := "res://tools/test_manifest_server.js"
+const SERVER_SCRIPT := "res://tools/test_manifest_server.cjs"
 const SERVER_PORT := 38117
 
 
@@ -150,14 +150,13 @@ func test_skip_without_entry_is_a_noop() -> void:
 
 
 # ===========================================================================
-# 4. 真实 HTTP 链路（本地一次性 server；没有 node 就跑不了，如实标记）
+# 4. 真实 HTTP 链路（本地一次性 server；起不来判失败，不跳过）
 # ===========================================================================
 
 ## check_async 走完：HTTPRequest 发出、收到 200、解析、emit。这一条
 ## 验证的是请求路径本身，前面的用例只验证解析后的决策。
 func test_check_async_pulls_the_manifest_over_http() -> void:
-	if not await _spawn_server(NEWER_MANIFEST):
-		push_warning("SKIP: no node runtime for the manifest server")
+	if not await _require_server(NEWER_MANIFEST):
 		return
 	var got: Array = []
 	UpdateService.checked.connect(func(status, _entry): got.append(status))
@@ -186,17 +185,24 @@ func test_check_async_unreachable_reports_error() -> void:
 
 ## 一次检查在飞时，第二次直接吃掉：标题屏连点两次不该发两个请求。
 func test_check_async_ignores_concurrent_second_call() -> void:
-	if not await _spawn_server(NEWER_MANIFEST):
-		push_warning("SKIP: no node runtime for the manifest server")
+	if not await _require_server(NEWER_MANIFEST):
 		return
-	var count := 0
-	UpdateService.checked.connect(func(_status, _entry): count += 1)
+	# lambda 按值捕获基本类型：计数要放进 Array，闭包里的 += 1 回不到外层变量。
+	var got: Array = []
+	UpdateService.checked.connect(func(status, _entry): got.append(status))
 	UpdateService.set_manifest_url_for_test("http://127.0.0.1:%d/update.json" % SERVER_PORT)
 	UpdateService.check_async()
 	UpdateService.check_async()  # 第一次还没回来，这次应该被吃掉
-	await _wait_for_signal([])
+	for _i in 100:
+		if not got.is_empty():
+			break
+		await get_tree().create_timer(0.05).timeout
+	# 第一次结果落地后再等一小段：漏过守卫的第二次请求，信号会在这段时间里到达。
+	await get_tree().create_timer(0.5).timeout
 	_kill_server()
-	eq(count, 1, "并发第二次 check 不重复发信号")
+	eq(got.size(), 1, "并发第二次 check 不重复发信号")
+	if not got.is_empty():
+		eq(got[0], &"available", "第一次请求照常返回 available")
 
 
 # ===========================================================================
@@ -207,19 +213,29 @@ var _server_pid := -1
 const READY_PATH := "user://__manifest_server_ready__"
 
 
+## 起不来就判失败，不跳过：跳过会让这条 HTTP 链路悄悄不再被验证。
+func _require_server(body: String) -> bool:
+	if await _spawn_server(body):
+		return true
+	ok(false, "manifest server did not start (node on PATH? project path without spaces?)")
+	return false
+
+
 func _spawn_server(body: String) -> bool:
 	_kill_server()
 	var ready := ProjectSettings.globalize_path(READY_PATH)
 	if FileAccess.file_exists(ready):
 		DirAccess.remove_absolute(ready)
 	var script := ProjectSettings.globalize_path(SERVER_SCRIPT)
-	var pid := OS.create_process("node", [script, body, "/update.json", "12",
-			str(SERVER_PORT), ready], false)
+	# 实测：Godot 在 Windows 上拼出的命令行里，JSON 正文的空格和双引号会被 node 切碎。
+	# 所以正文和就绪文件路径都以 base64 传入，由 server 端解码。
+	var pid := OS.create_process("node", [script, Marshalls.utf8_to_base64(body), "/update.json", "12",
+			str(SERVER_PORT), Marshalls.utf8_to_base64(ready)], false)
 	if pid < 0:
 		return false
 	_server_pid = pid
 	# 轮询 ready 文件：node 起到 listen 有几毫秒，不能假定一 spawn 就能连。
-	for _i in 60:
+	for _i in 300:
 		await flush(1)
 		if FileAccess.file_exists(ready):
 			return true
