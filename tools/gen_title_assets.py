@@ -182,38 +182,10 @@ def build_bridge() -> None:
 
 
 def build_forge_mouth() -> None:
-    """Interior of the furnace door (the mass has an arch cut out in front of it)."""
-    print("forge_mouth")
-    W, H = 60, 66
-    ys, xs = np.mgrid[0:H, 0:W].astype(np.float32)
-    rng = np.random.default_rng(91)
-    lumps = blur3(blur3(rng.random((H, W)).astype(np.float32))) * 2.0 - 1.0
-    vert = np.interp(ys, [0, 18, 40, 60, 66], [0.4, 1.2, 3.0, 4.6, 5.8])
-    field = vert + lumps * 1.6 + np.exp(-(((xs - 30.0) / 26.0) ** 2)) * 0.8
-    rgb = ramp_dither(np.clip(field, 0, len(EMBERGLOW) - 1.01), EMBERGLOW)
-    px = np.zeros((H, W, 4), np.uint8)
-    px[:, :, :3] = rgb
-    px[:, :, 3] = 255
-    # flame tongues: lighter jagged shapes rising off the coals
-    p = Painter(W, H, seed=92)
-    p.px = px
-    for cx, hgt, wd in [(10, 26, 7), (22, 36, 9), (34, 30, 8), (46, 38, 9), (54, 22, 6)]:
-        tip = H - 8 - hgt
-        pts = [(cx - wd, H - 6), (cx - wd * 0.5, H - 6 - hgt * 0.45), (cx - wd * 0.2, tip + hgt * 0.25),
-               (cx, tip), (cx + wd * 0.2, tip + hgt * 0.3), (cx + wd * 0.55, H - 6 - hgt * 0.5), (cx + wd, H - 6)]
-        p.flat(mask_poly(W, H, pts), EMBERGLOW[5])
-        inner = [(cx - wd * 0.5, H - 6), (cx, tip + hgt * 0.45), (cx + wd * 0.5, H - 6)]
-        p.flat(mask_poly(W, H, inner), EMBERGLOW[6])
-    # coal bed
-    p.flat(mask_rect(W, H, 0, H - 7, W, H), EMBERGLOW[4])
-    for x in range(0, W, 3):
-        if (x * 17) % 7 < 3:
-            p.px[H - 7 + (x % 3), x, :3] = EMBERGLOW[6]
-    # hearth bars in front
-    for x in range(5, W, 12):
-        p.flat(mask_rect(W, H, x, 0, x + 2, H), (0x0A, 0x08, 0x10))
-        p.flat(mask_rect(W, H, x, 0, x + 1, H), IRON[2])
-    p.save("forge_mouth.png")
+    """Keep the title rebuild entry point on the original animated hearth pipeline."""
+    from gen_connected_fire import build_forge
+    build_forge()
+    print("forge_mouth (16 frames)")
 
 
 LANTERN = [

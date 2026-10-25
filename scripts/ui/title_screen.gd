@@ -214,6 +214,7 @@ func _build_backdrop() -> void:
 	_keyart = TextureRect.new()
 	_keyart.name = "Keyart"
 	_keyart.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_keyart.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_keyart.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_keyart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_keyart.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -248,7 +249,7 @@ func _build_backdrop() -> void:
 func _build_live_world() -> void:
 	_world_viewport = SubViewport.new()
 	_world_viewport.name = "WorldViewport"
-	_world_viewport.size = PresentationMetrics.WORLD_SIZE
+	PresentationMetrics.configure_world(_world_viewport, PresentationMetrics.for_window(get_tree().root))
 	_world_viewport.world_2d = World2D.new()
 	_world_viewport.disable_3d = true
 	_world_viewport.snap_2d_transforms_to_pixel = true
@@ -273,7 +274,8 @@ func _update_smooth_scale() -> void:
 	if _smooth_material == null:
 		return
 	var metrics := PresentationMetrics.for_window(get_tree().root)
-	_smooth_material.set_shader_parameter("scale_hint", int(metrics["scale"]))
+	PresentationMetrics.configure_world(_world_viewport, metrics)
+	_smooth_material.set_shader_parameter("scale_hint", 1)
 
 
 ## 顶部正中：字标夹在副题上面，整块居中。

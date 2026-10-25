@@ -27,7 +27,7 @@ void fragment() {
 	vec2 c = (ip + 0.5) * d;
 	vec4 tE = texture(TEXTURE, c);
 	vec4 o = tE;
-	if (smoothing) {
+	if (smoothing && scale_hint > 1) {
 		vec4 tB = texture(TEXTURE, c + vec2(0.0, -d.y)); // up
 		vec4 tD = texture(TEXTURE, c + vec2(-d.x, 0.0)); // left
 		vec4 tF = texture(TEXTURE, c + vec2(d.x, 0.0));  // right

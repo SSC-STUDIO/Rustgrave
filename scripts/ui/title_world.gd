@@ -375,6 +375,7 @@ func _build() -> void:
 	_mouth = Sprite2D.new()
 	_mouth.name = "ForgeMouth"
 	_mouth.texture = _tex("forge_mouth.png")
+	_mouth.hframes = 16
 	_mouth.centered = false
 	_mouth.position = MOUTH_IN_MASS
 	_mouth.show_behind_parent = true
@@ -679,8 +680,8 @@ func _refresh_grade() -> void:
 	var forge := float(_grade["forge"]) * level
 	# unlit materials: undo the ambient (1/ambient) and scale by how hot the forge burns
 	var heat := Color(0.07, 0.03, 0.03).lerp(Color(1.0, 0.96, 0.9), clampf(forge, 0.0, 1.0))
-	_mouth.modulate = Color(heat.r / maxf(ambient.r, 0.2), heat.g / maxf(ambient.g, 0.2),
-			heat.b / maxf(ambient.b, 0.2))
+	# The unshaded fire already carries its colour; ambient compensation clips it yellow-green.
+	_mouth.modulate = heat
 	var river_heat := Color(0.05, 0.02, 0.02).lerp(Color(1.0, 0.92, 0.84), clampf(furnace, 0.0, 1.0))
 	_river.modulate = Color(river_heat.r / maxf(ambient.r, 0.2), river_heat.g / maxf(ambient.g, 0.2),
 			river_heat.b / maxf(ambient.b, 0.2))
@@ -719,6 +720,8 @@ func _update_lights(_delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if _mouth != null and float(_grade.get("forge", 0.0)) * _intro_level * _quit_level > 0.1:
+		_mouth.frame = posmod(int(floor(_t * 12.0)), 16)
 	var k := 1.0 - exp(-POINTER_EASE * delta)
 	_shift = _shift.lerp(Vector2(_pointer.x * PARALLAX.x, _pointer.y * PARALLAX.y), k)
 	_push_kick = move_toward(_push_kick, 0.0, delta * 6.0)

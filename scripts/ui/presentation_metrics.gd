@@ -4,6 +4,19 @@ extends RefCounted
 
 const WORLD_SIZE := Vector2i(640, 360)
 const UI_SIZE := Vector2i(1280, 720)
+## Four physical samples per world unit at QHD; cap at QHD on 4K displays.
+## size_2d_override preserves camera framing, input and every gameplay coordinate.
+const MAX_WORLD_DENSITY := 4
+
+
+static func configure_world(viewport: SubViewport, metrics: Dictionary) -> void:
+	var density := mini(MAX_WORLD_DENSITY, int(metrics["scale"]))
+	var logical_size: Vector2i = metrics["world_size"]
+	var target := logical_size * density
+	viewport.size_2d_override = logical_size
+	viewport.size_2d_override_stretch = true
+	if viewport.size != target:
+		viewport.size = target
 
 
 static func calculate(window_size: Vector2i, mode: int = DisplayFit.FitMode.INTEGER) -> Dictionary:

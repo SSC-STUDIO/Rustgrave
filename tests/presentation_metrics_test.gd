@@ -74,8 +74,8 @@ func test_world_image_runs_the_pixel_smoothing_shader() -> void:
 		var mat := image.material as ShaderMaterial
 		eq(mat.shader, shader)
 		eq(mat.get_shader_parameter("smoothing"), true, "on by default")
-		eq(int(mat.get_shader_parameter("scale_hint")), int(PresentationMetrics.for_window(get_tree().root)["scale"]),
-				"scale hint follows the window's integer scale")
+		eq(int(mat.get_shader_parameter("scale_hint")), 1,
+				"native raster bypasses low resolution reconstruction")
 		eq(image.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "neighbour samples stay exact texels")
 		GamePresentation.set_pixel_smoothing(false)
 		eq(mat.get_shader_parameter("smoothing"), false, "pause-menu toggle reaches the live material")
@@ -84,6 +84,35 @@ func test_world_image_runs_the_pixel_smoothing_shader() -> void:
 		eq(GamePresentation.pixel_smoothing_label(), "像 素 平 滑: 开")
 	GamePresentation.pixel_smoothing = was
 	presentation.queue_free()
+
+
+func test_native_world_density_preserves_logical_camera_and_input_space() -> void:
+	var viewport := SubViewport.new()
+	add_child(viewport)
+	for physical in [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3440, 1440), Vector2i(3840, 2160)]:
+		var metrics := PresentationMetrics.calculate(physical)
+		PresentationMetrics.configure_world(viewport, metrics)
+		var density := mini(4, int(metrics["scale"]))
+		eq(viewport.size, PresentationMetrics.WORLD_SIZE * density, "physical raster follows output, capped at QHD")
+		eq(viewport.size_2d_override, Vector2i(640, 360), "logical coordinates remain unchanged")
+		ok(viewport.size_2d_override_stretch)
+		eq(viewport.get_visible_rect().size, Vector2(640, 360), "camera and UI see the same logical view")
+	viewport.queue_free()
+
+
+func test_native_expanded_world_keeps_the_additional_logical_view() -> void:
+	var viewport := SubViewport.new()
+	add_child(viewport)
+	for item in [
+		[Vector2i(3440, 1440), Vector2i(860, 360), Vector2i(3440, 1440)],
+		[Vector2i(1280, 800), Vector2i(640, 400), Vector2i(1280, 800)],
+	]:
+		var metrics := PresentationMetrics.calculate(item[0], DisplayFit.FitMode.EXPAND)
+		PresentationMetrics.configure_world(viewport, metrics)
+		eq(viewport.size, item[2], "expanded raster fills the selected display")
+		eq(viewport.size_2d_override, item[1], "expanded camera keeps the additional world area")
+		eq(viewport.get_visible_rect().size, Vector2(item[1]), "input and camera use the expanded logical view")
+	viewport.queue_free()
 
 
 func test_scene_routing_keeps_the_authored_save_identifier() -> void:
