@@ -2,17 +2,19 @@ class_name TitleSigilRing
 extends Control
 ## 印记环：字标外的一圈铁与余烬——「炉厅记得你来过」。
 ##
-## EmberSigils 的每次「点燃」是一枚刻度，沿椭圆从左尾端顺时针爬过 12 点
-## （那里留着第一次点燃的凹口），最新的一枚停在右尾端，还烧着；
+## EmberSigils 的每次「点燃」是一枚刻度，沿椭圆从左肩顺时针走下侧腹、
+## 经过底心（底心留一枚「炉厅的钉」：整环唯一的固定记认），最新的一枚
+## 停在右肩，还烧着；
 ## 越老的越冷，按真实日数冷却（30 天凉透成暗铁）。每次「殁」是一粒
 ## 内圈的锈红菱形，凑在刻度圈里侧。没有记录时整环不画（冷启动不变）。
 ##
-## 视觉纪律：
-##   · 纯 _draw()，2px 台阶，无 PointLight2D（UI 层光源预算为 0）；
-##   · 底部开口（MOUTH_DEG）：下弧让位给副题，尾端落在副题饰件外侧；
-##   · 悬停由自身 _process 轮询（mouse_filter 保持 IGNORE，不抢输入），
-##     悬到某枚刻度上时通过 hover_changed 把「第 N 次点燃 · 章 · 时间」
-##     交给标题屏写进页脚。
+## 几何：开口在**上方**——字标又宽又亮，顶弧整段让给它（藏在其后），
+## 能看见的部分是左右两肩（字标边翼之外）与底弧（副题和菜单之间）。
+## 悬停由自身 _process 轮询（mouse_filter 保持 IGNORE，不抢输入），
+## 悬到某枚刻度上时通过 hover_changed 把「第 N 次点燃 · 章 · 时间」
+## 交给标题屏写进页脚。
+##
+## 视觉纪律：纯 _draw()，2px 台阶，无 PointLight2D（UI 层光源预算为 0）。
 
 signal hover_changed(text: String)
 
@@ -22,8 +24,9 @@ const HOT := Color(1.0, 0.76, 0.29)
 const MID := Color(1.0, 0.55, 0.16)
 const COLD := Color(0.45, 0.31, 0.22)
 const DEATH := Color(0.66, 0.25, 0.17)
-## 底部开口的半角（度）：整环从左尾端 -180+MOUTH 画到右尾端 +180-MOUTH。
-const MOUTH_DEG := 36.0
+## 顶部开口的半角（度）：弧从左肩 90+MOUTH 顺时针经过底心 180° 画到右肩 270-MOUTH。
+## 60° 时尾端落在字标左右边翼的外侧（肩位），顶弧整段藏进字标后面。
+const MOUTH_DEG := 60.0
 ## 多少天凉透：冷却曲线的满程。
 const COOL_DAYS := 30.0
 ## 环上最多画的刻度数（超出取最近的）。
@@ -97,18 +100,21 @@ func _process(delta: float) -> void:
 	_update_hover()
 
 
+## phi 是「自 12 点顺时针」的弧度（0=顶，PI/2=右，PI=底）。开口在顶：
+## 可画弧从左肩 (PI/2 + MOUTH) 顺时针经过底心 (PI) 到右肩 (3PI/2 - MOUTH)。
 func _ellipse_point(phi: float, rx: float, ry: float) -> Vector2:
 	var c := size * 0.5
 	return Vector2(c.x + rx * sin(phi), c.y - ry * cos(phi))
 
 
 func _tick_phi(i: int, n: int) -> float:
-	# 从左尾端顺时针到右尾端；12 点（phi=0）是序列正中的「第一次」位置。
-	var span := deg_to_rad(180.0 - MOUTH_DEG) * 2.0
-	var start := -deg_to_rad(180.0 - MOUTH_DEG)
+	# 左肩（最老，TAU-MOUTH）经过底心（PI）到右肩（最新，MOUTH）。
+	# phi 自 12 点顺时针：MOUTH=60° 是右上肩，TAU-MOUTH=300° 是左上肩。
+	var span := TAU - deg_to_rad(float(MOUTH_DEG)) * 2.0
 	if n <= 1:
-		return 0.0
-	return start + span * float(i) / float(n - 1)
+		return PI
+	var t := float(i) / float(n - 1)
+	return (TAU - deg_to_rad(float(MOUTH_DEG))) - span * t
 
 
 func _update_hover() -> void:
@@ -125,10 +131,10 @@ func _update_hover() -> void:
 	var u := nx * nx + ny * ny
 	var idx := -1
 	if u >= 0.80 and u <= 1.15 and _ticks.size() > 0:
-		var phi := atan2(mouse.x - c.x, c.y - mouse.y)
-		if phi < -PI:
+		# 自 12 点顺时针的角度，归一化到 [0, TAU)：底心是 PI。
+		var phi := atan2(mouse.x - c.x, -(mouse.y - c.y))
+		if phi < 0.0:
 			phi += TAU
-		# 悬停只认有刻度的那段弧：不在 Mouth 里的角度找不到近邻就是 -1。
 		var best := 99999.0
 		for i in _ticks.size():
 			var tp := _tick_phi(i, _ticks.size())
@@ -159,18 +165,18 @@ func _draw() -> void:
 	var c := size * 0.5
 	var rx := size.x * 0.5 - 6.0
 	var ry := size.y * 0.5 - 6.0
-	var a0 := -deg_to_rad(180.0 - MOUTH_DEG)
-	var a1 := deg_to_rad(180.0 - MOUTH_DEG)
-	# ---- 铁环本体：沿椭圆 2px 台阶描一条暗铁线，随 reveal 从 12 点向两侧亮。
+	var a0 := deg_to_rad(float(MOUTH_DEG))
+	var a1 := TAU - deg_to_rad(float(MOUTH_DEG))
+	# ---- 铁环本体：沿椭圆 2px 台阶描一条暗铁线，随 reveal 从底心向两肩亮。
 	var steps := 150
 	var points := PackedVector2Array()
 	for i in steps + 1:
 		points.append(_ellipse_point(a0 + (a1 - a0) * float(i) / float(steps), rx, ry))
-	var ring_col := Color(RUST.r, RUST.g, RUST.b, 0.34 + 0.10 * reveal)
+	var ring_col := Color(RUST.r, RUST.g, RUST.b, 0.40 + 0.10 * reveal)
 	for i in points.size() - 1:
 		var mid := float(i) / float(steps - 1)
-		# 从中点向两侧显现：12 点先亮，尾端后亮。
-		var t := 1.0 - absf(mid * 2.0 - 1.0)
+		# 从底心向两肩显现：底弧先亮，肩部后亮。
+		var t := absf(mid * 2.0 - 1.0)
 		if t > reveal:
 			continue
 		draw_line(points[i], points[i + 1], ring_col, 1.0)
@@ -178,14 +184,13 @@ func _draw() -> void:
 	for phi in [a0, a1]:
 		if reveal >= 0.999:
 			_cap(_ellipse_point(phi, rx, ry))
-	# ---- 12 点凹口：第一次点燃留下的记认。
+	# ---- 底心凹口：「炉厅的钉」，整环唯一的固定记认（挂在副题正下方）。
 	var notch_reveal := clampf(reveal * 1.6 - 0.3, 0.0, 1.0)
 	if notch_reveal > 0.0:
-		var top := _ellipse_point(0.0, rx, ry)
-		var inward := Vector2(0.0, 1.0)
-		draw_rect(Rect2(top - Vector2(1.0, 0.0), Vector2(2.0, 6.0 * notch_reveal)),
-				Color(0.52, 0.40, 0.30, 0.8 * notch_reveal))
-		draw_rect(Rect2(top + inward * 6.0 - Vector2(1.0, 1.0), Vector2(2.0, 2.0)),
+		var bottom := _ellipse_point(PI, rx, ry)
+		draw_rect(Rect2(bottom.x - 1.0, bottom.y - 7.0 * notch_reveal, 2.0,
+				6.0 * notch_reveal), Color(0.52, 0.40, 0.30, 0.8 * notch_reveal))
+		draw_rect(Rect2(bottom.x - 1.0, bottom.y - 2.0 - 7.0 * notch_reveal, 2.0, 2.0),
 				Color(0.68, 0.52, 0.36, 0.9 * notch_reveal))
 	# ---- 点燃刻度：旧铁渐冷，最新一枚烧着。
 	var n := _ticks.size()
