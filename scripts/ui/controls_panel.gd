@@ -22,6 +22,9 @@ const FADED_INK := Color("#65513E")
 const VEIL := 0.76
 const CARD_GAP_H := 16
 const CARD_GAP_V := 12
+## The baked paper has 10–16px of transparent/deckled contour. Forty design
+## pixels leave at least 12 physical pixels inside the paper at 960x540.
+const PAPER_CONTENT_INSET := 40.0
 
 ## 键位表：[键位模板, 说明]。{action} 在显示时换成当前绑定；{attack2} 是挥砍的备用键
 ## （K，Settings 不改它），移动行的箭头同理由 KeyLabels.extra_keys 补在后面。
@@ -77,7 +80,7 @@ func _build() -> void:
 	_shell = Modal.build(self, {
 		"object": ObjectKit.Kind.NOTES,
 		"title": "操 作 说 明",
-		"size": Vector2(1120.0, 620.0),
+		"size": Vector2(1176.0, 720.0),
 		"hint": "弹反：判定帧命中敌弹 · 改键：设置 → 键位",
 		"back": "Esc / 回车 返回",
 		"veil": VEIL,
@@ -152,10 +155,16 @@ func _group_card(group: Dictionary) -> Control:
 
 static func _paper_card() -> StyleBoxTexture:
 	var box := ObjectKit.journey_tag_style_box().duplicate() as StyleBoxTexture
-	box.content_margin_left = 16.0
-	box.content_margin_top = 16.0
-	box.content_margin_right = 16.0
-	box.content_margin_bottom = 14.0
+	# Preserve this paper's dog-ear and torn contour when the short landscape
+	# sheets are stretched. These overrides affect the controls sheets only.
+	box.texture_margin_left = 24.0
+	box.texture_margin_top = 60.0
+	box.texture_margin_right = 60.0
+	box.texture_margin_bottom = 36.0
+	box.content_margin_left = PAPER_CONTENT_INSET
+	box.content_margin_top = PAPER_CONTENT_INSET
+	box.content_margin_right = PAPER_CONTENT_INSET
+	box.content_margin_bottom = PAPER_CONTENT_INSET
 	return box
 
 
@@ -174,6 +183,11 @@ func _group_header(title: String) -> Control:
 	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(rule)
+	# The folded upper-right corner protrudes into the first title line only.
+	# Stop its rule before the fold; later action rows use the full paper width.
+	var fold_clearance := Control.new()
+	fold_clearance.custom_minimum_size.x = 24.0
+	row.add_child(fold_clearance)
 	return row
 
 
@@ -186,6 +200,7 @@ func _key_row(index: int) -> Control:
 	row.add_theme_constant_override("separation", 10)
 	var action := UiKit.label(String(ROWS[index][1]), &"BodyLabel")
 	action.add_theme_color_override("font_color", FADED_INK)
+	action.add_theme_font_size_override("font_size", 24)
 	action.add_theme_constant_override("outline_size", 0)
 	action.name = "Action"
 	action.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -37,10 +37,20 @@ func test_controls_four_papers_preserve_bound_keys_and_scroll_input() -> void:
 		ok((style as StyleBoxTexture).modulate_color.a > 0.99, "paper does not reveal menu text underneath")
 		ok(note.position.y + note.size.y <= viewport.size.y,
 				"all four sheets fit the initial instruction viewport: %s within %s" % [note.get_rect(), viewport.size])
-		for row in note.get_node("Inner").get_children():
+		var inner := note.get_node("Inner") as VBoxContainer
+		# The paper's transparent/deckled contour extends 16 design pixels from
+		# its rectangle. Another 24 keeps 12 real pixels clear at half UI scale.
+		var face := Rect2(Vector2(16.0, 16.0), note.size - Vector2(32.0, 32.0))
+		ok(inner.position.x >= face.position.x + 24.0, "ink leaves real paper space at the left torn edge")
+		ok(inner.position.y >= face.position.y + 24.0, "headings sit below the paper's top edge")
+		ok(inner.position.x + inner.size.x <= face.end.x - 24.0, "keycaps leave real paper space at the right edge")
+		ok(inner.position.y + inner.size.y <= face.end.y - 24.0, "last lines remain above the paper's bottom edge")
+		for row in inner.get_children():
 			var keys := row.get_node_or_null("Keys") as HBoxContainer
 			if keys != null:
 				ok(keys.position.x + keys.size.x <= row.size.x + 1.0, "keycaps remain inside their paper row")
+				eq((row.get_node("Action") as Label).get_theme_font_size("font_size"), 24,
+						"descriptions keep their readable 24px type")
 	almost(grid.get_child(0).size.x, grid.get_child(1).size.x, 1.0, "both paper columns have equal width")
 	eq(screen.key_text(1), KeyLabels.label(&"jump"), "paper prints the live jump binding")
 	var wheel := InputEventMouseButton.new()
