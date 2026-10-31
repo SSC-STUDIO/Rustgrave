@@ -397,24 +397,31 @@ func test_board_dressing_sway_affects_chain_drawing() -> void:
 	eq(static_anchor_left, Vector2(expected_x1, expected_y), "Static left anchor aligns with card top shackle")
 	eq(static_anchor_right, Vector2(expected_x2, expected_y), "Static right anchor aligns with card top shackle")
 
-	# 2. 模拟摆动角度：赋值 sway_angle，断言锚点位置产生物理位移（横向偏移）
-	dressing.sway_angle = 0.04
-	var swayed_anchor_left: Vector2 = dressing.get_anchor_point(0)
-	var swayed_anchor_right: Vector2 = dressing.get_anchor_point(1)
-	ok(absf(swayed_anchor_left.x - static_anchor_left.x) > 1.0, "Left anchor displaced horizontally under sway")
-	ok(absf(swayed_anchor_right.x - static_anchor_right.x) > 1.0, "Right anchor displaced horizontally under sway")
-	eq(swayed_anchor_left.x, swayed_anchor_right.x - (expected_x2 - expected_x1), "Chains swing parallel in sync")
-
-	# 3. 动力学验证：启用物理回弹 _process，验证 sway_angle 随时间阻尼振荡并最终收敛归零
+	# 2. 推进真实弹簧：板体与链底必须一起移动，避免只有链条在摆。
+	var static_card_position := dummy_card.position
 	dressing.play_spring_settle(true)
 	ok(dressing._swaying, "Spring settle activates swaying state")
-	dressing._process(0.1)
+	dressing._process(0.15)
+	var swayed_anchor_left: Vector2 = dressing.get_anchor_point(0)
+	var swayed_anchor_right: Vector2 = dressing.get_anchor_point(1)
+	var board_offset := dummy_card.position - static_card_position
+	ok(absf(board_offset.x) > 1.0, "Iron board moves horizontally during spring settlement")
+	eq(board_offset, board_offset.round(), "Board sway stays on integer pixels")
+	ok(absf(swayed_anchor_left.x - static_anchor_left.x) > 1.0, "Left anchor displaced horizontally under sway")
+	ok(absf(swayed_anchor_right.x - static_anchor_right.x) > 1.0, "Right anchor displaced horizontally under sway")
+	eq(swayed_anchor_left - static_anchor_left, board_offset, "Left chain end remains attached to the moving board")
+	eq(swayed_anchor_right - static_anchor_right, board_offset, "Right chain end remains attached to the moving board")
+	eq(swayed_anchor_left.x, swayed_anchor_right.x - (expected_x2 - expected_x1), "Chains swing parallel in sync")
+
+	# 3. 延续同一次回弹，验证摆动阻尼收敛，板体与链底一起回到原位。
 	ok(absf(dressing.sway_angle) > 0.0, "Sway angle active during spring oscillation")
 	# 推进时间超过 1.2s，验证摆动收敛终止
 	dressing._process(1.5)
 	ok(not dressing._swaying, "Swaying settles to false after decay interval")
 	eq(dressing.sway_angle, 0.0, "Sway angle settles back to 0.0")
+	eq(dummy_card.position, static_card_position, "Iron board returns to its exact resting position")
 	eq(dressing.get_anchor_point(0), static_anchor_left, "Anchor points return to static resting coordinates")
+	eq(dressing.get_anchor_point(1), static_anchor_right, "Right chain end returns to its exact resting coordinates")
 
 	dressing.queue_free()
 	dummy_card.queue_free()
