@@ -1,0 +1,88 @@
+name: render-title-shots
+
+# 在 Linux runner 上渲染标题屏实况（title_peek），截图回推本分支。
+# 沙盒 / 本地没有 GPU 与窗口环境时，这里是标题 UI 的出图通道。
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "arena/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-title-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglu1-mesa \
+            || sudo apt-get install -y --no-install-recommends xvfb libgl1 libglu1-mesa libasound2t64
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -sL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          mkdir -p /tmp/godot-bin
+          unzip -o -q /tmp/godot.zip -d /tmp/godot-bin
+          chmod +x /tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Import resources
+        timeout-minutes: 12
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          $GODOT --headless --path . --import || true
+          $GODOT --headless --path . --import
+          test -f .godot/global_script_class_cache.cfg
+
+      - name: Regression suite (report-only)
+        timeout-minutes: 16
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          export RUSTGRAVE_NO_UPDATE_CHECK=1
+          export RUSTGRAVE_TEST_NODE="$(command -v node || true)"
+          timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn \
+            | tee /tmp/tests.log | grep -E "^\[(PASS|FAIL)\]|passed;" | tail -40 \
+            || echo "::warning::suite reported failures on linux (informational)"
+
+      - name: Render title screens (xvfb + GL compatibility)
+        timeout-minutes: 8
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          export RUSTGRAVE_NO_UPDATE_CHECK=1
+          export RUSTGRAVE_ALLOW_SMALL_WINDOW=1
+          export RUSTGRAVE_PEEK_ONSCREEN=1
+          xvfb-run -a -s "-screen 0 1600x900x24" \
+          $GODOT --path . --windowed --resolution 1280x720 \
+            --rendering-method gl_compatibility --audio-driver Dummy \
+            res://scenes/tools/TitlePeek.tscn -- \
+            --out=res://docs/shots/title-v4 \
+            --sizes=1280x720 \
+            --variants=cold,act2,give,keep \
+            --shots=idle,focus,dossier
+          echo "--- shots ---"
+          ls -la docs/shots/title-v4
+
+      - name: Commit rendered shots back to this branch
+        run: |
+          git config user.name "rustgrave-shots-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "shots: render title sigil ring (automated) [skip ci]"
+            git push
+          fi

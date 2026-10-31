@@ -62,7 +62,11 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
-	win.position = Vector2i(-12000, -12000)
+	# Windows 上把窗口停在屏幕外截图；Linux（Xvfb）没有 WM，窗口必须留在屏内，
+	# 设 RUSTGRAVE_PEEK_ONSCREEN=1 时贴着左上角摆。
+	var onscreen := OS.get_environment("RUSTGRAVE_PEEK_ONSCREEN") == "1"
+	var park := Vector2i(8, 8) if onscreen else Vector2i(-12000, -12000)
+	win.position = park
 	SaveData.save_path = _out + "/peek_save.cfg"
 	Settings.save_path = _out + "/peek_settings.cfg"
 	Settings.load_settings()
@@ -111,12 +115,15 @@ func _shot(variant: String, tag: String, size: Vector2i) -> void:
 
 func _settle_window(wanted: Vector2i) -> bool:
 	var win := get_tree().root
+	var park := Vector2i(-12000, -12000)
+	if OS.get_environment("RUSTGRAVE_PEEK_ONSCREEN") == "1":
+		park = Vector2i(8, 8)
 	var stable := 0
 	for frame in 120:
 		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
 			win.mode = Window.MODE_WINDOWED
 			win.size = wanted
-			win.position = Vector2i(-12000, -12000)
+			win.position = park
 			stable = 0
 		await RenderingServer.frame_post_draw
 		stable = stable + 1 if win.get_texture().get_image().get_size() == wanted and win.size == wanted else 0

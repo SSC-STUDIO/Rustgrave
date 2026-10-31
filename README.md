@@ -2,6 +2,10 @@
 
 2D 像素风 Metroidvania。你是废料堆里复燃的 **余烬骑士**，扛着过重的锯齿巨剑，在死去的机械文明地下陵墓里探索。
 
+> **v3.1 印记系统**：标题字标外多了一圈「余烬印记」——每次真正踏入旅程是一枚刻度，
+> 每次倒下是一粒锈痕；刻度随真实时间冷却，删档也擦不掉（存档是这一世，印记是每一世）。
+> 详见 [docs/title-sigils.md](docs/title-sigils.md)。
+
 本仓库是 **Godot 4 + GDScript** 的十章像素动作冒险，附完整设计文档（视觉 / GDD / 美术规格 / 程序 / 音频）。角色为像素帧动画（Fantasy Knight / Gothicvania 系敌人），环境为 ansimuz Gothicvania 素材，音效为 Kenney CC0 音频。
 
 ## 打开项目

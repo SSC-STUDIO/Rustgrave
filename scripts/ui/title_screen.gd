@@ -22,6 +22,10 @@ extends Control
 ## 不是输入门禁）、确认入场（白热闪光 + 镜头前推 + 淡出）、离开（吊灯一盏盏熄灭，
 ## 只剩巨剑剪影，再浮出墓志）。
 ##
+## 印记（v3.1 新增）：字标外一圈 TitleSigilRing——EmberSigils 记下每一次「点燃」
+## （真正踏入旅程）与「殁」（player_died），刻度随真实时间冷却、殁痕沉在里圈；
+## 轮换墓志与档案卡也会带上这些私事。删档擦不掉，炉厅记得（docs/title-sigils.md）。
+##
 ## 菜单由 MenuList 负责键鼠导航，操作说明复用 ControlsPanel（与暂停菜单同一份）。
 ## USE_LIVE_SCENE=false 时退回旧的静态 keyart（同一个 Keyart 节点）。
 
@@ -30,6 +34,8 @@ const KEYART_PATH := "res://assets/kenney_clean/backgrounds/title_keyart.png"
 ## Flip to false to fall back to the old keyart in the same `Keyart` TextureRect.
 const USE_LIVE_SCENE := true
 const WORLD_SCENE := "res://scenes/ui/TitleWorld.tscn"
+## 印记环：字标外一圈「炉厅记得你来过」的铁与余烬（EmberSigils 记录驱动）。
+const SigilRingScript := preload("res://scripts/ui/title_sigil_ring.gd")
 const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
 const FORGE_SHADER := preload("res://assets/shaders/title_forge.gdshader")
 const LEVEL_PATH := "res://scenes/levels/Stage01_Graveyard.tscn"
@@ -200,6 +206,9 @@ const JOURNEY_X := 1000.0
 const JOURNEY_Y := 188.0
 const JOURNEY_W := 208.0
 const JOURNEY_H := 96.0
+## 印记环的椭圆框（设计像素）：围着整个字标 + 副题，底部开口让位给副题，
+## 尾端落在副题两侧饰件的外侧。环画在字标后面（先加环，后加字标）。
+const SIGIL_RECT := Rect2(330.0, 6.0, 620.0, 192.0)
 ## 没停在「继续旅程」上时，这条注就这么淡。停上去才亮满。
 const JOURNEY_DIM := 0.62
 const JOURNEY_LIT := 1.0
@@ -288,6 +297,7 @@ var _world_viewport: SubViewport
 var _world: TitleWorld
 var _smooth_material: ShaderMaterial
 var _keyart: TextureRect
+var _sigil_ring: TitleSigilRing
 var _masthead: Control
 var _masthead_column: VBoxContainer
 var _logo: TextureRect
@@ -393,6 +403,7 @@ func _ready() -> void:
 	if Sfx.has_method(&"set_title_bed"):
 		Sfx.call(&"set_title_bed", true)
 	_build_backdrop()
+	_build_sigil_ring()
 	_build_masthead()
 	_build_rail()
 	_build_journey()
@@ -481,6 +492,67 @@ func _update_smooth_scale() -> void:
 	var metrics := PresentationMetrics.for_window(get_tree().root)
 	PresentationMetrics.configure_world(_world_viewport, metrics)
 	_smooth_material.set_shader_parameter("scale_hint", 1)
+
+
+## ---------------------------------------------------------------- 印记环 -----
+## 「炉厅记得你来过」：EmberSigils 的每一次「点燃」是字标外的一枚刻度，
+## 每一次「殁」是一粒内圈锈痕。环画在字标后面（子节点顺序在 Masthead 之前），
+## 冷启动没有记录时整环不画。悬停某枚刻度，页脚写它的来历。
+func _build_sigil_ring() -> void:
+	_sigil_ring = SigilRingScript.new()
+	_sigil_ring.name = "SigilRing"
+	_sigil_ring.position = SIGIL_RECT.position
+	_sigil_ring.size = SIGIL_RECT.size
+	_sigil_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sigil_ring.configure(_sigil_visits_for_ring(), _sigil_deaths_for_ring())
+	_sigil_ring.hover_changed.connect(_on_sigil_hover)
+	add_child(_sigil_ring)
+
+
+## 给环的记录带上解好的章名（环只管画，不管查表）。
+func _sigil_visits_for_ring() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for rec in EmberSigils.visits:
+		out.append({
+			"d": int(rec.get("d", 0)),
+			"label": EmberSigils.chapter_label_of(String(rec.get("c", ""))),
+		})
+	return out
+
+
+func _sigil_deaths_for_ring() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for rec in EmberSigils.deaths:
+		out.append({
+			"d": int(rec.get("d", 0)),
+			"label": EmberSigils.chapter_label_of(String(rec.get("c", ""))),
+		})
+	return out
+
+
+func _on_sigil_hover(text: String) -> void:
+	if _quitting or _started:
+		return
+	if text.is_empty():
+		_refresh_footer_hint(_menu.selected_id() if _menu != null else &"")
+	else:
+		_set_footer_hint(text)
+
+
+## 私人墓志：经典句后面跟着炉厅记得的事。有印记才会多出这些句子。
+func _personal_epitaph_lines() -> PackedStringArray:
+	var out := PackedStringArray()
+	var visits := EmberSigils.visit_count()
+	if visits <= 0:
+		return out
+	out.append("炉厅记得 · 你已点燃 %d 次" % visits)
+	var last: Dictionary = EmberSigils.last_death()
+	if not last.is_empty():
+		var label := EmberSigils.chapter_label_of(String(last.get("c", "")))
+		if label != "":
+			var ago := EmberSigils.ago_text(EmberSigils.today() - int(last.get("d", 0)))
+			out.append("上次殁于%s · %s" % [label, ago])
+	return out
 
 
 ## 顶部正中：字标夹在副题上面，整块居中。
@@ -579,6 +651,15 @@ func _build_rail() -> void:
 	_gap(GROUP_GAP)
 	# 离开
 	_menu.add_item(ID_QUIT, "离 开 锈 墓", false, MenuItem.Kind.GHOST, true)
+	# 行尾英文魂注：一枚刻在铁上的小字，选中时烧暖。「继续旅程」有行内小注，不挂。
+	const GHOSTS := {
+		ID_NEW: "EMBER", ID_TRIAL: "TRIALS", ID_ARENA: "ARENA",
+		ID_SETTINGS: "SYSTEM", ID_CONTROLS: "CONTROLS", ID_QUIT: "LEAVE",
+	}
+	for child in _menu.get_children():
+		var item := child as MenuItem
+		if item != null and GHOSTS.has(item.id):
+			item.ghost = GHOSTS[item.id]
 	_menu.reset_size()
 	_menu.chosen.connect(_on_chosen)
 	_menu.focus_changed.connect(_on_focus_changed)
@@ -813,7 +894,8 @@ func _build_dossier_card() -> void:
 	_dossier_panel = panel
 	var box := VBoxContainer.new()
 	box.name = "Content"
-	box.add_theme_constant_override("separation", 12)
+	# 12→10：给「印记」行腾地方（135% 路径会在 _refresh_text_layout 里再收到 8）。
+	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
 	_dossier_contents = box
 	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
@@ -827,6 +909,7 @@ func _build_dossier_card() -> void:
 	_add_dossier_row(box, "Trials", "回 火 试 炼")
 	_add_dossier_row(box, "Arena", "余 烬 竞 技 场")
 	_add_dossier_row(box, "Chapter", "上 次 行 程")
+	_add_dossier_row(box, "Sigil", "印 记")
 	_dossier_recap = UiKit.label("", &"FootnoteLabel")
 	_dossier_recap.name = "DossierRecap"
 	_dossier_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
@@ -953,6 +1036,17 @@ func _refresh_dossier() -> void:
 	_dossier_values["Chapter"].text = chapter_text
 	_dossier_recap.text = recap
 
+	# 印记行：炉厅记得的账——第几次点燃、上次殁于哪里（与存档无关，删档不清）。
+	var sigil_text := "尚无印记"
+	if EmberSigils.visit_count() > 0:
+		sigil_text = "第 %d 次点燃" % EmberSigils.visit_count()
+		var last: Dictionary = EmberSigils.last_death()
+		if not last.is_empty():
+			var death_label := EmberSigils.chapter_label_of(String(last.get("c", "")))
+			if death_label != "":
+				sigil_text += " · 殁于%s" % death_label
+	_dossier_values["Sigil"].text = sigil_text
+
 	# 收起的短注只留计数、章名和 14 格。阶位那些在档案卡里。
 	var cleared := int(_look.get("cleared", 0))
 	_journey_count.text = "%02d / %02d" % [cleared, ChapterText.order().size()]
@@ -1047,6 +1141,9 @@ func _build_inscription() -> void:
 
 	_ep_lines = PackedStringArray([EPITAPH])
 	for line in ChapterText.TITLE_LINES:
+		_ep_lines.append(line)
+	# 炉厅记得的私事（点燃次数 / 上次殁于哪里）：有印记才会多出这些句子。
+	for line in _personal_epitaph_lines():
 		_ep_lines.append(line)
 	# 整句右齐在墓志条里。条本身比旅程列窄一截，字再长也停在条内，不压到「回看余烬」。
 	_epitaph = UiKit.label(EPITAPH, &"EpitaphLabel", HORIZONTAL_ALIGNMENT_RIGHT)
@@ -1199,7 +1296,8 @@ func _refresh_text_layout() -> void:
 	# 行距/字号变化会让最小高先涨后落，重设回卡身尺寸，避免面板被瞬时撑大后收不回来。
 	if _dossier_contents != null:
 		var tight := scale_f >= 1.3
-		_dossier_contents.add_theme_constant_override("separation", 8 if tight else 12)
+		# 10：与 _build_dossier_card 的基础间距一致（印记行加进来后也放得下）。
+		_dossier_contents.add_theme_constant_override("separation", 8 if tight else 10)
 		if _dossier_recap != null:
 			_dossier_recap.custom_minimum_size = Vector2(0.0, 30.0 if tight else 44.0)
 			_dossier_recap.max_lines_visible = 2 if tight else 3
@@ -1324,6 +1422,10 @@ func _play_intro() -> void:
 	if _world != null:
 		_world.play_intro()
 	_ep_phase = 0
+	# 印记环等字标锻入过半才从 12 点向两侧点亮（没有记录的冷启动本来就不画）。
+	if _sigil_ring != null:
+		_sigil_ring.reveal = 0.0
+		_sigil_ring.wake(LOGO_AT + LOGO_TIME * 0.5)
 
 	var tw := create_tween()
 	_intro_tween = tw
@@ -1431,6 +1533,8 @@ func _skip_intro() -> void:
 			(child as MenuItem).land = 0.0
 	if _world != null:
 		_world.skip_intro()
+	if _sigil_ring != null:
+		_sigil_ring.skip_reveal()
 	if _curtain != null and is_instance_valid(_curtain):
 		_curtain.queue_free()
 		_curtain = null
@@ -2346,6 +2450,8 @@ func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
 	_char_select.close()
 	_started = true
 	_menu.active = false
+	# 新旅程也记一枚印记（与 _start 的继续/重开同一条账）。
+	EmberSigils.record_visit("new", "stage01")
 	SaveData.pending_spawn = Vector2.INF
 	SaveData.entering_from_checkpoint = false
 	Sfx.play(&"gate")
@@ -2415,6 +2521,9 @@ func _start(continue_game: bool) -> void:
 	else:
 		SaveData.delete_save()
 	_started = true
+	# 炉厅记下这一次「点燃」（自动化 headless 会话不记，见 EmberSigils）。
+	EmberSigils.record_visit("continue" if continue_game else "new",
+			String(_look.get("chapter_id", "")) if continue_game else "stage01")
 	_menu.active = false
 	# 标题进关不沿用上一局死亡排队：继续走存档坐标，新开清档。
 	SaveData.pending_spawn = Vector2.INF
