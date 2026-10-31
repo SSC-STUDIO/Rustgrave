@@ -530,7 +530,9 @@ class BoardDressing extends Node2D:
 
 	func _init() -> void:
 		name = "BoardDressing"
-		z_index = -1
+		# Stay above SceneCopy/SceneBlur and the veil: the hanging chains are part
+		# of the foreground object, otherwise the backdrop blur erases their links.
+		z_index = 0
 
 	func bind_card(card: Control) -> void:
 		_card = card
