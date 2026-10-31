@@ -14,9 +14,8 @@ extends Node
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
-const CHAPTER_SCENES := {
-	"act1": ["level02", 2], "act2": ["level04", 4], "act3": ["level08", 8], "act4": ["level10", 13],
-}
+## variant -> number of cleared chapters; the save sits in GameContext.LEVEL_ORDER[cleared].
+const CHAPTER_SCENES := {"act1": 2, "act2": 4, "act3": 8, "act4": 13}
 const SKIN_BY_VARIANT := {"keep": "skin_fantasy_knight", "cold": "skin_fantasy_knight"}
 
 var _out := "res://screenshots/acceptance/overhaul-v3/title"
@@ -140,16 +139,16 @@ func _write_save(variant: String) -> void:
 	cfg.set_value("profile", "skin_id", _skin if _skin != "" else "skin_fantasy_knight")
 	var key := "act2" if variant == "mid" else variant
 	if CHAPTER_SCENES.has(key):
-		var spec: Array = CHAPTER_SCENES[key]
-		var level := String(spec[0])
+		var cleared := int(CHAPTER_SCENES[key])
+		var level := String(GameContext.LEVEL_ORDER[cleared])
 		cfg.set_value("meta", "scene", String(GameContext.LEVELS[level]))
 		var flags: Array = []
-		for i in int(spec[1]):
+		for i in cleared:
 			var id := String(GameContext.LEVEL_ORDER[i])
 			flags.append(String(StoryFlow.DONE_FLAGS[id]))
 		cfg.set_value("story", "flags", flags)
 	else:
-		cfg.set_value("meta", "scene", String(GameContext.LEVELS["level10"]))
+		cfg.set_value("meta", "scene", String(GameContext.LEVELS[GameContext.LEVEL_ORDER.back()]))
 		cfg.set_value("meta", "ending", variant)
 		var all: Array = []
 		for id in GameContext.LEVEL_ORDER:

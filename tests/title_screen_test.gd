@@ -39,6 +39,13 @@ func _open_title() -> TitleScreen:
 	return title
 
 
+func _continue_row(title: TitleScreen) -> MenuItem:
+	for item in _items(title):
+		if (item as MenuItem).id == TitleScreen.ID_CONTINUE:
+			return item
+	return null
+
+
 func _items(title: TitleScreen) -> Array:
 	var out := []
 	for child in title.get_node("Menu").get_children():
@@ -55,7 +62,7 @@ func test_menu_is_a_left_rail_with_three_tiers() -> void:
 		title.queue_free()
 		return
 	almost(menu.position.x, TitleScreen.RAIL_X, 0.01, "菜单按设计像素挂在左侧")
-	almost(menu.position.y, TitleScreen.RAIL_TOP, 0.01, "菜单顶边停在字标下方")
+	almost(menu.position.y, TitleScreen.RAIL_TOP + MenuItem.HEIGHT, 0.01, "无档：隐藏「继续」后整列下移一行")
 
 	var items := _items(title)
 	ok(items.size() >= 7, "至少七格菜单（点燃 / 继续 / 试炼 / 竞技场 / 设置 / 说明 / 离开）")
@@ -109,9 +116,12 @@ func test_menu_groups_are_separated() -> void:
 	var rects: Array[Rect2] = []
 	for item in items:
 		rects.append(title.design_rect(item))
-	var gap_in_group := rects[1].position.y - rects[0].end.y
+	# 无档时「继续」行隐藏：竞技场与试炼同组紧挨，组界仍在 1/3/5 之后。
+	ok(not items[1].visible, "无档：「继续」行隐藏")
+	var gap_in_group := rects[3].position.y - rects[2].end.y
 	almost(gap_in_group, 0.0, 0.5, "同一组的两行紧挨着")
-	for boundary in [1, 3, 5]:
+	almost(rects[2].position.y - rects[0].end.y, TitleScreen.GROUP_GAP, 0.5, "行动组之后有一道组间距")
+	for boundary in [3, 5]:
 		var gap := rects[boundary + 1].position.y - rects[boundary].end.y
 		almost(gap, TitleScreen.GROUP_GAP, 0.5, "第 %d 行之后有一道组间距" % boundary)
 	title.queue_free()
@@ -634,7 +644,8 @@ func test_continue_row_with_an_ending_opens_the_recap_page() -> void:
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
 	var items := _items(title)
-	ok((items[1] as MenuItem)._text.contains("回 看 余 烬"), "有结局：这一行写「回看余烬」")
+	ok(_continue_row(title)._text.contains("回 看 余 烬"), "有结局：这一行写「回看余烬」")
+	eq(items[0], _continue_row(title), "有存档：「继续」排第一格")
 	ok(title._continue_opens_recap, "写着回看，行为就是回看")
 	var menu := title.get_node("Menu") as MenuList
 	title._on_chosen(TitleScreen.ID_CONTINUE)
@@ -666,7 +677,8 @@ func test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page(
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
 	ok(not title._continue_opens_recap, "没结局：继续就是继续")
-	ok((_items(title)[1] as MenuItem)._text.contains("继 续 旅 程"), "行文案是继续旅程")
+	ok(_continue_row(title)._text.contains("继 续 旅 程"), "行文案是继续旅程")
+	eq((title.get_node("Menu") as MenuList).selected_id(), TitleScreen.ID_CONTINUE, "有存档：默认停在「继续」")
 	var button := title.find_child("RecapButton", true, false) as Button
 	ok(button != null, "旅程列里有回看按钮")
 	button.pressed.emit()
@@ -999,7 +1011,8 @@ func test_continue_row_note_and_hint_are_honest() -> void:
 	# 1) 冷启动：没有存档
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
-	var item := _items(title)[1] as MenuItem
+	var item := _continue_row(title)
+	ok(not item.visible, "无档：「继续」行不占位")
 	eq(TitleScreen.continue_note(title.look()), "尚无存档", "无档：行内注写「尚无存档」")
 	eq(TitleScreen.continue_hint(title.look()), "继续旅程 · 尚无存档，先点燃余烬", "无档：页脚说先点燃余烬")
 	ok(item.disabled, "无档：「继续旅程」置灰")
@@ -1018,7 +1031,7 @@ func test_continue_row_note_and_hint_are_honest() -> void:
 	_write_recap_save("", [StoryFlow.done_flag("stage01"), StoryFlow.done_flag("stage02")])
 	title = await _open_title()
 	title._skip_intro()
-	item = _items(title)[1] as MenuItem
+	item = _continue_row(title)
 	var look := title.look()
 	eq(String(look.get("chapter_id", "")), "stage04", "存档停在第四幕（stage04）")
 	var expected_note := "%s章 · %02d/%02d" % [ChapterText.number_of("stage04"),
@@ -1036,7 +1049,7 @@ func test_continue_row_note_and_hint_are_honest() -> void:
 	_write_recap_save("give", [StoryFlow.done_flag("stage01")])
 	title = await _open_title()
 	title._skip_intro()
-	item = _items(title)[1] as MenuItem
+	item = _continue_row(title)
 	look = title.look()
 	eq(TitleScreen.continue_note(look), "结局 · 还火", "有结局：行内注写结局名")
 	eq(TitleScreen.continue_hint(look), TitleScreen.RECAP_HINT, "有结局：页脚是回看说明")
