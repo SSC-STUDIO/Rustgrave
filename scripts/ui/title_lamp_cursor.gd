@@ -51,6 +51,7 @@ func _ready() -> void:
 	_atlas.region = Rect2(FRAME.x, 0.0, FRAME.x, FRAME.y)
 	_halo = TextureRect.new()
 	_halo.name = "Halo"
+	_halo.set_meta(&"allow_viewport_bleed", true)
 	_halo.texture = load(GLOW) as Texture2D
 	_halo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_halo.stretch_mode = TextureRect.STRETCH_SCALE
