@@ -14,9 +14,12 @@ extends Node
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
+## 14 节点战役的幕次取样点：id 是关卡 id，数字是已通关的章数（点亮的吊灯数）。
 const CHAPTER_SCENES := {
-	"act1": ["level02", 2], "act2": ["level04", 4], "act3": ["level08", 8], "act4": ["level10", 13],
+	"act1": ["stage02", 2], "act2": ["stage03", 4], "act3": ["stage05", 8], "act4": ["stage07", 13],
 }
+## 结局变体（give/keep/snuff）存档停在这一章。
+const ENDING_SCENE_ID := "stage08_true"
 const SKIN_BY_VARIANT := {"keep": "skin_fantasy_knight", "cold": "skin_fantasy_knight"}
 
 var _out := "res://screenshots/acceptance/overhaul-v3/title"
@@ -167,7 +170,9 @@ func _write_save(variant: String) -> void:
 			flags.append(String(StoryFlow.DONE_FLAGS[id]))
 		cfg.set_value("story", "flags", flags)
 	else:
-		cfg.set_value("meta", "scene", String(GameContext.LEVELS["level10"]))
+		# 运行时取（不要写成常量下标：id 不在表里会变成解析期错误）。
+		cfg.set_value("meta", "scene",
+				String(GameContext.LEVELS.get(ENDING_SCENE_ID, GameContext.WORLD_PATH)))
 		cfg.set_value("meta", "ending", variant)
 		var all: Array = []
 		for id in GameContext.LEVEL_ORDER:
