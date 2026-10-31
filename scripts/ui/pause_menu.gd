@@ -87,6 +87,7 @@ var _closing := false
 var _kicker_label: Label
 var _title_label: Label
 var _chapter_rail: GlassKit.ChapterRail
+var _dossier_chapter: Label
 var _dossier_objective: Label
 var _dossier_cores: Label
 var _dossier_nests: Label
@@ -293,6 +294,8 @@ func _build_rail(parent: Control) -> void:
 	_arena_menu.add_child(arena_gap_b)
 	_arena_menu.add_item(ID_ARENA_EXIT, "退 出 竞 技 场", false, MenuItem.Kind.GHOST)
 	_arena_menu.chosen.connect(_on_chosen)
+	for list in [_menu, _trial_menu, _arena_menu]:
+		_engrave_rows(list)
 
 	# 竖脊串起六格；两端铆钉+中段菱形和标题屏是同一只铁件。
 	var spine := Ornaments.spine(_menu.size.y - 16.0)
@@ -301,6 +304,18 @@ func _build_rail(parent: Control) -> void:
 	rail.add_child(spine)
 	rail.move_child(spine, 0)
 	_spine = spine
+
+
+## Incised letter edges belong to this iron board. The shared title rows retain
+## their own lettering; a dark upper cut gives these rows depth under the lamp.
+func _engrave_rows(list: MenuList) -> void:
+	for item in list.items():
+		for child in item.get_children():
+			if child is Label:
+				(child as Label).add_theme_color_override("font_shadow_color", Color("#090B11"))
+				(child as Label).add_theme_constant_override("shadow_offset_x", 0)
+				(child as Label).add_theme_constant_override("shadow_offset_y", -2)
+				(child as Label).add_theme_constant_override("shadow_outline_size", 0)
 
 
 ## 左列菜单比读数区高（多了「角色与装备」这一行）时把卡片撑高，最后一格就不会压到底部提示带上；
@@ -314,7 +329,7 @@ func _fit_card_to_rail() -> void:
 		card.custom_minimum_size.y = minf(need, CARD_MAX_HEIGHT)
 
 
-## 右列：玻璃读数面。三组小题头（现况 / 剑与巢 / 显示）下面是左键右值的读数行，
+## 右列：钉住的行程签。三组小题头（现况 / 剑与巢 / 显示）下面是左键右值的读数行，
 ## 底部一行脚注。整列叫 DossierColumn：竞技场对局里整列收起（见 open / _release_arena_pause）。
 func _build_dossier(parent: Control) -> void:
 	var column := VBoxContainer.new()
@@ -336,6 +351,7 @@ func _build_dossier(parent: Control) -> void:
 	plate.add_child(inner)
 
 	inner.add_child(_group_head("现 况"))
+	_dossier_chapter = _readout_row(inner, "章 节", "journey_chapter")
 	_dossier_objective = _readout_row(inner, "目 标", "objective")
 	inner.add_child(_hairline())
 	inner.add_child(_group_head("剑 与 巢"))
@@ -350,6 +366,10 @@ func _build_dossier(parent: Control) -> void:
 			&"FootnoteLabel")
 	note_lbl.add_theme_color_override("font_color", Color("#5C544D"))
 	inner.add_child(note_lbl)
+	var pin := ControlsPanel.PaperPin.new()
+	pin.name = "JourneyPin"
+	pin.bind_sheet(plate)
+	plate.add_child(pin)
 
 
 ## 玻璃底板：取主题里现成的板面贴图，复制一份只改着色透明度（与 GlassKit.glass 同一手法），
@@ -422,6 +442,7 @@ func _readout_row(parent: VBoxContainer, key: String, id: String) -> Label:
 
 ## 档案值的语义色：纸签墨水色调（深墨、温暖琥珀、铅笔视口）。
 const DOSSIER_COLORS := {
+	&"journey_chapter": Color("#35291F"),
 	&"objective": Color("#1A1412"),
 	&"cores": Color("#B45309"),
 	&"nests": Color("#B45309"),
@@ -446,6 +467,7 @@ func _gap(height: float) -> void:
 func _refresh_dossier() -> void:
 	if TrialRunScript.active():
 		_set_heading(HEAD_KICKER, "回 火 试 炼", -1)
+		_set_dossier(&"journey_chapter", "回火试炼")
 		_set_dossier(&"objective", TrialRunScript.status_line())
 		_set_dossier(&"cores", _cores_summary())
 		_set_dossier(&"nests", "—")
@@ -453,6 +475,7 @@ func _refresh_dossier() -> void:
 		return
 	var heading := _chapter_heading()
 	_set_heading(String(heading[0]), String(heading[1]), int(heading[2]))
+	_set_dossier(&"journey_chapter", String(heading[1]))
 	_set_dossier(&"objective", _objective_line())
 	_set_dossier(&"cores", _cores_summary())
 	_set_dossier(&"nests", "已刻录 %d 处" % SaveData.lit_nests.size())
@@ -873,6 +896,8 @@ func dossier_label(key: String) -> Label:
 	match key:
 		"chapter":
 			return _title_label
+		"journey_chapter":
+			return _dossier_chapter
 		"objective":
 			return _dossier_objective
 		"cores":

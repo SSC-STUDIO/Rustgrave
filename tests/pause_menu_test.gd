@@ -168,6 +168,16 @@ func test_pause_menu_has_lamp_cursor_and_journey_tag() -> void:
 	if dossier != null:
 		var sb := dossier.get_theme_stylebox("panel")
 		ok(sb is StyleBoxTexture, "dossier is styled as journey tag")
+		var pin := dossier.get_node_or_null("JourneyPin")
+		ok(pin != null, "journey paper has a visible installed brass pin")
+		if pin != null:
+			var center: Vector2 = pin.call("pin_center")
+			ok(Rect2(Vector2(12, 12), dossier.size - Vector2(24, 24)).has_point(center), "journey pin remains seated inside the paper")
+		var chapter := menu.dossier_label("journey_chapter")
+		ok(chapter != null and dossier.is_ancestor_of(chapter), "chapter is printed on the actual journey paper")
+		if chapter != null:
+			eq(chapter.text, menu.dossier_label("chapter").text, "paper chapter follows the live pause heading")
+			ok(not chapter.text.is_empty(), "journey paper has a readable chapter value")
 	menu.close()
 	await flush(20)
 	menu.queue_free()

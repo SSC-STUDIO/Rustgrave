@@ -199,7 +199,12 @@ static func _enter(kind: int, root: CanvasItem, card: CanvasItem, veil: CanvasIt
 		dressing.modulate.a = 0.0
 		tw.tween_property(dressing, "modulate:a", 1.0, 0.14)
 		if dressing.has_method("play_spring_settle"):
-			dressing.call("play_spring_settle", force_tween)
+			# The board first lands and rebounds, then its suspended mass settles.
+			dressing.call("play_spring_settle", force_tween, duration)
+		elif kind == 2 and dressing.has_method("play_open"):
+			# Empty corner seats become real nails only after the plate reaches
+			# its wall position; each impact then receives its own short sparks.
+			dressing.call("play_open", duration)
 		elif dressing.has_method("play_open"):
 			dressing.call("play_open")
 	var delay := duration * 0.6

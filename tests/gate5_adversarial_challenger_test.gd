@@ -133,6 +133,11 @@ func test_board_dressing_dynamic_chain_sway_and_damping() -> void:
 	var expected_y := roundf(dummy_card.position.y + 6.0)
 	eq(rest_left, Vector2(expected_x1, expected_y), "Static left anchor correctly aligned")
 	eq(rest_right, Vector2(expected_x2, expected_y), "Static right anchor correctly aligned")
+	var card_home := dummy_card.position
+	dressing.play_spring_settle(true, 0.24)
+	dressing._process(0.20)
+	eq(dummy_card.position, card_home, "suspended board waits for the drop and rebound before swaying")
+	eq(dressing.sway_angle, 0.0, "chains remain still before the board lands")
 
 	# 2. 弹簧回弹激活与摆动位移测量
 	dressing.play_spring_settle(true)
@@ -148,6 +153,8 @@ func test_board_dressing_dynamic_chain_sway_and_damping() -> void:
 	var oscillations := 0
 
 	var max_dx_observed := 0.0
+	var attachment_error := 0.0
+	var non_integer_frames := 0
 
 	for step in range(50): # 1.0 second in 20ms steps
 		dressing._process(dt)
@@ -159,6 +166,9 @@ func test_board_dressing_dynamic_chain_sway_and_damping() -> void:
 		var anchor_right: Vector2 = dressing.get_anchor_point(1)
 		var dx_left: float = anchor_left.x - rest_left.x
 		var dx_right: float = anchor_right.x - rest_right.x
+		attachment_error = maxf(attachment_error, absf(dx_left - (dummy_card.position.x - card_home.x)))
+		if dummy_card.position != dummy_card.position.round():
+			non_integer_frames += 1
 
 		if absf(dx_left) > max_dx_observed:
 			max_dx_observed = absf(dx_left)
@@ -178,6 +188,8 @@ func test_board_dressing_dynamic_chain_sway_and_damping() -> void:
 	ok(max_dx_observed > 0.15, "Dynamic sway produces measurable peak horizontal displacement (max: %.3f px)" % max_dx_observed)
 	ok(total_displacement_observed > 2.0, "Dynamic sway produces measurable accumulated horizontal displacement (total: %.2f px)" % total_displacement_observed)
 	ok(oscillations >= 2, "Dynamic sway exhibits harmonic spring oscillation (zero crossings: %d)" % oscillations)
+	almost(attachment_error, 0.0, 0.001, "chain ends remain attached to the moving iron board")
+	eq(non_integer_frames, 0, "the board and engraved type move only by whole pixels")
 
 	# 3. 指数阻尼衰减验证：比较早期半周期振幅与中后期振幅
 	# 推进时间至 > 1.2s，验证完全收敛归零
@@ -186,9 +198,39 @@ func test_board_dressing_dynamic_chain_sway_and_damping() -> void:
 	eq(dressing.sway_angle, 0.0, "Sway angle damped strictly to 0.0")
 	eq(dressing.get_anchor_point(0), rest_left, "Left anchor point strictly restored to resting position")
 	eq(dressing.get_anchor_point(1), rest_right, "Right anchor point strictly restored to resting position")
+	eq(dummy_card.position, card_home, "damping restores the actual board as well as its chains")
 
 	dressing.queue_free()
 	dummy_card.queue_free()
+	await get_tree().process_frame
+
+
+func test_plate_nails_wait_for_landing_then_drive_in_clockwise() -> void:
+	var card := Control.new()
+	card.position = Vector2(80.0, 40.0)
+	card.size = Vector2(1120.0, 640.0)
+	add_child(card)
+	var dressing = ObjectKit.dressing(ObjectKit.Kind.PLATE, card)
+	add_child(dressing)
+	dressing.set_process(false)
+	var points: PackedVector2Array = dressing.nail_points()
+	eq(points, PackedVector2Array([Vector2(106, 70), Vector2(1168, 70), Vector2(1168, 634), Vector2(106, 634)]),
+			"four nails are seated clockwise in the actual plate corner brackets")
+	dressing.play_open(0.20)
+	eq(dressing.installed_nail_count(), 0, "plate starts with four empty drilled brackets")
+	dressing._process(0.199)
+	eq(dressing.installed_nail_count(), 0, "no nail appears before the 0.20 second landing")
+	dressing._process(0.002)
+	eq(dressing.installed_nail_count(), 1, "first nail starts after landing")
+	for count in range(2, 5):
+		dressing._process(0.08)
+		eq(dressing.installed_nail_count(), count, "successive nails are driven every 0.08 seconds")
+	dressing._process(0.30)
+	eq(dressing.installed_nail_count(), 4, "all corner nails remain after the brief sparks finish")
+	dressing.snap()
+	eq(dressing.installed_nail_count(), 4, "headless/reduced-motion snap presents a complete mounted plate")
+	dressing.queue_free()
+	card.queue_free()
 	await get_tree().process_frame
 
 

@@ -35,6 +35,16 @@ func test_controls_four_papers_preserve_bound_keys_and_scroll_input() -> void:
 		var style: StyleBox = (note as PanelContainer).get_theme_stylebox("panel")
 		ok(style is StyleBoxTexture, "paper uses the cached material texture")
 		ok((style as StyleBoxTexture).modulate_color.a > 0.99, "paper does not reveal menu text underneath")
+		var pin := note.get_node_or_null("PaperPin")
+		ok(pin != null, "each paper has a real installed brass pin")
+		if pin != null:
+			var center: Vector2 = pin.call("pin_center")
+			var sheet_style := style as StyleBoxTexture
+			var source_span := sheet_style.texture.get_width() - sheet_style.texture_margin_left - sheet_style.texture_margin_right
+			var hole_x: float = sheet_style.texture_margin_left + (204.0 - sheet_style.texture_margin_left) * \
+					(note.size.x - sheet_style.texture_margin_left - sheet_style.texture_margin_right) / source_span
+			eq(center, Vector2(hole_x, 20.0).snapped(Vector2(2, 2)), "pin passes through the actual nine-sliced paper hole")
+			ok(center.x > 16.0 and center.x < note.size.x - 16.0, "pin remains inside the paper contour")
 		ok(note.position.y + note.size.y <= viewport.size.y,
 				"all four sheets fit the initial instruction viewport: %s within %s" % [note.get_rect(), viewport.size])
 		var inner := note.get_node("Inner") as VBoxContainer
@@ -109,8 +119,25 @@ func test_map_punch_selection_keeps_chapter_dossier_in_sync() -> void:
 	click.position = Vector2(geometry.x + geometry.y, MapScreen.RAIL_NODE_Y)
 	route.call("_gui_input", click)
 	eq(screen.selected_chapter(), order[1], "second punched chapter can still be selected by mouse")
+	var plate := screen.get_node("ModalRoot/Card") as Control
+	var hole: Vector2 = route.call("hole_center", 1)
+	ok(route.global_position.y + hole.y <= plate.global_position.y + 80.0,
+			"interactive chapter holes occupy the plate's top edge")
+	eq(route.call("hole_at_position", click.position), 1, "painted hole and mouse target share one centre")
+	eq(route.call("hole_at_position", click.position + Vector2(0.0, 50.0)), -1,
+			"clicking the act engraving below a hole does not select it")
+	click.position += Vector2(0.0, 50.0)
+	route.call("_gui_input", click)
+	eq(screen.selected_chapter(), order[1], "clicking outside the chapter hole keeps selection")
+	ok(bool(route.call("selected_hole_is_burning")), "selection heats the actual punched hole")
 	var dossier := screen.get_node("ModalRoot/Card/Content/Body/Column/Middle/Dossier") as PanelContainer
 	ok(dossier.get_theme_stylebox("panel") is StyleBoxTexture, "dossier is a paper attachment")
+	var pins := dossier.get_node("Pins")
+	var pin_positions: Array[Vector2] = pins.call("pin_positions")
+	eq(pin_positions.size(), 4, "chapter paper has four visible metal nails")
+	for pin in pin_positions:
+		ok(Rect2(Vector2(12.0, 12.0), dossier.size - Vector2(24.0, 24.0)).has_point(pin),
+				"paper nails are seated inside the real paper contour")
 	var chapter := dossier.get_node("DossierBox/ChapterName") as Label
 	eq(chapter.text, ChapterText.name_of(order[1]), "pinned chapter note follows route selection")
 	ok(chapter.get_theme_color("font_color").get_luminance() < 0.2, "chapter note uses readable dark ink")

@@ -626,6 +626,9 @@ class BoardDressing extends Node2D:
 	var drop_bounce := 0.0
 	var _time := 0.0
 	var _swaying := false
+	var _settle_delay := 0.0
+	var _swing_offset := 0.0
+	var _rest_x := 0.0
 
 	func _init() -> void:
 		name = "BoardDressing"
@@ -641,26 +644,42 @@ class BoardDressing extends Node2D:
 	func _process(delta: float) -> void:
 		if _swaying:
 			_time += delta
-			sway_angle = 0.008 * sin(_time * 7.0) * exp(-_time * 2.5)
-			if _time > 1.2:
+			var phase := maxf(_time - _settle_delay, 0.0)
+			sway_angle = 0.008 * sin(phase * 7.0) * exp(-phase * 2.5)
+			# Move the iron board with its chain ends. Rounded horizontal motion
+			# preserves the engraved font raster; the screen-side anchors stay put.
+			_swing_offset = roundf(sway_angle * 360.0)
+			if is_instance_valid(_card):
+				_card.position.x = _rest_x + _swing_offset
+			if phase > 1.2:
 				_swaying = false
 				sway_angle = 0.0
+				_swing_offset = 0.0
+				if is_instance_valid(_card):
+					_card.position.x = _rest_x
 			queue_redraw()
 		elif not is_zero_approx(drop_bounce):
 			queue_redraw()
 
-	func play_spring_settle(force: bool = false) -> void:
+	func play_spring_settle(force: bool = false, settle_delay: float = 0.0) -> void:
 		if DisplayServer.get_name() == "headless" and not force:
 			snap()
 			return
 		_swaying = true
 		_time = 0.0
+		_settle_delay = maxf(settle_delay, 0.0)
+		_swing_offset = 0.0
+		if is_instance_valid(_card):
+			_rest_x = (_card.get_meta("_modal_home", _card.position) as Vector2).x
 		queue_redraw()
 
 	func snap() -> void:
+		if is_instance_valid(_card) and not is_zero_approx(_swing_offset):
+			_card.position.x = _rest_x
 		_swaying = false
 		sway_angle = 0.0
 		drop_bounce = 0.0
+		_swing_offset = 0.0
 		queue_redraw()
 
 	func get_anchor_point(index: int) -> Vector2:
@@ -669,10 +688,8 @@ class BoardDressing extends Node2D:
 		var cp := _card.position
 		var cs := _card.size
 		var chain_x := roundf(cp.x + cs.x * (0.22 if index == 0 else 0.78))
-		var top_y := 0.0
 		var anchor_y := roundf(cp.y + 6.0)
-		var local_anchor := Vector2(0.0, anchor_y - top_y).rotated(sway_angle)
-		return Vector2(chain_x, top_y) + local_anchor
+		return Vector2(chain_x, anchor_y)
 
 	func _draw() -> void:
 		if _card == null or not is_instance_valid(_card):
@@ -682,19 +699,21 @@ class BoardDressing extends Node2D:
 		if cs.x <= 0 or cs.y <= 0:
 			return
 
-		var chain_x1 := roundf(cp.x + cs.x * 0.22)
-		var chain_x2 := roundf(cp.x + cs.x * 0.78)
+		var chain_x1 := roundf(cp.x - _swing_offset + cs.x * 0.22)
+		var chain_x2 := roundf(cp.x - _swing_offset + cs.x * 0.78)
 		var top_y := 0.0 # 屏幕顶部
 		var anchor_y := roundf(cp.y + 6.0)
 
 		# 绘制左/右悬挂铁链 (应用 sway_angle 动态摆动)
-		_draw_swaying_chain(chain_x1, top_y, anchor_y, sway_angle)
-		_draw_swaying_chain(chain_x2, top_y, anchor_y, sway_angle)
+		_draw_swaying_chain(chain_x1, top_y, get_anchor_point(0))
+		_draw_swaying_chain(chain_x2, top_y, get_anchor_point(1))
 
-	func _draw_swaying_chain(chain_x: float, top_y: float, anchor_y: float, angle: float) -> void:
+	func _draw_swaying_chain(chain_x: float, top_y: float, end: Vector2) -> void:
+		var span := end - Vector2(chain_x, top_y)
+		var angle := Vector2.DOWN.angle_to(span)
 		draw_set_transform(Vector2(chain_x, top_y), angle, Vector2.ONE)
-		_draw_chain_column(0.0, 0.0, anchor_y - top_y)
-		_draw_shackle(Vector2(0.0, anchor_y - top_y))
+		_draw_chain_column(0.0, 0.0, span.length())
+		_draw_shackle(Vector2(0.0, span.length()))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func _draw_chain_column(x: float, y_start: float, y_end: float) -> void:
@@ -822,35 +841,63 @@ class LedgerDressing extends Node2D:
 class PlateDressing extends Node2D:
 	var _card: Control
 	var _time := 1.0
+	var _settle_delay := 0.20
+	const NAIL_STAGGER := 0.08
+	const NAIL_DRIVE := 0.06
+	const SPARK_TIME := 0.12
 	func bind_card(card: Control) -> void:
 		_card = card
 		card.item_rect_changed.connect(queue_redraw)
-	func play_open() -> void:
+	func play_open(settle_delay: float = 0.20) -> void:
 		_time = 0.0
+		_settle_delay = maxf(settle_delay, 0.0)
 		queue_redraw()
 	func snap() -> void:
 		_time = 1.0
 		queue_redraw()
 	func _process(delta: float) -> void:
-		if _time < 0.5:
+		if _time < _settle_delay + NAIL_STAGGER * 3.0 + SPARK_TIME:
 			_time += delta
 			queue_redraw()
+	func installed_nail_count() -> int:
+		var phase := _time - _settle_delay
+		if phase < 0.0:
+			return 0
+		return clampi(int(floor(phase / NAIL_STAGGER)) + 1, 0, 4)
+	func nail_points() -> PackedVector2Array:
+		if not is_instance_valid(_card):
+			return PackedVector2Array()
+		# Match the four empty seats baked into plate.png, including its thicker
+		# lower return. No already-installed heads hide underneath this sequence.
+		var p := _card.position
+		var s := _card.size
+		return PackedVector2Array([p + Vector2(26, 30), p + Vector2(s.x - 32, 30),
+			p + Vector2(s.x - 32, s.y - 46), p + Vector2(26, s.y - 46)])
 	func _draw() -> void:
 		if not is_instance_valid(_card):
 			return
-		var rect := _card.get_rect().grow(-18.0)
-		var corners := [rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]
+		var corners := nail_points()
 		for i in corners.size():
-			if _time < i * 0.06:
+			var phase := _time - _settle_delay - float(i) * NAIL_STAGGER
+			if phase < 0.0:
 				continue
-			var p: Vector2 = corners[i].round()
-			draw_rect(Rect2(p - Vector2(6, 6), Vector2(12, 12)), PAL["outline"])
-			draw_rect(Rect2(p - Vector2(4, 4), Vector2(8, 8)), PAL["iron_mid"])
-			draw_line(p + Vector2(-2, -2), p + Vector2(2, 2), PAL["brass_shadow"], 2.0)
-			if _time < i * 0.06 + 0.08:
-				for ray in 4:
-					var direction := Vector2.from_angle(float(ray) * PI / 2.0 + 0.4)
-					draw_line((p + direction * 8.0).round(), (p + direction * 18.0).round(), PAL["brass_lit"], 2.0)
+			var seat: Vector2 = corners[i].snapped(Vector2(2, 2))
+			var drive := roundf(10.0 * (1.0 - clampf(phase / NAIL_DRIVE, 0.0, 1.0)))
+			var p := seat + Vector2(0.0, -drive)
+			draw_rect(Rect2(seat - Vector2(8, 4), Vector2(18, 14)), PAL["outline"])
+			draw_rect(Rect2(p - Vector2(8, 4), Vector2(16, 8)), Color("#4D5558"))
+			draw_rect(Rect2(p - Vector2(6, 6), Vector2(12, 12)), Color("#4D5558"))
+			draw_line(p + Vector2(-6, -6), p + Vector2(4, -6), Color("#B4B8A4"), 2.0)
+			draw_line(p + Vector2(-8, -4), p + Vector2(-8, 2), Color("#8B9794"), 2.0)
+			draw_line(p + Vector2(-4, 2), p + Vector2(4, -2), Color("#18222C"), 2.0)
+			if phase < SPARK_TIME:
+				var fade := (1.0 - phase / SPARK_TIME) * Settings.flash_scale
+				var color := Color(1.0, 0.72, 0.24, fade)
+				for ray in 5:
+					var direction := Vector2.from_angle(float(ray) * TAU / 5.0 + 0.3 * float(i))
+					var reach := 14.0 + phase * 100.0
+					draw_line((seat + direction * 9.0).round(),
+						(seat + direction * reach).round(), color, 2.0)
 
 class NotesDressing extends Node2D:
 	func bind_card(_card: Control) -> void:

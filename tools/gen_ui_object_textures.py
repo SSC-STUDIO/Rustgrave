@@ -239,7 +239,10 @@ def plate(size: tuple[int, int]) -> Image.Image:
                    (cx+3*sx, cy+8*sy), (cx-8*sx, cy+8*sy)]
         fill_poly(im, bracket, rgba("#3A444A"), rgba("#101923"))
         d.line(bracket[:3], fill=rgba("#87918B"))
-        rivet(im, cx, cy, 4, slot=True)
+        # The installed corner nails are animated by PlateDressing after the
+        # plate lands. Bake only the empty drilled seat into this bracket.
+        d.ellipse((cx-2, cy-2, cx+2, cy+2), fill=rgba("#111922"))
+        d.line((cx-1, cy+3, cx+2, cy+3), fill=rgba("#6B7777"))
     # Two punched suspension holes: visibly cut through the cool rolled lip.
     for x in [w//3, 2*w//3]:
         d.rounded_rectangle((x-8, 5, x+8, 12), radius=3, fill=rgba("#101820"))

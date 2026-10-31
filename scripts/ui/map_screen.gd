@@ -24,14 +24,15 @@ const MIN_SCALE := 0.02
 const VIEW_MIN := Vector2(360.0, 176.0)
 ## 右下卷宗卡的宽度，剖面占剩下的左侧。
 const DOSSIER_W := 424.0
-## 行程横带：顶上一行幕名，中间一排节点，底下一行章节序号。
-const RAIL_H := 84.0
+## The chapter selector is the punched top edge of the plate itself. Numbers
+## and act engravings sit below the holes rather than adding a second selector.
+const RAIL_H := 100.0
 ## 节点离两端的留白：与幕名的左缘（节点再左 24px）正好贴齐卡片的左右内缘。
 const RAIL_EDGE := 24.0
-const RAIL_NODE_Y := 45.0
-const RAIL_RULE_Y := 30.0
-const RAIL_NUM_Y := 62.0
-const RAIL_CURSOR_Y := 80.0
+const RAIL_NODE_Y := 22.0
+const RAIL_RULE_Y := 22.0
+const RAIL_NUM_Y := 42.0
+const RAIL_CURSOR_Y := 62.0
 ## 路线节点的三种状态：行程横带、卷宗角标、图例共用同一套绘制。
 const ROUTE_DONE := 10
 const ROUTE_HERE := 11
@@ -95,6 +96,9 @@ func _build() -> void:
 		"back": "Esc / 回车 返回",
 	})
 	_root = _shell["root"] as Control
+	# The physical chapter holes own the top of this plate. Keep the shared
+	# Header node for callers, but let the selector replace its vertical space.
+	(_shell["card"] as Control).get_node("Content/Header").visible = false
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed \
 				and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
@@ -107,13 +111,13 @@ func _build() -> void:
 	column.add_theme_constant_override("separation", 10)
 	body.add_child(column)
 
-	column.add_child(_build_route_head())
 	_rail = RouteRail.new()
 	_rail.name = "Route"
 	_rail.picked.connect(select_chapter)
 	_rail.resized.connect(_layout_route)
 	column.add_child(_rail)
 	_build_route_labels()
+	column.add_child(_build_route_head())
 
 	var middle := HBoxContainer.new()
 	middle.name = "Middle"
@@ -132,7 +136,7 @@ func _build() -> void:
 func _build_route_head() -> HBoxContainer:
 	var head := HBoxContainer.new()
 	head.name = "RouteHead"
-	head.add_child(GlassKit.kicker("行 程"))
+	head.add_child(UiKit.label("地 图 · 行 程", &"SubHeadLabel"))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -177,9 +181,9 @@ func _layout_route() -> void:
 	for a in _act_labels.size():
 		var first := int(TitleGauge.ACT_STARTS[a])
 		var x := geo.x + float(first) * geo.y - 24.0
-		_act_labels[a].position = Vector2(x, 0.0)
+		_act_labels[a].position = Vector2(x, 70.0)
 		_act_labels[a].size = Vector2(28.0, 28.0)
-		_tally_labels[a].position = Vector2(x + 30.0, 6.0)
+		_tally_labels[a].position = Vector2(x + 30.0, 76.0)
 		_tally_labels[a].size = Vector2(96.0, 18.0)
 
 
@@ -260,12 +264,16 @@ func _build_dossier(parent: HBoxContainer) -> void:
 	_dossier.custom_minimum_size = Vector2(DOSSIER_W, 0.0)
 	_dossier.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var paper := ObjectKit.journey_tag_style_box().duplicate() as StyleBoxTexture
-	paper.content_margin_left = 24.0
-	paper.content_margin_top = 22.0
-	paper.content_margin_right = 24.0
-	paper.content_margin_bottom = 20.0
+	paper.content_margin_left = 36.0
+	paper.content_margin_top = 40.0
+	paper.content_margin_right = 36.0
+	paper.content_margin_bottom = 36.0
 	_dossier.add_theme_stylebox_override("panel", paper)
 	parent.add_child(_dossier)
+	var pins := DossierPins.new()
+	pins.name = "Pins"
+	pins.bind_paper(_dossier)
+	_dossier.add_child(pins)
 	var box := VBoxContainer.new()
 	box.name = "DossierBox"
 	box.add_theme_constant_override("separation", 8)
@@ -632,6 +640,7 @@ class RouteRail extends Control:
 	var _here := -1
 	var _sel := 0
 	var _t := 0.0
+	var _heat := 0.0
 
 	func _init() -> void:
 		custom_minimum_size = Vector2(0.0, RAIL_H)
@@ -654,7 +663,22 @@ class RouteRail extends Control:
 
 	func set_selected(sel: int) -> void:
 		_sel = sel
+		_heat = 1.0
 		queue_redraw()
+
+	## Drawing and mouse targeting share one physical hole centre.
+	func hole_center(index: int) -> Vector2:
+		var geo := geometry(size.x, _done.size())
+		return Vector2(floorf(geo.x + float(index) * geo.y), RAIL_NODE_Y)
+
+	func hole_at_position(point: Vector2) -> int:
+		for i in _done.size():
+			if Rect2(hole_center(i) - Vector2(16.0, 16.0), Vector2(32.0, 32.0)).has_point(point):
+				return i
+		return -1
+
+	func selected_hole_is_burning() -> bool:
+		return _sel >= 0 and _sel < _done.size()
 
 	func set_breathing(on: bool) -> void:
 		set_process(on)
@@ -662,6 +686,7 @@ class RouteRail extends Control:
 
 	func _process(delta: float) -> void:
 		_t += delta
+		_heat = maxf(0.0, _heat - delta * 3.0)
 		queue_redraw()
 
 	func _gui_input(event: InputEvent) -> void:
@@ -670,10 +695,8 @@ class RouteRail extends Control:
 		var mouse := event as InputEventMouseButton
 		if not mouse.pressed or mouse.button_index != MOUSE_BUTTON_LEFT:
 			return
-		var geo := geometry(size.x, _done.size())
-		var i := roundi((mouse.position.x - geo.x) / maxf(geo.y, 1.0))
-		if i >= 0 and i < _done.size() \
-				and absf(mouse.position.x - (geo.x + float(i) * geo.y)) <= geo.y * 0.5:
+		var i := hole_at_position(mouse.position)
+		if i >= 0:
 			picked.emit(i)
 			accept_event()
 
@@ -685,13 +708,20 @@ class RouteRail extends Control:
 		var x0 := geo.x
 		var pitch := geo.y
 		var pulse := 0.5 + 0.5 * sin(TAU * _t / 1.6)
+		# Close the texture's two anonymous suspension slots with a pressed lip:
+		# the row below is the single, interactive set of chapter punch holes.
+		draw_rect(Rect2(-8.0, -28.0, size.x + 16.0, 16.0), Color("#4C555A"))
+		draw_line(Vector2(-8.0, -28.0), Vector2(size.x + 8.0, -28.0), Color("#7E8986"), 2.0)
+		draw_line(Vector2(-8.0, -12.0), Vector2(size.x + 8.0, -12.0), Color("#222D36"), 2.0)
 		# 节点之间的铁轨：两端都通关时烧成余烬。
 		for i in n - 1:
 			var lit := _done[i] and _done[i + 1]
 			var x_a := x0 + float(i) * pitch + 9.0
 			var x_b := x0 + float(i + 1) * pitch - 9.0
-			draw_rect(Rect2(x_a, RAIL_NODE_Y - 1.0, x_b - x_a, 2.0),
+			draw_rect(Rect2(x_a, RAIL_NODE_Y - 2.0, x_b - x_a, 2.0), Color("#111B25"))
+			draw_rect(Rect2(x_a, RAIL_NODE_Y, x_b - x_a, 2.0),
 					GlassKit.EMBER if lit else COL_ROD)
+			draw_rect(Rect2(x_a, RAIL_NODE_Y + 2.0, x_b - x_a, 2.0), Color("#6A7371"))
 		# 幕：一道横线横跨本幕的节点，幕与幕之间留一段缝；全幕通关时横线烧成余烬。
 		for a in TitleGauge.ACT_STARTS.size():
 			var first: int = int(TitleGauge.ACT_STARTS[a])
@@ -708,11 +738,18 @@ class RouteRail extends Control:
 			draw_rect(Rect2(x_from, RAIL_RULE_Y, x_to - x_from, 2.0), rule)
 			draw_rect(Rect2(x_from, RAIL_RULE_Y, 2.0, 10.0), rule)
 		for i in n:
-			var c := Vector2(floorf(x0 + float(i) * pitch), RAIL_NODE_Y)
+			var c := hole_center(i)
 			var state := ROUTE_HERE if i == _here else (ROUTE_DONE if _done[i] else ROUTE_LOCKED)
 			MapScreen.paint_route_node(self, c, state, pulse)
 		# 选中：四角括号（和卡片同一套 2px 栅格）+ 节点底下一根余烬短棒。
-		var sc := Vector2(floorf(x0 + float(_sel) * pitch), RAIL_NODE_Y)
+		var sc := hole_center(_sel)
+		# Selection heats the punched metal itself, including unopened chapters.
+		# The brackets are an additional aiming aid, never the only selection cue.
+		var burn := GlassKit.EMBER.lerp(GlassKit.EMBER_HOT, 0.35 + 0.30 * pulse + 0.35 * _heat)
+		draw_rect(Rect2(sc - Vector2(12.0, 12.0), Vector2(24.0, 24.0)),
+				Color(burn.r, burn.g, burn.b, (0.12 + 0.12 * pulse + 0.12 * _heat) * Settings.flash_scale))
+		draw_rect(Rect2(sc - Vector2(5.0, 5.0), Vector2(10.0, 10.0)), burn)
+		draw_rect(Rect2(sc - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), GlassKit.EMBER_HOT)
 		_bracket(sc, 13.0, Color(GlassKit.EMBER.r, GlassKit.EMBER.g, GlassKit.EMBER.b,
 				0.55 + 0.45 * pulse))
 		draw_rect(Rect2(sc.x - 6.0, RAIL_CURSOR_Y, 12.0, 2.0), GlassKit.EMBER)
@@ -731,6 +768,30 @@ class RouteRail extends Control:
 		draw_rect(Rect2(l, b - a + 2.0, 2.0, a), col)
 		draw_rect(Rect2(r - a + 2.0, b, a, 2.0), col)
 		draw_rect(Rect2(r, b - a + 2.0, 2.0, a), col)
+
+
+## The four nails belong to this paper attachment, not to the steel plate's
+## installation animation. Node2D keeps them outside PanelContainer's text box.
+class DossierPins extends Node2D:
+	var _paper: Control
+
+	func bind_paper(paper: Control) -> void:
+		_paper = paper
+		paper.item_rect_changed.connect(queue_redraw)
+
+	func pin_positions() -> Array[Vector2]:
+		if not is_instance_valid(_paper):
+			return []
+		return [Vector2(22.0, 22.0), Vector2(_paper.size.x - 28.0, 22.0),
+				_paper.size - Vector2(26.0, 26.0), Vector2(22.0, _paper.size.y - 26.0)]
+
+	func _draw() -> void:
+		for p in pin_positions():
+			draw_rect(Rect2(p + Vector2(-6.0, -4.0), Vector2(14.0, 14.0)), Color("#5D4F3A"))
+			draw_rect(Rect2(p - Vector2(6.0, 6.0), Vector2(12.0, 12.0)), Color("#231E1B"))
+			draw_rect(Rect2(p - Vector2(4.0, 4.0), Vector2(8.0, 8.0)), Color("#8B7958"))
+			draw_line(p + Vector2(-4.0, -4.0), p + Vector2(2.0, -4.0), Color("#D1B980"), 2.0)
+			draw_line(p + Vector2(-2.0, 2.0), p + Vector2(2.0, -2.0), Color("#3B3027"), 2.0)
 
 
 ## 图例条：压暗的半透明铁条，上下一道锈线，两端削角（与卷宗卡同一个阶梯）。
