@@ -172,13 +172,16 @@ func _draw() -> void:
 	var points := PackedVector2Array()
 	for i in steps + 1:
 		points.append(_ellipse_point(a0 + (a1 - a0) * float(i) / float(steps), rx, ry))
-	var ring_col := Color(RUST.r, RUST.g, RUST.b, 0.40 + 0.10 * reveal)
+	var ring_col := Color(0.58, 0.36, 0.20, 0.55 + 0.10 * reveal)
+	var ring_back := Color(0.02, 0.015, 0.03, 0.60)
 	for i in points.size() - 1:
 		var mid := float(i) / float(steps - 1)
 		# 从底心向两肩显现：底弧先亮，肩部后亮。
 		var t := absf(mid * 2.0 - 1.0)
 		if t > reveal:
 			continue
+		# 背描一道近黑（可读性描边）：铁线从乱背景里「抠」出来。
+		draw_line(points[i] + Vector2(0.0, 1.0), points[i + 1] + Vector2(0.0, 1.0), ring_back, 1.0)
 		draw_line(points[i], points[i + 1], ring_col, 1.0)
 	# 尾端两粒铁帽。
 	for phi in [a0, a1]:
@@ -188,8 +191,10 @@ func _draw() -> void:
 	var notch_reveal := clampf(reveal * 1.6 - 0.3, 0.0, 1.0)
 	if notch_reveal > 0.0:
 		var bottom := _ellipse_point(PI, rx, ry)
+		draw_rect(Rect2(bottom.x - 2.0, bottom.y - 8.0 * notch_reveal, 4.0,
+				8.0 * notch_reveal), Color(0.02, 0.015, 0.03, 0.5 * notch_reveal))
 		draw_rect(Rect2(bottom.x - 1.0, bottom.y - 7.0 * notch_reveal, 2.0,
-				6.0 * notch_reveal), Color(0.52, 0.40, 0.30, 0.8 * notch_reveal))
+				6.0 * notch_reveal), Color(0.52, 0.40, 0.30, 0.85 * notch_reveal))
 		draw_rect(Rect2(bottom.x - 1.0, bottom.y - 2.0 - 7.0 * notch_reveal, 2.0, 2.0),
 				Color(0.68, 0.52, 0.36, 0.9 * notch_reveal))
 	# ---- 点燃刻度：旧铁渐冷，最新一枚烧着。
@@ -209,11 +214,13 @@ func _draw() -> void:
 		if is_newest:
 			var flick := 0.72 + 0.28 * sin(_time * 7.3 + sin(_time * 2.9) * 1.7)
 			col = MID.lerp(HOT, flick)
-		col.a = (0.55 + 0.45 * (1.0 - cool)) * per
-		# 沿法线方向的短刻度：外端亮、内端沉。
+		col.a = (0.72 + 0.28 * (1.0 - cool)) * per
+		# 沿法线方向的短刻度：先背描再上色，外端亮、内端沉。
 		var dir := (p - c).normalized()
-		var inner := p - dir * 4.0
-		var outer := p + dir * 3.0
+		var inner := p - dir * 5.0
+		var outer := p + dir * 4.0
+		draw_line(inner + Vector2(0.0, 1.0), outer + Vector2(0.0, 1.0),
+				Color(0.02, 0.015, 0.03, 0.55 * per), 2.0)
 		draw_line(inner, outer, col, 2.0)
 		if is_newest:
 			# 一粒 2px 余烬芯 + 十字微光。
@@ -236,7 +243,9 @@ func _draw() -> void:
 		var phi := _tick_phi(i, dn)
 		var p := _ellipse_point(phi, rx - 9.0, ry - 9.0)
 		var col := DEATH
-		col.a = (0.55 if i < dn - 1 else 0.85) * per
+		col.a = (0.62 if i < dn - 1 else 0.92) * per
+		draw_rect(Rect2(p - Vector2(1.0, 1.0), Vector2(2.0, 5.0)),
+				Color(0.02, 0.015, 0.03, 0.55 * per))
 		draw_rect(Rect2(p - Vector2(1.0, 2.0), Vector2(2.0, 4.0)), col)
 		draw_rect(Rect2(p - Vector2(2.0, 1.0), Vector2(4.0, 2.0)), col)
 		if i == dn - 1:
@@ -245,4 +254,7 @@ func _draw() -> void:
 
 
 func _cap(p: Vector2) -> void:
-	draw_rect(Rect2(p - Vector2(1.0, 1.0), Vector2(3.0, 3.0)), Color(0.30, 0.22, 0.18, 0.8))
+	# 肩位铁帽：一颗背描过的铆钉，环的「挂点」。
+	draw_rect(Rect2(p.x - 1.0, p.y, 3.0, 3.0), Color(0.02, 0.015, 0.03, 0.7))
+	draw_rect(Rect2(p - Vector2(1.0, 1.0), Vector2(3.0, 3.0)), Color(0.44, 0.30, 0.20, 0.95))
+	draw_rect(Rect2(p - Vector2(1.0, 1.0), Vector2(1.0, 1.0)), Color(0.72, 0.54, 0.36, 0.9))
