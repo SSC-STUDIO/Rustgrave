@@ -18,15 +18,15 @@ func test_shrine_fire_has_physical_detail_and_a_fixed_fuel_root() -> void:
 	eq(poses.size(), 8)
 
 
-func test_live_title_forge_selects_and_advances_the_new_hearth_strip() -> void:
+func test_live_title_forge_selects_and_advances_the_native_mouth_strip() -> void:
 	var world := TitleWorld.new()
 	add_child(world)
 	world.set_process(false)
 	var mouth := world.get_node("MassRight/ForgeMouth") as Sprite2D
-	eq(mouth.hframes, 8)
-	eq(mouth.texture.resource_path, "res://assets/title/forge_fire.png")
+	eq(mouth.hframes, 16)
+	eq(mouth.texture.resource_path, "res://qhd-runtime/title/forge_mouth.png")
 	eq(mouth.get_rect().size, Vector2(60, 66), "same aperture placement")
-	eq(mouth.texture.get_image().get_size(), Vector2i(1920, 264))
+	eq(mouth.texture.get_image().get_size(), Vector2i(3840, 264))
 	world.set("_t", 0.0)
 	world.call("_animate_actors", 0.0)
 	var before := mouth.frame
