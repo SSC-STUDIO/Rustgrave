@@ -1,11 +1,20 @@
 extends Node
-## P0 render spike of the 3D pixel-art arena: a mid-lane slice, a controllable
-## knight and looping lane minions. F3 opts into render stats and look controls.
+## Playable 3D arena: a mid-lane slice driven by the deterministic MobaSim.
+##
+## MobaSim (scripts/moba/sim/moba_sim.gd) runs at a fixed 30 Hz; this scene
+## accumulates frame time, steps it, and pulls every position/anim state from
+## `entities()`/`structures()` each frame. Nothing here decides damage: hits,
+## deaths, waves and the winner are settled by the simulation, the view only
+## plays slash / impact / hit-flash / death-fade and shows the HUD.
+##
+## F3 opts into render statistics and the original look controls; R restarts
+## the match, Esc / the native button returns to the title.
 ##
 ## User arguments after `--` start it in a given state for unattended captures:
 ## --autopan --demo --stress --fit --palette --unsnapped --no-shadows --outline=N
-## --dither=N --height=ROWS --zoom=METRES --at=LANE_X,LANE_Z --window=WxH
+## --dither=N --height=ROWS --zoom=METRES --at=LANE_X,LANE_Y --window=WxH
 ## --debug --shot-after=SECONDS --quit-after-shot
+## --auto --speed=N --seed=N --auto-shots=open:1.5,mid:30,end --shot-dir=PATH
 
 const PIXEL_STAGE := preload("res://scripts/moba/view/pixel_stage.gd")
 const PIXEL_CAMERA := preload("res://scripts/moba/view/pixel_camera.gd")
@@ -15,9 +24,16 @@ const SPIKE_MAP := preload("res://scripts/moba/spike/spike_map.gd")
 const KNIGHT := preload("res://scripts/moba/view/low_poly_knight.gd")
 const MINION := preload("res://scripts/moba/view/spike_minion.gd")
 const RUN := preload("res://scripts/moba/moba_run.gd")
+const VIEW_MAP := preload("res://scripts/moba/present/moba_view_map.gd")
+const HUD := preload("res://scripts/moba/present/moba_hud.gd")
+const UNIT_POOL := preload("res://scripts/moba/present/moba_unit_pool.gd")
+const IMPACT_POOL := preload("res://scripts/moba/present/moba_impact_pool.gd")
+const STRUCTURE_VIEW := preload("res://scripts/moba/present/moba_structure_view.gd")
+const FX := preload("res://scripts/moba/present/moba_unit_fx.gd")
 ## Loaded on first use so a renderer without depth-texture reads fails only
 ## when the depth outline is switched on.
 const DEPTH_EDGE_SHADER := "res://assets/shaders/moba/depth_edge.gdshader"
+const SIM_PATH := "res://scripts/moba/sim/moba_sim.gd"
 
 const HERO_SPEED := 4.5
 const SHOT_DIR := "user://moba_spike"
@@ -28,16 +44,33 @@ const OUTLINE_MODES: Array[String] = ["外壳", "深度", "外壳+深度", "关"
 const TEXT_COLOR := Color("#f2e8da")
 const MODE_NAME := "余烬竞技场 · 3D试演"
 const HELP_TEXT := "1 内部分辨率   2 铺满/16:9   3 纹素吸附   4 亚像素平移\n5 描边   6 抖动   7 调色板锁定   8 12帧动画   9 太阳阴影\n0 自动平移   M 压力测试   P 截图   H 隐藏调试帮助   F3 关闭调试"
+## MobaSim runs at a fixed 30 Hz; the view accumulates real frame time into
+## whole ticks and never feeds variable dt into the simulation.
+const STEP_SECONDS := 1.0 / 30.0
+const MAX_STEPS_PER_FRAME := 48
+const MATCH_SEED := 20261101
+const HERO_SMOOTHING := 24.0
+const HERO_DEATH_FADE := 0.7
+const HERO_ATTACK_RANGE := 2.2
 
 var stage: PIXEL_STAGE
 var camera: PIXEL_CAMERA
 var map: SPIKE_MAP
 var hero: KNIGHT
+## MobaSim instance (RefCounted); null until scripts/moba/sim lands, which the
+## HUD reports instead of silently running a fake match.
+var sim: RefCounted = null
 
 var _sun: DirectionalLight3D
-## Hero and minions; untyped because their script properties are read per unit.
+## Hero plus the optional debug stress batch; untyped because their script
+## properties are read per unit.
 var _units: Array = []
 var _stress: Array = []
+var _unit_pool: Node3D
+var _impact_pool: Node3D
+## "team:kind" -> MobaStructureView
+var _structures: Dictionary = {}
+var _hud: Node
 var _pan_target: Node3D
 var _depth_quad: MeshInstance3D
 var _overlay: CanvasLayer
@@ -71,8 +104,42 @@ var _debug := false
 var _leaving := false
 var _pad_actions := {&"move_left": {}, &"move_right": {}, &"ui_up": {}, &"ui_down": {}}
 
+## Simulation step accumulator and time scale for unattended captures.
+var _step_accum := 0.0
+var _speed_scale := 1.0
+var _match_seed := MATCH_SEED
+var _restart_count := 0
+var _args: Dictionary = {}
+
+## Presentation state pulled from the simulation.
+var _hero_entity: Dictionary = {}
+var _hero_dead := false
+var _hero_fade := 1.0
+var _hero_parts: Array[MeshInstance3D] = []
+var _hero_flash_timer := 0.0
+var _hero_anim: StringName = &""
+var _hero_controllable := true
+var _hero_respawn_ms := 0
+var _prev_hp: Dictionary = {}
+var _outcome: StringName = &""
+## Every non-player hero the sim publishes (currently the red AI knight); the
+## player hero keeps its dedicated `hero` view and camera/input ownership.
+var _enemy_heroes: Dictionary = {}
+var _enemy_display: Dictionary = {}
+
+## Autopilot + tagged captures for the acceptance screenshots.
+var _auto := false
+var _auto_last_target := -1
+var _auto_log_tick := 0
+var _quit_after_sim := -1.0
+var _auto_shots: Array[Dictionary] = []
+var _pending_shot: Dictionary = {}
+var _pending_shot_delay := 0
+var _shot_peek_dir := ""
+
 
 func _ready() -> void:
+	_parse_args()
 	RUN.attach(self)
 	Input.joy_connection_changed.connect(_on_pad_connection_changed)
 	# Units move at priority 0; the hero and unit snapping follow here, and the
@@ -93,14 +160,9 @@ func _ready() -> void:
 	map = SPIKE_MAP.new()
 	map.name = "Map"
 	stage.world.add_child(map)
-	hero = KNIGHT.new()
-	hero.name = "Hero"
-	stage.world.add_child(hero)
-	hero.global_position = SPIKE_MAP.lane_to_world(-11.0, 0.6)
-	hero.facing = -PI * 0.25
-	hero.impact.connect(_on_impact)
-	_units.append(hero)
-	_spawn_lane_minions()
+	_build_sim()
+	_build_actors()
+	_build_structures()
 	_pan_target = Node3D.new()
 	_pan_target.name = "PanTarget"
 	stage.world.add_child(_pan_target)
@@ -108,11 +170,13 @@ func _ready() -> void:
 	camera.focus = Vector3(hero.global_position.x, 0.0, hero.global_position.z)
 	stage.layout_changed.connect(_refresh_outline_width)
 	_build_overlay()
-	var stress_on_start := _read_user_args()
+	var stress_on_start := _apply_args()
 	_apply_all()
 	_set_debug(_debug)
 	if stress_on_start:
 		_toggle_stress()
+	_sync_world(0.0)
+	_snap_units()
 
 
 func _exit_tree() -> void:
@@ -136,6 +200,8 @@ func _return_to_title() -> void:
 	_clear_pad_input()
 	if hero != null:
 		hero.speed = 0.0
+	if sim != null and sim.has_method("set_move"):
+		sim.set_move(Vector2.ZERO)
 	if _return_button != null:
 		_return_button.disabled = true
 	if not RUN.exit_to_title():
@@ -219,7 +285,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Touches also arrive as emulated mouse clicks; those must not swing.
 	if event.device != InputEvent.DEVICE_ID_EMULATION \
 			and (bound_event.is_action_pressed("attack") or bound_event.is_action_pressed("jump")):
-		hero.attack()
+		_attack_command()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton:
@@ -241,18 +307,20 @@ func _process(delta: float) -> void:
 	if _leaving or Director.is_fading():
 		return
 	_clock += delta
-	if _demo:
+	if _demo and sim == null:
 		_demo_timer -= delta
 		if _demo_timer <= 0.0:
 			_demo_timer = 1.6
-			hero.attack()
+			if hero != null:
+				hero.attack()
+	if _auto:
+		_auto_input(delta)
 	_move_hero(delta)
 	if _autopan:
 		var center := SPIKE_MAP.lane_to_world(-6.0, 0.0)
 		_pan_target.global_position = center + Vector3(sin(_clock * TAU / 20.0) * 6.0, 0.0, sin(_clock * TAU / 13.0) * 4.0)
-	for gem in map.crystals:
-		gem.rotation.y += delta * 0.8
-		gem.position.y = float(gem.get_meta("base_y")) + sin(_clock * 2.0) * 0.12
+	_advance_sim(delta)
+	_sync_world(delta)
 	_snap_units()
 	_refresh_player_hint()
 	_update_info(delta)
@@ -260,8 +328,8 @@ func _process(delta: float) -> void:
 		_shot_timer -= delta
 		if _shot_timer < 0.0:
 			_capture()
-			if _quit_after_shot:
-				get_tree().quit()
+			_quit_if_done()
+	_handle_auto_shots()
 
 
 func _handle_key(code: Key) -> bool:
@@ -273,6 +341,9 @@ func _handle_key(code: Key) -> bool:
 			return true
 		KEY_F3:
 			_set_debug(not _debug)
+			return true
+		KEY_R:
+			restart_match()
 			return true
 		KEY_EQUAL, KEY_KP_ADD:
 			_zoom(-1.0)
@@ -330,6 +401,42 @@ func _handle_key(code: Key) -> bool:
 	return true
 
 
+func _toggle_stress() -> void:
+	if not _stress.is_empty():
+		for unit in _stress:
+			if is_instance_valid(unit):
+				unit.queue_free()
+		_stress.clear()
+		for i in range(_units.size() - 1, -1, -1):
+			if not is_instance_valid(_units[i]):
+				_units.remove_at(i)
+		_toast_message("压力测试: 关")
+		return
+	for i in STRESS_BATCH:
+		var unit := _spawn_minion(i % 2, _rng.randf() < 0.4, _rng.randf_range(0.0, 54.0), _rng.randf_range(-2.0, 2.0))
+		_stress.append(unit)
+		_units.append(unit)
+	_toast_message("压力测试: +%d 小兵" % STRESS_BATCH)
+
+
+## Render-only looping walker for the F3 stress tool. The playable lane minions
+## are pooled sim entities (MobaUnitPool); this batch exists only to push draw
+## call numbers around when validating the render pipeline.
+func _spawn_minion(team: int, caster: bool, progress: float, lateral: float) -> Node3D:
+	var minion := MINION.new()
+	var blue_end := SPIKE_MAP.lane_to_world(-27.0, 0.0)
+	var red_end := SPIKE_MAP.lane_to_world(27.0, 0.0)
+	minion.team = team
+	minion.caster = caster
+	minion.path_from = blue_end if team == 0 else red_end
+	minion.path_to = red_end if team == 0 else blue_end
+	minion.progress = progress
+	minion.lateral = lateral
+	minion.stepped = _stepped
+	stage.world.add_child(minion)
+	return minion
+
+
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -351,78 +458,384 @@ func _build_environment() -> void:
 	stage.world.add_child(_sun)
 
 
-func _spawn_lane_minions() -> void:
-	for team in 2:
-		for i in 4:
-			var caster := i >= 2
-			var lateral := (0.9 if i % 2 == 0 else -0.9) * (0.65 if caster else 1.0)
-			var progress := (14.0 if team == 0 else 22.0) + float(i) * 1.4
-			_units.append(_spawn_minion(team, caster, progress, lateral))
+# ------------------------------------------------------------ simulation --
 
-
-func _spawn_minion(team: int, caster: bool, progress: float, lateral: float) -> Node3D:
-	var minion := MINION.new()
-	var blue_end := SPIKE_MAP.lane_to_world(-27.0, 0.0)
-	var red_end := SPIKE_MAP.lane_to_world(27.0, 0.0)
-	minion.team = team
-	minion.caster = caster
-	minion.path_from = blue_end if team == 0 else red_end
-	minion.path_to = red_end if team == 0 else blue_end
-	minion.progress = progress
-	minion.lateral = lateral
-	minion.stepped = _stepped
-	stage.world.add_child(minion)
-	return minion
-
-
-func _toggle_stress() -> void:
-	if not _stress.is_empty():
-		for unit in _stress:
-			if is_instance_valid(unit):
-				unit.queue_free()
-		_stress.clear()
-		_toast_message("压力测试: 关")
+func _build_sim() -> void:
+	if not ResourceLoader.exists(SIM_PATH):
+		sim = null
+		print("ArenaSpike: MobaSim missing at ", SIM_PATH, " - view-only preview")
 		return
-	for i in STRESS_BATCH:
-		var unit := _spawn_minion(i % 2, _rng.randf() < 0.4, _rng.randf_range(0.0, 54.0), _rng.randf_range(-2.0, 2.0))
-		_stress.append(unit)
-		_units.append(unit)
-	_toast_message("压力测试: +%d 小兵" % STRESS_BATCH)
+	var script := load(SIM_PATH) as GDScript
+	if script == null:
+		sim = null
+		print("ArenaSpike: MobaSim failed to load")
+		return
+	sim = script.new(_match_seed)
+	print("ArenaSpike: MobaSim seed=", _match_seed)
 
 
-func _move_hero(delta: float) -> void:
-	if _leaving or Director.is_fading():
+func _advance_sim(delta: float) -> void:
+	if sim == null:
+		return
+	_step_accum += delta * _speed_scale
+	var steps := 0
+	while _step_accum >= STEP_SECONDS and steps < MAX_STEPS_PER_FRAME:
+		sim.step()
+		_step_accum -= STEP_SECONDS
+		steps += 1
+	if steps >= MAX_STEPS_PER_FRAME:
+		# Do not let a huge frame drop queue minutes of catch-up ticks.
+		_step_accum = 0.0
+	if _auto and steps > 0 and _sim_tick_count() - _auto_log_tick >= 300:
+		_auto_log_tick = _sim_tick_count()
+		_auto_log()
+
+
+## Progress line for unattended runs (stdout only; the player never sees it).
+func _auto_log() -> void:
+	var hero_lane := UNIT_POOL.lane_of(_hero_entity) if not _hero_entity.is_empty() else Vector2.ZERO
+	var blue_hp := float(VIEW_MAP.CRYSTAL_HP)
+	var red_hp := float(VIEW_MAP.CRYSTAL_HP)
+	var blue_tower := float(VIEW_MAP.TOWER_HP)
+	var red_tower := float(VIEW_MAP.TOWER_HP)
+	for team in [VIEW_MAP.TEAM_BLUE, VIEW_MAP.TEAM_RED]:
+		for raw in _sim_structures(team):
+			if not (raw is Dictionary):
+				continue
+			var row: Dictionary = raw
+			var kind := StringName(row.get("kind", &""))
+			if kind == &"crystal":
+				if team == VIEW_MAP.TEAM_BLUE:
+					blue_hp = float(row.get("hp", blue_hp))
+				else:
+					red_hp = float(row.get("hp", red_hp))
+			elif kind == &"tower":
+				if team == VIEW_MAP.TEAM_BLUE:
+					blue_tower = float(row.get("hp", blue_tower))
+				else:
+					red_tower = float(row.get("hp", red_tower))
+	print("ArenaSpike auto: t=%.1fs wave=%d hero=(%.1f,%.1f) hp=%d dead=%s target=%d blue_tower=%.0f red_tower=%.0f blue_crystal=%.0f red_crystal=%.0f enemy_hero=%s minions=%d outcome=%s" % [
+		float(_sim_time_ms()) / 1000.0, _sim_wave_index(), hero_lane.x, hero_lane.y,
+		int(_hero_entity.get("hp", 0)), _hero_dead, _auto_last_target, blue_tower, red_tower,
+		blue_hp, red_hp, str(_enemy_display.get("hp", "-")), _unit_pool.active_count(), String(_outcome),
+	])
+
+
+## Test/autopilot seam: run whole fixed ticks through the same sync path the
+## frame loop uses, so a match can be exercised without waiting real time.
+func step_sim(ticks: int) -> void:
+	if sim == null:
+		return
+	for i in maxi(ticks, 0):
+		sim.step()
+		_sync_world(STEP_SECONDS)
+	_snap_units()
+
+
+## Pull the simulation state into every view right now.
+func sync_now(delta: float = STEP_SECONDS) -> void:
+	_sync_world(delta)
+	_snap_units()
+
+
+func _sync_world(delta: float) -> void:
+	if sim == null:
+		_sync_hud()
+		return
+	var entities: Array = _sim_entities()
+	var hero_id := _sim_hero_id()
+	var hero_entity: Dictionary = {}
+	var minions: Array = []
+	var enemy_heroes: Array = []
+	for raw in entities:
+		if raw is not Dictionary:
+			continue
+		var entity: Dictionary = raw
+		var kind := StringName(entity.get("kind", &"minion"))
+		var id := int(entity.get("id", 0))
+		_note_entity_damage(entity)
+		if id == hero_id:
+			hero_entity = entity
+		elif kind == &"hero":
+			enemy_heroes.append(entity)
+		elif kind == &"minion":
+			minions.append(entity)
+	_hero_entity = hero_entity
+	_unit_pool.sync(minions, delta)
+	_sync_hero(hero_entity, delta)
+	_sync_enemy_heroes(enemy_heroes, delta)
+	_sync_structures(delta)
+	_impact_pool.advance(delta)
+	# Note the outcome before the HUD snapshot so the result banner appears on
+	# the frame the crystal falls, not one frame later.
+	_note_outcome(_sim_outcome())
+	_sync_hud()
+
+
+func _sync_hero(entity: Dictionary, delta: float) -> void:
+	if hero == null:
+		return
+	var state: Dictionary = _sim_hero_state()
+	var alive := bool(state.get("alive", not entity.is_empty() and bool(entity.get("alive", true))))
+	var can_act := bool(state.get("can_act", alive))
+	_hero_controllable = can_act
+	_hero_respawn_ms = _respawn_ms(state)
+	var anim := UNIT_POOL.anim_of(entity) if not entity.is_empty() else (&"dead" if not alive else &"idle")
+	var target := hero.global_position
+	if not entity.is_empty():
+		target = VIEW_MAP.lane_to_world(UNIT_POOL.lane_of(entity))
+	var smoothing := 1.0 if delta <= 0.0 else 1.0 - exp(-HERO_SMOOTHING * delta)
+	hero.global_position = hero.global_position.lerp(target, clampf(smoothing, 0.0, 1.0))
+	if anim == &"run":
+		if hero.speed < 0.5:
+			hero.speed = HERO_SPEED
+	elif anim != &"attack":
 		hero.speed = 0.0
+	if not entity.is_empty():
+		var facing := int(entity.get("facing", 1))
+		if facing != 0:
+			hero.face_towards(VIEW_MAP.lane_dir_to_world(Vector2(float(facing), 0.0)), delta)
+	if anim == &"attack" and _hero_anim != &"attack" and not _hero_dead:
+		hero.attack()
+	_hero_anim = anim
+	if _hero_flash_timer > 0.0:
+		_hero_flash_timer -= delta
+		if _hero_flash_timer <= 0.0:
+			FX.set_flash(_hero_parts, false)
+	if anim == &"dead" or not alive:
+		_enter_hero_death(delta)
+	elif _hero_dead:
+		_leave_hero_death(target)
+
+
+func _enter_hero_death(delta: float) -> void:
+	if not _hero_dead:
+		_hero_dead = true
+		_hero_fade = 1.0
+		hero.speed = 0.0
+		_toast_message("余烬骑士阵亡")
+	_hero_fade = maxf(0.0, _hero_fade - delta / HERO_DEATH_FADE)
+	FX.set_fade(_hero_parts, _hero_fade)
+	hero.rotation.z = deg_to_rad(74.0) * (1.0 - _hero_fade)
+	if _hero_fade <= 0.0:
+		hero.visible = false
+
+
+func _leave_hero_death(target: Vector3) -> void:
+	_hero_dead = false
+	_hero_fade = 1.0
+	_hero_flash_timer = 0.0
+	FX.set_fade(_hero_parts, 1.0)
+	FX.set_flash(_hero_parts, false)
+	hero.visible = true
+	hero.rotation = Vector3.ZERO
+	hero.global_position = target
+	_hero_anim = &""
+
+
+## Every non-player hero the sim publishes (the red AI knight once it lands)
+## gets its own knight view with a permanent red tint so the two teams read
+## apart at a glance. The player knight keeps the `hero` view.
+func _sync_enemy_heroes(entities: Array, delta: float) -> void:
+	var seen: Dictionary = {}
+	for raw in entities:
+		if raw is not Dictionary:
+			continue
+		var entity: Dictionary = raw
+		var id := int(entity.get("id", 0))
+		seen[id] = true
+		var state: Dictionary = _enemy_heroes.get(id, {})
+		if state.is_empty():
+			state = _create_enemy_hero(id)
+			_enemy_heroes[id] = state
+		var view: KNIGHT = state["view"]
+		var parts: Array = state["parts"]
+		var anim := UNIT_POOL.anim_of(entity)
+		var alive := bool(entity.get("alive", true))
+		state["hp"] = float(entity.get("hp", 0.0))
+		state["max_hp"] = float(entity.get("max_hp", VIEW_MAP.HERO_HP))
+		var target := VIEW_MAP.lane_to_world(UNIT_POOL.lane_of(entity))
+		var smoothing := 1.0 if delta <= 0.0 else 1.0 - exp(-HERO_SMOOTHING * delta)
+		view.global_position = view.global_position.lerp(target, clampf(smoothing, 0.0, 1.0))
+		if bool(state.get("dead", false)) and (alive and anim != &"dead"):
+			# Respawned: put the knight back on its feet at the base.
+			state["dead"] = false
+			state["fade"] = 1.0
+			state["anim"] = &""
+			state["flash"] = 0.0
+			FX.set_fade(parts, 1.0)
+			FX.set_overlay(parts, state["tint"])
+			view.visible = true
+			view.rotation = Vector3.ZERO
+			view.global_position = target
+		if not alive or anim == &"dead":
+			if not bool(state.get("dead", false)):
+				state["dead"] = true
+				state["fade"] = 1.0
+			state["fade"] = maxf(0.0, float(state["fade"]) - delta / HERO_DEATH_FADE)
+			FX.set_fade(parts, float(state["fade"]))
+			view.rotation.z = deg_to_rad(74.0) * (1.0 - float(state["fade"]))
+			if float(state["fade"]) <= 0.0:
+				view.visible = false
+			continue
+		view.speed = HERO_SPEED if anim == &"run" else 0.0
+		var facing := int(entity.get("facing", 1))
+		if facing != 0:
+			view.face_towards(VIEW_MAP.lane_dir_to_world(Vector2(float(facing), 0.0)), delta)
+		if anim == &"attack" and StringName(state.get("anim", &"")) != &"attack":
+			view.attack()
+		state["anim"] = anim
+		if float(state.get("flash", 0.0)) > 0.0:
+			state["flash"] = maxf(0.0, float(state["flash"]) - delta)
+			if float(state["flash"]) <= 0.0:
+				FX.set_overlay(parts, state["tint"])
+	for id_v in _enemy_heroes.keys():
+		var id := int(id_v)
+		if seen.has(id):
+			continue
+		var state: Dictionary = _enemy_heroes[id]
+		var view: KNIGHT = state["view"]
+		if is_instance_valid(view):
+			view.queue_free()
+		_enemy_heroes.erase(id)
+	_enemy_display = _enemy_hero_display()
+
+
+func _create_enemy_hero(id: int) -> Dictionary:
+	var view: KNIGHT = KNIGHT.new()
+	view.name = "EnemyHero%d" % id
+	view.team = VIEW_MAP.TEAM_RED
+	stage.world.add_child(view)
+	view.global_position = VIEW_MAP.lane_to_world(Vector2(VIEW_MAP.BASE_LANE_X, 0.0))
+	view.facing = VIEW_MAP.yaw_for_facing(-1)
+	var parts := FX.collect_parts(view)
+	var tint := FX.tint_material(KIT.team_color(VIEW_MAP.TEAM_RED), 0.28)
+	FX.set_overlay(parts, tint)
+	return {
+		"view": view, "parts": parts, "tint": tint, "anim": &"", "dead": false,
+		"fade": 1.0, "flash": 0.0, "hp": VIEW_MAP.HERO_HP, "max_hp": VIEW_MAP.HERO_HP,
+	}
+
+
+func _enemy_hero_display() -> Dictionary:
+	for state: Dictionary in _enemy_heroes.values():
+		return {
+			"visible": true,
+			"hp": float(state.get("hp", 0.0)),
+			"max_hp": float(state.get("max_hp", VIEW_MAP.HERO_HP)),
+			"alive": not bool(state.get("dead", false)),
+		}
+	return {}
+
+
+func _flash_enemy_hero(id: int) -> void:
+	var state: Dictionary = _enemy_heroes.get(id, {})
+	if state.is_empty():
 		return
-	# Actions include rebound keys, D-pad and sticks from every connected pad.
-	# W/S remain convenient vertical shortcuts alongside the standard UI axis.
-	var input := Vector2(
-		maxf(Input.get_action_strength("move_right"), _pad_strength(&"move_right"))
-			- maxf(Input.get_action_strength("move_left"), _pad_strength(&"move_left")),
-		maxf(Input.get_action_strength("ui_down"), _pad_strength(&"ui_down"))
-			- maxf(Input.get_action_strength("ui_up"), _pad_strength(&"ui_up")))
-	input.y = clampf(input.y + float(Input.is_physical_key_pressed(KEY_S))
-			- float(Input.is_physical_key_pressed(KEY_W)), -1.0, 1.0)
-	input = input.limit_length(1.0)
-	if input == Vector2.ZERO and _touch_index >= 0:
-		var to := _touch_goal - hero.global_position
-		if Vector2(to.x, to.z).length() > 0.25:
-			input = Vector2(to.x, to.z).normalized()
-	if input == Vector2.ZERO and _demo:
-		input = Vector2(cos(_clock * 0.6), sin(_clock * 0.6)) * 0.5
-	var dir := Vector3(input.x, 0.0, input.y)
-	var speed := HERO_SPEED * (0.3 if hero.is_attacking() else 1.0)
-	var step := dir * speed * delta
-	var from := hero.global_position
-	var pos := from
-	if step.x != 0.0 and map.is_walkable(pos + Vector3(step.x, 0.0, 0.0)):
-		pos.x += step.x
-	if step.z != 0.0 and map.is_walkable(pos + Vector3(0.0, 0.0, step.z)):
-		pos.z += step.z
-	hero.global_position = pos
-	hero.speed = from.distance_to(pos) / delta if delta > 0.0 else 0.0
-	if not hero.is_attacking():
-		hero.face_towards(dir, delta)
+	state["flash"] = 0.1
+	FX.set_flash(state["parts"], true)
+
+
+func _sync_structures(delta: float) -> void:
+	if _structures.is_empty():
+		return
+	for team in [VIEW_MAP.TEAM_BLUE, VIEW_MAP.TEAM_RED]:
+		var rows: Array = _sim_structures(team)
+		var by_kind: Dictionary = {}
+		for raw in rows:
+			if raw is Dictionary:
+				var row: Dictionary = raw
+				by_kind[StringName(row.get("kind", &"tower"))] = row
+		for kind: StringName in [&"tower", &"crystal"]:
+			var view: Variant = _structures.get(_structure_key(team, kind))
+			if view == null:
+				continue
+			var row: Dictionary = by_kind.get(kind, {})
+			var full := VIEW_MAP.structure_hp(kind)
+			var hp := float(row.get("hp", full))
+			var max_hp := float(row.get("max_hp", full))
+			var alive := bool(row.get("alive", hp > 0.0))
+			var before: float = view.hp
+			view.apply(hp, max_hp, alive)
+			if hp < before - 0.01:
+				_impact_pool.spawn(view.global_position + Vector3(0.0, 1.2, 0.0), 0.9)
+			if view.destroyed and before > 0.0:
+				_impact_pool.spawn(view.global_position + Vector3(0.0, 1.6, 0.0), 1.3)
+				camera.add_shake(0.25)
+			# Drives the hit-flash decay, the crystal bob and the topple / shatter
+			# animation; without this call a damage flash would never end.
+			view.advance(delta)
+
+
+func _note_entity_damage(entity: Dictionary) -> void:
+	var id := int(entity.get("id", 0))
+	var hp := float(entity.get("hp", 0.0))
+	var prev: Variant = _prev_hp.get(id)
+	_prev_hp[id] = hp
+	if prev == null:
+		return
+	if hp >= float(prev) - 0.01:
+		return
+	# Structures have a pushed-out 3D plinth; MobaStructureView reports their
+	# damage at the visual position, so only lane units spark here.
+	var kind := StringName(entity.get("kind", &"minion"))
+	if kind == &"tower" or kind == &"crystal":
+		return
+	var pos := VIEW_MAP.lane_to_world(UNIT_POOL.lane_of(entity), 0.7)
+	_impact_pool.spawn(pos, 0.55)
+	if id == _sim_hero_id():
+		_hero_flash_timer = 0.1
+		FX.set_flash(_hero_parts, true)
+		camera.add_shake(0.1)
+	elif _enemy_heroes.has(id):
+		_flash_enemy_hero(id)
+	else:
+		_unit_pool.flash(id)
+
+
+func _note_outcome(outcome: StringName) -> void:
+	if String(outcome).is_empty() or _outcome == outcome:
+		return
+	_outcome = outcome
+	_toast_message("对局结束: %s" % HUD.result_text(outcome))
+	print("ArenaSpike: match over outcome=", outcome, " ticks=", _sim_tick_count(), " seed=", _match_seed)
+	if _args.has("--quit-on-outcome") and _auto_shots.is_empty():
+		_quit_after_shot = true
+		get_tree().quit()
+
+
+# ------------------------------------------------------------------ views --
+
+func _build_actors() -> void:
+	hero = KNIGHT.new()
+	hero.name = "Hero"
+	stage.world.add_child(hero)
+	hero.impact.connect(_on_impact)
+	hero.global_position = VIEW_MAP.lane_to_world(Vector2(-VIEW_MAP.BASE_LANE_X, 0.0))
+	hero.facing = VIEW_MAP.yaw_for_facing(1)
+	_hero_parts = FX.collect_parts(hero)
+	_units.append(hero)
+	_unit_pool = UNIT_POOL.new()
+	_unit_pool.name = "Minions"
+	stage.world.add_child(_unit_pool)
+	_impact_pool = IMPACT_POOL.new()
+	_impact_pool.name = "Impacts"
+	stage.world.add_child(_impact_pool)
+
+
+func _build_structures() -> void:
+	for team in [VIEW_MAP.TEAM_BLUE, VIEW_MAP.TEAM_RED]:
+		for kind: StringName in [&"tower", &"crystal"]:
+			var view: Node3D = STRUCTURE_VIEW.new()
+			view.name = "%s_%d" % [kind, team]
+			view.setup(kind, team)
+			stage.world.add_child(view)
+			view.global_position = VIEW_MAP.structure_world(kind, team)
+			_structures[_structure_key(team, kind)] = view
+
+
+static func _structure_key(team: int, kind: StringName) -> String:
+	return "%d:%s" % [team, kind]
 
 
 ## Moves every unit's visual onto the camera's texel grid so a walking unit
@@ -436,25 +849,95 @@ func _snap_units() -> void:
 		var visual: Node3D = unit.visual
 		var unit_pos: Vector3 = unit.global_position
 		visual.position = camera.snap_offset(unit_pos) if _snap else Vector3.ZERO
+	for view in _unit_pool.active_views():
+		if not is_instance_valid(view):
+			continue
+		var visual: Node3D = view.visual
+		visual.position = camera.snap_offset(view.global_position) if _snap else Vector3.ZERO
+	for state: Dictionary in _enemy_heroes.values():
+		var view: KNIGHT = state["view"]
+		if is_instance_valid(view):
+			view.visual.position = camera.snap_offset(view.global_position) if _snap else Vector3.ZERO
 
 
 func _on_impact(at: Vector3) -> void:
 	if _leaving or Director.is_fading():
 		return
 	camera.add_shake(0.12)
-	var ring := TOON_PART.new()
-	ring.name = "ImpactRing"
-	var fx := KIT.EMISSIVE | KIT.NO_OUTLINE
-	for i in 8:
-		var a := TAU * float(i) / 8.0
-		ring.box(Vector3(0.16, 0.06, 0.42), Vector3(cos(a) * 0.5, 0.0, sin(a) * 0.5), Palette.EMBER, Vector3(0.0, -rad_to_deg(a), 0.0), fx)
-	stage.world.add_child(ring)
-	ring.global_position = at + Vector3(0.0, 0.05, 0.0)
-	ring.build()
-	ring.scale = Vector3.ONE * 0.6
-	var tween := ring.create_tween()
-	tween.tween_property(ring, "scale", Vector3.ONE * 1.8, 0.16)
-	tween.tween_callback(ring.queue_free)
+	_impact_pool.spawn(at, 1.0)
+
+
+## Player attack input: the sim settles the hit, the knight plays the swing.
+func _attack_command() -> void:
+	if _leaving or Director.is_fading() or _hero_dead or not _hero_controllable:
+		return
+	if sim != null and sim.has_method("command_attack"):
+		sim.command_attack()
+	if hero != null and not hero.is_attacking():
+		hero.attack()
+
+
+# ------------------------------------------------------------------- input --
+
+func _read_move_input() -> Vector2:
+	# Actions include rebound keys, D-pad and sticks from every connected pad.
+	# W/S remain convenient vertical shortcuts alongside the standard UI axis.
+	var input := Vector2(
+		maxf(Input.get_action_strength("move_right"), _pad_strength(&"move_right"))
+			- maxf(Input.get_action_strength("move_left"), _pad_strength(&"move_left")),
+		maxf(Input.get_action_strength("ui_down"), _pad_strength(&"ui_down"))
+			- maxf(Input.get_action_strength("ui_up"), _pad_strength(&"ui_up")))
+	input.y = clampf(input.y + float(Input.is_physical_key_pressed(KEY_S))
+			- float(Input.is_physical_key_pressed(KEY_W)), -1.0, 1.0)
+	return input.limit_length(1.0)
+
+
+func _move_hero(delta: float) -> void:
+	if _leaving or Director.is_fading():
+		hero.speed = 0.0
+		return
+	if _auto:
+		# The autopilot issues its own sim commands from _auto_input(); issuing
+		# an empty move here would cancel them every frame.
+		return
+	if _outcome != &"" or _hero_dead:
+		if sim != null and sim.has_method("set_move"):
+			sim.set_move(Vector2.ZERO)
+		hero.speed = 0.0
+		return
+	var input := Vector2.ZERO
+	input = _read_move_input()
+	if input == Vector2.ZERO and _touch_index >= 0:
+		# Touch keeps its "walk to the touched ground point" behaviour; the
+		# goal is converted back into the lane frame the sim moves on.
+		var lane := VIEW_MAP.world_to_lane(hero.global_position)
+		var goal := VIEW_MAP.world_to_lane(_touch_goal)
+		var delta_lane := goal - lane
+		if delta_lane.length() > 0.25:
+			input = delta_lane.normalized()
+	if input == Vector2.ZERO and _demo:
+		input = Vector2(cos(_clock * 0.6), sin(_clock * 0.6)) * 0.5
+	if not _hero_controllable:
+		input = Vector2.ZERO
+	var lane_dir := input.limit_length(1.0)
+	if sim != null and sim.has_method("set_move"):
+		sim.set_move(lane_dir)
+	if lane_dir == Vector2.ZERO:
+		hero.speed = 0.0
+		return
+	var world_dir := VIEW_MAP.lane_dir_to_world(lane_dir)
+	world_dir.y = 0.0
+	if world_dir.length_squared() < 0.000001:
+		hero.speed = 0.0
+		return
+	world_dir = world_dir.normalized()
+	# Local prediction: the sim is authoritative and _sync_hero pulls the view
+	# back onto its position every frame, but moving on the input frame keeps
+	# the knight responsive between 30 Hz ticks.
+	hero.global_position += world_dir * HERO_SPEED * delta
+	hero.speed = HERO_SPEED
+	if not hero.is_attacking():
+		hero.face_towards(world_dir, delta)
 
 
 func _on_touch(touch: InputEventScreenTouch) -> void:
@@ -462,7 +945,7 @@ func _on_touch(touch: InputEventScreenTouch) -> void:
 		return
 	if touch.pressed:
 		if touch.double_tap:
-			hero.attack()
+			_attack_command()
 		if _touch_index < 0:
 			_touch_index = touch.index
 			_touch_goal = _ground_point(touch.position)
@@ -546,11 +1029,110 @@ func _refresh_outline_width() -> void:
 		TOON_PART.refresh_all(get_tree(), width)
 
 
-func _capture() -> void:
-	var paths := stage.capture(SHOT_DIR)
-	_toast_message("截图: %s" % ", ".join(paths))
-	print("RenderSpike capture: ", ", ".join(paths))
+# ---------------------------------------------------------------- restart --
 
+## Restarts the match with the next recorded seed and rebuilds every view from
+## the fresh simulation state (nothing from the previous match may linger).
+func restart_match() -> void:
+	if _leaving and not is_inside_tree():
+		return
+	_restart_count += 1
+	_match_seed += 1
+	_outcome = &""
+	_hero_entity = {}
+	_hero_anim = &""
+	_prev_hp.clear()
+	_step_accum = 0.0
+	_hero_dead = false
+	_hero_fade = 1.0
+	_hero_flash_timer = 0.0
+	_auto_log_tick = 0
+	_auto_last_target = -1
+	_unit_pool.clear()
+	_impact_pool.clear()
+	for state: Dictionary in _enemy_heroes.values():
+		var enemy_view: KNIGHT = state["view"]
+		if is_instance_valid(enemy_view):
+			enemy_view.queue_free()
+	_enemy_heroes.clear()
+	_enemy_display = {}
+	for view in _structures.values():
+		if is_instance_valid(view):
+			view.reset_state()
+	if hero != null:
+		hero.visible = true
+		hero.rotation = Vector3.ZERO
+		hero.speed = 0.0
+		FX.set_fade(_hero_parts, 1.0)
+		FX.set_flash(_hero_parts, false)
+		hero.global_position = VIEW_MAP.lane_to_world(Vector2(-VIEW_MAP.BASE_LANE_X, 0.0))
+		hero.facing = VIEW_MAP.yaw_for_facing(1)
+	if sim != null and sim.has_method("reset"):
+		sim.reset(_match_seed)
+	_sync_world(1.0)
+	_center_camera()
+	_toast_message("重开 · 种子 %d（第 %d 局）" % [_match_seed, _restart_count + 1])
+	print("ArenaSpike: rematch seed=", _match_seed)
+
+
+# -------------------------------------------------------------------- hud --
+
+func _sync_hud() -> void:
+	if _hud == null:
+		return
+	_hud.apply(_hud_snapshot())
+
+
+func _hud_snapshot() -> Dictionary:
+	var snapshot := {
+		"outcome": _outcome,
+		"wave_index": _sim_wave_index(),
+		"next_wave_ms": _sim_next_wave_remaining_ms(),
+		"wave_active": false,
+		"blue": _hud_side(VIEW_MAP.TEAM_BLUE),
+		"red": _hud_side(VIEW_MAP.TEAM_RED),
+		"hero": _hud_hero(),
+		"enemy_hero": _enemy_display,
+		"seed": _match_seed,
+		"ticks": _sim_tick_count(),
+	}
+	return snapshot
+
+
+func _hud_side(team: int) -> Dictionary:
+	var crystal_hp := VIEW_MAP.CRYSTAL_HP
+	var crystal_max := VIEW_MAP.CRYSTAL_HP
+	for raw in _sim_structures(team):
+		if raw is not Dictionary:
+			continue
+		var row: Dictionary = raw
+		if StringName(row.get("kind", &"")) != &"crystal":
+			continue
+		crystal_hp = float(row.get("hp", crystal_hp))
+		crystal_max = float(row.get("max_hp", crystal_max))
+	return {
+		"crystal_hp": crystal_hp,
+		"crystal_max": crystal_max,
+		"crystal_alive": crystal_hp > 0.0,
+	}
+
+
+func _hud_hero() -> Dictionary:
+	var state: Dictionary = _sim_hero_state()
+	var hp := float(state.get("hp", VIEW_MAP.HERO_HP))
+	var max_hp := float(state.get("max_hp", VIEW_MAP.HERO_HP))
+	if not _hero_entity.is_empty():
+		hp = float(_hero_entity.get("hp", hp))
+		max_hp = float(_hero_entity.get("max_hp", max_hp))
+	return {
+		"hp": hp,
+		"max_hp": max_hp,
+		"alive": not _hero_dead,
+		"respawn_ms": _hero_respawn_ms,
+	}
+
+
+# ---------------------------------------------------------------- overlay --
 
 func _build_overlay() -> void:
 	_overlay = CanvasLayer.new()
@@ -576,13 +1158,17 @@ func _build_overlay() -> void:
 	_return_button.pressed.connect(_return_to_title)
 	_return_button.resized.connect(_layout_overlay)
 	_overlay.add_child(_return_button)
-	_info = _make_label(Vector2(18.0, 72.0))
+	_info = _make_label(Vector2(18.0, 214.0))
 	_info.name = "RenderStats"
 	_overlay.add_child(_info)
-	_help = _make_label(Vector2(18.0, 568.0))
+	_help = _make_label(Vector2(18.0, 470.0))
 	_help.name = "DebugHelp"
 	_help.text = HELP_TEXT
 	_overlay.add_child(_help)
+	_hud = HUD.new()
+	_hud.name = "MobHud"
+	add_child(_hud)
+	_hud.build(_overlay)
 	stage.layout_changed.connect(_layout_overlay)
 	_layout_overlay()
 	_refresh_player_hint()
@@ -594,10 +1180,12 @@ func _layout_overlay() -> void:
 	var width := float(maxi(win.size.x, 1)) * 720.0 / float(maxi(win.size.y, 1))
 	_return_button.position = Vector2(maxf(18.0, width - _return_button.size.x - 18.0), 14.0)
 	_player_hint.size = Vector2(maxf(width - 36.0, 1.0), 70.0)
+	if _hud != null:
+		_hud.layout(maxf(width, 320.0))
 
 
 func _refresh_player_hint() -> void:
-	var text := "移动：%s / %s、W/S、方向键或摇杆   挥剑：%s / %s\n触屏按住移动、双击挥剑   滚轮 / ± 缩放   Esc / 手柄返回" % [
+	var text := "移动：%s / %s（W/S 微调）   攻击：%s / %s    R 重开\n触屏按住移动、双击攻击   滚轮 / ± 缩放   Esc / 手柄返回" % [
 		KeyLabels.label(&"move_left"), KeyLabels.label(&"move_right"), KeyLabels.label(&"attack"),
 		KeyLabels.label(&"jump")]
 	if _player_hint.text != text:
@@ -646,11 +1234,16 @@ func _update_info(delta: float) -> void:
 	])
 	lines.append("内部 %d×%d ×%d   %s   视野 %.0f m   每纹素 %.3f m   单位 %d" % [
 		stage.internal_size.x, stage.internal_size.y, stage.pixel_scale,
-		"铺满" if stage.fill_screen else "16:9", camera.view_height, camera.texel_world(), _units.size(),
+		"铺满" if stage.fill_screen else "16:9", camera.view_height, camera.texel_world(),
+		1 + _unit_pool.active_count(),
 	])
 	lines.append("吸附 %s   亚像素 %s   描边 %s   抖动 %.2f   调色板 %s   12帧 %s   阴影 %s   自动平移 %s" % [
 		_on(_snap), _on(stage.subpixel_enabled), OUTLINE_MODES[_outline_mode], DITHER_STEPS[_dither_index],
 		_on(_palette), _on(_stepped), _on(_shadows), _on(_autopan),
+	])
+	lines.append("模拟 tick %d  时间 %.1fs  实体 %d  波次 %d  种子 %d  结果 %s" % [
+		_sim_tick_count(), float(_sim_time_ms()) / 1000.0, _sim_entities().size(),
+		_sim_wave_index(), _match_seed, String(_outcome) if not String(_outcome).is_empty() else "-",
 	])
 	if _toast_timer > 0.0:
 		lines.append(_toast)
@@ -663,13 +1256,164 @@ func _toast_message(text: String) -> void:
 	_info_timer = 0.0
 
 
-## Applies user arguments; returns whether the stress batch should spawn.
-func _read_user_args() -> bool:
-	var stress := false
+# ---------------------------------------------------------------- capture --
+
+func _capture() -> void:
+	var paths := stage.capture(SHOT_DIR)
+	_toast_message("截图: %s" % ", ".join(paths))
+	print("RenderSpike capture: ", ", ".join(paths))
+
+
+func _quit_if_done() -> void:
+	if _quit_after_shot and _auto_shots.is_empty():
+		get_tree().quit()
+
+
+## Tagged capture used by --auto-shots: the low-res 3D frame and the final
+## window frame (HUD included) land in the peek folder with stable names.
+func _capture_tagged(tag: String) -> void:
+	var target_dir := _shot_peek_dir
+	if target_dir.is_empty():
+		target_dir = ProjectSettings.globalize_path("res://screenshots/peek/moba3d")
+	DirAccess.make_dir_recursive_absolute(target_dir)
+	var paths := stage.capture(SHOT_DIR.path_join("tagged"))
+	for path in paths:
+		var file := path.get_file()
+		var suffix := "lowres" if file.contains("_lowres") else "window"
+		var destination := target_dir.path_join("moba3d_%s_%s.png" % [tag, suffix])
+		var error := DirAccess.copy_absolute(path, destination)
+		if error == OK:
+			print("MOBA3D_SHOT ", destination)
+			DirAccess.remove_absolute(path)
+		else:
+			printerr("MOBA3D_SHOT_FAILED ", destination, " err=", error)
+	_toast_message("截图 %s" % tag)
+
+
+func _sim_seconds() -> float:
+	if sim != null and _sim_time_ms() >= 0:
+		return float(_sim_time_ms()) / 1000.0
+	return _clock
+
+
+func _handle_auto_shots() -> void:
+	# First tagged capture: let the window upload its shaders before reading the
+	# frame back, otherwise the opening screenshot can be an empty frame.
+	if _clock < 0.9:
+		return
+	if _quit_after_sim >= 0.0 and sim != null and _sim_seconds() >= _quit_after_sim:
+		_auto_log()
+		print("ArenaSpike: quit after ", _quit_after_sim, "s of simulation")
+		get_tree().quit()
+		return
+	if not _pending_shot.is_empty():
+		# Let two more frames render after the state change (HUD banner, toppled
+		# tower) before reading the frame back, or the shot captures the state
+		# from before the change.
+		_pending_shot_delay -= 1
+		if _pending_shot_delay > 0:
+			return
+		var pending_tag := String(_pending_shot.get("tag", "shot"))
+		_pending_shot = {}
+		_capture_tagged(pending_tag)
+		if _auto_shots.is_empty():
+			_quit_if_done()
+		return
+	if _auto_shots.is_empty():
+		return
+	var shot: Dictionary = _auto_shots[0]
+	var at := float(shot.get("t", -1.0))
+	var reached := (_outcome != &"" and at < 0.0) or (at >= 0.0 and _sim_seconds() >= at)
+	if not reached:
+		return
+	_auto_shots.pop_front()
+	_pending_shot = shot
+	var shot_at := float(shot.get("t", -1.0))
+	if shot_at < 0.0:
+		# Final shot: let the crystal shatter animation and its destroy flash
+		# finish (~1.2 s of simulation) before reading the frame back.
+		_pending_shot_delay = maxi(6, int(ceil(72.0 / maxf(_speed_scale, 1.0))))
+	else:
+		_pending_shot_delay = 6
+
+
+# ---------------------------------------------------------------- autopilot -
+
+## Very small autopilot for unattended acceptance runs. It follows the exact
+## line the sim's own rules test uses to win: push straight at the enemy crystal
+## and only send command_attack(id) once inside the 2.2 m attack range (locking
+## a target earlier would stop the knight out of reach), otherwise move.
+func _auto_input(_delta: float) -> void:
+	if sim == null or _outcome != &"" or _hero_dead or not _hero_controllable:
+		return
+	if _hero_entity.is_empty():
+		return
+	var team := int(_hero_entity.get("team", VIEW_MAP.TEAM_BLUE))
+	var hero_lane := UNIT_POOL.lane_of(_hero_entity)
+	var objective := _auto_objective(team)
+	if objective.is_empty():
+		return
+	var objective_id := int(objective.get("id", -1))
+	var objective_lane := UNIT_POOL.lane_of(objective)
+	_auto_last_target = objective_id
+	var gap := objective_lane.x - hero_lane.x
+	if absf(gap) <= HERO_ATTACK_RANGE - 0.1:
+		sim.command_attack(objective_id)
+	else:
+		sim.set_move(Vector2(signf(gap), clampf(-hero_lane.y, -1.0, 1.0)))
+
+
+## Enemy crystal first: standing at its 2.2 m range keeps the hero outside the
+## enemy tower's 6 m range (tower lane x is 16, crystal lane x is 26).
+func _auto_objective(team: int) -> Dictionary:
+	var enemy := VIEW_MAP.enemy_team(team)
+	var tower: Dictionary = {}
+	for raw in _sim_entities():
+		if raw is not Dictionary:
+			continue
+		var entity: Dictionary = raw
+		if int(entity.get("team", -1)) != enemy or not bool(entity.get("alive", false)):
+			continue
+		var kind := StringName(entity.get("kind", &""))
+		if kind == &"crystal":
+			return entity
+		if kind == &"tower" and tower.is_empty():
+			tower = entity
+	return tower
+
+
+# -------------------------------------------------------------------- args --
+
+func _parse_args() -> void:
+	_args.clear()
 	for arg in OS.get_cmdline_user_args():
 		var parts := arg.split("=", true, 1)
-		var value := parts[1] if parts.size() > 1 else ""
-		match parts[0]:
+		_args[parts[0]] = parts[1] if parts.size() > 1 else ""
+	_match_seed = int(_args.get("--seed", MATCH_SEED))
+	_speed_scale = clampf(float(_args.get("--speed", "1")), 0.25, 64.0)
+	_auto = _args.has("--auto")
+	_quit_after_sim = float(_args.get("--quit-after-sim", "-1"))
+	_shot_peek_dir = String(_args.get("--shot-dir", ""))
+	_auto_shots.clear()
+	if _args.has("--auto-shots"):
+		for token in String(_args["--auto-shots"]).split(",", false):
+			var parts := token.strip_edges().split(":", true, 1)
+			var tag := parts[0].strip_edges()
+			if tag.is_empty():
+				continue
+			var at := -1.0
+			if parts.size() > 1:
+				at = parts[1].to_float()
+			_auto_shots.append({"tag": tag, "t": at})
+
+
+## Applies the render/look arguments after the scene is built; returns whether
+## the debug stress batch should spawn.
+func _apply_args() -> bool:
+	var stress := false
+	for key: String in _args.keys():
+		var value := String(_args[key])
+		match key:
 			"--debug":
 				_debug = true
 			"--autopan":
@@ -710,6 +1454,92 @@ func _read_user_args() -> bool:
 			"--quit-after-shot":
 				_quit_after_shot = true
 	return stress
+
+
+func _center_camera() -> void:
+	if hero == null:
+		return
+	camera.focus = Vector3(hero.global_position.x, 0.0, hero.global_position.z)
+	camera.apply_view()
+
+
+# ------------------------------------------------------- sim access guards --
+
+func _sim_call(method: StringName) -> Variant:
+	if sim == null or not sim.has_method(method):
+		return null
+	return sim.call(method)
+
+
+func _sim_entities() -> Array:
+	var value: Variant = _sim_call(&"entities")
+	return value if value is Array else []
+
+
+func _sim_structures(team: int) -> Array:
+	if sim == null or not sim.has_method("structures"):
+		return []
+	var value: Variant = sim.call("structures", team)
+	return value if value is Array else []
+
+
+func _sim_hero_id() -> int:
+	var value: Variant = _sim_call(&"hero_id")
+	return int(value) if value != null else -1
+
+
+func _sim_hero_state() -> Dictionary:
+	var value: Variant = _sim_call(&"hero_state")
+	return value if value is Dictionary else {}
+
+
+func _sim_outcome() -> StringName:
+	var value: Variant = _sim_call(&"outcome")
+	if value == null:
+		return &""
+	if value is StringName:
+		return value
+	return StringName(String(value))
+
+
+func _sim_wave_index() -> int:
+	var value: Variant = _sim_call(&"wave_index")
+	return int(value) if value != null else 0
+
+
+func _sim_next_wave_ms() -> int:
+	var value: Variant = _sim_call(&"next_wave_ms")
+	return int(value) if value != null else 0
+
+
+## MobaSim publishes the absolute match time of the next wave; the HUD shows a
+## countdown, so convert to time remaining here (one place only).
+func _sim_next_wave_remaining_ms() -> int:
+	if sim == null or not sim.has_method("next_wave_ms"):
+		return 0
+	return maxi(0, _sim_next_wave_ms() - _sim_time_ms())
+
+
+func _sim_tick_count() -> int:
+	var value: Variant = _sim_call(&"tick_count")
+	return int(value) if value != null else 0
+
+
+func _sim_time_ms() -> int:
+	var value: Variant = _sim_call(&"time_ms")
+	return int(value) if value != null else 0
+
+
+func _respawn_ms(state: Dictionary) -> int:
+	if state.has("respawn_remaining_ms"):
+		return int(state["respawn_remaining_ms"])
+	if state.has("respawn_ms"):
+		return int(state["respawn_ms"])
+	if state.has("respawn"):
+		var value := float(state["respawn"])
+		# Tolerate a seconds-based fallback: a respawn counter above 10 is ms.
+		return int(round(value * 1000.0)) if value <= 10.0 else int(value)
+	return 0
 
 
 static func _on(value: bool) -> String:

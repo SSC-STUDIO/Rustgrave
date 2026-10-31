@@ -209,11 +209,14 @@ const RAIL_X := 72.0
 const RAIL_TOP := 254.0
 const GROUP_GAP := 16.0
 const QUIT_CENTER_Y := 640.0
-## 右侧一条短注，不是一整列仪表。高只要放下计数、章名、14 格横轨和「回看余烬」。
-const JOURNEY_X := 1000.0
-const JOURNEY_Y := 188.0
-const JOURNEY_W := 208.0
-const JOURNEY_H := 96.0
+## 右侧一列，和左下菜单**同顶**（254），高度略短于菜单块（396，底边 650），
+## 上下都留出呼吸：上半是旅程短注（计数 / 章名 / 14 格横轨），中段是五行档案摘要
+## （阶位 / 外观 / 试炼 / 竞技场 / 印记）与行程注，底部是「回看余烬」。
+## 平时很淡，焦点在「继续旅程」上才整列亮起。
+const JOURNEY_X := 880.0
+const JOURNEY_Y := 254.0
+const JOURNEY_W := 328.0
+const JOURNEY_H := 396.0
 ## 印记环的椭圆框（设计像素）：围着整个字标 + 副题，开口在顶（顶弧整段
 ## 藏在字标后面），左右两肩露在字标边翼之外，底弧从副题和菜单之间穿过。
 ## 环画在字标后面（先加环，后加字标）。
@@ -227,8 +230,9 @@ const JOURNEY_SHADE_RECT := Rect2(JOURNEY_X - 14.0, JOURNEY_Y - 12.0, JOURNEY_W 
 ## 424→440：卡里多了「印记」一行；面板底（=顶+22+高-44=602）仍停在墓志字顶上方。
 const CARD_RECT := Rect2(820.0, 184.0, 388.0, 440.0)
 const CARD_SLIDE := 24.0
-## 墓志行（与"离开"行同一条中心线）。右端停在 988，给旅程列里的「回看余烬」留出缝。
-const EPITAPH_RECT := Rect2(584.0, 624.0, 404.0, 32.0)
+## 墓志行（与"离开"行同一条中心线）。左移到菜单列与右列之间的空档居中（446..850），
+## 不再和右侧旅程列的下半段叠在一起。
+const EPITAPH_RECT := Rect2(446.0, 624.0, 404.0, 32.0)
 const FOOTER_RECT := Rect2(72.0, 688.0, 1136.0, 28.0)
 
 # ---- motion ------------------------------------------------------------------------
@@ -359,6 +363,10 @@ var _journey_shade: TextureRect
 var _gauge: TitleGauge
 var _journey_count: Label
 var _journey_chapter: Label
+## 右列下半的四行档案摘要（阶位 / 外观 / 试炼 / 竞技场），与展开档案卡同源数据。
+var _journey_facts: Dictionary = {}
+## 右列中段的行程注（与档案卡 recap 同源）。
+var _journey_recap_line: Label
 ## 盖在计数/章名/横轨上的透明点按区：触屏/手柄也能展开档案（不盖「回看余烬」）。
 var _journey_button: Button
 ## 通关后的「回看余烬」总结页（ember_recap.gd）；菜单「继续」行在有结局时也打开它。
@@ -776,6 +784,54 @@ func _build_journey() -> void:
 	_gauge.position = Vector2(0.0, 38.0)
 	_journey_ink.add_child(_gauge)
 
+	# 四行档案摘要：把原来只藏在 Tab 档案卡里的信息匀到右列下半，
+	# 让左右两块视觉重量对等（左边七行菜单，右边短注 + 四行摘要 + 回看条）。
+	var divider := ColorRect.new()
+	divider.name = "JourneyRule"
+	divider.color = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.18)
+	divider.position = Vector2(0.0, 100.0)
+	divider.size = Vector2(JOURNEY_W, 1.0)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_journey_ink.add_child(divider)
+	var facts_title := UiKit.label("档 案", &"TinyLabel")
+	facts_title.name = "JourneyFactsTitle"
+	facts_title.position = Vector2(0.0, 110.0)
+	facts_title.size = Vector2(72.0, 16.0)
+	_journey_ink.add_child(facts_title)
+	var fact_rows := [["FactRank", "阶 位"], ["FactSkin", "外 观"],
+			["FactTrial", "试 炼"], ["FactArena", "竞 技 场"]]
+	for i in fact_rows.size():
+		var row: Array = fact_rows[i]
+		var key := UiKit.label(String(row[1]), &"TinyLabel")
+		key.name = "JourneyFactKey%d" % i
+		key.position = Vector2(0.0, 136.0 + 27.0 * float(i))
+		key.size = Vector2(96.0, 18.0)
+		key.modulate = Color(0.62, 0.55, 0.48, 0.9)
+		_journey_ink.add_child(key)
+		var value := UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+		value.name = "Journey" + String(row[0])
+		value.position = Vector2(100.0, 136.0 + 27.0 * float(i))
+		value.size = Vector2(JOURNEY_W - 100.0, 18.0)
+		value.clip_text = true
+		value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_journey_ink.add_child(value)
+		_journey_facts[String(row[0]).trim_prefix("Fact")] = value
+	# 印记：与档案卡同源（第几次点燃 / 上次殁于哪里）。
+	var sigil_key := UiKit.label("印 记", &"TinyLabel")
+	sigil_key.name = "JourneyFactKeySigil"
+	sigil_key.position = Vector2(0.0, 136.0 + 27.0 * 4.0)
+	sigil_key.size = Vector2(96.0, 18.0)
+	sigil_key.modulate = Color(0.62, 0.55, 0.48, 0.9)
+	_journey_ink.add_child(sigil_key)
+	var sigil_value := UiKit.label("", &"TinyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	sigil_value.name = "JourneyFactSigil"
+	sigil_value.position = Vector2(100.0, 136.0 + 27.0 * 4.0)
+	sigil_value.size = Vector2(JOURNEY_W - 100.0, 18.0)
+	sigil_value.clip_text = true
+	sigil_value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_journey_ink.add_child(sigil_value)
+	_journey_facts["Sigil"] = sigil_value
+
 	# 触屏 / 鼠标点按短注上半区 = 展开档案；focus_mode NONE（键盘仍走 Tab，手柄走 Y），
 	# 不盖住下面那条「回看余烬」按钮。
 	var tap := Button.new()
@@ -786,19 +842,19 @@ func _build_journey() -> void:
 	tap.mouse_filter = Control.MOUSE_FILTER_STOP
 	tap.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tap.position = Vector2.ZERO
-	tap.custom_minimum_size = Vector2(JOURNEY_W, 56.0)
-	tap.size = Vector2(JOURNEY_W, 56.0)
+	tap.custom_minimum_size = Vector2(JOURNEY_W, 96.0)
+	tap.size = Vector2(JOURNEY_W, 96.0)
 	tap.pressed.connect(_toggle_dossier_pinned)
 	_journey_ink.add_child(tap)
 	_journey_button = tap
 
-	# 回看余烬收进这条注里。Button 负责点击；字由 RecapStrip 画，14px。
+	# 回看余烬收进这一列的底部。Button 负责点击；字由 RecapStrip 画，14px。
 	var recap := Button.new()
 	recap.name = "RecapButton"
 	recap.flat = true
 	recap.text = ""
 	recap.focus_mode = Control.FOCUS_ALL
-	recap.position = Vector2(0.0, 58.0)
+	recap.position = Vector2(0.0, JOURNEY_H - RecapStrip.HEIGHT)
 	recap.custom_minimum_size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
 	recap.size = Vector2(JOURNEY_W, RecapStrip.HEIGHT)
 	recap.pressed.connect(open_recap)
@@ -852,13 +908,18 @@ func _refresh_journey_typography() -> void:
 	_journey_chapter.size = Vector2(JOURNEY_W, line_height)
 	var gauge_y := maxf(38.0, line_height * 2.0)
 	_gauge.position.y = gauge_y
+	for i in _journey_facts.size():
+		var value := _journey_facts.values()[i] as Label
+		if value != null:
+			value.add_theme_font_size_override("font_size", font_size)
+			value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var recap := _journey_ink.get_node_or_null("RecapButton") as Control
-	var recap_y := minf(JOURNEY_H - RecapStrip.HEIGHT, gauge_y + 20.0)
+	var recap_y := JOURNEY_H - RecapStrip.HEIGHT
 	if recap != null:
 		recap.position.y = recap_y
 	if _journey_button != null:
-		# 点按区只盖计数/章名/横轨，不盖「回看余烬」（那条自己收点击）。
-		var tap_h := maxf(recap_y - 4.0, 24.0)
+		# 点按区只盖上半的短注（计数/章名/横轨/档案摘要），不盖最底下的「回看余烬」。
+		var tap_h := maxf(recap_y - 8.0, 96.0)
 		_journey_button.custom_minimum_size = Vector2(JOURNEY_W, tap_h)
 		_journey_button.size = Vector2(JOURNEY_W, tap_h)
 
@@ -1064,6 +1125,24 @@ func _refresh_dossier() -> void:
 			if death_label != "":
 				sigil_text += " · 殁于%s" % death_label
 	_dossier_values["Sigil"].text = sigil_text
+
+	# 右列下半的四行摘要：与档案卡同一份数据，短到能放进 228px 的值列。
+	if _journey_facts.has("Rank"):
+		(_journey_facts["Rank"] as Label).text = rank_text
+	if _journey_facts.has("Skin"):
+		(_journey_facts["Skin"] as Label).text = skin_name
+	if _journey_facts.has("Trial"):
+		(_journey_facts["Trial"] as Label).text = trial_text
+	if _journey_facts.has("Arena"):
+		(_journey_facts["Arena"] as Label).text = String(_dossier_values["Arena"].text)
+	if _journey_facts.has("Sigil"):
+		(_journey_facts["Sigil"] as Label).text = sigil_text
+	if _journey_recap_line != null:
+		var journey_note := recap
+		if journey_note == "":
+			journey_note = ("旅程 · %s" % chapter_text) if has_save else "尚无旅程 · 点燃余烬后开始记录"
+		_journey_recap_line.text = journey_note
+		_journey_recap_line.visible = journey_note != ""
 
 	# 收起的短注只留计数、章名和 14 格。阶位那些在档案卡里。
 	var cleared := int(_look.get("cleared", 0))

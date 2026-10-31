@@ -15,7 +15,10 @@ param(
     # Camera centre y (default 220 = the ground floor view). Vertical levels: e.g. -200.
     [double]$CamY = 220.0,
     # Window size for the capture (render fixture; camera parked, not a playthrough).
-    [string]$Win = '1920x1080'
+    [string]$Win = '1920x1080',
+    # '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    # pre-switch baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 # Live peek: clock running, one PNG per camera spot in $OutDir.
 # Complements run_render_acceptance.ps1 (which freezes time for fixtures).
@@ -24,7 +27,8 @@ $workspace = Split-Path -Parent $PSScriptRoot
 $outputDir = Join-Path $workspace ($OutDir -replace '/', '\')
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
-$arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $Win, '--rendering-method', 'gl_compatibility', 'res://scenes/tools/PeekLive.tscn', '--', ('--hold=' + $Hold), ('--out=' + $resOut), ('--win=' + $Win))
+$arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $Win, 'res://scenes/tools/PeekLive.tscn', '--', ('--hold=' + $Hold), ('--out=' + $resOut), ('--win=' + $Win))
+if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
 if ($Spots) { $arguments += @('--spots=' + $Spots) }
 if ($Lit) { $arguments += @('--lit') }
 if ($Night) { $arguments += @('--night') }

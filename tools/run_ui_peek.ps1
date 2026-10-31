@@ -3,7 +3,10 @@ param(
     [string]$Sizes = '960x540,1280x720,1920x1080',
     [string]$Only = 'title,menus',
     [string]$OutDir = 'screenshots/peek/ui-upgrade/menus-final',
-    [string]$TextScale = ''
+    [string]$TextScale = '',
+    # '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    # pre-switch baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 
 # Real render-target screenshots with disposable saves/settings for every size.
@@ -26,8 +29,9 @@ try {
         $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = '1'
         $arguments = @('--path', ('"' + $projectDir + '"'), '--windowed',
             '--position', '-12000,-12000', '--resolution', $size,
-            '--rendering-method', 'gl_compatibility', 'res://scenes/tools/UiPeek.tscn',
+            'res://scenes/tools/UiPeek.tscn',
             '--', ('--out=res://' + $relativeOutput), ('--size=' + $size), ('--only=' + $Only))
+        if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
         if ($TextScale) { $arguments += @('--text-scale=' + $TextScale) }
         $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden `
             -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
