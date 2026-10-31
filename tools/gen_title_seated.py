@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
-FOLDERS = ("player_fantasy_knight", "player_cemetery_hero", "player_gothic_hero")
+FOLDERS = ("player_fantasy_knight", "player_ember_knight", "player_cemetery_hero", "player_gothic_hero")
 
 
 def build(folder: str) -> None:
