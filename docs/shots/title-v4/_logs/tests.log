@@ -119,14 +119,10 @@ SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_tab_pins_and_unpins_the_full_dossier (4 asserts)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-DOSSIER-DEBUG scale=0.85 min=358.0 body=380.0 size=380.0 sep=10
-DOSSIER-DEBUG scale=1.00 min=380.0 body=380.0 size=380.0 sep=10
-DOSSIER-DEBUG scale=1.35 min=406.0 body=380.0 size=406.0 sep=8
-[FAIL] title_screen_test_test_title_blocks_do_not_overlap_at_three_text_scales (95 asserts)
-     - 档案卡行距 @0.85
-     - 档案卡行距 @1.00
-     - 1.35 档案内容最小高 406 <= 卡身 380
-     - 1.35 档案卡身没被内容撑大 (406)
+DOSSIER-DEBUG scale=0.85 min=370.0 body=396.0 size=396.0 sep=12
+DOSSIER-DEBUG scale=1.00 min=392.0 body=396.0 size=396.0 sep=12
+DOSSIER-DEBUG scale=1.35 min=380.0 body=396.0 size=396.0 sep=6
+[PASS] title_screen_test_test_title_blocks_do_not_overlap_at_three_text_scales (99 asserts)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_title_screen_intro_timing_and_skip_integration (44 asserts)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
@@ -139,4 +135,4 @@ SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page (7 asserts)
 ================================================
-FAILED — 46/48 passed; 0 engine errors
+FAILED — 47/48 passed; 0 engine errors
