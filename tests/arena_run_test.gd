@@ -2,6 +2,7 @@
 ## 竞技场对局状态、记录 v2、暂停、放弃、路由白名单、剧情守卫。
 
 const ArenaCatalog := preload("res://scripts/data/arena_catalog.gd")
+const MobaRunScript := preload("res://scripts/moba/moba_run.gd")
 const PATH := "user://test_arena_records.cfg"
 
 
@@ -181,14 +182,15 @@ func test_title_menu_still_has_arena_entry() -> void:
 	await get_tree().process_frame
 
 
-func test_start_sets_pending_scene_then_abandon_clears_it() -> void:
+func test_title_start_uses_3d_without_starting_the_old_lobby() -> void:
 	var saved := GameContext.pending_world_path
 	ok(ArenaRun.start())
-	ok(ArenaRun.active())
-	eq(ArenaRun.phase(), ArenaCatalog.PHASE_LOBBY)
-	eq(GameContext.pending_world_path, ArenaCatalog.SCENE)
-	ArenaRun.abandon()
+	ok(MobaRunScript.active())
 	ok(not ArenaRun.active())
+	eq(ArenaRun.phase(), ArenaCatalog.PHASE_IDLE)
+	eq(GameContext.pending_world_path, saved)
+	MobaRunScript.abandon()
+	ok(not MobaRunScript.active())
 	GameContext.pending_world_path = saved
 	Director._fading = false
 
@@ -314,6 +316,7 @@ func _tick(seconds: float) -> void:
 
 
 func _quiet_reset() -> void:
+	MobaRunScript.abandon()
 	ArenaRun.auto_begin = false
 	ArenaRun.shop_ignore_range = false
 	if Director.is_suspended():

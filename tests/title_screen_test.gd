@@ -8,6 +8,7 @@ extends TestCase
 const TITLE_SCENE := "res://scenes/ui/TitleScreen.tscn"
 const Plate := preload("res://scripts/ui/menu_plate.gd")
 const ArenaCatalog := preload("res://scripts/data/arena_catalog.gd")
+const MobaRunScript := preload("res://scripts/moba/moba_run.gd")
 ## 骑士站在 x=640 的光柱下：菜单任何一行都不能越过这条中线。
 const KEYART_CENTER := 640.0
 const EXPECTED_KINDS := [MenuItem.Kind.PRIMARY, MenuItem.Kind.PRIMARY,
@@ -349,7 +350,7 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	var trials := title.find_child("DossierTrials", true, false) as Label
 	ok(trials != null and trials.text.contains("未踏足"))
 	var arena := title.find_child("DossierArena", true, false) as Label
-	ok(arena != null and arena.text == "胜 0 场", "没有胜场键时档案记胜 0 场")
+	ok(arena != null and arena.text == "3D场景试演", "3D原型不展示尚不存在的胜场")
 	ok(title.find_child("ChipArena", true, false) == null, "竞技场不再折成芯片")
 	ok(title.find_child("ChipTrials", true, false) == null, "试炼不再折成芯片")
 	var legacy := ConfigFile.new()
@@ -360,14 +361,14 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	await get_tree().process_frame
 	title = await _open_title()
 	arena = title.find_child("DossierArena", true, false) as Label
-	ok(arena != null and arena.text == "胜 0 场", "旧档没有 wins 键时按 0 场")
+	ok(arena != null and arena.text == "3D场景试演", "旧2.5D记录不混入3D场景")
 	legacy.set_value("meta", "wins", 7)
 	legacy.save(arena_path)
 	title.queue_free()
 	await get_tree().process_frame
 	title = await _open_title()
 	arena = title.find_child("DossierArena", true, false) as Label
-	ok(arena != null and arena.text == "胜 7 场", "档案显示胜场")
+	ok(arena != null and arena.text == "3D场景试演", "旧2.5D胜场不冒充3D战绩")
 	var chapter := title.find_child("JourneyChapter", true, false) as Label
 	ok(chapter != null and chapter.text.contains("尚无旅程"), "旅程列的章节行有占位")
 	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
@@ -699,15 +700,17 @@ func test_arena_entry_dispatches_to_the_arena_run() -> void:
 	await get_tree().process_frame
 
 
-## 默认接线：不替换接缝时真的走 ArenaRun.start（会话拉起、世界路径指向竞技场）。
+## 默认接线：同一竞技场菜单进入3D场景，不启动旧大厅或2D世界视口。
 func test_arena_entry_default_wiring_starts_a_real_run() -> void:
 	var saved_world := GameContext.pending_world_path
 	var title: TitleScreen = await _open_title()
 	title._on_chosen(TitleScreen.ID_ARENA)
 	await get_tree().process_frame
-	ok(ArenaRun.active(), "竞技场会话已经拉起")
-	eq(GameContext.pending_world_path, ArenaCatalog.SCENE, "待载入的世界是竞技场")
-	ArenaRun.abandon()
+	ok(MobaRunScript.active(), "3D竞技场会话已经拉起")
+	ok(not ArenaRun.active(), "旧2.5D会话不启动")
+	eq(GameContext.pending_world_path, saved_world, "3D入口不改战役世界路径")
+	eq(Director.last_fade_target, MobaRunScript.SCENE, "直接进入3D场景")
+	MobaRunScript.abandon()
 	GameContext.pending_world_path = saved_world
 	title.queue_free()
 	await flush(4)

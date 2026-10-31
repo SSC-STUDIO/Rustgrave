@@ -622,7 +622,7 @@ func test_every_menu_row_has_a_short_footer_hint() -> void:
 		ok(hint != "", "%s 有说明" % String(id))
 		ok(hint.length() <= 24, "%s 的说明 <= 24 字 (%d)" % [String(id), hint.length()])
 		ok(TitleWorld.REACTIONS.has(id), "%s 在炉厅里有反应" % String(id))
-	eq(TitleScreen.hint_for(&"arena"), "余烬竞技场 · 3v3 推线，摧毁敌方水晶", "竞技场行的说明")
+	eq(TitleScreen.hint_for(&"arena"), "3D 竞技场 · 炉城试演，移动与挥剑", "竞技场行的说明")
 	ok(TitleScreen.RECAP_HINT.length() <= 24, "回看余烬的说明 <= 24 字")
 	eq(TitleScreen.hint_for(&"no_such_row"), "", "不认识的 id 没有说明")
 	title.queue_free()
@@ -646,7 +646,7 @@ func test_the_footer_and_the_hall_follow_the_menu_focus() -> void:
 				"页脚写的是 %s 这一行的说明" % String(ids[i]))
 		eq(world.last_reaction(), ids[i], "炉厅对 %s 有反应" % String(ids[i]))
 	menu.select(3, false)
-	ok(title.footer_hint_text().contains("3v3"), "竞技场行：页脚说 3v3 推线")
+	ok(title.footer_hint_text().contains("3D"), "竞技场行：页脚说明3D场景试演")
 	title.queue_free()
 	await get_tree().process_frame
 

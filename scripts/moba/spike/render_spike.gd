@@ -1,12 +1,11 @@
 extends Node
 ## P0 render spike of the 3D pixel-art arena: a mid-lane slice, a controllable
-## knight and looping lane minions, with a key for every look option and live
-## render stats. Open scenes/moba/RenderSpike.tscn and press F6; H shows keys.
+## knight and looping lane minions. F3 opts into render stats and look controls.
 ##
 ## User arguments after `--` start it in a given state for unattended captures:
 ## --autopan --demo --stress --fit --palette --unsnapped --no-shadows --outline=N
 ## --dither=N --height=ROWS --zoom=METRES --at=LANE_X,LANE_Z --window=WxH
-## --shot-after=SECONDS --quit-after-shot
+## --debug --shot-after=SECONDS --quit-after-shot
 
 const PIXEL_STAGE := preload("res://scripts/moba/view/pixel_stage.gd")
 const PIXEL_CAMERA := preload("res://scripts/moba/view/pixel_camera.gd")
@@ -15,6 +14,7 @@ const KIT := preload("res://scripts/moba/view/toon_kit.gd")
 const SPIKE_MAP := preload("res://scripts/moba/spike/spike_map.gd")
 const KNIGHT := preload("res://scripts/moba/view/low_poly_knight.gd")
 const MINION := preload("res://scripts/moba/view/spike_minion.gd")
+const RUN := preload("res://scripts/moba/moba_run.gd")
 ## Loaded on first use so a renderer without depth-texture reads fails only
 ## when the depth outline is switched on.
 const DEPTH_EDGE_SHADER := "res://assets/shaders/moba/depth_edge.gdshader"
@@ -26,7 +26,8 @@ const OUTLINE_TEXELS := 1.15
 const DITHER_STEPS: Array[float] = [0.0, 0.35, 0.7]
 const OUTLINE_MODES: Array[String] = ["外壳", "深度", "外壳+深度", "关"]
 const TEXT_COLOR := Color("#f2e8da")
-const HELP_TEXT := "WASD/方向键 移动   J/空格/左键 挥剑   滚轮或 +/- 缩放   触屏: 按住移动, 双击挥剑\n1 内部分辨率   2 铺满/16:9   3 纹素吸附   4 亚像素平移   5 描边   6 抖动   7 调色板锁定\n8 12帧动画   9 太阳阴影   0 自动平移   M 压力测试   P 截图   H 隐藏帮助   Esc 退出"
+const MODE_NAME := "余烬竞技场 · 3D试演"
+const HELP_TEXT := "1 内部分辨率   2 铺满/16:9   3 纹素吸附   4 亚像素平移\n5 描边   6 抖动   7 调色板锁定   8 12帧动画   9 太阳阴影\n0 自动平移   M 压力测试   P 截图   H 隐藏调试帮助   F3 关闭调试"
 
 var stage: PIXEL_STAGE
 var camera: PIXEL_CAMERA
@@ -39,6 +40,10 @@ var _units: Array = []
 var _stress: Array = []
 var _pan_target: Node3D
 var _depth_quad: MeshInstance3D
+var _overlay: CanvasLayer
+var _mode_label: Label
+var _player_hint: Label
+var _return_button: Button
 var _info: Label
 var _help: Label
 var _rng := RandomNumberGenerator.new()
@@ -62,9 +67,14 @@ var _touch_index := -1
 var _touch_goal := Vector3.ZERO
 var _shot_timer := -1.0
 var _quit_after_shot := false
+var _debug := false
+var _leaving := false
+var _pad_actions := {&"move_left": {}, &"move_right": {}, &"ui_up": {}, &"ui_down": {}}
 
 
 func _ready() -> void:
+	RUN.attach(self)
+	Input.joy_connection_changed.connect(_on_pad_connection_changed)
 	# Units move at priority 0; the hero and unit snapping follow here, and the
 	# camera (priority 100) reads the final positions. Snapping earlier would
 	# use last frame's positions and jitter.
@@ -100,11 +110,104 @@ func _ready() -> void:
 	_build_overlay()
 	var stress_on_start := _read_user_args()
 	_apply_all()
+	_set_debug(_debug)
 	if stress_on_start:
 		_toggle_stress()
 
 
+func _exit_tree() -> void:
+	RUN.detach(self)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and is_inside_tree():
+		_return_to_title()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_touch_index = -1
+		_clear_pad_input()
+
+
+func _return_to_title() -> void:
+	if _leaving or Director.is_fading():
+		return
+	_leaving = true
+	_touch_index = -1
+	_touch_goal = Vector3.ZERO
+	_clear_pad_input()
+	if hero != null:
+		hero.speed = 0.0
+	if _return_button != null:
+		_return_button.disabled = true
+	if not RUN.exit_to_title():
+		_leaving = false
+		if _return_button != null:
+			_return_button.disabled = false
+
+
+func _input(event: InputEvent) -> void:
+	if _leaving:
+		return
+	# Settings rebuilds pad bindings with device 0. Keep the same buttons/axes
+	# for every controller without mutating the shared InputMap on scene entry.
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		_track_pad_input(event)
+
+
+func _track_pad_input(event: InputEvent) -> void:
+	for action in _pad_actions:
+		var held: Dictionary = _pad_actions[action]
+		for binding in InputMap.action_get_events(action):
+			var token := ""
+			var strength := 0.0
+			if event is InputEventJoypadButton and binding is InputEventJoypadButton \
+					and event.button_index == binding.button_index:
+				token = "%d:button:%d" % [event.device, event.button_index]
+				strength = 1.0 if event.pressed else 0.0
+			elif event is InputEventJoypadMotion and binding is InputEventJoypadMotion \
+					and event.axis == binding.axis:
+				token = "%d:axis:%d" % [event.device, event.axis]
+				var zone := InputMap.action_get_deadzone(action)
+				strength = clampf((event.axis_value * signf(binding.axis_value) - zone)
+						/ maxf(1.0 - zone, 0.001), 0.0, 1.0)
+			if not token.is_empty():
+				if strength > 0.0:
+					held[token] = strength
+				else:
+					held.erase(token)
+
+
+func _pad_strength(action: StringName) -> float:
+	var strength := 0.0
+	for value in (_pad_actions[action] as Dictionary).values():
+		strength = maxf(strength, float(value))
+	return strength
+
+
+func _clear_pad_input() -> void:
+	for held: Dictionary in _pad_actions.values():
+		held.clear()
+
+
+func _on_pad_connection_changed(device: int, connected: bool) -> void:
+	if connected:
+		return
+	for held: Dictionary in _pad_actions.values():
+		for token: String in held.keys():
+			if token.begins_with("%d:" % device):
+				held.erase(token)
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _leaving or Director.is_fading():
+		return
+	var bound_event := event
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		bound_event = event.duplicate() as InputEvent
+		bound_event.device = 0
+	if bound_event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_return_to_title()
+		return
 	if event is InputEventScreenTouch:
 		_on_touch(event as InputEventScreenTouch)
 		return
@@ -115,7 +218,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# Touches also arrive as emulated mouse clicks; those must not swing.
 	if event.device != InputEvent.DEVICE_ID_EMULATION \
-			and (event.is_action_pressed("attack") or event.is_action_pressed("jump")):
+			and (bound_event.is_action_pressed("attack") or bound_event.is_action_pressed("jump")):
 		hero.attack()
 		get_viewport().set_input_as_handled()
 		return
@@ -129,11 +232,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if _handle_key(key.physical_keycode):
+	var code := key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
+	if _handle_key(code):
 		get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
+	if _leaving or Director.is_fading():
+		return
 	_clock += delta
 	if _demo:
 		_demo_timer -= delta
@@ -148,6 +254,7 @@ func _process(delta: float) -> void:
 		gem.rotation.y += delta * 0.8
 		gem.position.y = float(gem.get_meta("base_y")) + sin(_clock * 2.0) * 0.12
 	_snap_units()
+	_refresh_player_hint()
 	_update_info(delta)
 	if _shot_timer >= 0.0:
 		_shot_timer -= delta
@@ -158,6 +265,23 @@ func _process(delta: float) -> void:
 
 
 func _handle_key(code: Key) -> bool:
+	if _leaving or Director.is_fading():
+		return false
+	match code:
+		KEY_ESCAPE:
+			_return_to_title()
+			return true
+		KEY_F3:
+			_set_debug(not _debug)
+			return true
+		KEY_EQUAL, KEY_KP_ADD:
+			_zoom(-1.0)
+			return true
+		KEY_MINUS, KEY_KP_SUBTRACT:
+			_zoom(1.0)
+			return true
+	if not _debug:
+		return false
 	match code:
 		KEY_1:
 			stage.cycle_base_height()
@@ -195,18 +319,12 @@ func _handle_key(code: Key) -> bool:
 		KEY_0:
 			_set_autopan(not _autopan)
 			_toast_message("自动平移: %s" % _on(_autopan))
-		KEY_EQUAL, KEY_KP_ADD:
-			_zoom(-1.0)
-		KEY_MINUS, KEY_KP_SUBTRACT:
-			_zoom(1.0)
 		KEY_M:
 			_toggle_stress()
 		KEY_P:
 			_capture()
 		KEY_H:
 			_help.visible = not _help.visible
-		KEY_ESCAPE:
-			get_tree().quit()
 		_:
 			return false
 	return true
@@ -273,18 +391,18 @@ func _toggle_stress() -> void:
 
 
 func _move_hero(delta: float) -> void:
-	var input := Vector2.ZERO
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
-		input.x -= 1.0
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
-		input.x += 1.0
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
-		input.y -= 1.0
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
-		input.y += 1.0
-	var stick := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
-	if stick.length() > 0.2:
-		input += stick
+	if _leaving or Director.is_fading():
+		hero.speed = 0.0
+		return
+	# Actions include rebound keys, D-pad and sticks from every connected pad.
+	# W/S remain convenient vertical shortcuts alongside the standard UI axis.
+	var input := Vector2(
+		maxf(Input.get_action_strength("move_right"), _pad_strength(&"move_right"))
+			- maxf(Input.get_action_strength("move_left"), _pad_strength(&"move_left")),
+		maxf(Input.get_action_strength("ui_down"), _pad_strength(&"ui_down"))
+			- maxf(Input.get_action_strength("ui_up"), _pad_strength(&"ui_up")))
+	input.y = clampf(input.y + float(Input.is_physical_key_pressed(KEY_S))
+			- float(Input.is_physical_key_pressed(KEY_W)), -1.0, 1.0)
 	input = input.limit_length(1.0)
 	if input == Vector2.ZERO and _touch_index >= 0:
 		var to := _touch_goal - hero.global_position
@@ -321,6 +439,8 @@ func _snap_units() -> void:
 
 
 func _on_impact(at: Vector3) -> void:
+	if _leaving or Director.is_fading():
+		return
 	camera.add_shake(0.12)
 	var ring := TOON_PART.new()
 	ring.name = "ImpactRing"
@@ -338,6 +458,8 @@ func _on_impact(at: Vector3) -> void:
 
 
 func _on_touch(touch: InputEventScreenTouch) -> void:
+	if _leaving or Director.is_fading():
+		return
 	if touch.pressed:
 		if touch.double_tap:
 			hero.attack()
@@ -431,17 +553,62 @@ func _capture() -> void:
 
 
 func _build_overlay() -> void:
-	var layer := CanvasLayer.new()
-	layer.name = "Overlay"
-	layer.layer = 20
-	add_child(layer)
-	layer.transform = stage.overlay_transform()
-	stage.layout_changed.connect(func() -> void: layer.transform = stage.overlay_transform())
-	_info = _make_label(Vector2(14.0, 10.0))
-	layer.add_child(_info)
-	_help = _make_label(Vector2(14.0, 662.0))
+	_overlay = CanvasLayer.new()
+	_overlay.name = "Overlay"
+	_overlay.layer = 20
+	add_child(_overlay)
+	_mode_label = _make_label(Vector2(18.0, 16.0))
+	_mode_label.name = "ModeName"
+	_mode_label.text = MODE_NAME
+	_mode_label.add_theme_font_size_override("font_size", 20)
+	_overlay.add_child(_mode_label)
+	_player_hint = _make_label(Vector2(18.0, 640.0))
+	_player_hint.name = "PlayerHint"
+	_player_hint.add_theme_font_size_override("font_size", 14)
+	_player_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_overlay.add_child(_player_hint)
+	_return_button = Button.new()
+	_return_button.name = "ReturnToTitle"
+	_return_button.text = "返回标题"
+	_return_button.size = Vector2(140.0, 42.0)
+	_return_button.add_theme_font_size_override("font_size", 16)
+	_return_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_return_button.pressed.connect(_return_to_title)
+	_return_button.resized.connect(_layout_overlay)
+	_overlay.add_child(_return_button)
+	_info = _make_label(Vector2(18.0, 72.0))
+	_info.name = "RenderStats"
+	_overlay.add_child(_info)
+	_help = _make_label(Vector2(18.0, 568.0))
+	_help.name = "DebugHelp"
 	_help.text = HELP_TEXT
-	layer.add_child(_help)
+	_overlay.add_child(_help)
+	stage.layout_changed.connect(_layout_overlay)
+	_layout_overlay()
+	_refresh_player_hint()
+
+
+func _layout_overlay() -> void:
+	_overlay.transform = stage.overlay_transform()
+	var win := get_tree().root
+	var width := float(maxi(win.size.x, 1)) * 720.0 / float(maxi(win.size.y, 1))
+	_return_button.position = Vector2(maxf(18.0, width - _return_button.size.x - 18.0), 14.0)
+	_player_hint.size = Vector2(maxf(width - 36.0, 1.0), 70.0)
+
+
+func _refresh_player_hint() -> void:
+	var text := "移动：%s / %s、W/S、方向键或摇杆   挥剑：%s / %s\n触屏按住移动、双击挥剑   滚轮 / ± 缩放   Esc / 手柄返回" % [
+		KeyLabels.label(&"move_left"), KeyLabels.label(&"move_right"), KeyLabels.label(&"attack"),
+		KeyLabels.label(&"jump")]
+	if _player_hint.text != text:
+		_player_hint.text = text
+
+
+func _set_debug(on: bool) -> void:
+	_debug = on
+	_info.visible = on
+	_help.visible = on
+	_info_timer = 0.0
 
 
 func _make_label(at: Vector2) -> Label:
@@ -456,6 +623,8 @@ func _make_label(at: Vector2) -> Label:
 
 
 func _update_info(delta: float) -> void:
+	if not _debug:
+		return
 	_frame_time_sum += delta
 	_frame_count += 1
 	_toast_timer = maxf(0.0, _toast_timer - delta)
@@ -501,6 +670,8 @@ func _read_user_args() -> bool:
 		var parts := arg.split("=", true, 1)
 		var value := parts[1] if parts.size() > 1 else ""
 		match parts[0]:
+			"--debug":
+				_debug = true
 			"--autopan":
 				_autopan = true
 			"--demo":

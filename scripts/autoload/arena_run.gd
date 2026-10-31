@@ -11,6 +11,7 @@ signal match_restarted
 signal blessing_granted(team: String)
 
 const ArenaCatalog := preload("res://scripts/data/arena_catalog.gd")
+const MobaRunScript := preload("res://scripts/moba/moba_run.gd")
 
 static var auto_begin := false
 static var shop_ignore_range := false
@@ -167,17 +168,12 @@ func _on_hit(attacker: Node, target: Node, _amount: int) -> void:
 static func start() -> bool:
 	if _node == null or not is_instance_valid(_node):
 		return false
-	_boot()
-	_set_phase(ArenaCatalog.PHASE_LOBBY)
-	GameContext.pending_world_path = ArenaCatalog.SCENE
-	var route := GameContext.route_scene(ArenaCatalog.SCENE)
-	if route == "":
-		abandon()
+	if MobaRunScript.active():
 		return false
-	_ensure_strip()
-	_refresh_strip()
-	Director.fade_to(route, 0.45)
-	return true
+	# Keep the established title/recap entry API while retiring the 2.5D mode.
+	# Do not seed its roster, timer, lobby or presentation viewport.
+	abandon()
+	return MobaRunScript.start()
 
 
 static func activate_for_test() -> void:
@@ -338,7 +334,7 @@ static func abandon() -> void:
 
 
 static func blocks_campaign_save() -> bool:
-	return _active
+	return _active or MobaRunScript.active()
 
 
 static func exit_to_title() -> void:

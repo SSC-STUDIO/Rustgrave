@@ -88,9 +88,11 @@ func add_shake(amount: float) -> void:
 
 
 func _shake_offset(b: Basis) -> Vector3:
-	if _shake <= 0.0:
+	# Read comfort at display time: disabling shake also removes a live impact.
+	var strength := _shake * Settings.shake_scale
+	if strength <= 0.0:
 		return Vector3.ZERO
-	return (b.x * _rng.randf_range(-1.0, 1.0) + b.y * _rng.randf_range(-1.0, 1.0)) * _shake
+	return (b.x * _rng.randf_range(-1.0, 1.0) + b.y * _rng.randf_range(-1.0, 1.0)) * strength
 
 
 static func _ground(p: Vector3) -> Vector3:

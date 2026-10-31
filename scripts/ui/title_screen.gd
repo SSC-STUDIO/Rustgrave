@@ -215,7 +215,7 @@ const MENU_HINTS := {
 	ID_NEW: "点燃余烬 · 选出身，开始新的旅程",
 	ID_CONTINUE: "继续旅程 · 回到上次的余烬巢",
 	ID_TRIAL: "回火试炼 · 单场挑战，刷新最佳成绩",
-	ID_ARENA: "余烬竞技场 · 3v3 推线，摧毁敌方水晶",
+	ID_ARENA: "3D 竞技场 · 炉城试演，移动与挥剑",
 	ID_SETTINGS: "设置 · 音量、画面、键位与辅助",
 	ID_CONTROLS: "操作说明 · 当前键位与手柄按键",
 	ID_QUIT: "离开锈墓 · 退出游戏",
@@ -793,10 +793,9 @@ func _refresh_dossier() -> void:
 			trial_text = "%d 条记录" % trial_count
 	_dossier_values["Trials"].text = trial_text
 
-	var arena_records: Dictionary = ArenaRunScript.read_records()
-	var arena_wins := int(arena_records.get("wins", 0))
-	var arena_text := "胜 %d 场" % arena_wins
-	_dossier_values["Arena"].text = arena_text
+	# The adopted 3D scene has no match settlement yet; legacy 2.5D wins
+	# must not appear as results earned in the new mode.
+	_dossier_values["Arena"].text = "3D场景试演"
 
 	var chapter_text := "尚无旅程"
 	var recap := ""
