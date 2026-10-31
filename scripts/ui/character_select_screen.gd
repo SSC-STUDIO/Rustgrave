@@ -91,6 +91,7 @@ var _rune_buttons: Array[Button] = []
 var _shell: Dictionary = {}
 var _root: Control
 var _closing := false
+var _close_serial := 0
 
 # Origin cards
 var _origin_buttons: Array[Button] = []
@@ -534,6 +535,8 @@ func _on_rune_button_pressed(rune_id: StringName) -> void:
 
 
 func select_skin(skin_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(skin_id))
 	if not SkinCatalog.has(sym):
 		return
@@ -543,6 +546,8 @@ func select_skin(skin_id: Variant) -> void:
 
 
 func select_rune(rune_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(rune_id))
 	if sym != &"" and not RuneCatalog.has(sym):
 		return
@@ -788,7 +793,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func open() -> void:
 	if visible:
 		return
+	_close_serial += 1
 	_closing = false
+	_set_choices_disabled(false)
 	_refresh_ui()
 	visible = true
 	if _shell.has("play_intro"):
@@ -833,16 +840,26 @@ func _setup_focus_chain() -> void:
 
 
 func close() -> void:
+	_close_with_outcome()
+
+
+## 一个退场只交还一次结果；取消、启程和迟到的旧回调不能互相覆盖。
+func _close_with_outcome(on_done: Callable = Callable()) -> void:
 	if not visible or _closing:
 		return
 	_closing = true
+	_close_serial += 1
+	var serial := _close_serial
+	_set_choices_disabled(true)
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
 	var on_finish := func() -> void:
-		if not is_instance_valid(self):
+		if not is_instance_valid(self) or not _closing or serial != _close_serial:
 			return
 		_closing = false
 		visible = false
+		if on_done.is_valid():
+			on_done.call()
 
 	if _shell.has("play_outro") and _shell.get("play_outro") is Callable:
 		(_shell.get("play_outro") as Callable).call(on_finish)
@@ -851,26 +868,37 @@ func close() -> void:
 
 
 func cancel() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
-	close()
-	cancelled.emit()
+	_close_with_outcome(func() -> void: cancelled.emit())
 
 
 func embark() -> void:
-	if not visible:
+	if not visible or _closing:
 		return
 	var origin_id := _selected_origin_id
-	var loadout := get_selected_loadout()
-	close()
-	embark_requested.emit(origin_id, loadout)
+	var loadout := get_selected_loadout().duplicate(true)
+	_close_with_outcome(func() -> void: embark_requested.emit(origin_id, loadout))
+
+
+func _set_choices_disabled(disabled: bool) -> void:
+	for button in _origin_buttons + _trinket_buttons + _skin_buttons + _rune_buttons:
+		button.disabled = disabled
+	if _embark_btn != null:
+		_embark_btn.disabled = disabled
+	if _cancel_btn != null:
+		_cancel_btn.disabled = disabled
 
 
 func is_open() -> bool:
-	return visible and not _closing
+	# visible remains true while the physical card completes its outro; callers use
+	# this to distinguish a live surface from a completed handoff.
+	return visible
 
 
 func select_origin(origin_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(origin_id))
 	if not OriginCatalog.has_origin(sym):
 		return
@@ -886,6 +914,8 @@ func get_selected_origin_id() -> StringName:
 
 
 func select_trinket(trinket_id: Variant) -> void:
+	if _closing:
+		return
 	var sym := StringName(str(trinket_id))
 	var pool := OriginCatalog.get_trinket_pool()
 	if not pool.has(sym):

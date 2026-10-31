@@ -4,7 +4,7 @@ extends RefCounted
 ##   const ObjectKit := preload("res://scripts/ui/ui_object.gd")
 ##
 ## 遵循约束：
-##   1. 运行时现画，0 新增 PNG 贴图。
+##   1. 实物底面优先使用 assets/ui/objects 下的原创烘焙材质；缺失时回退到运行时现画。
 ##   2. 2px 栅格与设计调色板，完全融入游戏工坊场景。
 ##   3. 坐标整数对齐，0 几何缩放。
 
@@ -73,6 +73,17 @@ static var _slider_track_cache: StyleBoxTexture = null
 static var _slider_fill_cache := {}
 static var _brass_bead_cache := {}
 static var _surface_themes := {}
+static var _baked_texture_cache := {}
+
+const BAKED_OBJECT_PATHS := {
+	Kind.BOARD: "res://assets/ui/objects/board.png",
+	Kind.LEDGER: "res://assets/ui/objects/ledger.png",
+	Kind.PLATE: "res://assets/ui/objects/plate.png",
+	Kind.NOTES: "res://assets/ui/objects/paper.png",
+	Kind.JOURNAL: "res://assets/ui/objects/journal.png",
+	Kind.LETTER: "res://assets/ui/objects/letter.png",
+}
+const BAKED_PAPER_PATH := "res://assets/ui/objects/paper.png"
 
 
 ## Paper uses ink throughout; keep the existing font sizes and control classes.
@@ -128,6 +139,10 @@ static func style_box(kind: Kind, size: Vector2) -> StyleBoxTexture:
 	var key := "%d:%dx%d" % [kind, w, h]
 	if _style_cache.has(key):
 		return _style_cache[key]
+	var baked := _baked_style_box(kind)
+	if baked != null:
+		_style_cache[key] = baked
+		return baked
 
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	var sb := StyleBoxTexture.new()
@@ -154,6 +169,100 @@ static func style_box(kind: Kind, size: Vector2) -> StyleBoxTexture:
 
 	_style_cache[key] = sb
 	return sb
+
+
+## Return a 9-slice style using the authored material image. The source canvases
+## are deliberately larger than some cards; preserving their native pixels keeps
+## the irregular corners, leather thickness and paper grain intact while the
+## margins protect those edges during stretch.
+static func _baked_style_box(kind: Kind) -> StyleBoxTexture:
+	var path: String = BAKED_OBJECT_PATHS.get(kind, "")
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	var tex := _baked_texture(kind, path)
+	if tex == null:
+		return null
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex
+	match kind:
+		Kind.BOARD:
+			sb.texture_margin_left = 28.0
+			sb.texture_margin_top = 28.0
+			sb.texture_margin_right = 28.0
+			sb.texture_margin_bottom = 28.0
+			sb.content_margin_left = 36.0
+			sb.content_margin_top = 32.0
+			sb.content_margin_right = 36.0
+			sb.content_margin_bottom = 32.0
+		Kind.NOTES:
+			sb.texture_margin_left = 24.0
+			sb.texture_margin_top = 24.0
+			sb.texture_margin_right = 24.0
+			sb.texture_margin_bottom = 24.0
+			sb.content_margin_left = 32.0
+			sb.content_margin_top = 32.0
+			sb.content_margin_right = 32.0
+			sb.content_margin_bottom = 30.0
+		Kind.LEDGER:
+			sb.texture_margin_left = 24.0
+			sb.texture_margin_top = 24.0
+			sb.texture_margin_right = 24.0
+			sb.texture_margin_bottom = 24.0
+			sb.content_margin_left = 40.0
+			sb.content_margin_top = 36.0
+			sb.content_margin_right = 40.0
+			sb.content_margin_bottom = 36.0
+		Kind.PLATE:
+			sb.texture_margin_left = 24.0
+			sb.texture_margin_top = 24.0
+			sb.texture_margin_right = 24.0
+			sb.texture_margin_bottom = 24.0
+			sb.content_margin_left = 34.0
+			sb.content_margin_top = 38.0
+			sb.content_margin_right = 34.0
+			sb.content_margin_bottom = 32.0
+		Kind.JOURNAL:
+			sb.texture_margin_left = 20.0
+			sb.texture_margin_top = 20.0
+			sb.texture_margin_right = 20.0
+			sb.texture_margin_bottom = 20.0
+			sb.content_margin_left = 36.0
+			sb.content_margin_top = 32.0
+			sb.content_margin_right = 36.0
+			sb.content_margin_bottom = 32.0
+		Kind.LETTER:
+			sb.texture_margin_left = 16.0
+			sb.texture_margin_top = 16.0
+			sb.texture_margin_right = 16.0
+			sb.texture_margin_bottom = 16.0
+			sb.content_margin_left = 28.0
+			sb.content_margin_top = 28.0
+			sb.content_margin_right = 28.0
+			sb.content_margin_bottom = 28.0
+		_:
+			return null
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	return sb
+
+
+static func _baked_texture(key: Variant, path: String) -> Texture2D:
+	if _baked_texture_cache.has(key):
+		return _baked_texture_cache[key]
+	# The headless runner may be launched before the editor import pass. Read the
+	# source PNG directly in that case, while retaining the source path as metadata
+	# for diagnostics and keeping the same ImageTexture in an imported build.
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = load(path) as Texture2D
+	if tex == null:
+		var image := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if image == null or image.is_empty():
+			return null
+		tex = ImageTexture.create_from_image(image)
+	tex.set_meta(&"source_path", path)
+	_baked_texture_cache[key] = tex
+	return tex
 
 
 # --- BOARD 吊挂铁牌 -----------------------------------------------------------
@@ -840,13 +949,15 @@ static func light_wash(kind: Kind, size: Vector2) -> TextureRect:
 
 				# 顶光暖晕 (Warm amber falloff)
 				var warm := clampf(1.0 - norm * 1.3, 0.0, 1.0)
-				var warm_a := warm * 0.16
+				# Baked materials already carry their own thickness and shadow. Keep this
+				# as a restrained top-light instead of washing the paper/skin flat.
+				var warm_a := warm * 0.06
 
 				# 边缘暗角 (Edge vignette)
 				var edge_x := absf(x - cx) / (float(w) * 0.5)
 				var edge_y := absf(y - float(h) * 0.5) / (float(h) * 0.5)
 				var vig := clampf(maxf(edge_x, edge_y) - 0.70, 0.0, 1.0) * 3.3
-				var vig_a := clampf(vig * 0.26, 0.0, 0.32)
+				var vig_a := clampf(vig * 0.08, 0.0, 0.08)
 
 				var c := Color(1.0, 0.76, 0.38, warm_a)
 				if vig_a > 0.01:
@@ -899,7 +1010,9 @@ static func journey_tag_style_box() -> StyleBoxTexture:
 	for c in corners:
 		_draw_rivet(img, c.x, c.y)
 
-	var tex := ImageTexture.create_from_image(img)
+	var tex := _baked_texture(&"journey_tag", BAKED_PAPER_PATH)
+	if tex == null:
+		tex = ImageTexture.create_from_image(img)
 	var sb := StyleBoxTexture.new()
 	sb.texture = tex
 	sb.texture_margin_left = 18.0

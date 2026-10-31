@@ -593,6 +593,37 @@ func _build_journey() -> void:
 
 	_build_dossier_card()
 	_refresh_dossier()
+	_refresh_journey_typography()
+
+
+## 短注沿用 12px 小字的层级；辅助字号放大时按真实行高向下排，
+## 不让正文默认字号把固定 16px 的标题/章名行挤在一起。
+func _refresh_journey_typography() -> void:
+	if _journey_ink == null:
+		return
+	var font_size := mini(roundi(12.0 * Settings.assist(&"text_scale")), 16)
+	var line_height := 16.0
+	for node_name in ["JourneyHeader", "JourneyCount", "JourneyChapter"]:
+		var label := _journey_ink.get_node_or_null(node_name) as Label
+		if label == null:
+			continue
+		label.add_theme_font_size_override("font_size", font_size)
+		label.clip_text = true
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.reset_size()
+		line_height = maxf(line_height, label.get_combined_minimum_size().y)
+	var header := _journey_ink.get_node("JourneyHeader") as Label
+	header.position = Vector2.ZERO
+	header.size = Vector2(72.0, line_height)
+	_journey_count.position = Vector2(JOURNEY_W - 88.0, 0.0)
+	_journey_count.size = Vector2(88.0, line_height)
+	_journey_chapter.position = Vector2(0.0, line_height)
+	_journey_chapter.size = Vector2(JOURNEY_W, line_height)
+	var gauge_y := maxf(38.0, line_height * 2.0)
+	_gauge.position.y = gauge_y
+	var recap := _journey_ink.get_node("RecapButton") as Control
+	recap.position.y = minf(JOURNEY_H - RecapStrip.HEIGHT, gauge_y + 20.0)
 
 
 ## 顶底一层很软的纵向渐变。中间是透的，左右不再压一块硬遮罩。
@@ -893,20 +924,22 @@ func _build_chrome() -> void:
 	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.72)
 	band.add_child(credits)
 	credits.reset_size()
-	credits.position = Vector2(0.0, 6.0)
-	credits.size = Vector2(360.0, 20.0)
+	credits.position = Vector2(0.0, 4.0)
+	credits.size = Vector2(360.0, 24.0)
 	# 页脚右侧染成余烬色：页脚里只有这一行是"给玩家的话"——焦点停在哪一行，
 	# 就用一句话说明它是什么（MENU_HINTS）；没有焦点时是操作提示。
 	var hint := UiKit.label(FOOTER_DEFAULT, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	hint.name = "FooterHint"
-	hint.position = Vector2(FOOTER_RECT.size.x - 400.0, 6.0)
-	hint.size = Vector2(400.0, 20.0)
+	hint.position = Vector2(FOOTER_RECT.size.x - 400.0, 4.0)
+	hint.size = Vector2(400.0, 24.0)
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hint.clip_text = true
 	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	hint.modulate = UiKit.EMBER_ASH
 	band.add_child(hint)
 	_footer_hint = hint
+	_refresh_footer_typography()
+	Settings.changed.connect(_on_title_setting_changed)
 	if _menu != null:
 		_refresh_footer_hint(_menu.selected_id())
 
@@ -934,6 +967,28 @@ func _build_chrome() -> void:
 	_update_notice.reset_size()
 	_update_notice.position = Vector2(1040.0, 661.0)
 	_update_notice.size = Vector2(168.0, 22.0)
+
+
+## 页脚保留 12px 小字的比例，不套用 UiKit.label 的 16px 正文覆盖。
+## 24px 行框容纳最大 16px 字号，始终停在 28px 页脚带内。
+func _refresh_footer_typography() -> void:
+	var font_size := mini(roundi(12.0 * Settings.assist(&"text_scale")), 16)
+	for node_name in ["Credits", "FooterHint"]:
+		var label := get_node_or_null("CreditBand/" + node_name) as Label
+		if label == null:
+			continue
+		label.add_theme_font_size_override("font_size", font_size)
+		label.clip_text = true
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		label.reset_size()
+		label.position = Vector2(0.0 if node_name == "Credits" else FOOTER_RECT.size.x - 400.0, 4.0)
+		label.size = Vector2(360.0 if node_name == "Credits" else 400.0, 24.0)
+
+
+func _on_title_setting_changed(key: StringName) -> void:
+	if key == &"text_scale":
+		_refresh_footer_typography()
+		_refresh_journey_typography()
 
 
 ## UI 层的火星池（聚焦迸火星、字标锻入的火星）：复用 TitleSparks 的火星部分，放大两倍，
@@ -1827,44 +1882,35 @@ func _build_character_select() -> void:
 
 
 func _on_char_select_cancelled() -> void:
+	if _started or _quitting:
+		return
 	_char_select.close()
 	_menu.active = true
 
 
 func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
+	if _started or _quitting:
+		return
+	if not _initialize_new_game(origin_id, loadout):
+		_char_select.open()
+		var hint := _char_select._shell.get("hint") as Label
+		if hint != null:
+			hint.text = "保存失败，请重试；原有旅程已保留。"
+		_menu.active = false
+		return
 	_char_select.close()
 	_started = true
 	_menu.active = false
 	SaveData.pending_spawn = Vector2.INF
 	SaveData.entering_from_checkpoint = false
-	if SaveData.has_method("init_new_game"):
-		SaveData.call("init_new_game", origin_id, loadout)
-		# 外观是 loadout 的一部分：启程后写进 profile（init_new_game 会重置为默认）。
-		var skin := String(loadout.get("skin", ""))
-		var rune := String(loadout.get("rune", ""))
-		if skin != "":
-			SaveData.set_skin(skin, rune)
-			SaveData.persist_profile()
-	else:
-		SaveData.delete_save()
-		var w = loadout.get("weapon", "broken_sword")
-		var a = loadout.get("armor", "broken_armor")
-		var t = loadout.get("trinket", "broken_pendant")
-		var w_id = w.id if (w != null and "id" in w) else String(w)
-		var a_id = a.id if (a != null and "id" in a) else String(a)
-		var t_id = t.id if (t != null and "id" in t) else String(t)
-		SaveData.data = {
-			"player": { "origin": String(origin_id) },
-			"equipment": {
-				"weapon": String(w_id),
-				"armor": String(a_id),
-				"trinket": String(t_id),
-				"bag": []
-			}
-		}
 	Sfx.play(&"gate")
 	_confirm_effect()
 	Director.fade_to(LEVEL_PATH, FADE_OUT)
+
+
+## 保存成功才交接场景；测试可注入拒绝写入，实际失败也保留原有存档。
+func _initialize_new_game(origin_id: StringName, loadout: Dictionary) -> bool:
+	return SaveData.init_new_game(origin_id, loadout)
 
 
 func character_select_screen() -> CharacterSelectScreen:
@@ -1927,6 +1973,8 @@ func look() -> Dictionary:
 
 
 func _exit_tree() -> void:
+	if Settings.changed.is_connected(_on_title_setting_changed):
+		Settings.changed.disconnect(_on_title_setting_changed)
 	if UpdateService.checked.is_connected(_on_update_checked):
 		UpdateService.checked.disconnect(_on_update_checked)
 	var tree := get_tree()

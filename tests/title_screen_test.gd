@@ -893,3 +893,50 @@ func test_any_pressed_input_skips_intro_without_starting_a_run() -> void:
 			eq(title.world()._dolly, Vector2.ZERO, "输入跳过同步清除推镜")
 		title.queue_free()
 		await get_tree().process_frame
+
+
+func test_footer_labels_fit_at_every_supported_text_scale() -> void:
+	var original_scale := Settings.assist(&"text_scale")
+	for text_scale in [0.85, 1.0, 1.35]:
+		Settings.set_value(&"text_scale", text_scale, false)
+		var title: TitleScreen = await _open_title()
+		title.skip_intro()
+		# Also exercise the live path used when returning from settings.
+		Settings.set_value(&"text_scale", 1.35 if text_scale < 1.35 else 0.85, false)
+		Settings.set_value(&"text_scale", text_scale, false)
+		await flush(3)
+		for node_name in ["Credits", "FooterHint"]:
+			var label := title.get_node("CreditBand/" + node_name) as Label
+			var rect := title.design_rect(label)
+			ok(TitleScreen.FOOTER_RECT.encloses(rect),
+					"%s 在字体比例 %.2f 时完整落在页脚带内：%s" % [node_name, text_scale, rect])
+			ok(rect.end.y <= PresentationMetrics.UI_SIZE.y, "%s 不超过窗口底边" % node_name)
+			ok(label.get_theme_font_size(&"font_size") <= 16, "%s 页脚字号不超过 16px" % node_name)
+		title.queue_free()
+		await get_tree().process_frame
+	Settings.set_value(&"text_scale", original_scale, false)
+
+
+func test_journey_note_rows_do_not_overlap_at_any_text_scale() -> void:
+	var original_scale := Settings.assist(&"text_scale")
+	var title: TitleScreen = await _open_title()
+	title.skip_intro()
+	var ink := title.get_node("JourneyColumn/JourneyInk") as Control
+	var node_names := ["JourneyHeader", "JourneyCount", "JourneyChapter", "JourneyGauge", "RecapButton"]
+	for text_scale in [0.85, 1.0, 1.35]:
+		Settings.set_value(&"text_scale", text_scale, false)
+		await flush(3)
+		var bounds := title.design_rect(ink)
+		var rectangles: Array[Rect2] = []
+		for node_name in node_names:
+			var node := ink.get_node(node_name) as Control
+			var rect := title.design_rect(node)
+			rectangles.append(rect)
+			ok(bounds.encloses(rect), "%s 在字号比例 %.2f 时落在旅程短注内" % [node_name, text_scale])
+		for i in rectangles.size():
+			for j in range(i + 1, rectangles.size()):
+				ok(not rectangles[i].intersects(rectangles[j]),
+						"字号比例 %.2f 时 %s 和 %s 不重叠" % [text_scale, node_names[i], node_names[j]])
+	title.queue_free()
+	await get_tree().process_frame
+	Settings.set_value(&"text_scale", original_scale, false)

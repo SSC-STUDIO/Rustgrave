@@ -259,6 +259,8 @@ func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary =
 				clean_bag.append(bid)
 
 	var preview: Dictionary = OriginCatalogScript.calculate_preview_stats(o_sym, w_str, a_str, t_str)
+	var skin_str := String(loadout.get("skin", ""))
+	var rune_str := String(loadout.get("rune", ""))
 	var max_hp: int = int(preview.get("max_hp", 5))
 	var saved_at := Time.get_datetime_string_from_system()
 	var atmosphere := {
@@ -275,8 +277,8 @@ func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary =
 		"attribute_points": 0,
 		"skill_1": "",
 		"skill_2": "",
-		"skin_id": "",
-		"skin_rune": "",
+		"skin_id": skin_str,
+		"skin_rune": rune_str,
 	}
 	var next_data := {
 		"meta": {
@@ -358,8 +360,8 @@ func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary =
 	attribute_points = 0
 	skill_1 = ""
 	skill_2 = ""
-	skin_id = ""
-	skin_rune = ""
+	skin_id = String(fresh_profile["skin_id"])
+	skin_rune = String(fresh_profile["skin_rune"])
 	pending_spawn = Vector2.INF
 	entering_from_checkpoint = false
 	WorldClock.reset()
