@@ -29,14 +29,7 @@ func teardown() -> void:
 	Director.abort()
 
 
-func test_summary_and_selected_rematch_preserve_campaign_state() -> void:
-	var recap := Recap.new()
-	add_child(recap)
-	recap.open(false)
-	ok(recap.visible)
-	ok("章节" in recap.summary_text())
-	ok("试炼" in recap.summary_text())
-	ok("竞技场" in recap.summary_text())
+func test_summary_actions_and_boss_practice_preserve_campaign_state() -> void:
 	var before := SaveData.flags.duplicate()
 	var cfg := ConfigFile.new()
 	cfg.set_value("story", "ending", "give")
@@ -44,7 +37,34 @@ func test_summary_and_selected_rematch_preserve_campaign_state() -> void:
 	cfg.set_value("sentinel", "foreign_v2_data", {"keep": 17})
 	cfg.save(SaveData.save_path)
 	var bytes_before := FileAccess.get_file_as_bytes(SaveData.save_path)
-	ok(recap.start_selected_rematch(), "summary enters the selected Boss practice")
+	var recap := Recap.new()
+	add_child(recap)
+	var requests := {"continue": 0, "trial": 0, "arena": 0}
+	recap.continue_requested.connect(func() -> void: requests["continue"] += 1)
+	recap.trial_requested.connect(func() -> void: requests["trial"] += 1)
+	recap.arena_requested.connect(func() -> void: requests["arena"] += 1)
+	recap.open({
+		"ending": "give",
+		"flags": SaveData.flags,
+		"has_save": true,
+		"trial_ready": true,
+	})
+	ok(recap.visible)
+	eq(recap.summary_text(), ChapterText.ending_summary_of("give"), "summary displays the saved ending")
+	ok("章" in recap.count_text(), "chapter progress has its own readout")
+	ok(recap.row_ids().has(&"trial"))
+	ok(recap.row_ids().has(&"arena"))
+	recap.choose(&"continue")
+	recap.choose(&"trial")
+	recap.choose(&"arena")
+	eq(requests, {"continue": 1, "trial": 1, "arena": 1}, "summary routes each entry through its public signal")
+	eq(SaveData.flags, before, "choosing summary entries does not rewrite campaign flags")
+	eq(FileAccess.get_file_as_bytes(SaveData.save_path), bytes_before, "summary emits intent without writing the save")
+	recap.open({"ending": "give", "flags": before, "has_save": true, "trial_ready": false})
+	recap.choose(&"trial")
+	eq(requests["trial"], 1, "locked trial does not emit a mode request")
+	recap.queue_free()
+	ok(TrialRun.start(Catalog.Track.BOSS_RUSH, "executioner"), "enters the selected Boss practice")
 	eq(TrialRun.stage_count(), 1, "one selected Boss, not the full rush or survival arena")
 	eq(TrialRun.stage()["boss_kind"], "executioner")
 	ok(TrialRun.blocks_campaign_save())

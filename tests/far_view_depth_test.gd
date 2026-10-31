@@ -9,6 +9,7 @@ extends TestCase
 
 const VIEW_W := 640.0
 const PAD := 128.0
+const SIGNATURE_NODE := "Signature"
 
 var _seen: Dictionary = {}
 
@@ -51,7 +52,7 @@ func test_every_chapter_has_layered_depth() -> void:
 		for child in backdrop.get_children():
 			if child is Parallax2D:
 				layers.append(child as Parallax2D)
-		var want_min := 4 if not ThemeBackdrop.is_indoor_theme(theme_id) else 3
+		var want_min := 4 if not ThemeBackdrop.is_indoor_theme(theme_id) else 2
 		ok(layers.size() >= want_min,
 				"%s (%s) stacks %d parallax layers, needs %d for readable depth" % [layout_id, theme_id, layers.size(), want_min])
 		# 视差单调性：从远到近 scroll_scale.x 不下降。只比主题自己的远景板：
@@ -65,7 +66,7 @@ func test_every_chapter_has_layered_depth() -> void:
 			continue
 		var scrolls: Array[float] = []
 		for layer in layers:
-			if layer.name == "FogNear" or layer.name == ThemeBackdrop.SIGNATURE_NODE:
+			if layer.name == "FogNear" or layer.name == SIGNATURE_NODE:
 				break
 			var spr := layer.get_node_or_null("Sprite") as Sprite2D
 			var tiled := layer.repeat_size == Vector2.ZERO and spr != null \

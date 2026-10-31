@@ -141,7 +141,7 @@ func test_player_depth_bounds_jump_and_campaign_physics() -> void:
 	player.global_position.y = 2000.0
 	await flush(1)
 	almost(player.arena_depth(), ArenaCatalog.DEPTH_FRONT, 0.2, "前缘夹住")
-	var feet := player.arena_depth()
+	var feet: float = player.arena_depth()
 	var low: Dictionary = player.arena_shadow_metrics()
 	player.arena_request_jump()
 	await flush(4)
