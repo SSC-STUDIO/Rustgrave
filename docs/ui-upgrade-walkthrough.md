@@ -29,7 +29,7 @@
 
 - 标题：`screenshots/peek/ui-upgrade/title-final-retry/`，132 张截图及对应 JSON；四种状态、三档分辨率、开屏与焦点变体。`contact-idle.png`、`contact-intro.png`、`contact-focus.png` 已实际查看。
 - 纯场景：`title-bare-final/contact-bare.png`，cold／act2 两张。
-- 六件实物：`menus-final/{960x540,1280x720,1920x1080}/`，每档 12 张，尺寸核对记录在 `menus-final/visual-checks.json`；贴图接入后的复核在 `menus-baked-verify/1280x720/`，8 张实际渲染，暂停铁牌和设置账簿已查看。
+- 六件实物：`menus-final/{960x540,1280x720,1920x1080}/`，每档 12 张，尺寸核对记录在 `menus-final/visual-checks.json`；最终贴图版复核在 `menus-baked-final/{960x540,1280x720,1920x1080}/`，每档 8 张，暂停铁牌、设置账簿和 960/1920 两端尺寸已查看。
 - 火漆与折纸：`letter-detail/seal-hot.png`、`letter-detail/fold-pose.png` 为固定姿态的真实渲染样张，用于检查绘制；不代表连续动画的主观手感。
 
 标题 JSON 中 14 盏可见吊灯、8 个点光源；idle 点亮数 cold=0、act2=4、keep=14、snuff=0。页脚内容区平均 sRGB 亮度为 0.0244–0.0318。节点数 ≤150、锁签避让及整像素视差由对应测试验证，未把这些说成截图 JSON 的字段。
