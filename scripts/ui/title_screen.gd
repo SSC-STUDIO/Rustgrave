@@ -34,6 +34,8 @@ const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
 const FORGE_SHADER := preload("res://assets/shaders/title_forge.gdshader")
 const LEVEL_PATH := "res://scenes/levels/Level01_Static.tscn"
 const Transitions := preload("res://scripts/ui/ui_transition.gd")
+const Modal := preload("res://scripts/ui/ui_modal.gd")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
 const KnightLightScript := preload("res://scripts/ui/keyart_knight_light.gd")
 ## 回火试炼（新游戏模式）：入口由战役解锁旗标控制（契约 §5）。
 const TrialCatalogScript := preload("res://scripts/data/trial_catalog.gd")
@@ -118,6 +120,29 @@ class SubtitleFlanks:
 				draw_rect(Rect2(c.x - half, c.y + dy, 2.0 * half + 1.0, 1.0),
 						Color(1.0, 0.76, 0.29, 0.95))
 
+## 菜单可读性暗斑（T1）：位于刻字菜单后方的烟雾状径向暗斑，羽化边缘，
+## 压暗 ~35% 的场景，不使用硬面板。
+class MenuShade:
+	extends Control
+
+	func _init() -> void:
+		name = "MenuShade"
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var center := size * 0.5
+		var rx := size.x * 0.5
+		var ry := size.y * 0.5
+		var steps := 18
+		# 外侧 30% 羽化、内侧稳定压暗；首尾菜单行也得到烟斑保护。
+		var step_alpha := 0.024
+		var fill := Color(0.02, 0.015, 0.03, step_alpha)
+		for i in steps:
+			var t := 1.0 - float(i) / float(steps) * 0.30
+			draw_set_transform(center, 0.0, Vector2(1.0, ry / rx))
+			draw_circle(Vector2.ZERO, rx * t, fill)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 ## 墓志取「没用上的人偶自己先锈透」（你就是那个人偶）。一句，不是台词。
 const EPITAPH := "没用上的人偶，自己先锈透了。"
 const FADE_OUT := 0.7
@@ -155,9 +180,9 @@ const FOOTER_RECT := Rect2(72.0, 688.0, 1136.0, 28.0)
 
 # ---- motion ------------------------------------------------------------------------
 const BOOT_FADE := 0.5
-const LOGO_AT := 0.45
-const LOGO_TIME := 0.95
-const MENU_AT := 1.45
+const LOGO_AT := 1.60
+const LOGO_TIME := 0.80
+const MENU_AT := 1.95
 const MENU_STAGGER := 0.07
 const MENU_LAND := 0.26
 const EPITAPH_CHAR := 0.085
@@ -218,11 +243,14 @@ var _logo_material: ShaderMaterial
 var _logo_flash: ColorRect
 var _subtitle: Label
 var _menu: MenuList
+var _menu_shade: Control
 var _lamp: TitleLampCursor
 var _controls: ControlsPanel
 var _settings: SettingsScreen
 var _confirm: CanvasLayer
 var _confirm_menu: MenuList
+var _confirm_shell: Dictionary = {}
+var _confirm_sealing := false
 var _char_select: CharacterSelectScreen
 var _update_prompt: UpdatePrompt
 var _update_notice: Button
@@ -428,6 +456,11 @@ func _build_masthead() -> void:
 
 ## 左下菜单：四组刻在厅里的字。光标是一盏吊灯，不画铁条。
 func _build_rail() -> void:
+	_menu_shade = MenuShade.new()
+	_menu_shade.position = Vector2(4.0, 156.0)
+	_menu_shade.size = Vector2(500.0, 560.0)
+	add_child(_menu_shade)
+
 	_menu = MenuList.new()
 	_menu.name = "Menu"
 	_menu.lamp_style = true
@@ -816,6 +849,29 @@ func _build_inscription() -> void:
 
 ## 页脚：署名靠左、导航提示靠右，一行小字，没有底板。
 func _build_chrome() -> void:
+	var shade := TextureRect.new()
+	shade.name = "FooterShade"
+	shade.position = Vector2(0.0, 648.0)
+	shade.size = Vector2(1280.0, 72.0)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.40, 1.0])
+	grad.colors = PackedColorArray([
+		Color(0.02, 0.012, 0.02, 0.0),
+		Color(0.02, 0.012, 0.02, 0.45),
+		Color(0.02, 0.012, 0.02, 0.85),
+	])
+	var gt := GradientTexture2D.new()
+	gt.gradient = grad
+	gt.width = 4
+	gt.height = 72
+	gt.fill_from = Vector2(0.0, 0.0)
+	gt.fill_to = Vector2(0.0, 1.0)
+	shade.texture = gt
+	add_child(shade)
+
 	var band := Control.new()
 	band.name = "CreditBand"
 	band.position = FOOTER_RECT.position
@@ -830,13 +886,15 @@ func _build_chrome() -> void:
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	band.add_child(rule)
 	var credits := UiKit.label(
-			"美术 ansimuz · aamatniekss · Kronovi · CodeManu · Kenney — 音频 Kenney · 字体 Fusion Pixel (OFL)",
+			"致谢 ansimuz · Kenney · Fusion Pixel",
 			&"FootnoteLabel")
-	credits.position = Vector2(0.0, 6.0)
-	credits.size = Vector2(FOOTER_RECT.size.x - 420.0, 20.0)
+	credits.name = "Credits"
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.32)
+	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.72)
 	band.add_child(credits)
+	credits.reset_size()
+	credits.position = Vector2(0.0, 6.0)
+	credits.size = Vector2(360.0, 20.0)
 	# 页脚右侧染成余烬色：页脚里只有这一行是"给玩家的话"——焦点停在哪一行，
 	# 就用一句话说明它是什么（MENU_HINTS）；没有焦点时是操作提示。
 	var hint := UiKit.label(FOOTER_DEFAULT, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
@@ -892,11 +950,17 @@ func _build_ui_sparks() -> void:
 func _build_overlays() -> void:
 	_controls = ControlsPanel.new()
 	_controls.layer = 5
-	_controls.closed.connect(func() -> void: _menu.active = true)
+	_controls.closed.connect(func() -> void:
+		_menu.active = true
+		_fade_title_menu(1.0)
+	)
 	add_child(_controls)
 	_settings = SettingsScreen.new()
 	_settings.layer = 6
-	_settings.closed.connect(func() -> void: _menu.active = true)
+	_settings.closed.connect(func() -> void:
+		_menu.active = true
+		_fade_title_menu(1.0)
+	)
 	add_child(_settings)
 	_build_recap_page()
 	_build_confirm()
@@ -955,6 +1019,8 @@ func _play_intro() -> void:
 		band.modulate.a = 0.0
 	if _lamp != null:
 		_lamp.modulate.a = 0.0
+	if _menu_shade != null:
+		_menu_shade.modulate.a = 0.0
 	if _knight_light != null:
 		_knight_light.modulate.a = 0.0
 	var rows: Array[MenuItem] = []
@@ -993,6 +1059,8 @@ func _play_intro() -> void:
 	# 菜单逐条落位。吊灯和第一行一起出现，然后自己落到选中的那一行。
 	if _lamp != null:
 		tw.tween_property(_lamp, "modulate:a", 1.0, 0.35).set_delay(MENU_AT)
+	if _menu_shade != null:
+		tw.tween_property(_menu_shade, "modulate:a", 1.0, 0.4).set_delay(MENU_AT)
 	var delay := MENU_AT
 	for i in rows.size():
 		var row := rows[i]
@@ -1025,7 +1093,7 @@ func _logo_settle_flash() -> void:
 	if _logo_flash == null or not is_instance_valid(_logo_flash):
 		return
 	var tw := create_tween()
-	tw.tween_property(_logo_flash, "color:a", 0.42, 0.05)
+	tw.tween_property(_logo_flash, "color:a", 0.42 * Settings.flash_scale, 0.05)
 	tw.tween_property(_logo_flash, "color:a", 0.0, 0.32) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
@@ -1049,7 +1117,7 @@ func _skip_intro() -> void:
 		_intro_tween.kill()
 	_logo_material.set_shader_parameter("progress", 1.0)
 	Transitions.snap_visible([
-			_keyart, _masthead, _subtitle, _journey, _lamp,
+			_keyart, _masthead, _subtitle, _journey, _lamp, _menu_shade,
 			get_node_or_null("Inscription"),
 			get_node_or_null("CreditBand"),
 			_knight_light,
@@ -1074,11 +1142,26 @@ func intro_playing() -> bool:
 	return _intro_playing
 
 
+func skip_intro() -> void:
+	_skip_intro()
+
+
 # ------------------------------------------------------------------ per frame ---
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_pointer_seen = true
+	# 开屏只负责气氛；实际按下立即落位，同一次输入继续交给菜单。
+	# 必须早于 _unhandled_input，方向键常已被 MenuList 消耗。
+	if not _intro_playing:
+		return
+	var pressed := false
+	if event is InputEventKey:
+		pressed = event.pressed and not event.echo
+	elif event is InputEventMouseButton or event is InputEventJoypadButton:
+		pressed = event.is_pressed()
+	if pressed:
+		_skip_intro()
 
 
 func _process(delta: float) -> void:
@@ -1109,11 +1192,23 @@ func _process(delta: float) -> void:
 func _update_pointer() -> void:
 	if _world == null:
 		return
-	if not _pointer_seen or _quitting:
+	if not _pointer_seen or _quitting or _sub_screen_open():
 		_world.set_pointer(Vector2.ZERO)
 		return
 	var local := get_local_mouse_position()
 	_world.set_pointer(Vector2(local.x / 640.0 - 1.0, local.y / 360.0 - 1.0))
+
+
+func _sub_screen_open() -> bool:
+	return (_settings != null and _settings.visible) \
+			or (_controls != null and _controls.visible) \
+			or (_recap != null and _recap.is_open()) \
+			or (_char_select != null and _char_select.is_open()) \
+			or confirm_open()
+
+
+func sub_screen_open() -> bool:
+	return _sub_screen_open()
 
 
 ## 悬停旅程列（或展开后悬停在卡上）/ Tab 固定：展开完整档案。
@@ -1353,9 +1448,11 @@ func _on_chosen(id: StringName) -> void:
 				Sfx.play(&"ui_denied")
 		ID_SETTINGS:
 			_menu.active = false
+			_fade_title_menu(0.0)
 			_settings.open()
 		ID_CONTROLS:
 			_menu.active = false
+			_fade_title_menu(0.0)
 			_controls.open()
 		ID_UPDATE:
 			_menu.active = false
@@ -1392,8 +1489,20 @@ func open_recap() -> void:
 func _fade_title_menu(alpha: float) -> void:
 	if _menu == null:
 		return
+	if DisplayServer.get_name() == "headless":
+		_menu.modulate.a = alpha
+		if _lamp != null:
+			_lamp.modulate.a = alpha
+		if _menu_shade != null:
+			_menu_shade.modulate.a = alpha
+		return
 	var tw := create_tween()
+	tw.set_parallel(true)
 	tw.tween_property(_menu, "modulate:a", alpha, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if _lamp != null:
+		tw.tween_property(_lamp, "modulate:a", alpha, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if _menu_shade != null:
+		tw.tween_property(_menu_shade, "modulate:a", alpha, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 ## 标题还没读档时，试炼解锁只在磁盘旗标里。内存空着不能把钟楼之后的存档显示成未解锁。
@@ -1625,22 +1734,20 @@ func _build_confirm() -> void:
 	_confirm.visible = false
 	add_child(_confirm)
 	PresentationMetrics.bind_layer(_confirm)
-	var root := Control.new()
-	root.name = "Root"
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_STOP
-	_confirm.add_child(root)
-	root.add_child(UiKit.scrim(0.72, 0.66, 0.78))
-	var frame := UiKit.panel(&"OrnatePanel")
-	frame.set_anchors_preset(Control.PRESET_CENTER)
-	frame.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	frame.grow_vertical = Control.GROW_DIRECTION_BOTH
-	root.add_child(frame)
+	_confirm_shell = Modal.build(_confirm, {
+		"object": ObjectKit.Kind.LETTER,
+		"title": "覆 盖 存 档 ？",
+		"kicker": "重 燃 之 前",
+		"size": Vector2(640.0, 420.0),
+		"hint": "启程时才会替换现有进度",
+		"back": "Esc 折回信笺",
+	})
 	var column := VBoxContainer.new()
+	column.name = "LetterContent"
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	frame.add_child(column)
-	column.add_child(UiKit.label("覆 盖 存 档 ？", &"HeadLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.divider())
+	column.add_theme_constant_override("separation", 18)
+	(_confirm_shell["body"] as Control).add_child(column)
 	column.add_child(UiKit.label("现有进度会被清除，从头点燃。", &"DimLabel",
 			HORIZONTAL_ALIGNMENT_CENTER))
 	_confirm_menu = MenuList.new()
@@ -1648,6 +1755,7 @@ func _build_confirm() -> void:
 	_confirm_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_confirm_menu.add_theme_constant_override("separation", 12)
 	_confirm_menu.active = false
+	_confirm_menu.ink_style = true
 	column.add_child(_confirm_menu)
 	# 取消是默认项、也是安全出口，用燕尾板；清档是不可逆动作，只留四只角标。
 	_confirm_menu.compact(_confirm_menu.add_item(
@@ -1658,19 +1766,22 @@ func _build_confirm() -> void:
 
 
 func open_confirm() -> void:
+	if _confirm_sealing:
+		return
 	_menu.active = false
 	_confirm.visible = true
 	_confirm_menu.active = true
 	_confirm_menu.select(0, false)
-	# 确认框是压暗+缩放进场（UiKit 的既有小件节奏），这里直接可见：
-	# 它是模态层级里最小的一层，再套一层 0.17s 滑入会把"覆盖存档？"
-	# 这个不可逆动作的反馈拖慢。纱幕类大屏才有滑入。
+	(_confirm_shell["play_intro"] as Callable).call()
 
 
 func close_confirm() -> void:
-	_confirm.visible = false
+	if _confirm_sealing:
+		return
 	_confirm_menu.active = false
-	_menu.active = true
+	(_confirm_shell["play_outro"] as Callable).call(func() -> void:
+		_confirm.visible = false
+		_menu.active = not _started and not _quitting)
 
 
 func confirm_open() -> bool:
@@ -1678,14 +1789,29 @@ func confirm_open() -> bool:
 
 
 func _on_confirm_chosen(id: StringName) -> void:
-	if _started or _quitting:
+	if _started or _quitting or _confirm_sealing:
 		return
 	if id == ID_OVERWRITE:
-		_confirm.visible = false
 		_confirm_menu.active = false
-		_char_select.open()
+		_confirm_sealing = true
+		# Finish arrival before stamping; neither a flash nor a cancel clears a save.
+		(_confirm_shell["finish_instantly"] as Callable).call()
+		var seal := _confirm_shell["dressing"] as Node2D
+		if DisplayServer.get_name() == "headless" or is_zero_approx(Settings.flash_scale):
+			_finish_seal()
+		else:
+			var tw := _confirm.create_tween()
+			tw.tween_property(seal, "heat", Settings.flash_scale, 0.07)
+			tw.tween_property(seal, "heat", 0.0, 0.09)
+			tw.tween_callback(_finish_seal)
 	else:
 		close_confirm()
+
+
+func _finish_seal() -> void:
+	_confirm_sealing = false
+	_confirm.visible = false
+	_char_select.open()
 
 
 func _build_character_select() -> void:

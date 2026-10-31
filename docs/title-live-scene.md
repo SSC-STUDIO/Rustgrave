@@ -30,7 +30,9 @@
 |---|---|---|---|
 | `Ambient` (`CanvasModulate`) | — | — | 全局环境底色，按变体/幕次与开屏/退场亮度插值 |
 | `Void` (`Polygon2D`) | 0 | — | 铺底深色背景（`#0A080F`） |
-| `HallFar` (`Sprite2D`) | 0 | `-0.30` | 远处锻厅背景（`assets/title/hall_far.png`） |
+| `FarVault` (`Node2D`) | 0，先绘制 | `-0.45` | 冷蓝灰远厅拱肋、两座烟囱、三扇高窗与三道光柱；2px 栅格，6fps 更新，无子节点或点光源 |
+| `HallFar` (`Sprite2D`) | 0，后绘制 | `-0.30` | 远处锻厅背景（`assets/title/hall_far.png`）；运行时 shader 只让上方暗色空气透出更远的拱厅，保留亮桁架和下方暖厅 |
+| `FarHaze` (`Node2D`) | 0 | `-0.42` | 薄雾、远窗和 y=340→180 向上渐隐的暖反光，连接冷远景与熔河 |
 | `PitRiver` (`Sprite2D`) | 0 | `-0.30` | 桥下熔河（`pit_river.png`，`LIGHT_MODE_UNSHADED` 自发光，随炉温变色） |
 | `Beam` (`Sprite2D`) | 0 | `-0.20` | 天窗斜落光柱（`beam.png`，`BLEND_MODE_ADD` + `UNSHADED`） |
 | `HallMid` (`Sprite2D`) | 1 | `-0.55` | 中景巨柱、下层远桥与管线（`hall_mid.png`） |
@@ -70,20 +72,22 @@
    - 居中偏上（`y = 28..178`），不遮挡画面中段的铁桥与骑士。
    - 挂载 `assets/shaders/title_forge.gdshader`：开屏时斜向白热前沿从左向右扫过，量化为 4 阶像素热区（白热 → 余烬橙 → 字标本色），沿途由 `UiSparks` 迸出火星；副题「锈 墓 · 余 烬 骑 士」随后淡入。
 2. **左下刻字菜单（`Menu`，`MenuList.lamp_style = true`）**：
-   - 起点 `RAIL_X = 72, RAIL_TOP = 254`，7 个 `MenuItem`（每行高 `52px` 满足触控下限），按**行动**（点燃余烬 / 继续旅程或回看余烬）、**模式**（回火试炼 / 余烬竞技场）、**系统**（设置 / 操作说明）、**离开**（离开锈墓）四组排列，组间 `16px` 留白。不画铁条，字直接落在厅的暗处。
+   - 起点 `RAIL_X = 72, RAIL_TOP = 254`，7 个 `MenuItem`（每行高 `52px` 满足触控下限），按**行动**（点燃余烬 / 继续旅程或回看余烬）、**模式**（回火试炼 / 余烬竞技场）、**系统**（设置 / 操作说明）、**离开**（离开锈墓）四组排列，组间 `16px` 留白。刻字下方是羽化的 `MenuShade` 烟斑，中心约压暗 35%，没有硬面板边。
    - 三档宽度递减：主行动 `344px`、模式与系统 `304px`、离开 `248px`（全部严格停在画面中线 `x = 640` 左侧）。宽度是触控区，不是条身。
-   - 光标是 `LampCursor`：一根链子从字标下沿垂下来，灯笼停在选中行左侧。离灯近的字被烤暖，选中行底下一条烧着的细线。聚焦时灯闪一下、迸火星，并联动 `TitleWorld.nudge()` 使厅里的吊灯闪亮、镜头微推 `1~2px`。
+   - 光标是 `LampCursor`：一根链子从字标下沿垂下来，36×51px 的灯笼停在选中行左侧，252px 暖光池随确认闪光扩大。离灯近的字被烤暖，136px 外光照归零，选中行底下一条烧着的细线。聚焦时灯闪一下、迸火星，并联动 `TitleWorld.nudge()` 使厅里的吊灯闪亮、镜头微推 `1~2px`。
+   - 锁定试炼的解锁条件放在该行下沿的 `LockTag` 小铁签里，不再挤在行右端；锁定行保留清晰冷灰字和 1px 暗描边。
    - **有存档时默认选中第 2 项「继续旅程」**（索引 `1`）。
 3. **右侧旅程刻度列（`JourneyColumn`）与可展开档案卡（`DossierWrap/Dossier`）**：
    - 收起态是右上一条短注 `JourneyColumn`（`Rect2(1000, 188, 208, 92)`），平时很淡，焦点停在「继续旅程」才亮，并跟厅里 14 盏吊灯同一档呼吸。内容只有四行：`旅 程` + `04 / 14`、当前章名、`TitleGauge` 的横向 14 格（`use_horizontal()`，幕界仍用 `ACT_STARTS`，亮格数和当前格的接口不变）、`回看余烬`。没有竖排章号，也没有 `ChipRank / ChipSkin / ChipTrials / ChipArena`。阶位、外观、试炼、竞技场只在 Tab 展开的档案卡里。无存档时章名是「尚无旅程」，14 格全冷。
    - 鼠标悬停旅程列或按 **`Tab` 键**滑出展开 `DossierWrap/Dossier`（`Rect2(820, 184, 388, 424)`），完整保留 `DossierRank`、`DossierSkin`、`DossierTrials`、`DossierArena`、`DossierChapter`、`DossierRecap`、`TrialLockHint`、`DossierFoot` 等节点。
 4. **底部打字机墓志（`Inscription/EpitaphRow/Epitaph`）与页脚（`CreditBand`）**：
    - 墓志位于 `Rect2(584, 624, 404, 32)`，中心线 `y = 640` 与左下「离开锈墓」行中心线对齐。没有底板、顶线和钉子，只有右下炉影里一块径向暗斑，字本身压得很淡。以 `0.085s/字` 打字机逐字显现，首句恒为 `没用上的人偶，自己先锈透了。`，停留 `5.5s` 后淡出轮换。
-   - 页脚位于 `Rect2(72, 688, 1136, 28)`：致谢和发丝线都更淡，右侧导航提示仍是余烬色。标题屏不用四角角标；上下是一层软渐变，不再用左右硬遮罩。字标底下在活景里加一张加色光斑（`LogoWash`，`glow.png`），不新增 `PointLight2D`。
+   - 页脚位于 `Rect2(72, 688, 1136, 28)`：致谢缩成「致谢 ansimuz · Kenney · Fusion Pixel」，文字 alpha 0.72；`FooterShade` 从 y=648 到底部渐暗，压住熔河亮纹。右侧导航提示仍是余烬色。标题屏不用四角角标；上下是一层软渐变，不再用左右硬遮罩。字标底下在活景里加一张加色光斑（`LogoWash`，`glow.png`），不新增 `PointLight2D`。
 
 ### 3.2 开场、进关与退场动效
 
-- **开场（`_play_intro`）**：`BootCurtain` 纯黑幕 0.5s 退去 → `TitleWorld.play_intro()` 吊灯按通关数逐盏点亮 → 0.45s 字标锻造扫光 + 5 次火星迸发 → 副题淡入 → 1.45s 起菜单 7 行依次向右落位（每行间隔 0.07s）→ 旅程列、墓志、页脚浮现。开场不是输入门禁，任意确认操作调用 `_skip_intro()` 立即落位终态并执行。
+- **开场（`_play_intro`）**：黑幕 0.5s 退去；视差推镜从 `DOLLY_FROM=(0,-26)` 在 1.6s 内降到桥面，所有图层每帧取整。0.30s 起，当前进度允许点亮的吊灯按短链高灯→长链低灯依次亮起（每盏 0.16s）。1.60s 落位时闷锤响起、字标开始 0.80s 锻入并迸五簇火星；1.95s 起菜单逐行落位（间隔 0.07s、单行 0.26s），旅程列与页脚跟上，整段约 2.8s。任意键盘、鼠标按下或手柄按钮在 `_input` 阶段立即跳过，同一次输入仍交给菜单。`skip_intro()` 同步杀掉推镜 tween、清零 `_dolly`、恢复存档灯数。
+- **舒适性**：新增推镜、鼠标视差和镜头呼吸跟随 `Settings.shake_scale`；字标落锤闪光、灯标耀斑和场景白热跟随 `Settings.flash_scale`，关闭时不播放这些效果。
 - **确认进关（`_confirm_effect`）**：触发 `TitleWorld.enter_push(5.0, 0.55)`（白热闪光 + 镜头向骑士推进 5px + 吊灯齐闪）+ 选中条火星迸发 + `gate` 音效 + `Director.fade_to`。
 - **竞技场入口修复（`ID_ARENA`）**：在 `_on_chosen` 中接入 `_start_arena()` → `ArenaRun.start()`（支持 `arena_start` 测试接缝）；启动成功即切入竞技场，若返回 `false` 则恢复菜单激活并播放 `ui_denied`。
 - **退出（`_quit_sequence`）**：菜单行自上而下逐格熄灭，活景调用 `TitleWorld.quit_out(0.2)` 将亮着的吊灯逐盏吹灭、环境光压暗，只留巨剑剪影在黑暗中微亮，随后浮现 `QuitCaption`（「余 烬 熄 灭。」）再退出；期间任意按键/点击立即调用 `_finish_quit()`。
@@ -101,6 +105,7 @@
 | `LIGHT_POOL_FIXTURES` | `[1,4,7,10,13]` | 带物理光池的吊灯索引；其中 4、10 开启投影 |
 | `DECK_Y` / `KNIGHT_X` / `KEEP_X` | `266.0` / `326.0` / `420.0` | 铁桥桥面 Y、骑士默认 X、守火结局骑士 X |
 | `PARALLAX` / `POINTER_EASE` | `Vector2(9.0, 4.5)` / `3.2` | 深度 `1.0` 层的最大鼠标整像素偏移与平滑系数 |
+| `DOLLY_FROM` / `DOLLY_TIME` | `Vector2(0, -26)` / `1.6` | 开屏抬高起点与推镜时间（秒） |
 | `BREATH_PERIOD` | `7.0` | 摄像机 `±1px` 呼吸周期（秒） |
 | `GRADES` | 8 组字典 | `cold`、`act1..act4`、`give`、`keep`、`snuff` 的环境色、炉温、光柱、粒子与齿轮倍率 |
 
@@ -112,8 +117,8 @@
 | `RAIL_X` / `RAIL_TOP` / `GROUP_GAP` | `72.0` / `254.0` / `16.0` | 左下菜单列起点与组间距（离开行中心 `QUIT_CENTER_Y = 640.0`） |
 | `JOURNEY_X/Y/W/H` | `1000, 188, 208, 92` | 右侧短注矩形（计数、章名、横轨、回看） |
 | `CARD_RECT` | `Rect2(820, 184, 388, 424)` | 展开态完整档案卡矩形 |
-| `EPITAPH_RECT` / `FOOTER_RECT` | `Rect2(688, 624, 520, 32)` / `Rect2(72, 688, 1136, 28)` | 墓志与页脚矩形 |
-| `BOOT_FADE` / `LOGO_AT` / `LOGO_TIME` / `MENU_AT` | `0.5` / `0.45` / `0.95` / `1.45` | 开屏动画各阶段时间点（秒） |
+| `EPITAPH_RECT` / `FOOTER_RECT` | `Rect2(584, 624, 404, 32)` / `Rect2(72, 688, 1136, 28)` | 墓志与页脚矩形 |
+| `BOOT_FADE` / `LOGO_AT` / `LOGO_TIME` / `MENU_AT` | `0.5` / `1.60` / `0.80` / `1.95` | 开屏动画各阶段时间点（秒） |
 | `EPITAPH_CHAR` / `EPITAPH_HOLD` / `EPITAPH_FADE` | `0.085` / `5.5` / `0.7` | 墓志打字机单字间隔、停留与淡出时长 |
 
 ---
@@ -122,7 +127,7 @@
 
 ### 自动化测试
 
-- `tests/title_world_test.gd`（20 个用例）：
+- `tests/title_world_test.gd`：
   - 14 章 → 4 幕划分、通关章数 → 14 盏吊灯精确 N/14 映射；
   - `build_state()` 与 `state_from_save()` 在无存档、各幕旅程、三种结局（`give`/`keep`/`snuff`）及未知结局下的取值；
   - 8 种状态（`cold`、`act1..4`、`give`、`keep`、`snuff`）全部在 headless 下构建无错，点光源数 `≤ 8`、节点数 `≤ 250`；
@@ -133,13 +138,15 @@
   - 开屏逐盏亮灯、跳过开屏、退场逐盏灭灯；
   - 粒子池容量上限与连续 300 帧零节点增长；
   - `Keyart` 视口挂载、隐藏停渲、`USE_LIVE_SCENE = false` 静态回退、`bed_title` 音频特性探测。
-- `tests/title_screen_test.gd`（20 个用例）：
+- `tests/title_screen_test.gd`：
   - 左下刻字菜单三档宽度、52px 触控高度、四组间距、不过中线（`< 640`），吊灯光标跟着选中行走；
   - 键鼠共享同一选中态、聚焦联动活景微推与闪亮；
   - 回火试炼锁态提示、余烬竞技场 `ID_ARENA` 派发与真实 `ArenaRun.start()` 接线；
   - 旅程刻度点亮、`Tab` 展开/收起档案卡、墓志打字机轮换；
   - 离开行与墓志同基线（`y = 640`），档案卡与各区块在 `1280×720`、`1920×1080`、`2560×1080` 下零重叠且不越界；
   - 退场动画吊灯逐盏熄灭与跳过收尾。
+  - 菜单烟斑、锁定铁签避让、灯标尺寸、页脚暗渐变与任意按下跳过开屏。
+- `tests/title_elements_test.gd`：铁水连续折线、远厅实际绘制顺序、视差深度、节点与点光预算、推镜终态和镜头舒适性设置；压力用例见 `title_dolly_adversarial_test.gd`、`title_vault_adversarial_test.gd`、`title_elements_adversarial_test.gd`。
 - 关联回归套件：`tests/title_flow_adversarial_test.gd`、`tests/display_resolution_test.gd`、`tests/ui_transition_test.gd`、`tests/modal_screens_test.gd`、`tests/m5_tier5_adversarial_ui_test.gd`、`tests/character_select_test.gd`、`tests/pause_menu_test.gd`。
 
 ### 诊断与截图工具

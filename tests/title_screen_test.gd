@@ -729,3 +729,167 @@ func test_epitaph_clears_recap_button() -> void:
 				"墓志右端 %.0f 与回看条左端 %.0f 至少留 8px" % [ep.end.x, rc.position.x])
 	title.queue_free()
 	await get_tree().process_frame
+
+
+## T1: 菜单可读性暗斑存在，且中心和边缘严格停在画面中线（x=640）左侧。
+func test_menu_shade_exists_and_stays_left_of_midline() -> void:
+	var title: TitleScreen = await _open_title()
+	var shade := title.find_child("MenuShade", true, false) as Control
+	ok(shade != null, "MenuShade 节点存在")
+	if shade != null:
+		var rect := title.design_rect(shade)
+		var center_x := rect.position.x + rect.size.x * 0.5
+		ok(center_x < KEYART_CENTER, "MenuShade 中心在屏幕中线左侧 (%.1f < 640)" % center_x)
+		ok(rect.end.x <= KEYART_CENTER, "MenuShade 右边缘在中线左侧 (%.1f <= 640)" % rect.end.x)
+		ok(rect.position.x >= 0.0, "MenuShade 落在屏幕内")
+		var menu := title.get_node_or_null("Menu") as Control
+		if menu != null:
+			ok(shade.get_index() < menu.get_index(), "MenuShade 在菜单底层渲染")
+		ok(shade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "MenuShade 忽略鼠标事件")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## T2: 锁定铁签悬挂在锁定项下方，不与其他任何菜单行矩形相交，且避开右侧场景告示牌。
+func test_lock_tag_exists_and_does_not_intersect_other_rows() -> void:
+	var saved_flags := SaveData.flags.duplicate()
+	var saved_ending := SaveData.ending
+	var saved_path := SaveData.save_path
+	var gate_path := "user://title_lock_tag_test.cfg"
+	SaveData.save_path = gate_path
+	if FileAccess.file_exists(gate_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(gate_path))
+	SaveData.flags = PackedStringArray()
+	SaveData.ending = ""
+
+	var title: TitleScreen = await _open_title()
+	var tag := title.find_child("LockTag", true, false) as Control
+	ok(tag != null, "锁定提示 LockTag 节点存在")
+	if tag != null:
+		ok(tag.visible, "未解锁时 LockTag 可见")
+		var tag_rect := title.design_rect(tag)
+		var items := _items(title)
+		for item in items:
+			if item.id == &"trial":
+				continue
+			var item_rect: Rect2 = title.design_rect(item)
+			ok(not tag_rect.intersects(item_rect),
+					"LockTag 不与菜单行 %s 重叠 (tag=%s, row=%s)" % [item.id, tag_rect, item_rect])
+		ok(tag_rect.end.x < 240.0, "锁定铁签避开场景右侧告示牌 (%.0f < 240)" % tag_rect.end.x)
+	title.queue_free()
+	await get_tree().process_frame
+
+	SaveData.flags = saved_flags
+	SaveData.ending = saved_ending
+	if FileAccess.file_exists(gate_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(gate_path))
+	SaveData.save_path = saved_path
+
+
+## T3: 灯笼光标放大至 3x (36x51) 且光晕扩大。
+func test_lamp_cursor_dimensions_and_halo() -> void:
+	var title: TitleScreen = await _open_title()
+	var lamp := title.find_child("LampCursor", true, false) as TitleLampCursor
+	ok(lamp != null, "LampCursor 存在")
+	if lamp != null:
+		var body := lamp.get_node_or_null("Lantern") as Control
+		ok(body != null, "Lantern 灯身节点存在")
+		if body != null:
+			almost(body.custom_minimum_size.x, 36.0, 0.5, "灯身宽度为 36px (3x 比例)")
+			almost(body.custom_minimum_size.y, 51.0, 0.5, "灯身高度为 51px (3x 比例)")
+		var halo := lamp.get_node_or_null("Halo") as TextureRect
+		ok(halo != null, "Halo 光晕节点存在")
+		if halo != null:
+			ok(halo.size.x >= 200.0, "光晕尺寸扩大 (%.0f >= 200)" % halo.size.x)
+			ok(halo.material is CanvasItemMaterial, "光晕使用材质")
+			if halo.material is CanvasItemMaterial:
+				eq((halo.material as CanvasItemMaterial).blend_mode,
+						CanvasItemMaterial.BLEND_MODE_ADD, "光晕材质为加色模式")
+			ok(halo.modulate.r > halo.modulate.b, "光晕色调为暖色")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## T5: 页脚渐变暗斑（截止在熔河上方）与精简致谢文案。
+func test_footer_shade_and_shortened_credits() -> void:
+	var title: TitleScreen = await _open_title()
+	var shade := title.find_child("FooterShade", true, false) as Control
+	ok(shade != null, "FooterShade 节点存在")
+	if shade != null:
+		ok(shade.position.y <= 660.0, "暗渐变顶端截止在熔河上方 (y=%.0f <= 660)" % shade.position.y)
+		ok(shade.position.y + shade.size.y >= 716.0, "暗渐变覆盖整个页脚高度")
+		ok(shade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "FooterShade 忽略鼠标事件")
+	var credits := title.find_child("Credits", true, false) as Label
+	if credits == null:
+		var band := title.find_child("CreditBand", true, false)
+		if band != null and band.get_child_count() > 1:
+			credits = band.get_child(1) as Label
+	ok(credits != null, "致谢文本存在")
+	if credits != null:
+		ok(credits.text.length() <= 35, "致谢文案已精简为短句 (长 %d <= 35): %s" % [credits.text.length(), credits.text])
+		var credits_right := title.design_rect(credits).end.x
+		ok(credits_right < 480.0, "致谢文字右端停在左侧暗区 (%.0f < 480)" % credits_right)
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 光源预算：UI 层不增加任何 PointLight2D，TitleWorld 光源不超过预算 8。
+func test_ui_light_budget_has_zero_point_lights() -> void:
+	var title: TitleScreen = await _open_title()
+	var ui_lights: Array[Node] = []
+	var world := title.find_child("TitleWorld", true, false)
+	for light in title.find_children("*", "PointLight2D", true, false):
+		if world == null or not world.is_ancestor_of(light):
+			ui_lights.append(light)
+	eq(ui_lights.size(), 0, "TitleScreen UI 层中不新增任何 PointLight2D 节点 (当前 %d)" % ui_lights.size())
+	if world != null and world.has_method(&"light_count"):
+		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "TitleWorld 光源不超过预算 8 (当前 %d)" % world.light_count())
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## R3: 标题屏开屏时间线顺延与推镜完成同步，总长 <= 3.0s
+func test_title_screen_intro_timing_and_skip_integration() -> void:
+	var title: TitleScreen = await _open_title()
+	ok(TitleScreen.LOGO_AT >= TitleWorld.DOLLY_TIME - 0.1,
+			"字标锻入时间 (%.2f) 与推镜落位 (1.6s) 同步" % TitleScreen.LOGO_AT)
+	ok(TitleScreen.MENU_AT > TitleScreen.LOGO_AT,
+			"菜单在字标锻入后落位 (MENU_AT=%.2f > LOGO_AT=%.2f)" % [TitleScreen.MENU_AT, TitleScreen.LOGO_AT])
+	# 校验开屏总时长 <= 3.0s
+	var menu_rows_count := 0
+	for child in title.get_node("Menu").get_children():
+		if child is MenuItem:
+			menu_rows_count += 1
+	var expected_total := TitleScreen.MENU_AT + TitleScreen.MENU_STAGGER * float(menu_rows_count) + TitleScreen.MENU_LAND + 0.1
+	ok(expected_total <= 3.0, "标题开屏总时长 (%.2f) <= 3.0s" % expected_total)
+	var world := title.world()
+	if world != null:
+		# 测试 title.skip_intro() 会同步联动 world.skip_intro()
+		title.skip_intro()
+		eq(world._dolly, Vector2.ZERO, "标题跳过开屏联动活景 _dolly 归零")
+		for layer in world.parallax_layers():
+			eq(layer.position, layer.position.round(), "标题跳过后视差层全部对齐整像素")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+func test_any_pressed_input_skips_intro_without_starting_a_run() -> void:
+	var key := InputEventKey.new()
+	key.keycode = KEY_SPACE
+	key.pressed = true
+	var mouse := InputEventMouseButton.new()
+	mouse.button_index = MOUSE_BUTTON_LEFT
+	mouse.pressed = true
+	var pad := InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_A
+	pad.pressed = true
+	for event in [key, mouse, pad]:
+		var title: TitleScreen = await _open_title()
+		ok(title.intro_playing(), "按键前仍在播放开屏")
+		title._input(event)
+		ok(not title.intro_playing(), "按下键盘、鼠标或手柄会立即跳过")
+		ok(not title._started, "跳过本身不启动游戏")
+		if title.world() != null:
+			eq(title.world()._dolly, Vector2.ZERO, "输入跳过同步清除推镜")
+		title.queue_free()
+		await get_tree().process_frame

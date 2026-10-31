@@ -38,6 +38,7 @@ extends Node2D
 ## Budgets (tests/title_world_test.gd, tests/title_elements_test.gd): <= 8 lights, <= 250
 ## nodes, no per-frame allocation in the hot paths. Everything is NEAREST and whole-pixel placed.
 
+const FarVaultScript := preload("res://scripts/ui/title_far_vault.gd")
 const CrucibleScript := preload("res://scripts/ui/title_crucible.gd")
 const FarHazeScript := preload("res://scripts/ui/title_far_haze.gd")
 const HammerScript := preload("res://scripts/ui/title_hammer.gd")
@@ -101,8 +102,21 @@ const REACTIONS: Array[StringName] = [&"new", &"continue", &"trial", &"arena", &
 
 ## Orbit parallax: pointer shift in px at depth 1.0 (masses), half as much vertically.
 const PARALLAX := Vector2(9.0, 4.5)
+const DOLLY_FROM := Vector2(0.0, -26.0)
+const DOLLY_TIME := 1.6
 const BREATH_PERIOD := 7.0
 const POINTER_EASE := 3.2
+## The source wall is opaque. Open its dark upper air to the deeper vault while
+## preserving lit girders and the warm lower hall; no new texture is required.
+const FAR_WALL_SHADER := """shader_type canvas_item;
+void fragment() {
+	vec4 wall = texture(TEXTURE, UV);
+	float air = 1.0 - smoothstep(0.035, 0.15, dot(wall.rgb, vec3(0.2126, 0.7152, 0.0722)));
+	float upper = 1.0 - smoothstep(0.40, 0.70, UV.y);
+	COLOR.a *= 1.0 - air * upper * 0.80;
+}
+"""
+static var _far_wall_shader: Shader
 
 ## Look per variant / act. ambient multiplies the whole lit canvas; the rest tune the
 ## furnace, the shaft, the particles and the machines.
@@ -200,6 +214,7 @@ var _px_dir := PackedVector2Array()
 
 var _pointer := Vector2.ZERO          # target, -1..1
 var _shift := Vector2.ZERO            # eased pointer shift in px at depth 1
+var _dolly := Vector2.ZERO
 var _push := 0.0                      # px, outward from the knight (zoom-like)
 var _push_kick := 0.0
 var _intro_level := 1.0
@@ -214,6 +229,7 @@ var _frozen_breath := false
 
 # living details (none of these scripts has a class_name: untyped on purpose)
 var _far: Node2D
+var _far_vault: Node2D
 var _crucible
 var _hammer
 var _ghosts
@@ -488,7 +504,20 @@ func _build() -> void:
 	void_rect.polygon = _rect_polygon(Rect2(Vector2(-48.0, -40.0), WORLD + Vector2(96.0, 80.0)))
 	add_child(void_rect)
 
-	_layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	# 远厅纵深层（FarVault）：更远的拱顶骨架剪影、远烟囱与高窗光柱，空气透视偏冷蓝灰，深度 -0.45
+	var far_vault := FarVaultScript.new()
+	far_vault.name = "FarVault"
+	far_vault.z_index = 0
+	add_child(far_vault)
+	_far_vault = far_vault
+	_register(far_vault, Vector2.ZERO, -0.45, CENTER)
+	var hall_far := _layer("HallFar", "hall_far.png", Vector2(-32.0, -4.0), -0.30, 0, self)
+	if _far_wall_shader == null:
+		_far_wall_shader = Shader.new()
+		_far_wall_shader.code = FAR_WALL_SHADER
+	var far_wall_material := ShaderMaterial.new()
+	far_wall_material.shader = _far_wall_shader
+	hall_far.material = far_wall_material
 	# 字标在 UI 层，点光进不了这个视口。字标底下用一张加色光斑假一盏灯，不占 8 盏预算。
 	var logo_wash := Sprite2D.new()
 	logo_wash.name = "LogoWash"
@@ -1090,10 +1119,11 @@ func _process(delta: float) -> void:
 	if _mouth != null and float(_grade.get("forge", 0.0)) * _intro_level * _quit_level > 0.1:
 		_mouth.frame = posmod(int(floor(_t * 12.0)), 16)
 	var k := 1.0 - exp(-POINTER_EASE * delta)
-	_shift = _shift.lerp(Vector2(_pointer.x * PARALLAX.x, _pointer.y * PARALLAX.y), k)
+	var motion_scale := Settings.shake_scale
+	_shift = _shift.lerp(Vector2(_pointer.x * PARALLAX.x, _pointer.y * PARALLAX.y) * motion_scale, k)
 	_push_kick = move_toward(_push_kick, 0.0, delta * 6.0)
 	_flare = move_toward(_flare, 0.0, delta * 1.8)
-	_breath = 0.0 if _frozen_breath else sin(_t * TAU / BREATH_PERIOD) * 1.0
+	_breath = 0.0 if _frozen_breath else sin(_t * TAU / BREATH_PERIOD) * motion_scale
 	var cam := CENTER + Vector2(0.0, roundf(_breath))
 	if _camera.position != cam:
 		_camera.position = cam
@@ -1103,14 +1133,14 @@ func _process(delta: float) -> void:
 	_animate_actors(delta)
 	if _flash_amount > 0.0:
 		_flash_amount = move_toward(_flash_amount, 0.0, delta * 2.2)
-		_flash.color.a = _flash_amount
+		_flash.color.a = _flash_amount * Settings.flash_scale
 
 
 func _apply_parallax(force: bool) -> void:
 	var push := _push + _push_kick
 	for i in _px_nodes.size():
 		var d := _px_depth[i]
-		var off := -_shift * d + _px_dir[i] * (push * d)
+		var off := -(_shift + _dolly) * d + _px_dir[i] * (push * d)
 		var pos := _px_base[i] + Vector2(roundf(off.x), roundf(off.y))
 		var node := _px_nodes[i]
 		if force or node.position != pos:
@@ -1157,6 +1187,8 @@ func _animate_props(delta: float) -> void:
 			_beam.modulate.a = alpha_now
 	_update_wave(delta)
 	_update_gaze(delta)
+	if _far_vault != null and is_instance_valid(_far_vault):
+		_far_vault.set_cloud(_cloud)
 	_push_prop_look()
 
 
@@ -1357,9 +1389,12 @@ func burst_at(world_pos: Vector2, count: int = 10) -> void:
 	_sparks.burst(world_pos, count)
 
 
-## Boot: the hall starts dark, lanterns come on one by one. Returns the duration.
+## Boot: the hall starts dark, camera dollys down from the vault to the bridge,
+## lanterns come on one by one. Returns the duration.
 func play_intro(stagger: float = 0.16) -> float:
 	_intro_level = 0.0
+	_dolly = DOLLY_FROM * Settings.shake_scale
+	_apply_parallax(true)
 	var lit := int(state.get("lit", 0))
 	for i in _lanterns.size():
 		_lanterns[i].set_lit(false, true)
@@ -1368,13 +1403,21 @@ func play_intro(stagger: float = 0.16) -> float:
 		_intro_tween.kill()
 	var tw := create_tween()
 	_intro_tween = tw
+	tw.set_parallel(true)
+	tw.tween_property(self, "_dolly", Vector2.ZERO, DOLLY_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(self, "_intro_level", 1.0, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	var total := 0.9
+	var total := DOLLY_TIME
+	# Short chains put their lamps higher in the hall. Reveal those distant
+	# fixtures first, then the longer chains, while retaining chapter lamp ids.
+	var order: Array[int] = []
 	for i in mini(lit, _lanterns.size()):
-		var at := 0.30 + stagger * float(i)
-		tw.parallel().tween_callback(_light_lantern.bind(i)).set_delay(at)
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool: return _lanterns[a].length < _lanterns[b].length)
+	for step in order.size():
+		var at := 0.30 + stagger * float(step)
+		tw.tween_callback(_light_lantern.bind(order[step])).set_delay(at)
 		total = maxf(total, at + 0.3)
-	tw.tween_callback(_finish_intro)
+	tw.tween_callback(_finish_intro).set_delay(total)
 	return total
 
 
@@ -1386,19 +1429,23 @@ func _light_lantern(i: int) -> void:
 
 
 func _finish_intro() -> void:
+	_dolly = Vector2.ZERO
 	_intro_level = 1.0
 	_refresh_grade()
+	_apply_parallax(true)
 
 
 ## Land in the final state at once (skip / tests).
 func skip_intro() -> void:
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
+	_dolly = Vector2.ZERO
 	_intro_level = 1.0
 	var lit := int(state.get("lit", 0))
 	for i in _lanterns.size():
 		_lanterns[i].set_lit(i < lit, true)
 	_refresh_grade()
+	_apply_parallax(true)
 
 
 ## Quit: lanterns go out one by one, the hall falls dark and only the greatsword's
@@ -1594,3 +1641,14 @@ func cloud_speed() -> float:
 
 func shaft_alpha() -> float:
 	return _beam.modulate.a if _beam != null else 0.0
+
+
+func far_vault() -> Node2D:
+	return _far_vault
+
+
+func parallax_depth(node: Node2D) -> float:
+	var idx := _px_nodes.find(node)
+	if idx != -1:
+		return _px_depth[idx]
+	return 0.0

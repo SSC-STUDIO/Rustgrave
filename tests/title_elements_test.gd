@@ -336,6 +336,27 @@ func test_the_crucible_walks_pours_and_goes_back() -> void:
 	await _free_world(world)
 
 
+## T4: 坩埚倾倒时铁水流线为连续折线，相邻采样点距离 <= 2px。
+func test_crucible_stream_is_continuous_polyline() -> void:
+	var world := _make_world(_state("act2"))
+	await flush(3)
+	var crucible = world.crucible()
+	crucible.force_pour()
+	var guard := 0
+	while guard < 60 and (not crucible.is_pouring() or not crucible.has_landed()):
+		crucible.advance(0.1)
+		guard += 1
+	ok(crucible.is_pouring(), "坩埚处于倾倒状态")
+	var points: PackedVector2Array = crucible.stream_polyline()
+	ok(points.size() > 0, "坩埚铁水流线段点数 > 0 (%d)" % points.size())
+	var max_gap := 0.0
+	for i in range(1, points.size()):
+		var dist: float = points[i - 1].distance_to(points[i])
+		max_gap = maxf(max_gap, dist)
+	ok(max_gap <= 2.0, "铁水全段最大采样点间距 <= 2px (%.2f)" % max_gap)
+	await _free_world(world)
+
+
 func test_the_hammer_strikes_throws_sparks_and_heats_the_billet() -> void:
 	var world := _make_world(_state("act3"))
 	await flush(3)
@@ -628,3 +649,113 @@ func test_the_footer_and_the_hall_follow_the_menu_focus() -> void:
 	ok(title.footer_hint_text().contains("3v3"), "竞技场行：页脚说 3v3 推线")
 	title.queue_free()
 	await get_tree().process_frame
+
+
+# --------------------------------------------------------- FarVault & Camera Dolly ---
+
+## R3: 远厅纵深层 FarVault 存在、视差深度为 -0.45、无额外点光源且节点和灯光在预算内
+func test_far_vault_exists_and_parallax_depth_is_deeper_than_hall_far() -> void:
+	for variant_id in _all_variants():
+		var world := _make_world(_state(variant_id))
+		await flush(3)
+		var vault = world.far_vault()
+		ok(vault != null, "%s: 远厅纵深层 FarVault 存在" % variant_id)
+		eq(vault.name, "FarVault", "%s: 节点名为 FarVault" % variant_id)
+		ok(world.parallax_layers().has(vault), "%s: FarVault 已注册视差列表" % variant_id)
+		almost(world.parallax_depth(vault), -0.45, 0.001, "%s: FarVault 视差深度为 -0.45" % variant_id)
+		var hall_far := world.get_node_or_null("HallFar") as Node2D
+		ok(hall_far != null, "%s: HallFar 存在" % variant_id)
+		if hall_far != null:
+			ok(world.parallax_depth(vault) < world.parallax_depth(hall_far),
+					"%s: FarVault 深度比 HallFar 更深 (-0.45 < -0.30)" % variant_id)
+			ok(vault.get_index() < hall_far.get_index(), "%s: 远厅骨架实际绘制在墙后" % variant_id)
+			ok(hall_far.material is ShaderMaterial, "%s: 原始不透明墙透出远厅的空气层" % variant_id)
+		# 灯光与节点预算
+		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "%s: 灯光数 <= %d" % [variant_id, TitleWorld.MAX_LIGHTS])
+		ok(world.node_count() <= 150, "%s: 节点数 <= 150 (当前 %d)" % [variant_id, world.node_count()])
+		var vault_lights := vault.find_children("*", "PointLight2D", true, false)
+		ok(vault_lights.is_empty(), "%s: FarVault 0 个 PointLight2D 实例" % variant_id)
+		# 特征数量
+		eq(vault.light_shaft_count(), 3, "%s: 3 道体积光柱" % variant_id)
+		eq(vault.chimney_count(), 2, "%s: 2 座远烟囱" % variant_id)
+		eq(vault.window_count(), 3, "%s: 3 扇高拱窗" % variant_id)
+		await _free_world(world)
+
+
+## R3: 开屏推轨摄像机 (Intro Camera Dolly) 常量与初始态
+func test_intro_camera_dolly_constants_and_initial_values() -> void:
+	eq(TitleWorld.DOLLY_FROM, Vector2(0.0, -26.0), "DOLLY_FROM 为 (0, -26)")
+	almost(TitleWorld.DOLLY_TIME, 1.6, 0.01, "DOLLY_TIME 为 1.6 秒")
+	var world := _make_world(_state("act2"))
+	await flush(3)
+	eq(world._dolly, Vector2.ZERO, "初始静止状态 _dolly 为 ZERO")
+	await _free_world(world)
+
+
+## R3: play_intro() 启动推镜并将 _dolly 从 DOLLY_FROM 缓动至 ZERO，各层严格整像素，总长 <= 3.0s
+func test_play_intro_runs_dolly_and_lands_on_integer_pixels() -> void:
+	var world := _make_world(_state("act2"))
+	await flush(3)
+	var duration := world.play_intro(0.16)
+	ok(duration >= TitleWorld.DOLLY_TIME, "开屏时长 >= DOLLY_TIME (%.2f >= 1.6)" % duration)
+	ok(duration <= 3.0, "总开屏时长 <= 3.0 秒 (%.2f)" % duration)
+	eq(world._dolly, TitleWorld.DOLLY_FROM, "play_intro 刚调用时 _dolly 置为 DOLLY_FROM")
+	# 检查 t=0 时各图层位置带有 dolly 偏移且为整像素
+	for layer in world.parallax_layers():
+		eq(layer.position, layer.position.round(), "t=0 时 %s 位于整像素" % layer.name)
+	# 等待 0.8 秒（缓动中途）
+	var wait_mid := get_tree().create_timer(0.8)
+	while wait_mid.time_left > 0.0:
+		await get_tree().process_frame
+	ok(world._dolly.y > TitleWorld.DOLLY_FROM.y and world._dolly.y < 0.0,
+			"缓动中途 _dolly 在推移 (%.2f)" % world._dolly.y)
+	for layer in world.parallax_layers():
+		eq(layer.position, layer.position.round(), "中途 %s 仍保持整像素" % layer.name)
+	# 等待缓动结束（累计 > 1.6s）
+	var wait_end := get_tree().create_timer(1.0)
+	while wait_end.time_left > 0.0:
+		await get_tree().process_frame
+	eq(world._dolly, Vector2.ZERO, "推镜结束 _dolly 归零")
+	for layer in world.parallax_layers():
+		eq(layer.position, layer.position.round(), "落位后 %s 位于整像素" % layer.name)
+	await _free_world(world)
+
+
+## R3: skip_intro() 立即将 _dolly 清零并将所有视差层重对齐到整像素
+func test_skip_intro_resets_dolly_and_snaps_layers_to_integer() -> void:
+	var world := _make_world(_state("act2"))
+	await flush(3)
+	world.play_intro(0.16)
+	eq(world._dolly, TitleWorld.DOLLY_FROM, "play_intro 后 _dolly 为 DOLLY_FROM")
+	# 运行中途调用 skip
+	var wait_step := get_tree().create_timer(0.4)
+	while wait_step.time_left > 0.0:
+		await get_tree().process_frame
+	world.skip_intro()
+	eq(world._dolly, Vector2.ZERO, "skip_intro() 立即将 _dolly 置为 ZERO")
+	ok(world._intro_level >= 1.0, "skip_intro() 恢复满环境光")
+	for layer in world.parallax_layers():
+		eq(layer.position, layer.position.round(), "skip 后 %s 立即对齐整像素" % layer.name)
+	# 幂等性：多次连续调用依然保持 ZERO 且整像素
+	world.skip_intro()
+	world.skip_intro()
+	eq(world._dolly, Vector2.ZERO, "多次连续调用依然为 ZERO")
+	for layer in world.parallax_layers():
+		eq(layer.position, layer.position.round(), "连续 skip 后 %s 依然整像素" % layer.name)
+	await _free_world(world)
+
+
+func test_title_camera_comfort_setting_suppresses_motion() -> void:
+	var original := Settings.shake_scale
+	Settings.shake_scale = 0.0
+	var world := _make_world(_state("act2"))
+	await flush(2)
+	world.play_intro()
+	eq(world._dolly, Vector2.ZERO, "关闭镜头晃动也关闭新增开屏推镜")
+	world.set_pointer(Vector2.ONE)
+	_steps(world, 2.0)
+	eq(world._shift, Vector2.ZERO, "关闭镜头晃动时鼠标不移动场景")
+	almost(world._breath, 0.0, 0.001, "关闭镜头晃动时镜头不呼吸")
+	world.skip_intro()
+	await _free_world(world)
+	Settings.shake_scale = original

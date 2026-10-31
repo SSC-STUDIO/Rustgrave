@@ -12,14 +12,14 @@ extends Control
 const LANTERN := "res://assets/title/lantern.png"
 const GLOW := "res://assets/title/glow.png"
 const FRAME := Vector2(12.0, 17.0)
-const SCALE := 2.0
+const SCALE := 3.0
 ## 世界里一节链是 6px；标题 UI 把 640 的活景放大到 1280，链节也放大一倍。
 const LINK_H := 12.0
 const STIFFNESS := 72.0
 const DAMPING := 16.5
 ## 灯芯到一行中线超过这么多像素，那一行就不再被这盏灯照到。
-const FALLOFF := 92.0
-const CORE_DROP := 20.0
+const FALLOFF := 136.0
+const CORE_DROP := 30.0
 
 ## 链子的上端（设计像素）。菜单在它下面。
 var anchor := Vector2(90.0, 176.0)
@@ -98,7 +98,7 @@ func snap() -> void:
 
 
 func flare(amount: float = 1.0) -> void:
-	_flare = maxf(_flare, amount)
+	_flare = maxf(_flare, amount * Settings.flash_scale)
 
 
 ## 退场：火焰灭掉（灯笼换成冷的那一帧）。位置交给外面的淡出。
@@ -159,13 +159,13 @@ func _place() -> void:
 		return
 	var core := lantern_center()
 	var body_size := FRAME * SCALE
-	# 灯芯在帧内 (6, 10)，放大两倍后在灯笼贴图的 (12, 20)。
+	# 灯芯在帧内 (6, 10)，放大三倍后在灯笼贴图的 (18, 30)。
 	_body.position = (core - Vector2(body_size.x * 0.5, CORE_DROP)).round()
 	_body.size = body_size
 	var energy := _lit * (_flick + _flare * 0.85)
 	var lit_frame := energy > 0.08
 	_atlas.region = Rect2(FRAME.x if lit_frame else 0.0, 0.0, FRAME.x, FRAME.y)
-	var pool := 168.0 + 36.0 * _flare
+	var pool := 252.0 + 48.0 * _flare
 	_halo.visible = energy > 0.02
 	_halo.size = Vector2(pool, pool)
 	_halo.position = (core - _halo.size * 0.5).round()

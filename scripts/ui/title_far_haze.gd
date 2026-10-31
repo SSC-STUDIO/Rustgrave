@@ -1,7 +1,8 @@
 extends Node2D
-## 厅尾的一层空气：横着的薄雾、一道更远的尘光，和几扇会自己明灭的远窗。
+## 厅尾的一层空气：横着的薄雾、熔河向上的暖反光、一道更远的尘光，和几扇会自己明灭的远窗。
 ##
 ## 和 HallFar 不在同一个视差深度上，鼠标一动就能看出墙后面还有一层。
+## 自下而上的暖反光将熔河的火光往上送至远厅中段（y=180），平滑连接冷色远景与暖色前景。
 ## 一个节点、自己画、整像素，不加灯（灯光预算已经满了）。
 
 const WINDOWS: Array[Vector2] = [
@@ -9,6 +10,13 @@ const WINDOWS: Array[Vector2] = [
 	Vector2(168.0, 88.0), Vector2(508.0, 70.0), Vector2(548.0, 98.0),
 	Vector2(586.0, 76.0),
 ]
+
+# 暖反光几何参数
+const BOUNCE_TOP_Y := 180.0
+const BOUNCE_BOTTOM_Y := 340.0
+const BOUNCE_X := -96.0
+const BOUNCE_W := 832.0
+const BOUNCE_BANDS := 8
 
 var _t := 0.0
 var _step := -1
@@ -28,6 +36,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	_draw_warm_bounce()
+
 	# 两条雾带对着飘，整像素，所以墙后面是在动的空气而不是一块平涂。
 	var drift_a := roundf(sin(_t * 0.17) * 28.0)
 	var drift_b := roundf(sin(_t * 0.11 + 1.4) * -18.0)
@@ -46,3 +56,29 @@ func _draw() -> void:
 		var p := WINDOWS[i]
 		draw_rect(Rect2(p, Vector2(3.0, 4.0)), Color(1.0, 0.48, 0.18, hot * 0.4))
 		draw_rect(Rect2(p + Vector2(1.0, 1.0), Vector2(1.0, 2.0)), Color(1.0, 0.92, 0.7, hot))
+
+
+func _draw_warm_bounce() -> void:
+	# 熔河自下而上的暖反光：从熔河面（y=340）向上爬升，到远厅中段（y=180）渐隐消失
+	# 模拟熔岩对流呼吸（6fps 步进），将冷色远景与近处熔河平滑衔接
+	var pulse := 0.88 + 0.12 * sin(_t * 1.4) + 0.05 * sin(_t * 2.9 + 0.7)
+	var band_h := (BOUNCE_BOTTOM_Y - BOUNCE_TOP_Y) / float(BOUNCE_BANDS) # 20px 每段（2px 整数对齐）
+
+	for i in BOUNCE_BANDS:
+		# 从下往上计算：i=0 为底部 (y=320..340)，i=7 为顶部 (y=180..200)
+		var y_top := BOUNCE_BOTTOM_Y - float(i + 1) * band_h
+		var u := (float(i) + 0.5) / float(BOUNCE_BANDS) # 归一化高度 0.0 (底) -> 1.0 (顶)
+		var falloff := (1.0 - u) * (1.0 - u) # 二次衰减
+
+		# 底部浓郁熔岩橙 -> 中段暖赭色 -> 顶端淡紫灰渐隐
+		var col: Color
+		if u < 0.5:
+			col = Color(0.96, 0.40, 0.12).lerp(Color(0.82, 0.38, 0.18), u * 2.0)
+		else:
+			col = Color(0.82, 0.38, 0.18).lerp(Color(0.50, 0.35, 0.42), (u - 0.5) * 2.0)
+		col.a = 0.15 * falloff * pulse
+		draw_rect(Rect2(BOUNCE_X, y_top, BOUNCE_W, band_h), col)
+
+	# 底层熔岩近处轻微漂移的对流热气带
+	var convection_drift := roundf(sin(_t * 0.22) * 16.0)
+	draw_rect(Rect2(-80.0 + convection_drift, 304.0, 800.0, 12.0), Color(1.0, 0.45, 0.14, 0.035 * pulse))

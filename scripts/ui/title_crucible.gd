@@ -54,6 +54,7 @@ var _splash_t := 0.0
 var _pours := 0
 ## 铁水刚落到河面时的一闪，自己熄掉。
 var _impact_flash := 0.0
+var _splash_pulse := 0.0
 ## 烘焙的坩埚姿态帧（缺图时为 null，_draw 不画铁体）。
 var _cup_tex: Texture2D
 
@@ -96,6 +97,8 @@ func _duration(which: int) -> float:
 func _step(dt: float) -> void:
 	if _impact_flash > 0.0:
 		_impact_flash = maxf(0.0, _impact_flash - dt * 2.4)
+	if _splash_pulse > 0.0:
+		_splash_pulse = maxf(0.0, _splash_pulse - dt * 4.0)
 	var sp := speed()
 	if sp <= 0.0:
 		return
@@ -117,6 +120,7 @@ func _step(dt: float) -> void:
 			if not _landed and _stream_bot >= stream_max():
 				_landed = true
 				_impact_flash = 1.0
+				_splash_pulse = 1.0
 				_pours += 1
 				_splash_t = 0.0
 				poured.emit(impact_point())
@@ -124,6 +128,7 @@ func _step(dt: float) -> void:
 				_splash_t += d
 				if _splash_t >= SPLASH_EVERY:
 					_splash_t -= SPLASH_EVERY
+					_splash_pulse = 1.0
 					splashed.emit(impact_point())
 		Phase.UNTILT:
 			_tilt = 1.0 - p
@@ -190,14 +195,18 @@ func stream_point(u: float) -> Vector2:
 
 
 ## 当前看得见的那一段铁水（测试读形状）。没有铁水时是空的。
-func stream_polyline(steps: int = 8) -> PackedVector2Array:
+func stream_polyline(steps: int = -1) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	if _stream_bot <= _stream_top:
 		return out
 	var span := stream_max()
 	var u0 := _stream_top / span
 	var u1 := _stream_bot / span
-	var n := maxi(steps, 2)
+	var n: int
+	if steps > 0:
+		n = maxi(steps, 2)
+	else:
+		n = maxi(int(ceilf((u1 - u0) * 640.0)) + 1, 2)
 	for i in n:
 		var k := float(i) / float(n - 1)
 		out.append(stream_point(lerpf(u0, u1, k)))
@@ -271,43 +280,37 @@ func _stream_depth(y: float) -> float:
 	return 1.0
 
 
-## 铁水沿弧落下：口沿粗、落下变细、下段断成液滴；落到河面溅起冠、涟漪和一缕汽。
+## 铁水沿弧落下：连续 2px 折线（1px 白热芯 + 橙色外缘）；落到河面溅起短促亮斑、冠、涟漪和一缕汽。
 func _draw_stream() -> void:
 	if _stream_bot <= _stream_top:
 		return
-	var span := stream_max()
-	var u0 := _stream_top / span
-	var u1 := _stream_bot / span
-	var prev := stream_point(u0)
-	var steps := 28
-	for i in steps:
-		var k := float(i + 1) / float(steps)
-		var u := lerpf(u0, u1, k)
-		var p := stream_point(u)
-		var drop := u > 0.72 and (i % 3 == 0)
-		if not drop:
-			var mid := ((prev + p) * 0.5).round()
-			var w := lerpf(6.0, 2.0, u)
-			var col := _metal(u)
-			col.a *= _stream_depth(mid.y)
-			draw_rect(Rect2(mid.x - w * 0.5 - 1.0, mid.y - 1.0, w + 2.0, 3.0), col)
-			var core := _metal(u * 0.65)
-			core.a *= _stream_depth(mid.y)
-			draw_rect(Rect2(mid.x - 1.0, mid.y - 1.0, 2.0, 3.0), core)
-		elif u > 0.72:
-			var drip := stream_point(minf(u + 0.04, 1.0))
-			var side := 3.0 if i % 2 == 0 else -3.0
-			var bit := _metal(u)
-			bit.a *= 0.85 * _stream_depth(drip.y)
-			draw_rect(Rect2(roundf(drip.x + side), roundf(drip.y + 2.0), 2.0, 2.0), bit)
-		prev = p
+	var pts := stream_polyline(-1)
+	if pts.size() < 2:
+		return
+	var n_segs := pts.size() - 1
+	for i in n_segs:
+		var p0 := pts[i]
+		var p1 := pts[i + 1]
+		var mid_y := (p0.y + p1.y) * 0.5
+		var depth := _stream_depth(mid_y)
+		var edge_col := em(HOT)
+		edge_col.a *= depth
+		var core_col := em(HOT_CORE)
+		core_col.a *= depth
+		draw_line(p0, p1, edge_col, 2.0)
+		draw_line(p0, p1, core_col, 1.0)
 	if _landed:
-		_draw_splash(stream_point(u1))
+		_draw_splash(pts[pts.size() - 1])
 
 
 func _draw_splash(at: Vector2) -> void:
 	var step := int(_t * 12.0)
 	var hit := impact_point()
+	# 落点处的亮斑（核心白热 + 外圈橙色，短促脉冲）
+	var spot_w := 4.0 + (2.0 if _splash_pulse > 0.3 else 0.0)
+	var spot_h := 3.0 + (1.0 if _splash_pulse > 0.3 else 0.0)
+	draw_rect(Rect2(at.x - spot_w * 0.5, at.y - spot_h * 0.5, spot_w, spot_h), em(HOT))
+	draw_rect(Rect2(at.x - 1.0, at.y - 1.0, 2.0, 2.0), em(HOT_CORE))
 	# 溅起的冠：朝上的半圈，根部白热、外沿转红。冠跟在铁水末端，涟漪留在河面。
 	for k in 9:
 		var ang := float(k) / 8.0 * PI
@@ -348,6 +351,9 @@ func _draw_overlay() -> void:
 			var flick := 0.8 + 0.2 * sin(_t * 31.0)
 			_glow_at(impact_point() + Vector2(0.0, -2.0), 72.0, Color(1.0, 0.55, 0.18, 0.40 * h * flick))
 			_glow_at(impact_point() + Vector2(0.0, -6.0), 22.0, Color(1.0, 0.95, 0.7, 0.28 * h * flick))
+			if _splash_pulse > 0.01:
+				_glow_at(impact_point() + Vector2(0.0, -2.0), 40.0 + 20.0 * _splash_pulse,
+						Color(1.0, 0.92, 0.70, 0.50 * h * _splash_pulse))
 		if _impact_flash > 0.01:
 			_glow_at(impact_point(), 120.0 + 40.0 * _impact_flash,
 					Color(1.0, 0.82, 0.45, 0.55 * h * _impact_flash))
