@@ -28,6 +28,9 @@ var _skin := ""
 var _count := 0
 var _keyart := false
 var _shadow_pair := false
+## CI / 低速软件渲染模式（RUSTGRAVE_PEEK_FAST=1）：每尺寸只 settle 一次且不因
+## settle 失败退场，并关掉点光阴影（llvmpipe 上阴影是大头）。截图内容不变。
+var _fast := false
 var _current: TitleScreen
 
 
@@ -57,6 +60,8 @@ func _ready() -> void:
 			_keyart = true
 		elif arg == "--shadow-pair":
 			_shadow_pair = true
+	if OS.get_environment("RUSTGRAVE_PEEK_FAST") == "1":
+		_fast = true
 	if _shots.has("all"):
 		_shots = ["boot", "idle", "focus"]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
@@ -86,8 +91,9 @@ func _frames(n: int) -> void:
 
 
 func _shot(variant: String, tag: String, size: Vector2i) -> void:
-	if not await _settle_window(size):
-		return
+	if not _fast:
+		if not await _settle_window(size):
+			return
 	await RenderingServer.frame_post_draw
 	var image := get_tree().root.get_texture().get_image()
 	var mode := "keyart" if _keyart else "live"
@@ -119,7 +125,8 @@ func _settle_window(wanted: Vector2i) -> bool:
 	if OS.get_environment("RUSTGRAVE_PEEK_ONSCREEN") == "1":
 		park = Vector2i(8, 8)
 	var stable := 0
-	for frame in 120:
+	var limit := 45 if _fast else 120
+	for frame in limit:
 		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
 			win.mode = Window.MODE_WINDOWED
 			win.size = wanted
@@ -129,6 +136,10 @@ func _settle_window(wanted: Vector2i) -> bool:
 		stable = stable + 1 if win.get_texture().get_image().get_size() == wanted and win.size == wanted else 0
 		if stable >= 3:
 			return true
+	if _fast:
+		# 快速模式：窗口尺寸认不齐也照拍（CI 上比直接退场强）。
+		push_warning("title_peek fast: size did not settle at %s" % wanted)
+		return true
 	push_error("title_peek render size did not settle at " + str(wanted))
 	get_tree().quit(1)
 	return false
@@ -171,6 +182,8 @@ func _variant(variant: String, size: Vector2i) -> void:
 	_current = title
 	title.live_scene_enabled = not _keyart
 	add_child(title)
+	if _fast:
+		_llvmpipe_relief(title)
 	if _bare:
 		_hide_ui(title)
 	if _shots.has("boot"):
@@ -225,3 +238,9 @@ func _hide_ui(title: Control) -> void:
 	for child in title.get_children():
 		if child is CanvasItem and String(child.name) not in ["Keyart"]:
 			(child as CanvasItem).visible = false
+
+
+## 软件渲染减负：关掉所有点光阴影（llvmpipe 上阴影贴图是大头），画面布局不变。
+func _llvmpipe_relief(title: TitleScreen) -> void:
+	for node in title.find_children("*", "PointLight2D", true, false):
+		(node as PointLight2D).shadow_enabled = false
