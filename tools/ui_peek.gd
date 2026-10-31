@@ -65,11 +65,21 @@ func _frames(n: int) -> void:
 
 
 func _shot(name: String) -> void:
+	# Capture a settled object, independent of render speed or vsync.
+	await get_tree().create_timer(0.55).timeout
 	await RenderingServer.frame_post_draw
 	var image := get_tree().root.get_texture().get_image()
 	var err := image.save_png("%s/%s_%dx%d.png" % [_out, name, _size.x, _size.y])
 	_shots += 1
 	print("UI_PEEK ", name, " saved=", err == OK)
+
+
+func _closed(screen: CanvasLayer) -> void:
+	var deadline := Time.get_ticks_msec() + 1500
+	while screen.visible and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if screen.visible:
+		push_error("UI_PEEK screen did not finish closing: " + screen.name)
 
 
 func _title() -> void:
@@ -94,6 +104,7 @@ func _title() -> void:
 	await _frames(6)
 	await _shot("title_confirm")
 	title.close_confirm()
+	await _closed(title._confirm)
 	title._settings.open()
 	await _frames(6)
 	await _shot("title_settings")
@@ -195,7 +206,7 @@ func _world() -> void:
 		await _frames(6)
 		await _shot("pause")
 		var settings := pause.settings_screen()
-		settings.open()
+		pause._on_chosen(PauseMenu.ID_SETTINGS)
 		await _frames(6)
 		await _shot("settings_audio")
 		settings.show_tab(SettingsScreen.TAB_DISPLAY)
@@ -208,19 +219,22 @@ func _world() -> void:
 		await _frames(4)
 		await _shot("settings_capture")
 		settings.close()
-		await _frames(2)
-		pause.tutorial_recall().open()
+		await _closed(settings)
+		pause._on_chosen(PauseMenu.ID_TUTORIAL)
 		await _frames(6)
 		await _shot("tutorial")
 		pause.tutorial_recall().close()
-		pause.map_screen().open()
+		await _closed(pause.tutorial_recall())
+		pause._on_chosen(PauseMenu.ID_MAP)
 		await _frames(6)
 		await _shot("map")
 		pause.map_screen().close()
-		pause.controls_panel().open()
+		await _closed(pause.map_screen())
+		pause._on_chosen(PauseMenu.ID_CONTROLS)
 		await _frames(6)
 		await _shot("controls")
 		pause.controls_panel().close()
+		await _closed(pause.controls_panel())
 		pause.close()
 		await _frames(4)
 
