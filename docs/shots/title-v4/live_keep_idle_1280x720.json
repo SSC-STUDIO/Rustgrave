@@ -1,0 +1,15 @@
+{
+	"actual_height": 720,
+	"actual_width": 1280,
+	"fixtures": 14,
+	"has_live_viewport": true,
+	"knight_pose": "seated",
+	"lit_fixtures": 14,
+	"mode": "live",
+	"occluders": 3,
+	"png": "res://docs/shots/title-v4/live_keep_idle_1280x720.png",
+	"point_lights": 8,
+	"tag": "idle",
+	"variant": "keep",
+	"window": "(1280, 720)"
+}

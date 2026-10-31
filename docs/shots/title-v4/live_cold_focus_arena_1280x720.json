@@ -1,0 +1,15 @@
+{
+	"actual_height": 720,
+	"actual_width": 1280,
+	"fixtures": 14,
+	"has_live_viewport": true,
+	"knight_pose": "idle",
+	"lit_fixtures": 0,
+	"mode": "live",
+	"occluders": 3,
+	"png": "res://docs/shots/title-v4/live_cold_focus_arena_1280x720.png",
+	"point_lights": 8,
+	"tag": "focus_arena",
+	"variant": "cold",
+	"window": "(1280, 720)"
+}
