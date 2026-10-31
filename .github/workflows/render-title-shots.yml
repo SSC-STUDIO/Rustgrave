@@ -59,12 +59,21 @@ jobs:
           GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
           export RUSTGRAVE_NO_UPDATE_CHECK=1
           mkdir -p docs/shots/title-v4/_logs
-          FILTER="${{ inputs.test_filter }}"
-          if [ -z "$FILTER" ]; then FILTER="ember_sigils,title_screen"; fi
-          timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter="$FILTER" \
-            > docs/shots/title-v4/_logs/tests.log 2>&1 \
-            || echo "::warning::tests failed — see _logs/tests.log in the pushed commit"
-          tail -12 docs/shots/title-v4/_logs/tests.log
+          # 运行器的 case-filter 是「单个子串、连续过滤是 AND」：多个套件就多跑几遍。
+          FILTERS="${{ inputs.test_filter }}"
+          if [ -z "$FILTERS" ]; then FILTERS="ember_sigils,title_screen"; fi
+          status=0
+          : > docs/shots/title-v4/_logs/tests.log
+          IFS=',' read -ra PARTS <<< "$FILTERS"
+          for f in "${PARTS[@]}"; do
+            echo "=== case-filter: $f ===" >> docs/shots/title-v4/_logs/tests.log
+            timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter="$f" \
+              >> docs/shots/title-v4/_logs/tests.log 2>&1 || status=1
+          done
+          grep -E "^\[FAIL\]|passed;" docs/shots/title-v4/_logs/tests.log | tail -12
+          if [ $status -ne 0 ]; then
+            echo "::warning::tests failed — see _logs/tests.log in the pushed commit"
+          fi
 
       - name: Render title screens (xvfb + GL compatibility)
         if: inputs.test_filter == '' || inputs.test_filter == null
