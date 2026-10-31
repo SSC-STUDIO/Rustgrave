@@ -63,6 +63,46 @@ var _note_tweens: Array[Tween] = []
 var _note_open_token := 0
 
 
+## A real brass pin sits through the baked hole, above each independently moving
+## sheet. Keep it outside the content container so it never consumes text space.
+class PaperPin extends Node2D:
+	var paper: PanelContainer
+	func bind_sheet(sheet: PanelContainer) -> void:
+		paper = sheet
+		sheet.item_rect_changed.connect(queue_redraw)
+	func pin_center() -> Vector2:
+		if not is_instance_valid(paper):
+			return Vector2.ZERO
+		var style := paper.get_theme_stylebox("panel") as StyleBoxTexture
+		if style == null or style.texture == null:
+			return Vector2(paper.size.x * 0.5, 20.0).snapped(Vector2(2, 2))
+		# Source hole is (204,20) on paper.png. Match its 9-slice transform;
+		# the pin stays in the hole when a sheet is laid out wider or narrower.
+		var left := style.texture_margin_left
+		var right := style.texture_margin_right
+		var source_span := style.texture.get_width() - left - right
+		var x := left + (204.0 - left) * (paper.size.x - left - right) / maxf(source_span, 1.0)
+		return Vector2(x, 20.0).snapped(Vector2(2, 2))
+	func _draw() -> void:
+		if not is_instance_valid(paper):
+			return
+		var p := pin_center()
+		# Short shaft shadow, stepped forged head, worn highlight and screwdriver
+		# slot distinguish an installed pin from the texture's dark empty hole.
+		draw_rect(Rect2(p + Vector2(-6, -2), Vector2(16, 12)), Color("#66553F"))
+		var head := PackedVector2Array([
+			p + Vector2(-6, -8), p + Vector2(4, -8), p + Vector2(8, -4),
+			p + Vector2(8, 4), p + Vector2(4, 8), p + Vector2(-6, 8),
+			p + Vector2(-10, 4), p + Vector2(-10, -4)])
+		draw_colored_polygon(head, Color("#3A2B1B"))
+		draw_rect(Rect2(p + Vector2(-6, -6), Vector2(10, 12)), Color("#A67D3D"))
+		draw_rect(Rect2(p + Vector2(-8, -4), Vector2(14, 8)), Color("#A67D3D"))
+		draw_rect(Rect2(p + Vector2(-6, -6), Vector2(8, 2)), Color("#E2BC72"))
+		draw_rect(Rect2(p + Vector2(-8, -4), Vector2(2, 6)), Color("#CDA35B"))
+		draw_line(p + Vector2(-4, 2), p + Vector2(4, -2), Color("#382C20"), 2.0)
+		draw_rect(Rect2(p + Vector2(-2, 4), Vector2(6, 2)), Color("#72502A"))
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
@@ -150,6 +190,10 @@ func _group_card(group: Dictionary) -> Control:
 	var start_index := int(group["start"])
 	for i in range(start_index, start_index + int(group["count"])):
 		inner.add_child(_key_row(i))
+	var pin := PaperPin.new()
+	pin.name = "PaperPin"
+	pin.bind_sheet(card)
+	card.add_child(pin)
 	return card
 
 
