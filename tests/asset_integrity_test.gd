@@ -5,7 +5,7 @@ extends TestCase
 ## 代码里实际引用的 角色 → 动作 清单
 ## （player.gd / spitter / scrapper / gear_shield / projectile / fx.gd）。
 const CHAR_ACTIONS := {
-	"player_fantasy_knight": ["idle", "run", "jump", "fall", "dash", "hurt",
+	"player_ember_knight": ["idle", "run", "jump", "fall", "dash", "hurt",
 		"death", "turn", "attack1", "attack2", "attack_combo"],
 	"spitter_hell_beast": ["idle", "attack", "death", "projectile"],
 	"scrapper_hell_hound": ["idle", "walk", "run", "jump"],

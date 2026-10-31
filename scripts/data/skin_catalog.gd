@@ -19,7 +19,7 @@ const SKINS := {
 	&"skin_fantasy_knight": {
 		"name": "余烬骑士",
 		"desc": "锈墓里醒来的骑士，残甲与巨剑一起烧着。",
-		"folder": "player_fantasy_knight",
+		"folder": "player_ember_knight",
 		"tint": Color.WHITE,
 		"offset": Vector2(6.0, -40.0),
 		"origin": &"ember_vanguard",
@@ -36,7 +36,7 @@ const SKINS := {
 	&"skin_ash_runner": {
 		"name": "灰行客",
 		"desc": "在灰烬里跑得比火还快，一身冷灰的拾荒者装束。",
-		"folder": "player_fantasy_knight",
+		"folder": "player_ember_knight",
 		"tint": Color(0.78, 0.90, 1.05, 1.0),
 		"offset": Vector2(6.0, -40.0),
 		"origin": &"scrap_scavenger",
