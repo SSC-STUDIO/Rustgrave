@@ -216,7 +216,8 @@ const JOURNEY_LIT := 1.0
 ## 短注后面一块径向暗斑（比注大一圈，向下偏），让 12/13px 小字从炉影里读出来。
 const JOURNEY_SHADE_RECT := Rect2(JOURNEY_X - 14.0, JOURNEY_Y - 12.0, JOURNEY_W + 28.0, JOURNEY_H + 24.0)
 ## 展开的档案卡（收起时停在右侧 CARD_SLIDE 处不可见，展开时滑回）。
-const CARD_RECT := Rect2(820.0, 184.0, 388.0, 424.0)
+## 424→440：卡里多了「印记」一行；面板底（=顶+22+高-44=602）仍停在墓志字顶上方。
+const CARD_RECT := Rect2(820.0, 184.0, 388.0, 440.0)
 const CARD_SLIDE := 24.0
 ## 墓志行（与"离开"行同一条中心线）。右端停在 988，给旅程列里的「回看余烬」留出缝。
 const EPITAPH_RECT := Rect2(584.0, 624.0, 404.0, 32.0)
@@ -895,8 +896,7 @@ func _build_dossier_card() -> void:
 	_dossier_panel = panel
 	var box := VBoxContainer.new()
 	box.name = "Content"
-	# 12→10：给「印记」行腾地方（135% 路径会在 _refresh_text_layout 里再收到 8）。
-	box.add_theme_constant_override("separation", 10)
+	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	_dossier_contents = box
 	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
@@ -914,10 +914,11 @@ func _build_dossier_card() -> void:
 	_dossier_recap = UiKit.label("", &"FootnoteLabel")
 	_dossier_recap.name = "DossierRecap"
 	_dossier_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	_dossier_recap.custom_minimum_size = Vector2(0.0, 44.0)
+	# 44→30：卡里多了「印记」一行，概述压到两行（全文仍在「回看余烬」页里）。
 	# max_lines_visible 同时封顶最小高度：autowrap 标签在宽度 0 下会把每个字算一行，
 	# 不封顶会把整张卡的最小高撑到几百像素（135% 下直接溢出卡身）。
-	_dossier_recap.max_lines_visible = 3
+	_dossier_recap.custom_minimum_size = Vector2(0.0, 30.0)
+	_dossier_recap.max_lines_visible = 2
 	_dossier_recap.clip_text = true
 	_dossier_recap.modulate = Color(UiKit.EMBER_ASH.r, UiKit.EMBER_ASH.g, UiKit.EMBER_ASH.b, 0.85)
 	box.add_child(_dossier_recap)
@@ -1297,11 +1298,11 @@ func _refresh_text_layout() -> void:
 	# 行距/字号变化会让最小高先涨后落，重设回卡身尺寸，避免面板被瞬时撑大后收不回来。
 	if _dossier_contents != null:
 		var tight := scale_f >= 1.3
-		# 10：与 _build_dossier_card 的基础间距一致（印记行加进来后也放得下）。
-		_dossier_contents.add_theme_constant_override("separation", 8 if tight else 10)
+		# 12→6：印记行加入后，135% 下行距再收一档，内容最小高才停得进卡身。
+		_dossier_contents.add_theme_constant_override("separation", 6 if tight else 12)
 		if _dossier_recap != null:
-			_dossier_recap.custom_minimum_size = Vector2(0.0, 30.0 if tight else 44.0)
-			_dossier_recap.max_lines_visible = 2 if tight else 3
+			_dossier_recap.custom_minimum_size = Vector2(0.0, 30.0)
+			_dossier_recap.max_lines_visible = 2
 			_dossier_recap.clip_text = true
 		if _dossier_panel != null:
 			var body_size := CARD_RECT.size - Vector2(44.0, 44.0)
