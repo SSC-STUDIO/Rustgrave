@@ -267,7 +267,7 @@ func _build_left_folio(parent: Control) -> void:
 	rule.custom_minimum_size = Vector2(0, 2)
 	rule.color = Color("#8E7450", 0.4)
 	folio.add_child(rule)
-	var instruction := UiKit.label("书签换页\n\n墨线记数，铜珠调音。\n盖章落定，即刻生效。", &"BodyLabel")
+	var instruction := UiKit.label("书签换页 · 滚轮翻阅\n\n墨线记数，铜珠调音。\n盖章落定，即刻生效。", &"BodyLabel")
 	instruction.add_theme_font_size_override("font_size", 20)
 	instruction.add_theme_color_override("font_color", Color("#796448"))
 	folio.add_child(instruction)
@@ -480,7 +480,9 @@ func _row_content(row: Control) -> HBoxContainer:
 
 
 func _name_label(text: String, width: float) -> Label:
-	var label := UiKit.label(text, &"BodyLabel")
+	# Book entries use compact ink type; heading-style spaces split four-character
+	# names across lines inside the narrower right-hand folio.
+	var label := UiKit.label(text.replace(" ", ""), &"BodyLabel")
 	label.name = "Name"
 	label.custom_minimum_size = Vector2(width, 0.0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

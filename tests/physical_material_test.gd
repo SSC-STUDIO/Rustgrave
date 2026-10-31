@@ -40,6 +40,11 @@ func test_setting_ink_and_controls_stay_on_their_respective_pages() -> void:
 				"the cloth bookmark remains tucked into the page")
 		tab.pressed.emit()
 		eq(settings.current_tab(), i, "the cloth itself changes the active folio")
+		await flush(2)
+		for item in settings.get_node("ModalRoot/Card/Content/Body/Column/Pages").find_children("Name", "Label", true, false):
+			var entry := item as Label
+			if entry.is_visible_in_tree():
+				eq(entry.get_line_count(), 1, "setting name stays on one ink line: " + entry.text)
 	settings.show_tab(SettingsScreen.TAB_KEYS)
 	await flush(2)
 	var page := settings.get_node("ModalRoot/Card/Content/Body/Column/Pages") as Control
