@@ -103,7 +103,7 @@
   第一句永远是 `EPITAPH`，其余取 `ChapterText.TITLE_LINES`。右端对齐到右边距，
   与"离开"行同一条中心线（y=640）。
 - **页脚** `CreditBand`：署名靠左，右侧 `FooterHint` 随菜单焦点写**当前行的一句说明**
-  （`TitleScreen.MENU_HINTS`，每句 ≤ 24 字，例如竞技场行「余烬竞技场 · 3v3 推线，摧毁敌方水晶」；没有焦点时回落为操作提示），
+  （`TitleScreen.MENU_HINTS`，每句 ≤ 24 字，例如竞技场行「3D 竞技场 · 炉城试演，移动与挥剑」；没有焦点时回落为操作提示），
   一行小字，没有边框底板；`FooterShade` 从 y=648 渐暗到屏幕底缘，致谢缩成
   「致谢 ansimuz · Kenney · Fusion Pixel」，避开熔河亮色。`UpdateNotice`（有新版本时）在页脚上方。
 - 不重叠保证：`tests/title_screen_test.gd` 在 1280×720 / 1920×1080 / 2560×1080（非 16:9）三种窗口里，
@@ -135,7 +135,7 @@
 
 以前 `_on_chosen` 没有 `ID_ARENA` 分支（按了没反应）。现在：`_menu.active = false` → `Sfx.play(&"gate")` →
 确认特效 → `ArenaRun.start()`（失败则还给玩家菜单并播拒绝音）。`TitleScreen.arena_start`（Callable）是测试接缝，
-默认走真正的 `ArenaRun.start()`。
+默认走 `ArenaRun.start()` 的 3D 兼容转发，直接加载独立 `RenderSpike`；旧 2.5D 大厅不再启动。
 
 ### A.7 兼容清单与资产
 
