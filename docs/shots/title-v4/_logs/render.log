@@ -6,26 +6,29 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 WARNING: title_peek fast: size did not settle at (1280, 720)
      at: push_warning (core/variant/variant_utility.cpp:1033)
      GDScript backtrace (most recent call first):
-         [0] _settle_window (res://tools/title_peek.gd:144)
+         [0] _settle_window (res://tools/title_peek.gd:152)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 TITLE_PEEK live cold idle (1280, 720) saved=true
 TITLE_PEEK live cold focus_new (1280, 720) saved=true
 TITLE_PEEK live cold focus_continue (1280, 720) saved=true
 TITLE_PEEK live cold focus_arena (1280, 720) saved=true
 TITLE_PEEK live cold focus_quit (1280, 720) saved=true
+TITLE_PEEK live cold dossier (1280, 720) saved=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 TITLE_PEEK live act2 idle (1280, 720) saved=true
 TITLE_PEEK live act2 focus_new (1280, 720) saved=true
 TITLE_PEEK live act2 focus_continue (1280, 720) saved=true
 TITLE_PEEK live act2 focus_arena (1280, 720) saved=true
 TITLE_PEEK live act2 focus_quit (1280, 720) saved=true
+TITLE_PEEK live act2 dossier (1280, 720) saved=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 TITLE_PEEK live keep idle (1280, 720) saved=true
 TITLE_PEEK live keep focus_new (1280, 720) saved=true
 TITLE_PEEK live keep focus_continue (1280, 720) saved=true
 TITLE_PEEK live keep focus_arena (1280, 720) saved=true
 TITLE_PEEK live keep focus_quit (1280, 720) saved=true
-TITLE_PEEK shots=15
+TITLE_PEEK live keep dossier (1280, 720) saved=true
+TITLE_PEEK shots=18
 WARNING: 14 ObjectDB instances were leaked at exit (run with `--verbose` for details).
    at: cleanup (core/object/object.cpp:2536)
 ERROR: 7 resources still in use at exit (run with --verbose for details).
