@@ -1,4 +1,4 @@
-# 交接说明 · `title-3d-forward-plus` 分支
+﻿# 交接说明 · `title-3d-forward-plus` 分支
 
 > 状态：**未完成，可接力**。最后提交 `fccda86c`（本文件单独一个提交）。
 > 基线：`master` @ `b376668e`。分支包含 4 个提交（见文末）。
@@ -21,6 +21,19 @@
    - `render_spike.gd` 重写为 sim 驱动：固定 30Hz 累积 `sim.step()`、输入→命令、按 hp 差值播特效；保留全部旧调试/渲染选项（0-9 渲染开关、F3、P 截图、M 压测、触屏、手柄返回）。
    - 实测：**约 54.6s 可赢**（纯公开命令推红水晶）；**完全挂机约 62.1s 被 AI 推平**（能输也能赢）。胜负窗口仅约 7.5s，偏窄（见 §3）。
    - 测试：`tests/moba_sim_*_test.gd`（21 例）+ `tests/moba_view_*_test.gd`（32 例）+ 旧 `moba_input/mode`（13 例）= **66/66 绿**（提交时）。
+
+## 1.5 交接时的验证现状（本机实测，2026-10-31）
+
+| 过滤 | 结果 | 说明 |
+|---|---|---|
+| `-CaseFilter pixel_stage_scale` | **7/7 通过** | 像素管线/超采样 |
+| `-CaseFilter moba` | **66/66 通过** | sim 21 + 表现层 32 + 旧输入/模式 13 |
+| `-CaseFilter title_screen_test` | **48/48 通过** | 2D 标题屏 + 新版式 |
+| `-CaseFilter enemy_variants -TimeoutSeconds 600` | **6/6 通过** | 单跑通过（见下） |
+| 全量 `tools/run_tests.ps1`（默认 180s） | **中断** | 在本机会在 `enemy_variants_test` 的 heavy guard 用例上触发**进程级 180s 超时**（不是断言失败，单独跑 6/6 过）。属于本机/OneDrive 磁盘慢，不是本分支引入的回归。 |
+
+> 建议：全量套件用 `-TimeoutSeconds 600` 跑，或按 `-CaseFilter` 分批跑（title / moba / 关卡…）。
+> `tests/title3d_*` 是未接入运行时的 3D 标题实验测试，不阻塞竞技场/标题屏。
 
 ## 2. 怎么跑
 
@@ -59,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File tools\run_title_peek.ps1 -Variants act2
 - **Godot 锁**：跑任何 Godot（headless 或窗口）前拿 `%TEMP%\rustgrave_godot.lock`，`finally` 删除；写法见 `tools/run_story_shots.ps1:15–26`。同一时刻只跑一个**窗口** Godot；headless 测试并发风险高（资源缓存/导入竞态），尽量串行。
 - **中文编码**：仓库注释大量中文。Windows PowerShell 5.1 的 `Get-Content`/`Set-Content` 默认 ANSI，会把中文写坏；务必 `-Encoding UTF8`，或优先用编辑器的 read/edit 工具。被写坏的文件用 `git checkout -- <file>` 还原。
 - **全量测试里存在 pre-existing 失败**（与本分支无关，在 pristine `master` 上同样失败）：主要集中在关卡布局、过场安全、parallax、物理控制、可破坏物摆放等；`docs/title-3d.md §12` 有记录与复现方法（pristine worktree + 共享 `.godot` junction）。判断"是不是本分支弄坏的"请先跑基线。
-- **慢机器/并发时** `tests/enemy_variants_test.gd` 的 heavy guard 用例可能触发 180s 超时；单独跑应通过。
+- **全量套件在本机会停住**：`enemy_variants_test.gd` 的 heavy guard 用例在 OneDrive/慢盘上会触发 180s 进程超时（实测单跑 6/6 通过）；用 `-TimeoutSeconds 600` 或分批跑。
 - **OneDrive 目录**下窗口截图偶发进程卡住：清空目标目录重跑，或先写 `%TEMP%` 再拷回。
 - 换渲染器/新增 `class_name` 后如果报资源缺失，跑一次 `godot --headless --path . --import` 重建 `.godot/`（`.godot` 是 gitignored，不进仓库）。
 - `RenderSpike` 在找不到 `MobaSim` 时不会崩（HUD 显示"等待模拟核心"），方便并行改动 sim。
