@@ -118,14 +118,6 @@ var _note_inline := false
 var _lock_tag: LockTag
 var _cursor: TextureRect
 var _brazier: Node2D
-## 行尾英文「魂注」（灯标行专用）：一枚刻在铁上的小字，选中时烧暖。
-## 空串 = 不画。有行内小注的行（如「继续旅程」）不画，免得两种小字打架。
-var ghost := "":
-	set(value):
-		if ghost == value:
-			return
-		ghost = value
-		queue_redraw()
 var _time := 0.0
 var _cursor_x := 0.0
 var _cursor_base_y := 0.0
@@ -493,8 +485,6 @@ func _draw_strip() -> void:
 
 
 func _draw() -> void:
-	if kind != Kind.DEFAULT and lamp:
-		_draw_ghost()
 	if kind != Kind.DEFAULT and ink:
 		_draw_ink()
 		return
@@ -624,33 +614,6 @@ func _paint_lamp() -> void:
 
 ## 选中行底下一条烧着的细线：从字的左端亮起，长度就是这一行字的真实宽度
 ## （不是写死的一小截），行首左侧再点一粒 3x5px 的火星。不画条身。
-## 行尾英文魂注：一枚刻在铁上的小字。常态是冷铁灰，选中时烧成余烬色
-## 并向内收 2px，像被灯照见了铭文。有行内小注（继续旅程）的行不画。
-func _draw_ghost() -> void:
-	if ghost.is_empty() or _label == null:
-		return
-	if _note != null and _note_inline and _note.visible:
-		return
-	var font := _label.get_theme_font(&"font")
-	if font == null:
-		return
-	var font_size := 10
-	var warm := selected and not disabled
-	var col := Color(0.62, 0.56, 0.52, 0.34)
-	if disabled:
-		col = Color(0.45, 0.42, 0.42, 0.26)
-	elif warm:
-		col = Color(1.0, 0.72, 0.30, 0.88)
-	var text_w := font.get_string_size(ghost, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var x := size.x - 14.0 - ceilf(text_w) - (2.0 if warm else 0.0)
-	var y := floorf(size.y * 0.5 + 4.0)
-	if warm:
-		# 刻痕里的余烬：先垫一点暗锈底，再写亮字。
-		draw_string(font, Vector2(x + 1.0, y + 1.0), ghost, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				font_size, Color(0.20, 0.08, 0.03, 0.55))
-	draw_string(font, Vector2(x, y), ghost, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, col)
-
-
 func _draw_lamp() -> void:
 	if _label == null or not selected or disabled:
 		return

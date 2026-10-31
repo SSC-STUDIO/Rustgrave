@@ -7,9 +7,6 @@ extends Node
 ##   tools/run_title_peek.ps1 -Variants cold,act2,give -Sizes 1280x720,1920x1080
 ##   ... -- --out=res://screenshots/x --sizes=1280x720 --variants=cold,give --bare
 ##
-## --sigils=demo   seed a handful of demo ember sigils (visits + deaths) into the
-##                 peek's disposable sigil store, so the title's sigil ring /
-##                 personal epitaphs / dossier row render (CI screenshots do this)
 ## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff     (default: all)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
 ## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
@@ -17,12 +14,9 @@ extends Node
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
-## 14 节点战役的幕次取样点：id 是关卡 id，数字是已通关的章数（点亮的吊灯数）。
 const CHAPTER_SCENES := {
-	"act1": ["stage02", 2], "act2": ["stage03", 4], "act3": ["stage05", 8], "act4": ["stage07", 13],
+	"act1": ["level02", 2], "act2": ["level04", 4], "act3": ["level08", 8], "act4": ["level10", 13],
 }
-## 结局变体（give/keep/snuff）存档停在这一章。
-const ENDING_SCENE_ID := "stage08_true"
 const SKIN_BY_VARIANT := {"keep": "skin_fantasy_knight", "cold": "skin_fantasy_knight"}
 
 var _out := "res://screenshots/acceptance/overhaul-v3/title"
@@ -34,10 +28,6 @@ var _skin := ""
 var _count := 0
 var _keyart := false
 var _shadow_pair := false
-var _sigils_demo := false
-## CI / 低速软件渲染模式（RUSTGRAVE_PEEK_FAST=1）：每尺寸只 settle 一次且不因
-## settle 失败退场，并关掉点光阴影（llvmpipe 上阴影是大头）。截图内容不变。
-var _fast := false
 var _current: TitleScreen
 
 
@@ -67,24 +57,14 @@ func _ready() -> void:
 			_keyart = true
 		elif arg == "--shadow-pair":
 			_shadow_pair = true
-		elif arg.begins_with("--sigils="):
-			_sigils_demo = arg.trim_prefix("--sigils=") == "demo"
-	if OS.get_environment("RUSTGRAVE_PEEK_FAST") == "1":
-		_fast = true
 	if _shots.has("all"):
 		_shots = ["boot", "idle", "focus"]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
-	# Windows 上把窗口停在屏幕外截图；Linux（Xvfb）没有 WM，窗口必须留在屏内，
-	# 设 RUSTGRAVE_PEEK_ONSCREEN=1 时贴着左上角摆。
-	var onscreen := OS.get_environment("RUSTGRAVE_PEEK_ONSCREEN") == "1"
-	var park := Vector2i(8, 8) if onscreen else Vector2i(-12000, -12000)
-	win.position = park
+	win.position = Vector2i(-12000, -12000)
 	SaveData.save_path = _out + "/peek_save.cfg"
 	Settings.save_path = _out + "/peek_settings.cfg"
-	if _sigils_demo:
-		_seed_demo_sigils()
 	Settings.load_settings()
 	Engine.max_fps = 60
 	for size in _sizes:
@@ -102,9 +82,8 @@ func _frames(n: int) -> void:
 
 
 func _shot(variant: String, tag: String, size: Vector2i) -> void:
-	if not _fast:
-		if not await _settle_window(size):
-			return
+	if not await _settle_window(size):
+		return
 	await RenderingServer.frame_post_draw
 	var image := get_tree().root.get_texture().get_image()
 	var mode := "keyart" if _keyart else "live"
@@ -132,25 +111,17 @@ func _shot(variant: String, tag: String, size: Vector2i) -> void:
 
 func _settle_window(wanted: Vector2i) -> bool:
 	var win := get_tree().root
-	var park := Vector2i(-12000, -12000)
-	if OS.get_environment("RUSTGRAVE_PEEK_ONSCREEN") == "1":
-		park = Vector2i(8, 8)
 	var stable := 0
-	var limit := 45 if _fast else 120
-	for frame in limit:
+	for frame in 120:
 		if win.mode != Window.MODE_WINDOWED or win.size != wanted:
 			win.mode = Window.MODE_WINDOWED
 			win.size = wanted
-			win.position = park
+			win.position = Vector2i(-12000, -12000)
 			stable = 0
 		await RenderingServer.frame_post_draw
 		stable = stable + 1 if win.get_texture().get_image().get_size() == wanted and win.size == wanted else 0
 		if stable >= 3:
 			return true
-	if _fast:
-		# 快速模式：窗口尺寸认不齐也照拍（CI 上比直接退场强）。
-		push_warning("title_peek fast: size did not settle at %s" % wanted)
-		return true
 	push_error("title_peek render size did not settle at " + str(wanted))
 	get_tree().quit(1)
 	return false
@@ -178,9 +149,7 @@ func _write_save(variant: String) -> void:
 			flags.append(String(StoryFlow.DONE_FLAGS[id]))
 		cfg.set_value("story", "flags", flags)
 	else:
-		# 运行时取（不要写成常量下标：id 不在表里会变成解析期错误）。
-		cfg.set_value("meta", "scene",
-				String(GameContext.LEVELS.get(ENDING_SCENE_ID, GameContext.WORLD_PATH)))
+		cfg.set_value("meta", "scene", String(GameContext.LEVELS["level10"]))
 		cfg.set_value("meta", "ending", variant)
 		var all: Array = []
 		for id in GameContext.LEVEL_ORDER:
@@ -195,8 +164,6 @@ func _variant(variant: String, size: Vector2i) -> void:
 	_current = title
 	title.live_scene_enabled = not _keyart
 	add_child(title)
-	if _fast:
-		_llvmpipe_relief(title)
 	if _bare:
 		_hide_ui(title)
 	if _shots.has("boot"):
@@ -251,24 +218,3 @@ func _hide_ui(title: Control) -> void:
 	for child in title.get_children():
 		if child is CanvasItem and String(child.name) not in ["Keyart"]:
 			(child as CanvasItem).visible = false
-
-
-## 软件渲染减负：关掉所有点光阴影（llvmpipe 上阴影贴图是大头），画面布局不变。
-func _llvmpipe_relief(title: TitleScreen) -> void:
-	for node in title.find_children("*", "PointLight2D", true, false):
-		(node as PointLight2D).shadow_enabled = false
-
-
-## 演示印记：几次点燃 + 两次殁，落在隔离仓库（peek_sigils.cfg），生产记录不动。
-## 章节跨一~四幕，日龄拉开，让环上的冷却梯度看得出来。
-func _seed_demo_sigils() -> void:
-	EmberSigils.store_path = _out + "/peek_sigils.cfg"
-	EmberSigils.clear()
-	var today := EmberSigils.today()
-	var visits := [["stage01", 46, "new"], ["branch01", 38, "continue"], ["stage02", 30, "continue"],
-		["stage03", 21, "continue"], ["branch03", 13, "continue"], ["stage04", 8, "continue"],
-		["stage05", 5, "continue"], ["branch04", 2, "continue"], ["stage07", 0, "continue"]]
-	for v in visits:
-		EmberSigils.append_raw(today - int(v[1]), String(v[2]), String(v[0]))
-	EmberSigils.append_raw(today - 33, "death", "stage02")
-	EmberSigils.append_raw(today - 6, "death", "stage05")
