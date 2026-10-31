@@ -1,17 +1,9 @@
 === case-filter: ember_sigils ===
 Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
 
-[PASS] ember_sigils_test_test_ago_text_is_human (5 asserts)
-[PASS] ember_sigils_test_test_chapter_label_lookup (3 asserts)
-[PASS] ember_sigils_test_test_production_recording_is_gated_off_in_automation (2 asserts)
-[PASS] ember_sigils_test_test_ring_holds_records_and_reveals (6 asserts)
-[PASS] ember_sigils_test_test_store_roundtrip_caps_and_kinds (11 asserts)
-SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-[PASS] ember_sigils_test_test_title_stays_quiet_without_any_sigils (3 asserts)
-SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-[PASS] ember_sigils_test_test_title_wires_ring_epitaph_ghosts_and_dossier (9 asserts)
+[FAIL] no tests discovered
 ================================================
-OK — 7/7 passed; 0 engine errors
+FAILED — 0/0 passed; 0 engine errors
 === case-filter: title_screen ===
 Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
 
@@ -119,10 +111,11 @@ SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_tab_pins_and_unpins_the_full_dossier (4 asserts)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-DOSSIER-DEBUG scale=0.85 min=370.0 body=396.0 size=396.0 sep=12
-DOSSIER-DEBUG scale=1.00 min=392.0 body=396.0 size=396.0 sep=12
-DOSSIER-DEBUG scale=1.35 min=380.0 body=396.0 size=396.0 sep=6
-[PASS] title_screen_test_test_title_blocks_do_not_overlap_at_three_text_scales (99 asserts)
+DOSSIER-DEBUG scale=0.85 min=358.0 body=380.0 size=380.0 sep=12
+DOSSIER-DEBUG scale=1.00 min=378.0 body=380.0 size=380.0 sep=12
+DOSSIER-DEBUG scale=1.35 min=376.0 body=380.0 size=380.0 sep=8
+[FAIL] title_screen_test_test_title_blocks_do_not_overlap_at_three_text_scales (98 asserts)
+     - 档案卡行距 @1.35
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_title_screen_intro_timing_and_skip_integration (44 asserts)
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
@@ -135,4 +128,4 @@ SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
 [PASS] title_screen_test_test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page (7 asserts)
 ================================================
-FAILED — 47/48 passed; 0 engine errors
+FAILED — 46/48 passed; 0 engine errors
