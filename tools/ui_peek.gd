@@ -86,7 +86,9 @@ func _title() -> void:
 	var title = TITLE.instantiate()
 	add_child(title)
 	await _frames(20)
-	await get_tree().create_timer(0.8).timeout
+	# This tool captures settled menus; title_peek owns the intro-frame samples.
+	title.skip_intro()
+	await _frames(2)
 	await _shot("title")
 	title.queue_free()
 	await _frames(3)
@@ -98,7 +100,8 @@ func _title() -> void:
 	title = TITLE.instantiate()
 	add_child(title)
 	await _frames(20)
-	await get_tree().create_timer(0.5).timeout
+	title.skip_intro()
+	await _frames(2)
 	await _shot("title_save")
 	title.open_confirm()
 	await _frames(6)
