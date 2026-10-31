@@ -4,13 +4,16 @@ extends CanvasLayer
 ## 数据来自 HintService.seen_entries()（本存档旗标 + 内置表 + 关卡作者提示的文案缓存），
 ## 没看过的不列——这里不是剧透清单。挂法与 ControlsPanel 相同。
 ##
-## 版式：左列是编号的课程（一 二 三 …，铁条版式；↑↓ 或悬停选中，光标与余烬亮度同菜单），
-## 右边是玻璃课卡：小字「教 程 回 看」、课名（HeadLabel）、正文，以及正文里提到的按键（键帽）。
+## 版式：随身手札左页是墨写目录（一 二 三 …，↑↓ 或悬停选中），
+## 右页是课名、正文，以及正文里提到的铅字按键。
 ## 键名只从正文里认：整词出现才亮成键帽，不凭空补键。
 
 signal closed
 
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+const INK := Color("#30251D")
+const FADED_INK := Color("#65513E")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
 
 ## 压暗到 0.76：盖在暂停菜单上，底下的左列铁条要压到看不出字来，玻璃课卡才干净。
 const VEIL := 0.76
@@ -44,6 +47,7 @@ func _ready() -> void:
 
 func _build() -> void:
 	_shell = Modal.build(self, {
+		"object": ObjectKit.Kind.JOURNAL,
 		"title": "教 程 回 看",
 		"size": Vector2(880.0, 580.0),
 		"hint": "↑↓ 选择",
@@ -51,7 +55,6 @@ func _build() -> void:
 		"veil": VEIL,
 	})
 	_root = _shell["root"] as Control
-	_root.theme = UiKit.extras_theme()
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed \
 				and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
@@ -63,6 +66,7 @@ func _build() -> void:
 	_split.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_split.add_theme_constant_override("separation", int(CARD_GAP))
 	body.add_child(_split)
+	body.resized.connect(_layout_pages)
 
 	_scroll = ScrollContainer.new()
 	_scroll.name = "Scroll"
@@ -75,26 +79,35 @@ func _build() -> void:
 	card.name = "Card"
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	GlassKit.glass(card)
+	var page := StyleBoxEmpty.new()
+	page.content_margin_left = 12.0
+	page.content_margin_right = 8.0
+	card.add_theme_stylebox_override("panel", page)
 	_split.add_child(card)
 	var lesson := VBoxContainer.new()
 	lesson.name = "Lesson"
 	lesson.add_theme_constant_override("separation", 10)
 	card.add_child(lesson)
-	lesson.add_child(GlassKit.kicker("教 程 回 看"))
+	var caption := UiKit.label("随 身 手 札", &"TinyStrongLabel")
+	caption.add_theme_color_override("font_color", FADED_INK)
+	lesson.add_child(caption)
 	_lesson_title = UiKit.label("", &"HeadLabel")
 	_lesson_title.name = "LessonTitle"
+	_lesson_title.add_theme_color_override("font_color", INK)
+	_lesson_title.add_theme_constant_override("outline_size", 0)
 	lesson.add_child(_lesson_title)
 	lesson.add_child(GlassKit.rule(160.0))
 	_lesson_body = UiKit.label("", &"BodyLabel")
 	_lesson_body.name = "LessonBody"
+	_lesson_body.add_theme_color_override("font_color", INK)
+	_lesson_body.add_theme_constant_override("outline_size", 0)
 	_lesson_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_lesson_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_lesson_body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	lesson.add_child(_lesson_body)
 	_keys_caption = UiKit.label("涉 及 按 键", &"TinyStrongLabel")
 	_keys_caption.name = "KeysCaption"
-	_keys_caption.modulate = UiKit.EMBER_ASH
+	_keys_caption.add_theme_color_override("font_color", FADED_INK)
 	lesson.add_child(_keys_caption)
 	_keys_box = HBoxContainer.new()
 	_keys_box.name = "Keys"
@@ -114,19 +127,28 @@ func _build() -> void:
 	var empty_head := UiKit.label("还没有可回看的提示", &"SubHeadLabel",
 			HORIZONTAL_ALIGNMENT_CENTER)
 	empty_head.name = "EmptyHead"
-	empty_head.modulate = Color("#E4DCCC")
+	empty_head.add_theme_color_override("font_color", INK)
 	_empty_box.add_child(empty_head)
 	var empty := UiKit.label("新的机制第一次用得上时，提示会在画面上出现一次，并留在这里。",
 			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	empty.name = "Empty"
+	empty.add_theme_color_override("font_color", FADED_INK)
 	empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	empty.custom_minimum_size = Vector2(560.0, 0.0)
 	empty.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_empty_box.add_child(empty)
 	refresh()
+	_layout_pages.call_deferred()
 
 
-## 重新读取已看过的提示并重排。列表是铁条菜单：每次重建（MenuList 没有删行的接口）。
+## 两列在真正的书脊两侧落位；视口适配后重新测量，不让目录越过中缝。
+func _layout_pages() -> void:
+	if _scroll == null or _split == null:
+		return
+	_scroll.custom_minimum_size.x = floorf((_split.size.x - CARD_GAP) * 0.5)
+
+
+## 重新读取已看过的提示并重排墨写目录（MenuList 没有删行接口，所以每次重建）。
 func refresh() -> void:
 	_entries = HintService.seen_entries()
 	if _menu != null:
@@ -134,7 +156,7 @@ func refresh() -> void:
 		_menu.queue_free()
 	_menu = MenuList.new()
 	_menu.name = "List"
-	_menu.strip_style = true
+	_menu.ink_style = true
 	_menu.add_theme_constant_override("separation", 6)
 	_menu.focus_changed.connect(_on_focus_changed)
 	_scroll.add_child(_menu)
@@ -142,7 +164,7 @@ func refresh() -> void:
 		var item := _menu.add_item(StringName(ITEM_PREFIX + str(i)),
 				"%s  %s" % [_numeral(i + 1), String(_entries[i]["title"])], false,
 				MenuItem.Kind.SECONDARY)
-		item.dark_plate = true
+		item.show_tick = false
 	var has := not _entries.is_empty()
 	_split.visible = has
 	if _empty_box != null:
@@ -188,7 +210,18 @@ func _render_keys(text: String) -> void:
 func _chip(text: String) -> Control:
 	var plate := UiKit.panel(&"KeyCapPanel")
 	plate.name = "Chip"
+	var stamp := StyleBoxFlat.new()
+	stamp.bg_color = Color("#B9A785")
+	stamp.border_color = Color("#79664A")
+	stamp.set_border_width_all(1)
+	stamp.content_margin_left = 8.0
+	stamp.content_margin_right = 8.0
+	stamp.content_margin_top = 2.0
+	stamp.content_margin_bottom = 2.0
+	plate.add_theme_stylebox_override("panel", stamp)
 	var key := UiKit.label(text, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	key.add_theme_color_override("font_color", INK)
+	key.add_theme_constant_override("outline_size", 0)
 	key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	plate.add_child(key)
 	return plate

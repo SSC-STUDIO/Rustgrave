@@ -1,6 +1,6 @@
 class_name ControlsPanel
 extends CanvasLayer
-## 操作说明面板：四段键位做成 2×2 的玻璃键位卡，每张卡一个小题头，下面每行左边是动作，
+## 操作说明：四段键位各印在一张钉住的旧纸上，按 2×2 摊开。
 ## 右边是一排键帽（KeyCapPanel）。标题屏与暂停菜单共用，也是原先挤在 HUD 右上角那行操作提示的新家。
 ##
 ## 键名全部取自 Settings（经 KeyLabels），玩家在设置里改键后这里自动跟随：
@@ -15,6 +15,9 @@ signal closed
 
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
+const INK := Color("#30251D")
+const FADED_INK := Color("#65513E")
 ## 压暗到 0.76：这一层通常盖在暂停菜单上，底下的卡片要压到看不出字来，玻璃卡才不会透出串行。
 const VEIL := 0.76
 const CARD_GAP_H := 16
@@ -24,18 +27,18 @@ const CARD_GAP_V := 12
 ## （K，Settings 不改它），移动行的箭头同理由 KeyLabels.extra_keys 补在后面。
 ## 固定的键（Tab、Esc、鼠标）直接写字。
 const ROWS: Array[Array] = [
-	["{move_left} / {move_right}", "移动（沉重惯性）"],
-	["{jump}", "跳跃 · 落地后可再跳一次"],
-	["{dash}", "冲刺 · 带无敌帧"],
-	["{hookshot}", "钩锁 · 需先镶嵌钩锁核"],
-	["{attack} / 鼠标左键", "挥砍 · 判定帧碰到敌弹即弹反"],
-	["{attack2} / 鼠标右键", "同为挥砍 · 判定末段或收刀时再按可接三连"],
-	["{skill_1} / {skill_2}", "主动技能 1 / 2 · 冷却好了才能放"],
-	["{interact}", "交互 · 废料堆 / 插座台 / 净化祠"],
-	["{socket_1} / {socket_2}", "把锈核插入剑的 1 / 2 号插座"],
-	["按住 Tab", "查看目标 · 天气 · 剑核名称"],
+	["{move_left} / {move_right}", "移动 · 沉重惯性"],
+	["{jump}", "跳跃 · 落地可再跳"],
+	["{dash}", "冲刺 · 无敌帧"],
+	["{hookshot}", "钩锁 · 先镶钩锁核"],
+	["{attack} / 鼠标左键", "挥砍 · 判定帧弹反"],
+	["{attack2} / 鼠标右键", "同为挥砍 · 末段或收刀再按，接三连"],
+	["{skill_1} / {skill_2}", "技能 1 / 2 · 冷却后放"],
+	["{interact}", "交互 · 废料/插座/祠"],
+	["{socket_1} / {socket_2}", "镶核 · 剑插座 1 / 2"],
+	["按住 Tab", "目标 · 天气 · 剑核"],
 	["Esc", "暂停 / 返回"],
-	["触控板", "手机/平板：左移右移 · 右斩跳冲互 · 上钩/1/2 · Ⅱ暂停"],
+	["触控板", "触屏：左移右移；右斩跳冲互；上钩/1/2/暂停"],
 ]
 ## 分组：{起始行, 组名}。12 行摊成移动 / 战斗 / 交互与剑核 / 系统四张卡（2×2），
 ## 行序就是这个分组顺序，key_text(index) 仍按行号取。
@@ -52,6 +55,9 @@ var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _scroll: ScrollContainer
 ## 每行键帽列（HBox）：refresh() 时按当前绑定重排。下标 = ROWS 的行号。
 var _chip_boxes: Array[HBoxContainer] = []
+var _notes: Array[Control] = []
+var _note_tweens: Array[Tween] = []
+var _note_open_token := 0
 
 
 func _ready() -> void:
@@ -69,18 +75,19 @@ func _exit_tree() -> void:
 
 func _build() -> void:
 	_shell = Modal.build(self, {
+		"object": ObjectKit.Kind.NOTES,
 		"title": "操 作 说 明",
-		"size": Vector2(900.0, 620.0),
-		"hint": "↑↓ 滚动",
+		"size": Vector2(1120.0, 620.0),
+		"hint": "弹反：判定帧命中敌弹 · 改键：设置 → 键位",
 		"back": "Esc / 回车 返回",
 		"veil": VEIL,
 	})
 	_root = _shell["root"] as Control
-	_root.theme = UiKit.extras_theme()
 	# 遮罩会吃掉鼠标事件，所以点击关闭必须走 gui_input —— 被 GUI 消化的事件
 	# 不会再进 _unhandled_input。
 	_root.gui_input.connect(func(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed:
+		if event is InputEventMouseButton and event.pressed \
+				and event.button_index == MOUSE_BUTTON_LEFT:
 			close())
 
 	var body := _shell["body"] as Control
@@ -89,6 +96,7 @@ func _build() -> void:
 	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(_scroll)
+	_scroll.resized.connect(_layout_notes)
 
 	var column := VBoxContainer.new()
 	column.name = "Column"
@@ -105,25 +113,32 @@ func _build() -> void:
 	column.add_child(grid)
 	_chip_boxes.resize(ROWS.size())
 	for group in GROUPS:
-		grid.add_child(_group_card(group))
+		var note := _group_card(group)
+		grid.add_child(note)
+		_notes.append(note)
 
-	column.add_child(UiKit.label("弹反不是单独的格挡键 —— 巨剑的判定帧打中弹丸就会把它打回去",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
-	column.add_child(UiKit.label("键位可在 设置 → 键位 里修改",
-			&"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER))
 	refresh()
+	_layout_notes.call_deferred()
 
 
-## 一张键位卡：玻璃铁框底 + 小题头 + 各行（动作 | 键帽）。
+## 等宽纸面为长键帽与说明预留空间，四张纸不受某一行键名宽度挤压。
+func _layout_notes() -> void:
+	if _scroll == null or _scroll.size.x < 100.0:
+		return
+	var width := floorf((_scroll.size.x - CARD_GAP_H - 16.0) * 0.5)
+	for note in _notes:
+		note.custom_minimum_size.x = width
+
+
+## 一张独立旧纸：纸纹与钉孔跟随实际布局，避免把四纸画死在外壳底纹里。
 func _group_card(group: Dictionary) -> Control:
 	var title := String(group["title"])
 	var card := PanelContainer.new()
 	card.name = "Card_" + title.replace(" ", "")
+	card.theme = ObjectKit.surface_theme(ObjectKit.Kind.JOURNAL)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var glass := _glass_card()
-	if glass != null:
-		card.add_theme_stylebox_override(&"panel", glass)
+	card.add_theme_stylebox_override(&"panel", _paper_card())
 	var inner := VBoxContainer.new()
 	inner.name = "Inner"
 	inner.add_theme_constant_override("separation", 2)
@@ -135,17 +150,12 @@ func _group_card(group: Dictionary) -> Control:
 	return card
 
 
-## 键位卡底：主题的铁框板（HintPanel），复制一份压成卡片透明度，内边距收紧到键位列的宽度。
-static func _glass_card() -> StyleBox:
-	var base := UiKit.extras_theme().get_stylebox(&"panel", &"HintPanel") as StyleBoxTexture
-	if base == null:
-		return null
-	var box := base.duplicate() as StyleBoxTexture
-	box.modulate_color = Color(1.0, 1.0, 1.0, GlassKit.CARD_ALPHA)
+static func _paper_card() -> StyleBoxTexture:
+	var box := ObjectKit.journey_tag_style_box().duplicate() as StyleBoxTexture
 	box.content_margin_left = 16.0
-	box.content_margin_top = 8.0
+	box.content_margin_top = 16.0
 	box.content_margin_right = 16.0
-	box.content_margin_bottom = 8.0
+	box.content_margin_bottom = 14.0
 	return box
 
 
@@ -155,6 +165,9 @@ func _group_header(title: String) -> Control:
 	row.name = "Group_" + title.replace(" ", "")
 	row.add_theme_constant_override("separation", 10)
 	var label := GlassKit.kicker(title)
+	label.modulate = Color.WHITE
+	label.add_theme_color_override("font_color", INK)
+	label.add_theme_font_size_override("font_size", 24)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(label)
 	var rule := Ornaments.stub_rule(false)
@@ -164,14 +177,16 @@ func _group_header(title: String) -> Control:
 	return row
 
 
-## 一行：左边是动作说明，右边是键帽列（每个键一枚小铁牌，右对齐）。
-## 说明用 12px（TinyHintLabel）：键帽是这张卡的主角，24px 的说明在 900 宽的卡里每行会折成三四行，
-## 四张卡放不进 620 高；12px 说明配 24px 键帽，和键位表的读法一致，行高也压得下来。
+## 左边是简短动作说明，右边是铅字键帽；使用 24px 字号，
+## 在 960 窗口的整数半倍显示下仍保留 12px 字形，四纸等宽并自动折行。
 func _key_row(index: int) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "Row%d" % index
+	row.custom_minimum_size.y = 32.0
 	row.add_theme_constant_override("separation", 10)
-	var action := UiKit.label(String(ROWS[index][1]), &"TinyHintLabel")
+	var action := UiKit.label(String(ROWS[index][1]), &"BodyLabel")
+	action.add_theme_color_override("font_color", FADED_INK)
+	action.add_theme_constant_override("outline_size", 0)
 	action.name = "Action"
 	action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -190,7 +205,20 @@ func _key_row(index: int) -> Control:
 func _chip(text: String) -> Control:
 	var plate := UiKit.panel(&"KeyCapPanel")
 	plate.name = "Chip"
+	plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var stamp := StyleBoxFlat.new()
+	stamp.bg_color = Color("#B9A785")
+	stamp.border_color = Color("#79664A")
+	stamp.set_border_width_all(1)
+	stamp.content_margin_left = 6.0
+	stamp.content_margin_right = 6.0
+	stamp.content_margin_top = 2.0
+	stamp.content_margin_bottom = 2.0
+	plate.add_theme_stylebox_override("panel", stamp)
 	var key := UiKit.label(text, &"KeyCapLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	key.add_theme_color_override("font_color", INK)
+	key.add_theme_font_size_override("font_size", 24)
+	key.add_theme_constant_override("outline_size", 0)
 	key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	plate.add_child(key)
 	return plate
@@ -265,14 +293,61 @@ func open() -> void:
 	_closing = false
 	visible = true
 	(_shell.get("play_intro") as Callable).call()
+	_note_open_token += 1
+	_play_notes_intro.call_deferred(_note_open_token)
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_select")
+
+
+## 纸张依次落到钉子下。只移动整像素，不旋转或缩放字形。
+func _play_notes_intro(token: int) -> void:
+	if token != _note_open_token:
+		return
+	_stop_notes_intro()
+	# Binding refresh queues nested container sorts. Capture paper homes only
+	# after those sorts finish, otherwise both bottom papers animate to row one.
+	_layout_notes()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if token != _note_open_token:
+		return
+	if not visible or _closing:
+		return
+	if DisplayServer.get_name() == "headless":
+		return
+	for i in _notes.size():
+		var note := _notes[i]
+		var home := note.position.round()
+		note.set_meta("note_home", home)
+		note.position = home + Vector2(0.0, 12.0)
+		note.modulate.a = 0.0
+		var tween := create_tween().set_parallel(true)
+		_note_tweens.append(tween)
+		tween.tween_method(func(y: float) -> void:
+			note.position = Vector2(home.x, roundf(y)), home.y + 12.0, home.y, 0.18) \
+				.set_delay(float(i) * 0.06).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(note, "modulate:a", 1.0, 0.18).set_delay(float(i) * 0.06)
+		tween.finished.connect(func() -> void: note.remove_meta("note_home"))
+
+
+func _stop_notes_intro() -> void:
+	for tween in _note_tweens:
+		if tween != null and tween.is_valid():
+			tween.kill()
+	_note_tweens.clear()
+	for note in _notes:
+		if note.has_meta("note_home"):
+			note.position = note.get_meta("note_home") as Vector2
+			note.remove_meta("note_home")
+		note.modulate.a = 1.0
 
 
 func close() -> void:
 	if not visible or _closing:
 		return
 	_closing = true
+	_note_open_token += 1
+	_stop_notes_intro()
 	GameContext.suppress_gameplay_input()
 	Sfx.play(&"ui_back")
 	# 退场动画播完才隐藏：卡片沉回去、纱幕收掉，然后才 emit closed。

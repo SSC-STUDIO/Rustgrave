@@ -1,7 +1,7 @@
 class_name MapScreen
 extends CanvasLayer
 ## 暂停菜单里的"地图"，四块内容：
-##   · 行程横带（上）：14 章按 醒 / 账 / 铸 / 炉 四幕排成一条线。已通关 = 余烬菱形，
+##   · 行程横带（上）：14 章按 醒 / 账 / 铸 / 炉 四幕刻成一排冲孔，已通关的孔烧亮，
 ##     此刻所在 = 外圈光晕，未抵达 = 冷铁。←→ 或点击切换选中的章节。
 ##   · 本关剖面（左中）：所有 SolidPlatform 的矩形，整幅关卡等比压进视口；余烬巢 / 出口 /
 ##     骑士（脉动的白色箭头）从正在运行的场景直接画出来，不依赖任何关卡数据文件。
@@ -13,6 +13,10 @@ extends CanvasLayer
 signal closed
 
 const Modal := preload("res://scripts/ui/ui_modal.gd")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
+const PAPER_INK := Color("#35291F")
+const PAPER_FAINT := Color("#70604B")
+const PAPER_RUST := Color("#874626")
 
 ## 剖面四周的留白；视口尺寸跟着卡片布局走（MapView 自己在 resized 时重算比例）。
 const PAD := 36.0
@@ -33,17 +37,17 @@ const ROUTE_DONE := 10
 const ROUTE_HERE := 11
 const ROUTE_LOCKED := 12
 
-const COL_BACK := Color(0.03, 0.02, 0.05, 0.92)
-const COL_FRAME := Color("#A0522D")
-const COL_PLATFORM := Color("#7A4026")
-const COL_PLATFORM_TOP := Color("#B8703E")
+const COL_BACK := Color("#17191D")
+const COL_FRAME := Color("#736355")
+const COL_PLATFORM := Color("#88796A")
+const COL_PLATFORM_TOP := Color("#B8AC8F")
 const COL_NEST_LIT := Color("#FFC14A")
 const COL_NEST_DIM := Color("#8A8680")
 const COL_EXIT := Color("#E4DCCC")
 const COL_EXIT_LOCKED := Color("#6E5A50")
 const COL_PLAYER := Color("#FFFFFF")
-const COL_ROD := Color("#4A2A18")
-const COL_EDGE := Color("#8B4513")
+const COL_ROD := Color("#564B42")
+const COL_EDGE := Color("#93744F")
 
 var _root: Control
 var _shell: Dictionary = {}
@@ -54,7 +58,7 @@ var _empty: Label
 var _facts: Label
 var _count: Label
 var _rail: RouteRail
-var _dossier: TitleCard
+var _dossier: PanelContainer
 var _dk: Label
 var _dn: Label
 var _ds: Label
@@ -84,13 +88,13 @@ func _ready() -> void:
 func _build() -> void:
 	_order = ChapterText.order()
 	_shell = Modal.build(self, {
+		"object": ObjectKit.Kind.PLATE,
 		"title": "地 图",
 		"size": Vector2(1120.0, 640.0),
 		"hint": "←→ 选章 · 实心余烬 = 已点燃 · 空心 = 未点燃 · 白箭头是你",
 		"back": "Esc / 回车 返回",
 	})
 	_root = _shell["root"] as Control
-	_root.theme = UiKit.extras_theme()
 	_root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed \
 				and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
@@ -248,25 +252,27 @@ func _build_room(parent: HBoxContainer) -> void:
 
 # --- 章节卷宗 -----------------------------------------------------------------
 
-## 右下角的玻璃卷宗：与回看余烬的旅程档案同一种切角卡片，透明度同一个数。
+## 铁板角上钉住的章节纸签：暗墨写在不透明纸上，不透出铁板划痕。
 func _build_dossier(parent: HBoxContainer) -> void:
-	_dossier = TitleCard.new()
+	_dossier = PanelContainer.new()
 	_dossier.name = "Dossier"
+	_dossier.theme = ObjectKit.surface_theme(ObjectKit.Kind.JOURNAL)
 	_dossier.custom_minimum_size = Vector2(DOSSIER_W, 0.0)
 	_dossier.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_dossier.body_alpha = GlassKit.CARD_ALPHA / TitleCard.FILL.a
+	var paper := ObjectKit.journey_tag_style_box().duplicate() as StyleBoxTexture
+	paper.content_margin_left = 24.0
+	paper.content_margin_top = 22.0
+	paper.content_margin_right = 24.0
+	paper.content_margin_bottom = 20.0
+	_dossier.add_theme_stylebox_override("panel", paper)
 	parent.add_child(_dossier)
 	var box := VBoxContainer.new()
 	box.name = "DossierBox"
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	box.offset_left = 24.0
-	box.offset_top = 22.0
-	box.offset_right = -24.0
-	box.offset_bottom = -20.0
 	box.add_theme_constant_override("separation", 8)
 	_dossier.add_child(box)
 
 	_dk = GlassKit.kicker("")
+	_dk.modulate = Color.WHITE
 	_dk.name = "Kicker"
 	box.add_child(_dk)
 	_dn = UiKit.label("", &"SubHeadLabel")
@@ -297,6 +303,10 @@ func _build_dossier(parent: HBoxContainer) -> void:
 	_do.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_do.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(_do)
+	for label in [_dk, _dn, _ds, _dl, _do]:
+		(label as Label).add_theme_color_override("font_color", PAPER_INK)
+	_dk.add_theme_color_override("font_color", PAPER_RUST)
+	_do.add_theme_color_override("font_color", PAPER_FAINT)
 
 
 # --- 图例 ---------------------------------------------------------------------
@@ -440,21 +450,19 @@ static func _gather(node: Node, platforms: Array[Rect2], nests: Array[Dictionary
 ## 路线节点的绘制（大号，用在横带上）。pulse 0..1 给"此刻"的光晕呼吸。
 static func paint_route_node(canvas: CanvasItem, c: Vector2, state: int, pulse: float = 0.5) -> void:
 	var ember := GlassKit.EMBER
+	# 冲孔先画凹入的暗芯和下沿反光，再把已抵达的孔烧亮。
+	canvas.draw_rect(Rect2(c - Vector2(9.0, 9.0), Vector2(18.0, 18.0)), COL_EDGE)
+	canvas.draw_rect(Rect2(c - Vector2(7.0, 7.0), Vector2(14.0, 14.0)), Color("#090A0E"))
+	canvas.draw_rect(Rect2(c + Vector2(-7.0, 7.0), Vector2(14.0, 2.0)), Color("#8C7B67"))
 	match state:
 		ROUTE_DONE:
-			GlassKit.diamond(canvas, c, 8.0, COL_EDGE)
-			GlassKit.diamond(canvas, c, 7.0, ember)
-			GlassKit.diamond(canvas, c, 3.0, GlassKit.EMBER_HOT)
+			canvas.draw_rect(Rect2(c - Vector2(5.0, 5.0), Vector2(10.0, 10.0)), ember)
+			canvas.draw_rect(Rect2(c - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), GlassKit.EMBER_HOT)
 		ROUTE_HERE:
-			GlassKit.diamond(canvas, c, 16.0, Color(ember.r, ember.g, ember.b, 0.10 + 0.12 * pulse))
-			GlassKit.diamond(canvas, c, 11.0, Color(ember.r, ember.g, ember.b, 0.45 + 0.35 * pulse))
-			GlassKit.diamond(canvas, c, 8.0, COL_EDGE)
-			GlassKit.diamond(canvas, c, 7.0, ember.lerp(GlassKit.EMBER_HOT, pulse))
-			GlassKit.diamond(canvas, c, 3.0, GlassKit.EMBER_HOT)
-		_:
-			GlassKit.diamond(canvas, c, 6.0, GlassKit.COLD_EDGE)
-			GlassKit.diamond(canvas, c, 4.0, GlassKit.COLD_IRON)
-			GlassKit.diamond(canvas, c, 2.0, GlassKit.COLD)
+			canvas.draw_rect(Rect2(c - Vector2(12.0, 12.0), Vector2(24.0, 24.0)),
+					Color(ember.r, ember.g, ember.b, 0.08 + 0.10 * pulse))
+			canvas.draw_rect(Rect2(c - Vector2(5.0, 5.0), Vector2(10.0, 10.0)), ember.lerp(GlassKit.EMBER_HOT, pulse))
+			canvas.draw_rect(Rect2(c - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), GlassKit.EMBER_HOT)
 
 
 ## 同一套状态，缩到图例和卷宗角标那么大（约 18px 见方）。
@@ -523,21 +531,21 @@ func _refresh_dossier() -> void:
 	_dglyph.queue_redraw()
 	if here:
 		_ds.text = "进 行 中"
-		_ds.modulate = GlassKit.EMBER_HOT
+		_ds.add_theme_color_override("font_color", PAPER_RUST)
 		_dl.text = ChapterText.wake_of(id)
 		_dl.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		_do.text = "目 标 · " + ChapterText.objective_of(id)
 	elif cleared:
 		_ds.text = "已 通 关"
-		_ds.modulate = GlassKit.EMBER
+		_ds.add_theme_color_override("font_color", PAPER_RUST)
 		_dl.text = ChapterText.recap_of(id)
 		_dl.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		_do.text = ""
 	else:
 		_ds.text = "未 抵 达"
-		_ds.modulate = UiKit.ASH
+		_ds.add_theme_color_override("font_color", PAPER_FAINT)
 		_dl.text = "尚未抵达。"
-		_dl.modulate = Color(1.0, 1.0, 1.0, 0.6)
+		_dl.modulate = Color.WHITE
 		_do.text = ""
 
 
