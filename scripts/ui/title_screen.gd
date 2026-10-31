@@ -137,7 +137,7 @@ class MenuShade:
 		var ry := size.y * 0.5
 		var steps := 18
 		# 外侧 30% 羽化、内侧稳定压暗；首尾菜单行也得到烟斑保护。
-		var step_alpha := 0.024
+		var step_alpha := 0.034
 		var fill := Color(0.02, 0.015, 0.03, step_alpha)
 		for i in steps:
 			var t := 1.0 - float(i) / float(steps) * 0.30
@@ -550,15 +550,24 @@ func _build_rail() -> void:
 	add_child(_menu)
 
 	var has_save := SaveData.has_save()
+	# 无存档时「继续」行隐藏：整列下移一行，「离开锈墓」仍落在墓志基线 QUIT_CENTER_Y。
+	if not has_save:
+		_menu.position.y += MenuItem.HEIGHT
 	# 行动
-	_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
 	# 通关过：这一行写「回看余烬」，也就真的打开总结页（总结页里仍有「继续旅程」）。
 	_continue_opens_recap = String(_look.get("ending", SaveData.peek_ending())) != ""
 	var cont := "回 看 余 烬" if _continue_opens_recap else "继 续 旅 程"
-	_continue_item = _menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY, true)
-	# 行内小注是"上次行程"的真话：结局 / 章节+进度 / 尚无存档。
+	# 有存档：「继续」排第一格并默认选中（回车不会一键抹掉进度）。
+	# 无存档：不摆一条灰掉的空行，「继续」行保留在列表里但隐藏、禁用，导航跳过它。
+	if has_save:
+		_continue_item = _menu.add_item(ID_CONTINUE, cont, false, MenuItem.Kind.PRIMARY, true)
+		_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
+	else:
+		_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
+		_continue_item = _menu.add_item(ID_CONTINUE, cont, true, MenuItem.Kind.PRIMARY, true)
+		_continue_item.visible = false
+	# 行内小注是"上次行程"的真话：结局 / 章节+进度。
 	_continue_item.set_note(continue_note(_look), true)
-	# 无档时这一行是禁用行：字再压暗一档（描边仍由主题保持可读）。
 	_continue_item.disabled_alpha = 0.55
 	_gap(GROUP_GAP)
 	# 模式
@@ -582,9 +591,6 @@ func _build_rail() -> void:
 	_menu.reset_size()
 	_menu.chosen.connect(_on_chosen)
 	_menu.focus_changed.connect(_on_focus_changed)
-	# 有存档时光标默认停在"继续"：回车不会再一键抹掉进度。
-	if has_save:
-		_menu.select(1, false)
 	_lamp = TitleLampCursor.new()
 	_lamp.name = "LampCursor"
 	_lamp.anchor = Vector2(RAIL_X + 18.0, 176.0)

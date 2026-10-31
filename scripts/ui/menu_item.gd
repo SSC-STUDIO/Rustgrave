@@ -56,6 +56,8 @@ const LAMP_LABEL_X := 56.0
 const NOTE_INLINE_W := 96.0
 const NOTE_INLINE_RIGHT := 8.0
 const NOTE_INLINE_SIZE := 10
+## 灯标行：行内注离字尾的距离。
+const NOTE_INLINE_GAP := 14.0
 
 ## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
 var id: StringName = &""
@@ -343,7 +345,7 @@ func set_note(value: String, inline: bool = false) -> void:
 		_note.text = value
 		_note.visible = value != ""
 		_note.modulate = Color.WHITE
-		_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if lamp else HORIZONTAL_ALIGNMENT_RIGHT
 		_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_note.clip_text = true
 		_note.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -352,7 +354,7 @@ func set_note(value: String, inline: bool = false) -> void:
 		_note.add_theme_color_override("font_color", Color(0.73, 0.67, 0.58, 0.92))
 		_note.add_theme_constant_override("outline_size", 1)
 		_note.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
-		_note.position = Vector2(STRIP_WIDTH.get(kind, 344.0) - NOTE_INLINE_RIGHT - NOTE_INLINE_W, 0.0)
+		_note.position = Vector2(_inline_note_x(), 0.0)
 		_note.size = Vector2(NOTE_INLINE_W, HEIGHT)
 		queue_redraw()
 		return
@@ -396,10 +398,20 @@ func _apply_land() -> void:
 		_lock_tag.position.x = LAMP_LABEL_X + 6.0 + ox
 	elif _note != null:
 		if _note_inline:
-			_note.position.x = STRIP_WIDTH.get(kind, 344.0) - NOTE_INLINE_RIGHT - NOTE_INLINE_W + ox
+			_note.position.x = _inline_note_x() + ox
 		else:
 			_note.position.x = size.x - 124.0 + ox
 	queue_redraw()
+
+
+## 行内注的左端：灯标行紧跟在字后面（不悬在条的右端），其余版式靠右。
+func _inline_note_x() -> float:
+	var right: float = STRIP_WIDTH.get(kind, 344.0) - NOTE_INLINE_RIGHT - NOTE_INLINE_W
+	if not lamp or _label == null:
+		return right
+	var text_w := _label.get_theme_font(&"font").get_string_size(_label.text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1.0, _label.get_theme_font_size(&"font_size")).x
+	return minf(LAMP_LABEL_X + text_w + NOTE_INLINE_GAP, right)
 
 
 func set_text(value: String) -> void:

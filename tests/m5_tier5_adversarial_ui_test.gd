@@ -94,7 +94,8 @@ func test_title_screen_rail_exactly_seven_items_under_all_save_conditions() -> v
 		if child is MenuItem:
 			items_b.append(child)
 	ok(items_b.size() >= 7, "At least 7 items when save exists")
-	ok(not (items_b[1] as MenuItem).disabled, "Continue item is enabled when save exists")
+	ok(not (items_b[0] as MenuItem).disabled, "Continue item is enabled when save exists")
+	eq((items_b[0] as MenuItem).id, TitleScreen.ID_CONTINUE, "Continue is the first row when a save exists")
 	title_b.queue_free()
 	await get_tree().process_frame
 
@@ -109,8 +110,8 @@ func test_title_screen_rail_exactly_seven_items_under_all_save_conditions() -> v
 		if child is MenuItem:
 			items_c.append(child)
 	ok(items_c.size() >= 7, "At least 7 items when ending reached")
-	ok(not (items_c[1] as MenuItem).disabled, "Continue/Recall item enabled")
-	ok((items_c[1] as MenuItem)._text.contains("回 看 余 烬"), "Continue button displays '回 看 余 烬'")
+	ok(not (items_c[0] as MenuItem).disabled, "Continue/Recall item enabled")
+	ok((items_c[0] as MenuItem)._text.contains("回 看 余 烬"), "Continue button displays '回 看 余 烬'")
 	# 文案写「回看余烬」，行为就必须是回看：打开总结页，而不是直接读档进关。
 	title_c._skip_intro()
 	title_c._on_chosen(TitleScreen.ID_CONTINUE)
