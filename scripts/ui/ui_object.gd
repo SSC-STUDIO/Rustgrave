@@ -762,6 +762,7 @@ class JournalDressing extends LedgerDressing:
 
 class LetterDressing extends Node2D:
 	var _card: Control
+	var _fold_time := 1.0
 	var heat := 0.0:
 		set(value):
 			heat = value
@@ -771,6 +772,14 @@ class LetterDressing extends Node2D:
 		card.item_rect_changed.connect(queue_redraw)
 	func snap() -> void:
 		heat = 0.0
+		_fold_time = 1.0
+	func play_close() -> void:
+		_fold_time = 0.0
+		queue_redraw()
+	func _process(delta: float) -> void:
+		if _fold_time < 0.14:
+			_fold_time += delta
+			queue_redraw()
 	func seal_center() -> Vector2:
 		return (_card.position + Vector2(_card.size.x * 0.5, _card.size.y - 32.0)).round()
 	func _draw() -> void:
@@ -791,6 +800,17 @@ class LetterDressing extends Node2D:
 		draw_rect(Rect2(center + Vector2(-8, -8), Vector2(16, 16)), ink, false, 2.0)
 		draw_line(center + Vector2(-6, 4), center + Vector2(0, -5), ink, 2.0)
 		draw_line(center + Vector2(0, -5), center + Vector2(6, 4), ink, 2.0)
+		if _fold_time < 0.14:
+			# Two drawn fold poses; the card and its pixel text keep unit scale.
+			var rect := _card.get_rect().grow(-4.0)
+			var crease := roundf(rect.position.y + rect.size.y * 0.55)
+			var tip := crease + 24.0 if _fold_time < 0.07 else crease - 72.0
+			var flap := PackedVector2Array([
+				Vector2(rect.position.x, crease), Vector2(rect.end.x, crease),
+				Vector2(rect.end.x - 12.0, tip), Vector2(rect.position.x + 12.0, tip),
+			])
+			draw_colored_polygon(flap, PAL["parchment_shadow"])
+			draw_line(Vector2(rect.position.x, crease), Vector2(rect.end.x, crease), PAL["parchment_dark"], 2.0)
 
 
 # ==============================================================================
