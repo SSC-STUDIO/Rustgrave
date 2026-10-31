@@ -18,6 +18,8 @@ var active := true
 var strip_style := false
 ## 标题屏：字刻在场景上，光标是外面那盏吊灯。和铁条互斥。
 var lamp_style := false
+## 账簿/手札版式：墨色字，选中时字变暖 + 行首余烬点 + 淡墨下划线。
+var ink_style := false
 
 var _items: Array[MenuItem] = []
 var _ids: Array[StringName] = []
@@ -32,6 +34,7 @@ func add_item(id: StringName, text: String, item_disabled: bool = false,
 	item.compact = compact
 	item.lamp = lamp_style
 	item.strip = strip_style and not lamp_style
+	item.ink = ink_style and not lamp_style and not strip_style
 	add_child(item)
 	item.disabled = item_disabled
 	item.activated.connect(func() -> void: _activate_index(_items.find(item)))

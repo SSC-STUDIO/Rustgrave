@@ -78,10 +78,10 @@ func test_settings_is_a_modal_card_with_plate_tabs() -> void:
 	if tab != null:
 		eq(tab.theme_type_variation, &"TabButton", "标签页用统一主题变体")
 		var sb := tab.get_theme_stylebox("normal")
-		ok(sb is StyleBoxTexture, "标签页底是异形板样式盒")
+		ok(sb is StyleBoxTexture, "标签页底是布料书签样式盒")
 		if sb is StyleBoxTexture:
 			eq((sb as StyleBoxTexture).texture.get_size(),
-					Plate.plate_size(Plate.Shape.TAG), "标签页底就是 TAG 板")
+					Vector2(156.0, 52.0), "标签页底就是书签布条")
 
 	screen.queue_free()
 	await get_tree().process_frame
@@ -107,6 +107,11 @@ func test_pause_menu_is_a_modal_card_with_rail_and_dossier() -> void:
 		ok(ids.find(PauseMenu.ID_STORY) < ids.find(PauseMenu.ID_TITLE), "故事排在返回标题之前")
 	ok(pause.dossier_label("chapter") != null, "右列有行程档案")
 	ok(pause.dossier_label("objective") != null, "档案里有当前目标行")
+	ok(pause.get_node_or_null("ModalRoot/Card/Content/Body/PauseLayout/Rail/PauseLampCursor") != null, "暂停导轨带吊灯光标")
+	var dossier := pause.get_node_or_null("ModalRoot/Card/Content/Body/PauseLayout/DossierColumn/Dossier") as PanelContainer
+	ok(dossier != null, "档案底舱存在")
+	if dossier != null:
+		ok(dossier.get_theme_stylebox("panel") is StyleBoxTexture, "行程档案为行程签样式")
 
 	pause.queue_free()
 	await get_tree().process_frame
@@ -202,4 +207,42 @@ func test_pause_sub_screens_open_close_without_duplicating_or_unpausing() -> voi
 	ok(not pause.is_open(), "pause closes")
 	ok(not get_tree().paused, "closing the pause menu resumes the tree")
 	pause.queue_free()
+	await get_tree().process_frame
+
+
+func test_object_kit_physical_objects_and_transitions() -> void:
+	var pause = PauseMenuScript.new()
+	add_child(pause)
+	await get_tree().process_frame
+	pause.open()
+	await get_tree().process_frame
+	var p_card := pause.get_node_or_null("ModalRoot/Card") as Control
+	ok(p_card != null, "pause card exists")
+	if p_card != null:
+		eq(p_card.position, p_card.position.round(), "pause card is integer pixel aligned")
+		var dressing := pause.get_node_or_null("ModalRoot/Dressing")
+		ok(dressing != null, "pause card has iron chain dressing")
+		var wash := p_card.get_node_or_null("LightWash")
+		ok(wash != null, "pause card has lantern light wash")
+	pause.close()
+	await get_tree().process_frame
+	pause.queue_free()
+	await get_tree().process_frame
+
+	var settings = SettingsScreenScript.new()
+	add_child(settings)
+	await get_tree().process_frame
+	settings.open()
+	await get_tree().process_frame
+	var s_card := settings.get_node_or_null("ModalRoot/Card") as Control
+	ok(s_card != null, "settings card exists")
+	if s_card != null:
+		eq(s_card.position, s_card.position.round(), "settings card is integer pixel aligned")
+		var dressing := settings.get_node_or_null("ModalRoot/Dressing")
+		ok(dressing != null, "settings card has ledger ribbon dressing")
+		var wash := s_card.get_node_or_null("LightWash")
+		ok(wash != null, "settings card has overhead wash")
+	settings.close()
+	await get_tree().process_frame
+	settings.queue_free()
 	await get_tree().process_frame

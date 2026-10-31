@@ -153,3 +153,22 @@ func _tap_start() -> void:
 	event.pressed = false
 	Input.parse_input_event(event)
 	await get_tree().process_frame
+
+
+func test_pause_menu_has_lamp_cursor_and_journey_tag() -> void:
+	var menu := PauseMenu.new()
+	add_child(menu)
+	await flush(1)
+	menu.open()
+	await flush(1)
+	var lamp := menu.get_node_or_null("ModalRoot/Card/Content/Body/PauseLayout/Rail/PauseLampCursor")
+	ok(lamp != null, "pause rail has lamp cursor")
+	var dossier := menu.get_node_or_null("ModalRoot/Card/Content/Body/PauseLayout/DossierColumn/Dossier") as PanelContainer
+	ok(dossier != null, "dossier container exists")
+	if dossier != null:
+		var sb := dossier.get_theme_stylebox("panel")
+		ok(sb is StyleBoxTexture, "dossier is styled as journey tag")
+	menu.close()
+	await flush(20)
+	menu.queue_free()
+	await flush(1)

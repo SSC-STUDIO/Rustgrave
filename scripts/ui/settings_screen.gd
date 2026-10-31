@@ -17,6 +17,7 @@ signal closed
 
 const Modal := preload("res://scripts/ui/ui_modal.gd")
 const Plate := preload("res://scripts/ui/menu_plate.gd")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
 
 const TAB_AUDIO := 0
 const TAB_DISPLAY := 1
@@ -34,7 +35,7 @@ const TAB_HINTS: Array[String] = [
 const STEP := 5.0
 const SAVE_DELAY := 0.5
 const NOTICE_HOLD := 4.0
-const ROW_WIDTH := 700.0
+const ROW_WIDTH := 800.0
 ## 两列键位在 900px 卡片里：2×380 + 24 = 784，仍小于 832 的内容宽。
 ## 旧值 480 时网格 984px，会从花边卡两侧各挤出 76px。
 const KEY_COLUMN_WIDTH := 380.0
@@ -57,6 +58,7 @@ class ReadoutCell:
 		set(value):
 			lit = value
 			queue_redraw()
+	var stamped := false
 
 	func _init() -> void:
 		custom_minimum_size = Vector2(88.0, 30.0)
@@ -66,16 +68,30 @@ class ReadoutCell:
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
-		draw_rect(Rect2(1.0, 0.0, w - 2.0, h), Color(0.03, 0.022, 0.05, 0.85))
-		draw_rect(Rect2(0.0, 1.0, w, h - 2.0), Color(0.03, 0.022, 0.05, 0.85))
-		var edge := Color(0.62, 0.40, 0.18, 0.9) if lit else Color(0.42, 0.26, 0.16, 0.8)
+		if stamped:
+			for i in 2:
+				var active := lit if i == 0 else not lit
+				var box := Rect2(4.0 + i * 42.0, 3.0, 36.0, h - 6.0)
+				var ink := Color("#8C3025") if active else Color(0.35, 0.27, 0.20, 0.35)
+				draw_rect(box, Color(0.55, 0.20, 0.12, 0.10) if active else Color.TRANSPARENT)
+				draw_rect(box, ink, false, 2.0 if active else 1.0)
+				var font := get_theme_font("font", "Label")
+				draw_string(font, box.position + Vector2(10.0, 19.0), "开" if i == 0 else "关", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, ink)
+			return
+		# 活字铅块 / 账页印章底舱
+		draw_rect(Rect2(1.0, 0.0, w - 2.0, h), Color(0.06, 0.045, 0.04, 0.90))
+		draw_rect(Rect2(0.0, 1.0, w, h - 2.0), Color(0.06, 0.045, 0.04, 0.90))
+		var edge := Color("#C0392B", 0.9) if lit else Color("#5A301C", 0.85)
 		draw_rect(Rect2(1.0, 0.0, w - 2.0, 1.0), edge)
 		draw_rect(Rect2(1.0, h - 1.0, w - 2.0, 1.0), edge)
 		draw_rect(Rect2(0.0, 1.0, 1.0, h - 2.0), edge)
 		draw_rect(Rect2(w - 1.0, 1.0, 1.0, h - 2.0), edge)
-		# 顶光 / 底影：一点舱室深度
-		draw_rect(Rect2(2.0, 1.0, w - 4.0, 1.0), Color(0.9, 0.7, 0.5, 0.07))
-		draw_rect(Rect2(2.0, h - 2.0, w - 4.0, 1.0), Color(0.0, 0.0, 0.0, 0.3))
+		if lit:
+			# 印泥微晕
+			draw_rect(Rect2(2.0, 2.0, w - 4.0, h - 4.0), Color(0.75, 0.22, 0.17, 0.12))
+		# 铅块金属高光与底影
+		draw_rect(Rect2(2.0, 1.0, w - 4.0, 1.0), Color(0.9, 0.7, 0.5, 0.08))
+		draw_rect(Rect2(2.0, h - 2.0, w - 4.0, 1.0), Color(0.0, 0.0, 0.0, 0.35))
 
 ## 提示开关等没有专属接口的选项走 Settings.value；键名与各系统约定一致。
 const OPT_FULLSCREEN := &"fullscreen"
@@ -130,16 +146,16 @@ func _exit_tree() -> void:
 
 func _build() -> void:
 	_building = true
-	# 弹窗卡片：背景只压暗、不铺黑；标题带与底部提示带由外壳统一给。
+	# 锻炉账簿：皮革封面、泛黄纸页、中缝深影、书签布条。
 	_shell = Modal.build(self, {
+		"object": ObjectKit.Kind.LEDGER,
 		"title": "设 置",
 		"kicker": "锻 炉 仪 表",
-		"size": Vector2(900.0, 700.0),
+		"size": Vector2(960.0, 560.0),
 		"hint": TAB_HINTS[TAB_AUDIO],
 		"back": "Esc 返回",
 	})
 	_root = _shell["root"] as Control
-	_root.theme = UiKit.extras_theme()
 	_hint = _shell["hint"] as Label
 	# 设置页点空白处不关闭：误触会丢掉正在拖的滑条 / 改键，只走 Esc 与"返回"。
 	var body := _shell["body"] as Control
@@ -166,13 +182,17 @@ func _build() -> void:
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
 		tab.custom_minimum_size = Vector2(156.0, UiKit.TOUCH_MIN)
+		tab.add_theme_stylebox_override("normal", ObjectKit.ribbon_style_box(i, false))
+		tab.add_theme_stylebox_override("pressed", ObjectKit.ribbon_style_box(i, true))
+		tab.add_theme_stylebox_override("hover", ObjectKit.ribbon_style_box(i, true))
+		tab.add_theme_stylebox_override("focus", ObjectKit.ribbon_style_box(i, true))
 		tab.pressed.connect(_select_tab.bind(i))
 		# 键盘 / 手柄在标签行上左右移动就是换页；鼠标悬停不换页，点击才换。
 		tab.focus_entered.connect(_select_tab.bind(i))
-		# 当前页标签底下压着一根余烬短棒：换页时亮过去，和标题屏的灯口同一语汇。
+		# 当前页标签底下压着一根金线短棒：换页时亮过去
 		var ember_bar := ColorRect.new()
 		ember_bar.name = "EmberBar"
-		ember_bar.color = UiKit.EMBER
+		ember_bar.color = Color("#D4AF37")
 		ember_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		ember_bar.offset_left = 18.0
 		ember_bar.offset_right = -18.0
@@ -198,7 +218,7 @@ func _build() -> void:
 	# 瞬时消息直接写外壳的提示带（_say / _apply_hint），页内不再单开一行。
 	var footer := HBoxContainer.new()
 	footer.name = "Footer"
-	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.alignment = BoxContainer.ALIGNMENT_END
 	footer.add_theme_constant_override("separation", 16)
 	column.add_child(footer)
 	_reset_keys = _footer_button("恢复默认键位", &"ResetKeys")
@@ -414,6 +434,7 @@ func _name_label(text: String, width: float) -> Label:
 	label.name = "Name"
 	label.custom_minimum_size = Vector2(width, 0.0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", Color("#221A15"))
 	return label
 
 
@@ -441,6 +462,7 @@ func _readout_cell(id: StringName, value: Label) -> Control:
 	value.offset_left = 6.0
 	value.offset_right = -6.0
 	value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value.add_theme_color_override("font_color", Color("#E8CA8A"))
 	cell.add_child(value)
 	_value_cells[id] = cell
 	return cell
@@ -467,20 +489,20 @@ func _slider_ticks(row: Control) -> void:
 	ticks.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# 轨道区间由行布局常量推出：Content 左右各让 20，名字列 170 + 间距 14，
 	# 读数舱 88 + 间距 14；垂直方向压在轨道的中线上。
-	var x0 := 20.0 + 170.0 + 14.0
+	var x0 := 20.0 + 230.0 + 150.0 + 28.0
 	var x1 := ROW_WIDTH - 20.0 - 88.0 - 14.0
 	ticks.position = Vector2(x0, 0.0)
 	ticks.size = Vector2(x1 - x0, UiKit.TOUCH_MIN)
 	row.add_child(ticks)
 	ticks.draw.connect(func() -> void:
-		# 轨道贴图盖在中线（y≈26）上：刻度从轨道下沿垂下来，像仪表的标尺。
+		# 账页墨线轨道的 10% 刻度蚀刻线
 		for i in 11:
 			var f := float(i) / 10.0
 			var x: float = roundf(4.0 + f * (ticks.size.x - 8.0))
 			var major := i % 5 == 0
 			var h := 6.0 if major else 3.0
-			var col := Color(0.60, 0.38, 0.20, 0.6) if major else Color(0.42, 0.26, 0.16, 0.5)
-			ticks.draw_rect(Rect2(x, 30.0, 1.0, h), col))
+			var col := Color("#2C1D11", 0.75) if major else Color("#4A3728", 0.45)
+			ticks.draw_rect(Rect2(x, 29.0, 1.0, h), col))
 	ticks.queue_redraw()
 
 
@@ -494,7 +516,12 @@ func _slider_row(id: StringName, title: String) -> Control:
 	_row_bgs[id] = bg
 	_row_accent(row, id)
 	var content := _row_content(row)
-	content.add_child(_name_label(title, 170.0))
+	content.add_child(_name_label(title, 230.0))
+	var gutter := Control.new()
+	gutter.name = "GutterSpace"
+	gutter.custom_minimum_size.x = 150.0
+	gutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(gutter)
 	var slider := HSlider.new()
 	slider.name = "Slider"
 	slider.min_value = 0.0
@@ -504,6 +531,16 @@ func _slider_row(id: StringName, title: String) -> Control:
 	slider.size_flags_vertical = Control.SIZE_FILL
 	slider.focus_mode = Control.FOCUS_ALL
 	slider.custom_minimum_size = Vector2(240.0, UiKit.TOUCH_MIN)
+	# 账本墨线轨道与抛光黄铜珠滑块
+	slider.add_theme_stylebox_override("slider", ObjectKit.ink_track_style_box())
+	slider.add_theme_stylebox_override("grabber_area", ObjectKit.ink_fill_style_box(false))
+	slider.add_theme_stylebox_override("grabber_area_highlight", ObjectKit.ink_fill_style_box(true))
+	var bead := ObjectKit.create_brass_bead_icon(false)
+	var bead_hi := ObjectKit.create_brass_bead_icon(true)
+	slider.add_theme_icon_override("grabber", bead)
+	slider.add_theme_icon_override("grabber_highlight", bead_hi)
+	slider.add_theme_icon_override("grabber_disabled", bead)
+
 	slider.value_changed.connect(_on_slider_changed.bind(id))
 	slider.drag_ended.connect(_on_slider_drag_ended)
 	slider.focus_entered.connect(_set_row_focus.bind(id, true))
@@ -547,11 +584,14 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 ## 状态色，否则"关"字比键名还醒目，反而抢焦点。
 func _paint_toggle(label: Label, on: bool) -> void:
 	label.text = "开" if on else "关"
-	label.modulate = UiKit.EMBER if on else Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.75)
-	# 开状态的读数舱描一道余烬边：整页扫一眼就知道哪几项开着。
+	label.modulate = Color("#C0392B") if on else Color(0.48, 0.42, 0.38, 0.75)
+	# 开状态的读数舱描一道朱砂印边：整页扫一眼就知道哪几项开着。
 	var cell := label.get_parent() as ReadoutCell
 	if cell != null:
 		cell.lit = on
+		cell.stamped = true
+		label.visible = false
+		cell.queue_redraw()
 
 
 func _toggle_row(id: StringName, title: String) -> Control:
@@ -665,8 +705,7 @@ func _set_row_focus(id: StringName, focused: bool) -> void:
 		button = _key_buttons.get(id) as Button
 	if button == null:
 		return
-	var style := Plate.style_box(Plate.Shape.TAG, \
-			Plate.State.SELECTED if focused else Plate.State.NORMAL)
+	var style := ObjectKit.ink_row_style(focused)
 	button.add_theme_stylebox_override("normal", style)
 
 
@@ -696,11 +735,17 @@ func _select_tab(index: int) -> void:
 func _show_page(index: int) -> void:
 	_tab = clampi(index, 0, _pages.size() - 1)
 	for i in _pages.size():
-		_pages[i].visible = i == _tab
-		_pages[i].get_parent().visible = i == _tab
+		var is_active := (i == _tab)
+		_pages[i].visible = is_active
+		_pages[i].get_parent().visible = is_active
 		_tab_buttons[i].set_pressed_no_signal(false)
-		_set_tab_ember(i, i == _tab)
+		_tab_buttons[i].add_theme_stylebox_override("normal", ObjectKit.ribbon_style_box(i, is_active))
+		_tab_buttons[i].custom_minimum_size.y = 52.0 if is_active else 44.0
+		_set_tab_ember(i, is_active)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
+	var dressing: Node = _shell.get("dressing")
+	if dressing != null and dressing.has_method("set_active_tab"):
+		dressing.call("set_active_tab", _tab)
 	_reset_keys.visible = _tab == TAB_KEYS
 	_wire_page_tail()
 	_apply_hint()

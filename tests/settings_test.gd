@@ -175,6 +175,15 @@ func test_settings_screen_exposes_every_persisted_option() -> void:
 	screen.show_tab(SettingsScreen.TAB_KEYS)
 	for action in Settings.REBINDABLE:
 		ok(screen.key_button_for(action) != null, "键位页有 %s" % String(action))
+	var sfx_slider := screen.slider_for(&"Sfx")
+	ok(sfx_slider != null, "Sfx 滑条存在")
+	if sfx_slider != null:
+		ok(sfx_slider.has_theme_stylebox_override("slider"), "滑条覆盖墨线轨道样式")
+		ok(sfx_slider.has_theme_icon_override("grabber"), "滑条覆盖黄铜珠手柄图标")
+		var grabber_icon := sfx_slider.get_theme_icon("grabber")
+		ok(grabber_icon != null, "滑条手柄图标存在")
+		if grabber_icon != null:
+			eq(grabber_icon.get_size(), Vector2(14.0, 14.0), "黄铜珠图标尺寸符合规范 (14x14)")
 	screen.queue_free()
 	await get_tree().process_frame
 

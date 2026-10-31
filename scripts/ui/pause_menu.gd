@@ -21,6 +21,7 @@ const TITLE_PATH := "res://scenes/ui/TitleScreen.tscn"
 const Ornaments := preload("res://scripts/ui/ui_ornament.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
 const JournalScript := preload("res://scripts/ui/journal_screen.gd")
+const ObjectKit := preload("res://scripts/ui/ui_object.gd")
 
 const ID_RESUME := &"resume"
 const ID_EQUIPMENT := &"equipment"
@@ -67,6 +68,7 @@ var _layout: Control
 var _menu: MenuList
 var _trial_menu: MenuList
 var _arena_menu: MenuList
+var _lamp: TitleLampCursor
 var _spine: Control
 var _controls: ControlsPanel
 var _settings: SettingsScreen
@@ -109,11 +111,11 @@ class Bullet extends Control:
 	func _draw() -> void:
 		var c := Vector2(7.0, 7.0)
 		if lit:
-			GlassKit.diamond(self, c, 5.0, GlassKit.EMBER)
-			GlassKit.diamond(self, c, 2.0, GlassKit.EMBER_HOT)
+			GlassKit.diamond(self, c, 5.0, Color("#C0392B"))
+			GlassKit.diamond(self, c, 2.5, Color("#FFC14A"))
 		else:
-			GlassKit.diamond(self, c, 4.0, GlassKit.COLD_EDGE)
-			GlassKit.diamond(self, c, 2.0, GlassKit.COLD)
+			GlassKit.diamond(self, c, 4.0, Color(0.40, 0.35, 0.30, 0.45))
+			GlassKit.diamond(self, c, 2.0, Color(0.25, 0.20, 0.18, 0.30))
 
 
 func _ready() -> void:
@@ -126,8 +128,9 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	# 暂停菜单也是"弹出来的卡片"：卡片四周还看得见被压暗的战场，而不是一整页紫板。
+	# 暂停菜单吊挂铁牌：锈斑噪点、铆钉、铁链吊放。
 	_shell = Modal.build(self, {
+		"object": ObjectKit.Kind.BOARD,
 		"kicker": HEAD_KICKER,
 		"title": HEAD_FALLBACK,
 		"size": Vector2(1020.0, 640.0),
@@ -220,8 +223,15 @@ func _build_rail(parent: Control) -> void:
 	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(rail)
 
+	# 悬挂铁牌的吊灯光标（与标题屏同一吊灯语汇）
+	_lamp = TitleLampCursor.new()
+	_lamp.name = "PauseLampCursor"
+	_lamp.anchor = Vector2(RAIL_X + 18.0, 6.0)
+	rail.add_child(_lamp)
+
 	_menu = MenuList.new()
 	_menu.name = "Menu"
+	_menu.lamp_style = true
 	# 行距交给下面的空白节点：主行动 / 系统动作 / 回标题三档之间要不同的呼吸。
 	_menu.add_theme_constant_override("separation", 0)
 	_menu.position = Vector2(RAIL_X, MENU_TOP)
@@ -252,6 +262,7 @@ func _build_rail(parent: Control) -> void:
 	# 试炼左列：重开本场 / 退出试炼（只有两格）。
 	_trial_menu = MenuList.new()
 	_trial_menu.name = "TrialMenu"
+	_trial_menu.lamp_style = true
 	_trial_menu.position = Vector2(RAIL_X, MENU_TOP)
 	_trial_menu.visible = false
 	rail.add_child(_trial_menu)
@@ -266,6 +277,7 @@ func _build_rail(parent: Control) -> void:
 	# 竞技场对局中：继续 / 重开对局 / 退出竞技场。战役七格菜单留着，只是先藏起来。
 	_arena_menu = MenuList.new()
 	_arena_menu.name = "ArenaMenu"
+	_arena_menu.lamp_style = true
 	_arena_menu.position = Vector2(RAIL_X, MENU_TOP)
 	_arena_menu.visible = false
 	rail.add_child(_arena_menu)
@@ -313,10 +325,9 @@ func _build_dossier(parent: Control) -> void:
 
 	var plate := PanelContainer.new()
 	plate.name = "Dossier"
+	plate.theme = ObjectKit.surface_theme(ObjectKit.Kind.JOURNAL)
 	plate.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var glass := _glass_box(DOSSIER_BASE, GlassKit.CARD_ALPHA, DOSSIER_MARGINS)
-	if glass != null:
-		plate.add_theme_stylebox_override(&"panel", glass)
+	plate.add_theme_stylebox_override(&"panel", ObjectKit.journey_tag_style_box())
 	column.add_child(plate)
 
 	var inner := VBoxContainer.new()
@@ -335,8 +346,10 @@ func _build_dossier(parent: Control) -> void:
 	_dossier_viewport = _readout_row(inner, "视 口", "viewport")
 
 	inner.add_child(GlassKit.spacer())
-	inner.add_child(UiKit.label("剑核随时可在插座台换装 · 进度在余烬巢刻录",
-			&"FootnoteLabel"))
+	var note_lbl := UiKit.label("剑核随时可在插座台换装 · 进度在余烬巢刻录",
+			&"FootnoteLabel")
+	note_lbl.add_theme_color_override("font_color", Color("#5C544D"))
+	inner.add_child(note_lbl)
 
 
 ## 玻璃底板：取主题里现成的板面贴图，复制一份只改着色透明度（与 GlassKit.glass 同一手法），
@@ -360,7 +373,9 @@ func _group_head(text: String) -> Control:
 	row.name = "Head_" + text.replace(" ", "")
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(GlassKit.kicker(text))
+	var kicker := GlassKit.kicker(text)
+	kicker.add_theme_color_override("font_color", Color("#7A5420"))
+	row.add_child(kicker)
 	var stub := Ornaments.stub_rule(false)
 	stub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -372,7 +387,7 @@ func _group_head(text: String) -> Control:
 func _hairline() -> Control:
 	var line := ColorRect.new()
 	line.name = "Hairline"
-	line.color = Color(UiKit.RUST_MID.r, UiKit.RUST_MID.g, UiKit.RUST_MID.b, 0.45)
+	line.color = Color(0.55, 0.45, 0.35, 0.35)
 	line.custom_minimum_size = Vector2(0.0, 1.0)
 	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -395,6 +410,7 @@ func _readout_row(parent: VBoxContainer, key: String, id: String) -> Label:
 	var key_label := UiKit.label(key, &"TinyStrongLabel")
 	key_label.custom_minimum_size = Vector2(KEY_COLUMN, 0.0)
 	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	key_label.add_theme_color_override("font_color", Color("#4A3E38"))
 	row.add_child(key_label)
 	var value := UiKit.label("—", &"BodyLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	value.name = "Value"
@@ -404,13 +420,12 @@ func _readout_row(parent: VBoxContainer, key: String, id: String) -> Label:
 	return value
 
 
-## 档案值的语义色：目标是暖白（它是"现在要做什么"），锈核/巢穴用地图图例里"已点燃余烬巢"的同一个琥珀 ——
-## 暂停档案、地图、图例三屏说的是同一枚巢，颜色不能各说各话；视口最暗（纯技术信息）。
+## 档案值的语义色：纸签墨水色调（深墨、温暖琥珀、铅笔视口）。
 const DOSSIER_COLORS := {
-	&"objective": Color("#E4DCCC"),
-	&"cores": Color("#FFC14A"),
-	&"nests": Color("#FFC14A"),
-	&"viewport": UiKit.ASH,
+	&"objective": Color("#1A1412"),
+	&"cores": Color("#B45309"),
+	&"nests": Color("#B45309"),
+	&"viewport": Color("#5C544D"),
 }
 
 
@@ -528,6 +543,8 @@ func sub_screen_open() -> bool:
 
 
 func _resume_menu() -> void:
+	if _root != null:
+		_root.visible = true
 	if _map_from_hotkey:
 		_map_from_hotkey = false
 		close()
@@ -584,6 +601,14 @@ func open() -> void:
 		_spine.queue_redraw()
 	_set_play_hud_visible(false)
 	_refresh_dossier()
+	if _lamp != null:
+		var active_list: MenuList = _menu
+		if arena_mode:
+			active_list = _arena_menu
+		elif trial_mode:
+			active_list = _trial_menu
+		_lamp.advance(0.016, active_list)
+		_lamp.snap()
 	(_shell.get("play_intro") as Callable).call()
 	get_tree().paused = true
 	Director.suspend()
@@ -597,7 +622,17 @@ func open_pending() -> bool:
 	return _open_requested
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	# A sub-screen replaces the iron board visually while this layer owns pause.
+	if visible and _root != null:
+		_root.visible = not sub_screen_open()
+	if _lamp != null and visible:
+		var active_menu: MenuList = _menu
+		if _arena_menu != null and _arena_menu.visible:
+			active_menu = _arena_menu
+		elif _trial_menu != null and _trial_menu.visible:
+			active_menu = _trial_menu
+		_lamp.advance(delta, active_menu)
 	if not _open_requested:
 		return
 	if Director.choice_hold or not is_inside_tree():

@@ -63,6 +63,8 @@ var strip := false
 var lamp := false
 ## 0 = 这行在灯的照不到的地方，1 = 灯芯正对着这行。
 var lamp_light := 0.0
+## 账簿/手札的墨水版式：墨水字、选中时变暖、行首余烬点、淡墨下划线。
+var ink := false
 ## 压在不透明深色面板上的铁条（回看页）：底色更深、几乎不透明，才不会和卡片的紫底混成一片。
 var dark_plate := false
 ## 开屏"落位"：1 = 整条向左偏移 LAND_SHIFT 并等着淡入，0 = 在原位。
@@ -93,6 +95,7 @@ var _panel: Panel
 var _plate: TextureRect
 var _label: Label
 var _note: Label
+var _lock_tag: LockTag
 var _cursor: TextureRect
 var _brazier: Node2D
 var _time := 0.0
@@ -100,6 +103,35 @@ var _cursor_x := 0.0
 var _cursor_base_y := 0.0
 var _cursor_tween: Tween
 var _shift_tween: Tween
+
+## 悬挂在锁定菜单项下方的铁签（T2）：一根 ~6px 小链 + 12px 小字。
+class LockTag:
+	extends Control
+
+	var _chain_x := 18.0
+	var _tag_h := 12.0
+	var _chain_len := 6.0
+
+	func _init() -> void:
+		name = "LockTag"
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		# 6px 小链
+		var cx := _chain_x
+		draw_line(Vector2(cx, 0.0), Vector2(cx, _chain_len), Color(0.45, 0.40, 0.38, 0.85), 1.0)
+		draw_rect(Rect2(cx - 1.0, 1.0, 3.0, 2.0), Color(0.55, 0.48, 0.42, 0.9))
+		draw_rect(Rect2(cx - 1.0, 4.0, 3.0, 2.0), Color(0.38, 0.32, 0.30, 0.9))
+		# 12px 铁签底板
+		var tag_rect := Rect2(0.0, _chain_len, size.x, _tag_h)
+		draw_rect(tag_rect, Color(0.09, 0.075, 0.11, 0.88))
+		# 铁签边框与阴影
+		draw_rect(Rect2(0.0, _chain_len, size.x, 1.0), Color(0.32, 0.26, 0.22, 0.85))
+		draw_rect(Rect2(0.0, _chain_len + _tag_h - 1.0, size.x, 1.0), Color(0.20, 0.16, 0.15, 0.85))
+		draw_rect(Rect2(0.0, _chain_len, 1.0, _tag_h), Color(0.30, 0.24, 0.20, 0.85))
+		draw_rect(Rect2(size.x - 1.0, _chain_len, 1.0, _tag_h), Color(0.20, 0.16, 0.15, 0.85))
+		# 链扣铆钉
+		draw_rect(Rect2(cx - 1.0, _chain_len + 1.0, 2.0, 2.0), Color(0.68, 0.58, 0.42, 0.95))
 
 
 func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
@@ -110,6 +142,8 @@ func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
 func _ready() -> void:
 	if kind == Kind.DEFAULT:
 		_build_default_row()
+	elif ink:
+		_build_ink_row()
 	elif lamp:
 		_build_lamp_row()
 	elif strip:
@@ -120,6 +154,30 @@ func _ready() -> void:
 		if not disabled:
 			hover_requested.emit())
 	_refresh()
+
+
+## 账簿/手札版式：墨水字，行首余烬点，底部淡墨下划线。
+func _build_ink_row() -> void:
+	var width: float = STRIP_WIDTH.get(kind, 344.0)
+	custom_minimum_size = Vector2(width, HEIGHT)
+	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	show_tick = false
+	_label = UiKit.label(_text, &"MenuItemLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_label.position = Vector2(32.0, 0.0)
+	_label.size = Vector2(width - 44.0, HEIGHT)
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_label.add_theme_color_override("font_color", Color("#221A15"))
+	_label.add_theme_constant_override("outline_size", 0)
+	_label.add_theme_color_override("font_shadow_color", Color.TRANSPARENT)
+	add_child(_label)
+
+	_note = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
+	_note.position = Vector2(width - 124.0, 0.0)
+	_note.size = Vector2(100.0, HEIGHT)
+	_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_note.visible = false
+	add_child(_note)
 
 
 ## 主题样式盒的行底 —— 暂停菜单、结局选择、覆盖存档确认框继续用这一套。
@@ -233,7 +291,10 @@ func _build_lamp_row() -> void:
 	_label.position = Vector2(LAMP_LABEL_X, 0.0)
 	_label.size = Vector2(width - LAMP_LABEL_X - 12.0, HEIGHT)
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_label.add_theme_constant_override("outline_size", 1)
+	_label.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
 	add_child(_label)
+
 	_note = UiKit.label("", &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
 	_note.position = Vector2(width - 124.0, 0.0)
 	_note.size = Vector2(100.0, HEIGHT)
@@ -257,8 +318,32 @@ func set_note(value: String) -> void:
 	if _note == null:
 		return
 	_note.text = value
-	_note.visible = value != ""
-	if value != "":
+	var has_text := value != ""
+	_note.visible = has_text
+	if lamp:
+		if has_text and _lock_tag == null:
+			_lock_tag = LockTag.new()
+			_lock_tag.position = Vector2(LAMP_LABEL_X + 6.0, 31.0)
+			_lock_tag.size = Vector2(88.0, 18.0)
+			add_child(_lock_tag)
+			_note.reparent(_lock_tag)
+			_note.position = Vector2(0.0, 6.0)
+			_note.size = Vector2(88.0, 12.0)
+			_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			_note.add_theme_font_size_override("font_size", 10)
+			_note.add_theme_color_override("font_color", Color(0.72, 0.68, 0.62, 0.9))
+			_note.add_theme_constant_override("outline_size", 1)
+			_note.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
+		if _lock_tag != null:
+			_lock_tag.visible = has_text
+		if has_text and _label != null:
+			_label.position.y = 2.0
+			_label.size.y = 26.0
+		elif _label != null:
+			_label.position.y = 0.0
+			_label.size.y = HEIGHT
+	elif has_text:
 		_note.add_theme_font_size_override("font_size", 10)
 		_note.modulate = Color(0.70, 0.65, 0.60, 0.85)
 
@@ -268,7 +353,9 @@ func _apply_land() -> void:
 		return
 	var ox := -land * LAND_SHIFT
 	_label.position.x = (LAMP_LABEL_X if lamp else STRIP_LABEL_X) + ox
-	if _note != null:
+	if _lock_tag != null:
+		_lock_tag.position.x = LAMP_LABEL_X + 6.0 + ox
+	elif _note != null:
 		_note.position.x = size.x - 124.0 + ox
 	queue_redraw()
 
@@ -283,6 +370,10 @@ func _process(delta: float) -> void:
 	if not selected or disabled:
 		return
 	_time += delta
+	if ink:
+		_paint_ink()
+		queue_redraw()
+		return
 	if lamp:
 		_paint_lamp()
 		queue_redraw()
@@ -352,6 +443,9 @@ func _draw_strip() -> void:
 
 
 func _draw() -> void:
+	if kind != Kind.DEFAULT and ink:
+		_draw_ink()
+		return
 	if kind != Kind.DEFAULT and lamp:
 		_draw_lamp()
 		return
@@ -381,6 +475,9 @@ func _refresh() -> void:
 		return
 	if kind == Kind.DEFAULT:
 		_refresh_default()
+	elif ink:
+		_refresh_ink()
+		queue_redraw()
 	elif lamp:
 		_refresh_lamp()
 		queue_redraw()
@@ -396,13 +493,50 @@ func _refresh() -> void:
 	if _brazier != null:
 		_brazier.visible = lit
 	if not lit:
-		# 灯标行的淡入淡出走 modulate.a（开屏 / 退场）。这里不能把 alpha 打回 1。
-		if lamp:
+		# 灯标与墨水行的淡入淡出走 modulate.a（开屏 / 退场）。这里不能把 alpha 打回 1。
+		if lamp or ink:
 			modulate = Color(1.0, 1.0, 1.0, modulate.a)
 		else:
 			modulate = Color.WHITE
 		_time = 0.0
 	set_process(lit)
+
+
+func _refresh_ink() -> void:
+	_paint_ink()
+
+
+func _paint_ink() -> void:
+	if _label == null or not ink:
+		return
+	if disabled:
+		_label.add_theme_color_override("font_color", Color(0.68, 0.64, 0.60, 0.70))
+		return
+	if selected:
+		var breath := 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD)
+		var col: Color = Color("#221A15").lerp(Color("#8A3D16"), breath * 0.5 + 0.25)
+		_label.add_theme_color_override("font_color", col)
+	else:
+		_label.add_theme_color_override("font_color", Color("#221A15"))
+
+
+func _draw_ink() -> void:
+	if _label == null or not selected or disabled:
+		return
+	var cy := floorf(size.y * 0.5)
+	# 行首余烬点指示 (Ember pip indicator at x = 16)
+	var pip_center := Vector2(16.0, cy)
+	GlassKit.diamond(self, pip_center, 4.0, Color("#C0392B"))
+	GlassKit.diamond(self, pip_center, 2.0, Color("#FFC14A"))
+	# 淡墨下划线 (Faint sepia underline)
+	var x0 := _label.position.x
+	var font := _label.get_theme_font(&"font")
+	var font_sz := _label.get_theme_font_size(&"font_size")
+	var text_w := 120.0
+	if font != null:
+		text_w = font.get_string_size(_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz).x
+	var y_line := floorf(cy + 13.0)
+	draw_rect(Rect2(x0, y_line, text_w, 1.0), Color(0.45, 0.28, 0.16, 0.55))
 
 
 ## 灯标：字色跟着灯走。禁用行保持冷灰，灯照过来也不亮。
@@ -414,15 +548,21 @@ func _paint_lamp() -> void:
 	if _label == null or not lamp:
 		return
 	if disabled:
-		_label.add_theme_color_override("font_color", Color(0.42, 0.40, 0.40, 0.7))
+		_label.add_theme_color_override("font_color", Color(0.68, 0.64, 0.60, 0.90))
 		return
 	var warmth := lamp_light
 	if selected:
 		var breath := 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD)
-		warmth = maxf(warmth, lerpf(0.78, 1.0, breath))
-	var col := Color(0.50, 0.44, 0.40).lerp(UiKit.EMBER, warmth)
-	if warmth > 0.92:
-		col = col.lerp(Color(1.0, 0.96, 0.84), (warmth - 0.92) / 0.08)
+		warmth = maxf(warmth, lerpf(0.88, 1.0, breath))
+	var cold_col := Color(0.65, 0.60, 0.54)
+	var warm_bake := Color(0.90, 0.65, 0.36)
+	var col: Color
+	if warmth < 0.55:
+		col = cold_col.lerp(warm_bake, warmth / 0.55)
+	else:
+		col = warm_bake.lerp(UiKit.EMBER, (warmth - 0.55) / 0.45)
+	if warmth > 0.85:
+		col = col.lerp(Color(1.0, 0.96, 0.84), (warmth - 0.85) / 0.15)
 	_label.add_theme_color_override("font_color", col)
 
 
