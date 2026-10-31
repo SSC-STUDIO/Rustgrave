@@ -6,6 +6,11 @@ name: render-title-shots
 
 on:
   workflow_dispatch:
+    inputs:
+      test_filter:
+        description: "case-filter for the regression suite (empty = the scoped default)"
+        required: false
+        default: ""
   push:
     branches:
       - "arena/**"
@@ -48,18 +53,21 @@ jobs:
           $GODOT --headless --path . --import
           test -f .godot/global_script_class_cache.cfg
 
-      - name: Sigil regression tests (scoped)
+      - name: Regression tests
         timeout-minutes: 6
         run: |
           GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
           export RUSTGRAVE_NO_UPDATE_CHECK=1
           mkdir -p docs/shots/title-v4/_logs
-          timeout 300 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter=ember_sigils \
+          FILTER="${{ inputs.test_filter }}"
+          if [ -z "$FILTER" ]; then FILTER="ember_sigils"; fi
+          timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter="$FILTER" \
             > docs/shots/title-v4/_logs/tests.log 2>&1 \
-            || echo "::warning::ember_sigils tests failed — see _logs/tests.log in the pushed commit"
+            || echo "::warning::tests failed — see _logs/tests.log in the pushed commit"
           tail -12 docs/shots/title-v4/_logs/tests.log
 
-      - name: Render title screens (xvfb + GL compatibility, fast mode)
+      - name: Render title screens (xvfb + GL compatibility)
+        if: inputs.test_filter == '' || inputs.test_filter == null
         timeout-minutes: 18
         continue-on-error: true
         run: |
