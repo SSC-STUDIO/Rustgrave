@@ -113,9 +113,18 @@ func test_text_scale_preserves_theme_ratios_and_updates_live() -> void:
 	eq(theme.get_font_size("font_size", &"BodyLabel"), roundi(body * 1.25))
 	eq(theme.get_font_size("font_size", &"TinyLabel"), roundi(tiny * 1.25))
 	eq(label.get_theme_font_size("font_size"), roundi(body * 1.25))
+	# Labels created *after* the setting loads must keep the same theme sizes.
+	# A blanket `16 * scale` override used to shrink the 24px menu to 20/22px
+	# while inflating the 12px labels — the boot path hit exactly this case.
+	var scaled := UiKit.label("scaled", &"BodyLabel")
+	add_child(scaled)
+	eq(scaled.get_theme_font_size("font_size"), roundi(body * 1.25),
+			"a label created at 125% inherits the scaled theme, not a 16px override")
 	Settings.set_value(&"text_scale", 1.0, false)
 	eq(theme.get_font_size("font_size", &"BodyLabel"), body)
 	eq(theme.get_font_size("font_size", &"TinyLabel"), tiny)
+	label.queue_free()
+	scaled.queue_free()
 
 
 func test_subtitle_speed_changes_reveal_rate() -> void:

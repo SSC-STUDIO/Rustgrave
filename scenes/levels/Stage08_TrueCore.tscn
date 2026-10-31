@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/levels/stage_level.gd" id="1_stage"]
+
+[node name="Stage08_TrueCore" type="Node2D"]
+script = ExtResource("1_stage")
+stage_script_path = "res://scripts/levels/stages/stage08_true_core.gd"

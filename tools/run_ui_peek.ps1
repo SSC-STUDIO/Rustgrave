@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
 $previousAppData = $env:APPDATA
 $previousUpdateCheck = $env:RUSTGRAVE_NO_UPDATE_CHECK
+$previousAllowSmall = $env:RUSTGRAVE_ALLOW_SMALL_WINDOW
 try {
     foreach ($size in ($Sizes -split ',')) {
         if ($size -notmatch '^\d+x\d+$') { throw "Invalid size: $size" }
@@ -20,6 +21,8 @@ try {
         $stderr = Join-Path $outputDir 'stderr.log'
         $env:APPDATA = Join-Path $outputDir 'isolated-userdata'
         $env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
+        # Diagnostic sizes below 1280x720 stay possible; a real player window is clamped.
+        $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = '1'
         $arguments = @('--path', ('"' + $projectDir + '"'), '--windowed',
             '--position', '-12000,-12000', '--resolution', $size,
             '--rendering-method', 'gl_compatibility', 'res://scenes/tools/UiPeek.tscn',
@@ -52,4 +55,5 @@ try {
 } finally {
     $env:APPDATA = $previousAppData
     $env:RUSTGRAVE_NO_UPDATE_CHECK = $previousUpdateCheck
+    $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = $previousAllowSmall
 }

@@ -100,16 +100,16 @@ func _campaign_save_bytes() -> String:
 
 func test_start_routes_through_the_presentation_pending_mechanism() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
-	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "level03"), "已解锁且章节通关时能开赛")
+	SaveData.mark_flag("stage03_done")
+	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "stage03"), "已解锁且章节通关时能开赛")
 	ok(RunScript.active(), "试炼会话进行中")
 	ok(RunScript.running(), "正在跑（未结算）")
 	eq(_requested.size(), 1, "只请求了一次场景加载")
 	eq(_requested[0], GameContext.PRESENTATION_PATH, "走 GamePresentation 表现层，不新建加载器")
-	eq(GameContext.pending_world_path, GameContext.LEVELS["level03"], "pending 机制被复用")
-	eq(RunScript.stage_scene_path(), GameContext.LEVELS["level03"])
+	eq(GameContext.pending_world_path, GameContext.LEVELS["stage03"], "pending 机制被复用")
+	eq(RunScript.stage_scene_path(), GameContext.LEVELS["stage03"])
 	eq(RunScript.track(), Catalog.Track.TIME_ATTACK)
-	eq(RunScript.target_id(), "level03")
+	eq(RunScript.target_id(), "stage03")
 	eq(RunScript.stage_count(), 1, "章节赛道一场")
 	eq(RunScript.deaths(), 0)
 	RunScript.abandon()
@@ -117,23 +117,23 @@ func test_start_routes_through_the_presentation_pending_mechanism() -> void:
 
 
 func test_start_refused_when_locked_or_chapter_not_cleared() -> void:
-	ok(not RunScript.start(Catalog.Track.TIME_ATTACK, "level03"), "未解锁拒绝开赛")
+	ok(not RunScript.start(Catalog.Track.TIME_ATTACK, "stage03"), "未解锁拒绝开赛")
 	ok(not RunScript.active())
 	eq(_requested.size(), 0, "拒绝时不会切场景")
 	_unlock()
-	ok(not RunScript.start(Catalog.Track.TIME_ATTACK, "level03"), "章节未通关拒绝开赛")
-	SaveData.mark_flag("level03_done")
-	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "level03"), "章节通关后可开")
+	ok(not RunScript.start(Catalog.Track.TIME_ATTACK, "stage03"), "章节未通关拒绝开赛")
+	SaveData.mark_flag("stage03_done")
+	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "stage03"), "章节通关后可开")
 	RunScript.abandon()
-	eq(RunScript.start(99, "level03"), false, "未知赛道拒绝")
+	eq(RunScript.start(99, "stage03"), false, "未知赛道拒绝")
 
 
 # --- 计时 ---------------------------------------------------------------------
 
 func test_timer_is_monotonic_and_paused_time_does_not_count() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
-	RunScript.start(Catalog.Track.TIME_ATTACK, "level03")
+	SaveData.mark_flag("stage03_done")
+	RunScript.start(Catalog.Track.TIME_ATTACK, "stage03")
 	var t0 := RunScript.elapsed_ms()
 	ok(t0 >= 0, "开赛计时从 0 起（实际 %d）" % t0)
 	RunScript.tick(1.0)
@@ -156,8 +156,8 @@ func test_timer_is_monotonic_and_paused_time_does_not_count() -> void:
 
 func test_death_counts_and_retry_reloads_the_same_stage_quickly() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
-	RunScript.start(Catalog.Track.TIME_ATTACK, "level03")
+	SaveData.mark_flag("stage03_done")
+	RunScript.start(Catalog.Track.TIME_ATTACK, "stage03")
 	eq(_requested.size(), 1)
 	GameEvents.player_died.emit()
 	eq(RunScript.deaths(), 1, "死亡记数")
@@ -182,6 +182,7 @@ func test_death_counts_and_retry_reloads_the_same_stage_quickly() -> void:
 
 func test_boss_rush_advances_between_bosses_then_finishes() -> void:
 	_unlock()
+	SaveData.mark_flag("stage01_done")
 	SaveData.mark_flag("boss_dead")
 	SaveData.mark_flag("nightmare_dead")
 	# Boss 表随二期交付增长：按 catalog 实际可连战列表推进，测试不写死场次。
@@ -219,8 +220,8 @@ func test_boss_rush_advances_between_bosses_then_finishes() -> void:
 
 func test_goal_finish_writes_records_and_shows_the_result_overlay() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
-	RunScript.start(Catalog.Track.TIME_ATTACK, "level03")
+	SaveData.mark_flag("stage03_done")
+	RunScript.start(Catalog.Track.TIME_ATTACK, "stage03")
 	RunScript.tick(65.0)
 	RunScript.reach_goal()
 	ok(RunScript.finished(), "到达出口即结算")
@@ -231,7 +232,7 @@ func test_goal_finish_writes_records_and_shows_the_result_overlay() -> void:
 			"结算用时接近 65s（%d）" % int(result.get("elapsed_ms", 0)))
 	eq(String(result.get("rank", "")), "S", "基准时间内 S")
 	ok(bool(result.get("is_first", false)), "首通标记")
-	var record := Records.best(Catalog.Track.TIME_ATTACK, "level03")
+	var record := Records.best(Catalog.Track.TIME_ATTACK, "stage03")
 	eq(int(record.get("runs", 0)), 1, "记录写入独立文件")
 	await flush(1)
 	await get_tree().process_frame
@@ -254,10 +255,10 @@ func test_goal_finish_writes_records_and_shows_the_result_overlay() -> void:
 
 func test_pause_retry_exit_and_zero_campaign_writes() -> void:
 	_unlock()
-	SaveData.mark_flag("level07_done")
+	SaveData.mark_flag("stage05_done")
 	var campaign_before := _campaign_save_bytes()
 	var flags_before := SaveData.flags.duplicate()
-	RunScript.start(Catalog.Track.TIME_ATTACK, "level07")
+	RunScript.start(Catalog.Track.TIME_ATTACK, "stage05")
 	ok(RunScript.blocks_campaign_save(), "试炼中 SaveData 写入锁生效")
 	ok(RunScript.suppresses_cinematics(), "试炼中不播间幕 / 章节卡")
 	RunScript.tick(5.0)
@@ -281,8 +282,8 @@ func test_pause_retry_exit_and_zero_campaign_writes() -> void:
 
 func test_exit_to_menu_goes_back_to_the_trial_menu() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
-	RunScript.start(Catalog.Track.TIME_ATTACK, "level03")
+	SaveData.mark_flag("stage03_done")
+	RunScript.start(Catalog.Track.TIME_ATTACK, "stage03")
 	RunScript.exit_to_menu()
 	eq(_requested[_requested.size() - 1], "res://scenes/ui/TrialMenu.tscn",
 			"换赛道回到试炼菜单")
@@ -297,8 +298,8 @@ func test_trial_hud_strip_is_out_of_the_play_band_and_loadout_is_fixed() -> void
 	build_floor(arena)
 	var player := await spawn_player(arena)
 	_unlock()
-	SaveData.mark_flag("level07_done")
-	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "level07"), "开赛")
+	SaveData.mark_flag("stage05_done")
+	ok(RunScript.start(Catalog.Track.TIME_ATTACK, "stage05"), "开赛")
 	await flush(4)
 	ok(RunScript.strip_visible(), "HUD 试炼条出现")
 	var rect := RunScript.strip_rect()
@@ -322,8 +323,8 @@ func test_trial_hud_strip_is_out_of_the_play_band_and_loadout_is_fixed() -> void
 	# 禁核锈行：剑鞘全空、无钩锁。
 	RunScript.abandon()
 	SaveData.mark_flag("trial_unlocked")
-	SaveData.mark_flag("level07_done")
-	ok(RunScript.start(Catalog.Track.BARE_STEEL, "level07"), "禁核开赛")
+	SaveData.mark_flag("stage05_done")
+	ok(RunScript.start(Catalog.Track.BARE_STEEL, "stage05"), "禁核开赛")
 	await flush(4)
 	for core in player.inventory.sockets:
 		eq(core, null, "禁核锈行插座全空")
@@ -346,8 +347,9 @@ func _open_menu():
 
 func test_trial_menu_lists_cleared_targets_records_and_sizes() -> void:
 	_unlock()
+	SaveData.mark_flag("stage01_done")
 	SaveData.mark_flag("boss_dead")
-	SaveData.mark_flag("level07_done")
+	SaveData.mark_flag("stage05_done")
 	var menu = await _open_menu()
 	ok(not menu.locked(), "已解锁时菜单可用")
 	eq(menu.track(), Catalog.Track.BOSS_RUSH, "默认停在 Boss 连战")
@@ -377,7 +379,7 @@ func test_trial_menu_lists_cleared_targets_records_and_sizes() -> void:
 		ok(rect.position.x >= -0.5 and rect.end.x <= 1280.5,
 				"%s 在设计画布内（%s）" % [control.name, rect])
 	# 记录会显示在右侧档案里。
-	Records.submit(Catalog.Track.TIME_ATTACK, "level01",
+	Records.submit(Catalog.Track.TIME_ATTACK, "stage01",
 			{"elapsed_ms": 95000, "deaths": 0, "rank": "A"})
 	menu.select_track(Catalog.Track.TIME_ATTACK)
 	await get_tree().process_frame
@@ -401,7 +403,7 @@ func test_trial_menu_locked_state_and_start_flow() -> void:
 
 func test_trial_menu_start_keyboard_flow_and_esc() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
+	SaveData.mark_flag("stage03_done")
 	var menu = await _open_menu()
 	menu.select_track(Catalog.Track.TIME_ATTACK)
 	await get_tree().process_frame
@@ -423,7 +425,7 @@ func test_trial_menu_start_keyboard_flow_and_esc() -> void:
 
 func test_menu_fits_three_design_resolutions() -> void:
 	_unlock()
-	SaveData.mark_flag("level03_done")
+	SaveData.mark_flag("stage03_done")
 	var menu = await _open_menu()
 	var design := Vector2(PresentationMetrics.UI_SIZE)
 	var card := menu.get_node_or_null("ModalRoot/Card") as Control

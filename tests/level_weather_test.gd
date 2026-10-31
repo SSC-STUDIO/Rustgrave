@@ -163,7 +163,7 @@ func test_rampart_gale_is_local_to_the_gap() -> void:
 ## 真场景验证：走 ChapterLevel → 真实玩家 → 区域轮询这条完整链路。
 ## （peek 工具会把玩家物理关掉再摆位置，和真实游玩不是一条路。）
 func test_real_level_scene_activates_the_region_for_the_real_player() -> void:
-	var packed := load(GameContext.LEVELS["level09"]) as PackedScene
+	var packed := load(GameContext.LEGACY_LEVELS["level09"]) as PackedScene
 	ok(packed != null, "level09 scene loads")
 	if packed == null:
 		return
@@ -195,7 +195,7 @@ func test_real_level_scene_activates_the_region_for_the_real_player() -> void:
 ## 这条用一个真玩家站进风口，确认整条链走通：节点 → 时钟 → 能下雨。
 func test_player_standing_in_the_gap_switches_the_weather() -> void:
 	var host := Node2D.new()
-	host.scene_file_path = GameContext.LEVELS["level09"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level09"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := _layout("level09")

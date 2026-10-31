@@ -29,7 +29,7 @@ func _release_input() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level10_ForgeCore"
-	host.scene_file_path = GameContext.LEVELS["level10"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level10"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new() as ChapterLayout
@@ -416,7 +416,7 @@ func test_original_ending_door_and_fractured_altars_have_support() -> void:
 
 func test_keep_ending_persists_and_returns_to_title() -> void:
 	SaveData.mark_flag("nightmare_dead")
-	var level := (load(GameContext.LEVELS["level10"]) as PackedScene).instantiate() as Node2D
+	var level := (load(GameContext.LEGACY_LEVELS["level10"]) as PackedScene).instantiate() as Node2D
 	add_child(level)
 	await flush(2)
 	Director.abort()

@@ -27,7 +27,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level09_Ramparts"
-	host.scene_file_path = GameContext.LEVELS["level09"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level09"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new()
@@ -59,7 +59,7 @@ func test_main_route_and_preserved_props_are_reachable_without_optional_cores() 
 		ok(LevelSanity.is_reachable(host, LAYOUT.ENTRY_SPAWN, LevelSanity.feet_of(node), false), "%s uses basic jumps" % name_)
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level09_done")
-	eq(exit.target_scene, GameContext.LEVELS["level09b"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level09b"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level09b"))
 	ok(LAYOUT.EXIT_X - previous < 1000.0)
 

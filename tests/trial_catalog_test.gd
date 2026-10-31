@@ -59,11 +59,14 @@ func test_three_tracks_with_stable_ids_and_names() -> void:
 
 # --- 解锁门 -------------------------------------------------------------------
 
-func test_unlock_gate_needs_level07_or_an_ending() -> void:
+func test_unlock_gate_needs_stage05_or_an_ending() -> void:
 	eq(Catalog.unlocked(), false, "新档不开放试炼")
-	ok("玖章" in Catalog.unlock_requirement(), "提示用钟楼的章号（玖），不写旧的第七章")
+	ok("陆章" in Catalog.unlock_requirement(), "提示用铸钟井的章号（陆）")
+	SaveData.mark_flag("stage05_done")
+	eq(Catalog.unlocked(), true, "通关铸钟井（stage05）解锁")
+	SaveData.flags = PackedStringArray()
 	SaveData.mark_flag("level07_done")
-	eq(Catalog.unlocked(), true, "通关第七章解锁")
+	eq(Catalog.unlocked(), true, "旧档 level07_done 兼容解锁")
 	SaveData.flags = PackedStringArray()
 	SaveData.ending = "give"
 	eq(Catalog.unlocked(), true, "任一结局解锁")
@@ -72,8 +75,8 @@ func test_unlock_gate_needs_level07_or_an_ending() -> void:
 	SaveData.mark_flag("trial_unlocked")
 	eq(Catalog.unlocked(), true, "战役写入的 trial_unlocked 也解锁")
 	SaveData.flags = PackedStringArray()
-	SaveData.mark_flag("level06_done")
-	eq(Catalog.unlocked(), false, "只打通第六章还不够")
+	SaveData.mark_flag("stage04b_done")
+	eq(Catalog.unlocked(), false, "只打通雨夜残碑还不够")
 
 
 # --- 章节 / Boss 目标 ---------------------------------------------------------
@@ -82,24 +85,25 @@ func test_cleared_chapters_follow_campaign_order() -> void:
 	eq(Catalog.cleared_chapters().size(), 0, "没通关任何章节时列表为空")
 	eq(Catalog.targets_for(Catalog.Track.TIME_ATTACK).size(), 0,
 			"限时赛道没有可选章节")
-	_flags(["boss_dead", "level03_done", "level07_done"])
+	_flags(["stage01_done", "stage03_done", "stage05_done"])
 	var cleared := Catalog.cleared_chapters()
 	var ids := PackedStringArray()
 	for entry in cleared:
 		ids.append(String(entry["id"]))
-	eq(ids, PackedStringArray(["level01", "level03", "level07"]),
+	eq(ids, PackedStringArray(["stage01", "stage03", "stage05"]),
 			"按 GameContext.LEVEL_ORDER 排序（而不是旗标写入顺序）")
 	var targets := Catalog.targets_for(Catalog.Track.TIME_ATTACK)
 	eq(targets.size(), 3, "限时赛道按已通关章节列目标")
-	eq(String(targets[0]["id"]), "level01")
+	eq(String(targets[0]["id"]), "stage01")
 	ok(String(targets[0]["title"]) != "", "目标带章节标题")
 
 
 func test_chapter_clear_flags_reuse_story_flow() -> void:
-	eq(Catalog.chapter_flag("level01"), "boss_dead")
-	eq(Catalog.chapter_flag("level02"), "undercroft_done")
-	eq(Catalog.chapter_flag("level07"), "level07_done")
-	eq(Catalog.chapter_flag("level10"), "game_complete")
+	eq(Catalog.chapter_flag("stage01"), "stage01_done")
+	eq(Catalog.chapter_flag("stage02"), "stage02_done")
+	eq(Catalog.chapter_flag("stage05"), "stage05_done")
+	eq(Catalog.chapter_flag("stage07"), "stage07_done")
+	eq(Catalog.chapter_flag("stage08_true"), "true_ending_done")
 	for level_id in GameContext.LEVEL_ORDER:
 		eq(Catalog.chapter_flag(level_id), StoryFlow.done_flag(level_id),
 				"%s 的完成旗标与 StoryFlow.DONE_FLAGS 同源" % level_id)
@@ -125,20 +129,20 @@ func test_boss_rush_lists_only_delivered_and_cleared_bosses() -> void:
 	var stages := Catalog.stages_for(Catalog.Track.BOSS_RUSH,
 			Catalog.ALL_BOSSES_ID)
 	eq(stages.size(), 2, "两场连战")
-	eq(String(stages[0]["level_id"]), "level01")
-	eq(String(stages[0]["scene"]), GameContext.LEVELS["level01"])
-	eq(String(stages[1]["level_id"]), "level10")
-	eq((stages[0]["spawn"] as Vector2), Vector2(Level01EastWing.ARENA_CENTER_X - 204.0, Level01EastWing.STAGE_Y - 20.0), "Boss 竞技场落点来自当前布局")
+	eq(String(stages[0]["level_id"]), "stage01")
+	eq(String(stages[0]["scene"]), GameContext.LEVELS["stage01"])
+	eq(String(stages[1]["level_id"]), "stage07")
+	eq((stages[0]["spawn"] as Vector2), Vector2(96.0, 324.0), "Boss 竞技场落点来自当前布局")
 
 
 func test_chapter_track_has_a_single_stage_at_the_level_start() -> void:
-	_flags(["level03_done"])
-	var stages := Catalog.stages_for(Catalog.Track.BARE_STEEL, "level03")
+	_flags(["stage03_done"])
+	var stages := Catalog.stages_for(Catalog.Track.BARE_STEEL, "stage03")
 	eq(stages.size(), 1, "限时 / 禁核：一章一场")
-	eq(String(stages[0]["level_id"]), "level03")
-	eq(String(stages[0]["scene"]), GameContext.LEVELS["level03"])
+	eq(String(stages[0]["level_id"]), "stage03")
+	eq(String(stages[0]["scene"]), GameContext.LEVELS["stage03"])
 	eq((stages[0]["spawn"] as Vector2), Vector2.INF, "章节赛从关卡默认出生点开始")
-	eq(Catalog.stages_for(Catalog.Track.BARE_STEEL, "level09b").size(), 0,
+	eq(Catalog.stages_for(Catalog.Track.BARE_STEEL, "stage06").size(), 0,
 			"未通关章节不能开赛")
 
 

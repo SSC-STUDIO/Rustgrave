@@ -345,8 +345,8 @@ func _build_props(host: Node2D, props: Node2D, hooks: Node2D) -> void:
 		exit.requires_flag = EXIT_REQUIRES
 		exit.locked_prompt = EXIT_LOCKED_PROMPT
 	var next_id := GameContext.next_level_id("level02")
-	if next_id != "" and GameContext.LEVELS.has(next_id):
-		exit.target_scene = GameContext.LEVELS[next_id]
+	if next_id != "" and GameContext.scene_for(next_id) != "":
+		exit.target_scene = GameContext.scene_for(next_id)
 		exit.spawn = ChapterLayout.entry_spawn_of(next_id)
 	props.add_child(exit)
 

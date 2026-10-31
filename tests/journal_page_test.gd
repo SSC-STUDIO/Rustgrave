@@ -48,8 +48,7 @@ func _press(node: Node, action: StringName) -> void:
 
 
 func _seen_flags() -> PackedStringArray:
-	return PackedStringArray([Boards.seen_flag(Boards.PROLOGUE),
-			StoryFlow.interlude_flag("level01"), Boards.seen_flag("ending_give")])
+	return PackedStringArray([Boards.seen_flag(Boards.PROLOGUE), Boards.seen_flag("ending_give")])
 
 
 # ------------------------------------------------------------ 故事页内容 ----
@@ -58,9 +57,9 @@ func test_an_empty_save_shows_the_fallback_recap_and_the_first_goal() -> void:
 	var journal = await _make_journal()
 	journal.open()
 	eq(journal.recap_label().text, StoryFlow.RECAP_FALLBACK, "没通关任何一章：前情用兜底句")
-	eq(journal.objective_label().text, ChapterText.objective_of("level01"),
+	eq(journal.objective_label().text, ChapterText.objective_of("stage01"),
 			"没有存档进度：目标是第一章的目标")
-	ok(journal.chapter_label().text.contains(ChapterText.name_of("level01")), "章节行写章名")
+	ok(journal.chapter_label().text.contains(ChapterText.name_of("stage01")), "章节行写章名")
 	ok(journal.replay_ids().is_empty(), "空存档没有可重看的分镜")
 	ok(journal.replay_empty_visible(), "重看页给出空态说明")
 	eq(journal.replay_menu().items().size(), 0, "空态下菜单一行也没有")
@@ -69,14 +68,14 @@ func test_an_empty_save_shows_the_fallback_recap_and_the_first_goal() -> void:
 
 
 func test_the_goal_and_the_recap_follow_the_chapter_and_the_flags() -> void:
-	SaveData.flags = PackedStringArray([StoryFlow.done_flag("level01"), StoryFlow.done_flag("level02"),
-			StoryFlow.done_flag("level02b")])
+	SaveData.flags = PackedStringArray([StoryFlow.done_flag("stage01"), StoryFlow.done_flag("branch01"),
+			StoryFlow.done_flag("stage02")])
 	var journal = await _make_journal()
-	journal.open("level04")
-	eq(journal.objective_label().text, ChapterText.objective_of("level04"), "目标按当前章节")
-	ok(journal.chapter_label().text.contains(ChapterText.name_of("level04")), "章节行跟着变")
+	journal.open("stage03")
+	eq(journal.objective_label().text, ChapterText.objective_of("stage03"), "目标按当前章节")
+	ok(journal.chapter_label().text.contains(ChapterText.name_of("stage03")), "章节行跟着变")
 	eq(journal.recap_label().text, StoryFlow.recap_text(), "前情就是 StoryFlow.recap_text()")
-	ok(journal.recap_label().text.contains(ChapterText.recap_of("level02b")),
+	ok(journal.recap_label().text.contains(ChapterText.recap_of("stage02")),
 			"最新通关的一章在前情里")
 	ok(journal.recap_label().text != StoryFlow.RECAP_FALLBACK, "通关过就不再用兜底句")
 	journal.queue_free()
@@ -84,11 +83,11 @@ func test_the_goal_and_the_recap_follow_the_chapter_and_the_flags() -> void:
 
 
 func test_without_a_known_scene_the_goal_comes_from_save_progress() -> void:
-	SaveData.flags = PackedStringArray([StoryFlow.done_flag("level01")])
+	SaveData.flags = PackedStringArray([StoryFlow.done_flag("stage01"), StoryFlow.done_flag("branch01")])
 	var journal = await _make_journal()
 	journal.open()
-	eq(JournalScript.progress_chapter_id(), "level02", "第一章通关了：下一章是第二章")
-	eq(journal.objective_label().text, ChapterText.objective_of("level02"))
+	eq(JournalScript.progress_chapter_id(), "stage02", "前两节点通关了：下一节点是 stage02")
+	eq(journal.objective_label().text, ChapterText.objective_of("stage02"))
 	journal.queue_free()
 	await get_tree().process_frame
 
@@ -109,8 +108,8 @@ func test_cast_and_term_pages_follow_progress_and_keep_the_canonical_sentence() 
 	for term in journal.term_names_shown():
 		eq(journal.entry_text(JournalScript.TAB_TERMS, term), ChapterText.term_of(term), "%s 的白话" % term)
 
-	journal.open("level10")
-	var late := ChapterText.progress_index("level10", SaveData.flags)
+	journal.open("stage07")
+	var late := ChapterText.progress_index("stage07", SaveData.flags)
 	eq(journal.cast_names_shown(), ChapterText.revealed_cast(late), "走到炉心：人物按进度补全")
 	ok(journal.cast_names_shown().has("梦魇"), "炉心章节看得到梦魇")
 	ok(journal.term_names_shown().has("锈核"), "过了工坊看得到锈核")
@@ -124,9 +123,8 @@ func test_the_replay_page_lists_only_what_was_seen() -> void:
 	journal.open()
 	var expected := Boards.replay_list(SaveData.flags)
 	eq(journal.replay_ids(), expected, "重看列表 = Boards.replay_list(存档旗标)")
-	eq(journal.replay_ids(), [Boards.PROLOGUE, Boards.interlude_id("level01"), Boards.ending_id("give")],
-			"看过序章、第一章间幕和还火结局")
-	ok(not journal.replay_ids().has(Boards.interlude_id("level02")), "没看过的章间不列")
+	eq(journal.replay_ids(), [Boards.PROLOGUE, Boards.ending_id("give")],
+			"看过序章与还火结局（v4 已彻底移除黑屏间幕分镜）")
 	ok(not journal.replay_ids().has(Boards.ending_id("keep")), "没看过的结局不列")
 	ok(not journal.replay_empty_visible(), "有内容就不显示空态")
 	eq(journal.replay_menu().items().size(), expected.size(), "菜单行数 = 列表条数")
@@ -253,7 +251,7 @@ func test_replay_hides_the_overlays_and_brings_them_back() -> void:
 	ok(not Director.board_active(), "被打断后播放器收起")
 	ok(not journal.replaying(), "故事页不再回放")
 	ok(journal.root_control().visible, "故事页恢复可见")
-	ok(pause_root.visible, "暂停菜单的卡片恢复可见")
+	ok(not pause_root.visible, "故事子页仍开着时铁牌底板保持隐藏")
 	eq(journal.current_tab(), JournalScript.TAB_REPLAY, "回到「重 看」页")
 	ok(journal.replay_menu().active, "列表重新吃输入")
 	eq(journal.replay_menu().selected_id(), &"prologue", "光标停在刚重看的那一项")
@@ -326,14 +324,14 @@ func _make_recap():
 
 func test_recap_rows_cover_continue_replays_modes_back_and_chapters() -> void:
 	var recap = await _make_recap()
-	var flags := [StoryFlow.done_flag("level01"), StoryFlow.done_flag("level02"),
+	var flags := [StoryFlow.done_flag("stage01"), StoryFlow.done_flag("stage02"),
 			Boards.seen_flag(Boards.PROLOGUE), Boards.seen_flag("ending_give")]
 	recap.open(_recap_info("give", flags))
 	var ids: Array = recap.row_ids()
 	eq(ids, [&"continue", &"replay_prologue", &"replay_ending_give", &"arena", &"trial", &"back",
-			&"chapter_level01", &"chapter_level02"], "总结页的行：继续 / 重温序章 / 重温结局 / 模式 / 返回 / 再入各章")
+			&"chapter_stage01", &"chapter_stage02"], "总结页的行：继续 / 重温序章 / 重温结局 / 模式 / 返回 / 再入各章")
 	eq(recap.heading_text(), "结局 · 还火", "标题写结局名")
-	eq(recap.count_text(), "已过 2 / 14 章", "第一、二章按 DONE_FLAGS 算进去（boss_dead / undercroft_done）")
+	eq(recap.count_text(), "已过 2 / 14 章", "前两主线节点按 DONE_FLAGS 算进去（boss_dead / capstan_dead）")
 	eq(recap.summary_text(), ChapterText.ending_summary_of("give"), "有结局时总结段是结局概述")
 	var first: MenuItem = recap.menu().items()[0]
 	ok(first._text.contains("继 续 旅 程"), "第一行是继续旅程")
@@ -365,7 +363,7 @@ func test_recap_without_a_save_or_an_ending_is_still_sane() -> void:
 
 func test_recap_rows_emit_the_requests_the_title_listens_to() -> void:
 	var recap = await _make_recap()
-	recap.open(_recap_info("keep", [StoryFlow.done_flag("level01"), StoryFlow.done_flag("level02")]))
+	recap.open(_recap_info("keep", [StoryFlow.done_flag("stage01"), StoryFlow.done_flag("stage02")]))
 	var calls: Array = []
 	recap.continue_requested.connect(func() -> void: calls.append("continue"))
 	recap.arena_requested.connect(func() -> void: calls.append("arena"))
@@ -375,10 +373,10 @@ func test_recap_rows_emit_the_requests_the_title_listens_to() -> void:
 	recap.choose(&"continue")
 	recap.choose(&"arena")
 	recap.choose(&"trial")
-	recap.choose(&"chapter_level02")
+	recap.choose(&"chapter_stage02")
 	recap.choose(&"back")
 	await get_tree().process_frame
-	eq(calls, ["continue", "arena", "trial", "chapter:level02", "closed"], "每一行发自己的信号")
+	eq(calls, ["continue", "arena", "trial", "chapter:stage02", "closed"], "每一行发自己的信号")
 	ok(not recap.visible, "返回关掉总结页")
 	recap.queue_free()
 	await get_tree().process_frame
@@ -387,7 +385,7 @@ func test_recap_rows_emit_the_requests_the_title_listens_to() -> void:
 func test_recap_offers_the_saved_ending_even_without_a_seen_flag() -> void:
 	var recap = await _make_recap()
 	# 旧存档：分镜系统之前通关的，没有 board_seen_* 旗标，但存档里记着结局。
-	recap.open(_recap_info("snuff", [StoryFlow.done_flag("level01")]))
+	recap.open(_recap_info("snuff", [StoryFlow.done_flag("stage01")]))
 	ok(recap.row_ids().has(&"replay_ending_snuff"), "存档里的结局永远能重温")
 	ok(not recap.row_ids().has(&"replay_ending_give"), "没得到过的结局不列")
 	recap.queue_free()

@@ -47,6 +47,7 @@ const ENEMY_SCENES := {
 	"hollow_bell": "res://scenes/enemies/HollowBell.tscn",
 	"bell_founder": "res://scenes/enemies/BellFounder.tscn",
 	"emberwind_herald": "res://scenes/enemies/EmberwindHerald.tscn",
+	"furnace_mother": "res://scenes/enemies/FurnaceMotherBoss.tscn",
 }
 
 ## Boss 竞技场容器（scripts/world/boss_arena.gd）。
@@ -363,8 +364,8 @@ func exit_door(host: Node2D, x: float, label: String, captions: PackedStringArra
 	e.flag_id = flag_id
 	e.requires_flag = requires_flag
 	e.locked_prompt = locked_prompt
-	if next_level_id != "" and GameContext.LEVELS.has(next_level_id):
-		e.target_scene = GameContext.LEVELS[next_level_id]
+	if next_level_id != "" and GameContext.scene_for(next_level_id) != "":
+		e.target_scene = GameContext.scene_for(next_level_id)
 		e.spawn = ChapterLayout.entry_spawn_of(next_level_id)
 	group(host, "Props").add_child(e)
 	return e
@@ -372,7 +373,7 @@ func exit_door(host: Node2D, x: float, label: String, captions: PackedStringArra
 
 ## 下一关的落点（读它的 layout）。
 static func entry_spawn_of(next_level_id: String) -> Vector2:
-	var path: String = GameContext.LAYOUTS.get(next_level_id, "")
+	var path: String = GameContext.STAGE_SCRIPTS.get(next_level_id, GameContext.LAYOUTS.get(next_level_id, ""))
 	if path == "" or not ResourceLoader.exists(path):
 		return Vector2(96, 300)
 	var script := load(path) as GDScript

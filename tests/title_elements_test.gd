@@ -61,7 +61,7 @@ func _state(variant_id: String) -> Dictionary:
 			return _journey(8)
 		"act4":
 			return _journey(13)
-	return TitleWorld.build_state(_peek("level10", _done_flags(14), variant_id))
+	return TitleWorld.build_state(_peek("stage08_true", _done_flags(14), variant_id))
 
 
 func _all_variants() -> Array:
@@ -639,11 +639,13 @@ func test_the_footer_and_the_hall_follow_the_menu_focus() -> void:
 	eq(ids[3], &"arena", "竞技场在第 4 行（索引 3）")
 	# 每一步都换行（默认选中的那一行搭菜单时就聚焦过了，不会再发一次焦点变化）：
 	# 有存档时默认停在第 2 行、没存档时停在第 1 行，这个顺序两种情况下都是真换行。
+	# 「继续」行的说明是动态的（章节 / 进度 / 无档 / 结局），其余行走静态 MENU_HINTS。
 	for i in [2, 3, 4, 5, 6, 0, 1]:
 		menu.select(i, false)
 		eq(menu.selected_id(), ids[i])
-		eq(title.footer_hint_text(), TitleScreen.hint_for(ids[i], title._continue_opens_recap),
-				"页脚写的是 %s 这一行的说明" % String(ids[i]))
+		var expected := TitleScreen.continue_hint(title.look()) if ids[i] == TitleScreen.ID_CONTINUE \
+				else TitleScreen.hint_for(ids[i], title._continue_opens_recap)
+		eq(title.footer_hint_text(), expected, "页脚写的是 %s 这一行的说明" % String(ids[i]))
 		eq(world.last_reaction(), ids[i], "炉厅对 %s 有反应" % String(ids[i]))
 	menu.select(3, false)
 	ok(title.footer_hint_text().contains("3D"), "竞技场行：页脚说明3D场景试演")

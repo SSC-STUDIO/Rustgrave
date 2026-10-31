@@ -1,9 +1,9 @@
 extends TestCase
 ## Phase-2 route audit across all chapters (pure geometry via LevelSanity, no input):
-##   · respawn soft-locks: from every Ember Nest the exit / forge heart is still reachable
+##   · respawn soft-locks: from every Ember Nest / room checkpoint the exit / room gate / forge heart is still reachable
 ##   · every placed Rust-Core pickup can be reached from the spawn (grapple allowed)
-##   · every chapter has a checkpoint; checkpoint spacing is printed as an audit line
-## Chapters 3+ must be finishable without the grapple (same rule as level_sanity_test).
+##   · every chapter has a checkpoint (EmberNest or StageLevel room checkpoint)
+## Chapters must be finishable from checkpoints without soft-locks.
 
 
 func setup() -> void:
@@ -40,38 +40,47 @@ func test_no_respawn_soft_locks_and_cores_reachable() -> void:
 		var player := get_tree().get_first_node_in_group("player") as Node2D
 		var spawn := player.global_position if player != null else Vector2.INF
 		var allow_hook := not GameContext.LAYOUTS.has(id)
-		var goals: Array[Node2D] = []
+		var goal_pts: Array[Vector2] = []
 		var nests: Array[Node2D] = []
 		var cores: Array[Node2D] = []
 		for node in LevelSanity._descendants(level):
 			if node is LevelExit or node is ForgeHeart:
-				goals.append(node as Node2D)
+				goal_pts.append(LevelSanity.feet_of(node))
+			elif node is RoomGate:
+				var gp := (node as RoomGate).walkable_goal_point()
+				if gp != Vector2.INF:
+					goal_pts.append(gp)
 			elif node is EmberNest:
 				nests.append(node as Node2D)
 			elif node is CorePickup:
 				cores.append(node as Node2D)
-		ok(not nests.is_empty(), "%s has at least one checkpoint" % id)
+		var has_room_ckpt := level is StageLevel and (level as StageLevel).room_checkpoint_spawn() != Vector2.INF
+		ok(not nests.is_empty() or has_room_ckpt, "%s has at least one checkpoint" % id)
 		for nest in nests:
 			var feet := LevelSanity.feet_of(nest)
-			for goal in goals:
-				ok(LevelSanity.is_reachable(level, feet, LevelSanity.feet_of(goal), allow_hook),
-						"%s: respawning at %s can still reach %s" % [id, nest.name, goal.name])
+			for gp in goal_pts:
+				ok(LevelSanity.is_reachable(level, feet, gp, allow_hook),
+						"%s: respawning at %s can still reach %s" % [id, nest.name, str(gp)])
+		if has_room_ckpt:
+			var ckpt := (level as StageLevel).room_checkpoint_spawn()
+			for gp in goal_pts:
+				ok(LevelSanity.is_reachable(level, ckpt, gp, allow_hook),
+						"%s: respawning at room checkpoint can reach %s" % [id, str(gp)])
 		for core in cores:
 			var feet := LevelSanity.feet_of(core)
 			ok(LevelSanity.is_reachable(level, spawn, feet, true) or _hook_near(level, feet),
 					"%s: core %s can be reached" % [id, core.name])
-		# Audit line: checkpoint spacing along the route (for the report, not a gate).
 		var xs: Array[float] = [spawn.x]
 		for nest in nests:
 			xs.append(nest.global_position.x)
-		for goal in goals:
-			xs.append(goal.global_position.x)
+		for gp in goal_pts:
+			xs.append(gp.x)
 		xs.sort()
 		var widest := 0.0
 		for i in range(1, xs.size()):
 			widest = maxf(widest, xs[i] - xs[i - 1])
 		print("[ROUTE AUDIT] %s nests=%d cores=%d goals=%d widest_gap_px=%d hook_allowed=%s" % [
-				id, nests.size(), cores.size(), goals.size(), int(widest), str(allow_hook)])
+				id, nests.size(), cores.size(), goal_pts.size(), int(widest), str(allow_hook)])
 		level.free()
 		await flush(1)
 
@@ -84,7 +93,7 @@ func _hook_near(level: Node, point: Vector2) -> bool:
 
 
 func test_cathedral_has_a_checkpoint_past_the_choir_door() -> void:
-	var level := await _load_level(String(GameContext.LEVELS["level04"]))
+	var level := await _load_level(String(GameContext.LEGACY_LEVELS["level04"]))
 	if level == null:
 		return
 	var nest := level.get_node_or_null("Props/EmberNestChoir") as EmberNest

@@ -9,6 +9,11 @@ extends Object
 
 const VIEW_W := 1280
 const VIEW_H := 720
+## The title/UI design layer is 1280x720. Below this the whole UI is rendered at
+## k/2 physical scale (960x540 -> 0.5x), so real windows must not go below it.
+## Offscreen acceptance tools opt out with RUSTGRAVE_ALLOW_SMALL_WINDOW=1.
+const MIN_WINDOW := Vector2i(VIEW_W, VIEW_H)
+const ALLOW_SMALL_WINDOW_ENV := "RUSTGRAVE_ALLOW_SMALL_WINDOW"
 
 enum FitMode {
 	ADAPTIVE = 0,   ## 自适应铺满 (Keep Aspect + Fractional)
@@ -25,7 +30,7 @@ const PRESET_RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1920, 1200),  ## WUXGA (16:10)
 	Vector2i(2560, 1080),  ## 21:9 WFHD
 	Vector2i(3440, 1440),  ## 21:9 UWQHD
-	Vector2i(1024, 768),   ## 4:3 XGA
+	Vector2i(1280, 1024),  ## 5:4 SXGA: still holds the 1280x720 content rect at 1x
 ]
 
 static var _current_fit_mode: FitMode = FitMode.INTEGER
@@ -43,7 +48,21 @@ static func _get_root_window(win: Window = null) -> Window:
 
 static func apply(win: Window = null) -> void:
 	_apply_saved_window_mode()
+	_apply_min_window_size()
 	apply_fit_mode(int(Settings.value(&"display_fit", FitMode.INTEGER)) as FitMode, win)
+
+
+## Keep real windows at/above the 1280x720 UI design layer. The offscreen title
+## and UI capture wrappers set the env var so 960x540 diagnostic frames stay possible.
+static func _allow_small_window() -> bool:
+	return OS.has_environment(ALLOW_SMALL_WINDOW_ENV) \
+			and OS.get_environment(ALLOW_SMALL_WINDOW_ENV) == "1"
+
+
+static func _apply_min_window_size() -> void:
+	if DisplayServer.get_name() == "headless" or _allow_small_window():
+		return
+	DisplayServer.window_set_min_size(MIN_WINDOW)
 
 
 ## 启动后第一次 apply 时恢复玩家在设置里选的全屏（只做一次，之后窗口模式归玩家说了算）。
@@ -140,6 +159,8 @@ static func get_aspect_ratio_name(size: Vector2i = Vector2i.ZERO) -> String:
 		return "16:10 (Deck/掌机)"
 	elif absf(ratio - (21.0 / 9.0)) < 0.15 or ratio > 2.2:
 		return "21:9 (超宽带鱼屏)"
+	elif absf(ratio - 1.25) < 0.04:
+		return "5:4 (复古方屏)"
 	elif absf(ratio - (4.0 / 3.0)) < 0.05:
 		return "4:3 (复古方屏)"
 	return "%.2f:1" % ratio

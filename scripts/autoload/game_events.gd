@@ -29,3 +29,11 @@ signal boss_defeated
 signal chapter_started(level_id: String)
 signal boss_intro_started(boss_name: String)
 signal boss_phase_changed(boss_name: String, phase: int)
+## ICEY-style multi-room & real-time dynamic narrative signals.
+signal room_entered(stage_id: String, room_id: String)
+signal battle_wave_started(wave_index: int, total_waves: int)
+signal battle_room_cleared(room_id: String)
+signal voice_triggered(clip_id: String, force_interrupt: bool)
+signal disobedience_triggered(branch_id: String, step: int)
+signal truth_fragment_acquired(fragment_id: String)
+signal stage_node_unlocked(node_id: String)

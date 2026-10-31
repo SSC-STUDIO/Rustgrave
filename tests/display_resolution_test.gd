@@ -1,6 +1,6 @@
 extends TestCase
 ## 多分辨率与多屏幕比例适配单元测试。
-## 验证 16:9 (1080p/2K/4K)、16:10 (Steam Deck)、21:9 (带鱼屏)、4:3 (复古屏) 的
+## 验证 16:9 (1080p/2K/4K)、16:10 (Steam Deck)、21:9 (带鱼屏)、5:4/4:3 (复古屏) 的
 ## 视口比例判定、缩放模式及 HUD/标题 UI 控件锚点完整性。
 
 const HUD_SCENE := "res://scenes/ui/HUD.tscn"
@@ -17,7 +17,12 @@ func test_common_resolutions_defined() -> void:
 	ok(Vector2i(1280, 800) in presets, "contains Steam Deck 1280x800")
 	ok(Vector2i(1920, 1200) in presets, "contains 16:10 laptop 1920x1200")
 	ok(Vector2i(2560, 1080) in presets, "contains 21:9 ultrawide")
-	ok(Vector2i(1024, 768) in presets, "contains 4:3 legacy")
+	ok(Vector2i(1280, 1024) in presets, "contains 5:4 legacy")
+	ok(not (Vector2i(1024, 768) in presets),
+			"1024x768 is gone: it would render the 1280x720 UI at 0.625x")
+	for preset in presets:
+		ok(preset.x >= DisplayFit.MIN_WINDOW.x and preset.y >= DisplayFit.MIN_WINDOW.y,
+				"preset %s keeps the 1280x720 UI layer at >=1x" % preset)
 
 
 func test_aspect_ratio_detection_math() -> void:
@@ -29,6 +34,7 @@ func test_aspect_ratio_detection_math() -> void:
 	eq(DisplayFit.get_aspect_ratio_name(Vector2i(1920, 1200)), "16:10 (Deck/掌机)")
 	eq(DisplayFit.get_aspect_ratio_name(Vector2i(2560, 1080)), "21:9 (超宽带鱼屏)")
 	eq(DisplayFit.get_aspect_ratio_name(Vector2i(3440, 1440)), "21:9 (超宽带鱼屏)")
+	eq(DisplayFit.get_aspect_ratio_name(Vector2i(1280, 1024)), "5:4 (复古方屏)")
 	eq(DisplayFit.get_aspect_ratio_name(Vector2i(1024, 768)), "4:3 (复古方屏)")
 
 

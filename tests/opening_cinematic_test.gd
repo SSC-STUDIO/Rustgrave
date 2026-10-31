@@ -81,7 +81,7 @@ func test_beat_sheet_fits_the_budget_and_uses_only_known_step_kinds() -> void:
 	ok(Opening.LINES[0].begins_with("伊尔：") and Opening.LINES[0].contains("火种"),
 			"Yir wakes you and says the fire is about to go out")
 	ok(Opening.LINES[1].contains("剑"), "she says she is in the sword on your back")
-	ok(Opening.LINES[2].contains("封进火种之前"),
+	ok(Opening.LINES[2].contains("箭头"),
 			"the echo is explicitly Yir's words from before she sealed herself")
 	ok(Opening.LINES[3].contains("钟") and Opening.LINES[3].contains("名字"),
 			"the anomaly is the bell counting names under the graves")
@@ -95,7 +95,7 @@ func test_beat_sheet_fits_the_budget_and_uses_only_known_step_kinds() -> void:
 	for raw in steps:
 		if (raw as Dictionary).get("id", "") == "chapter":
 			card = raw
-	eq(card.get("title", ""), "腐液回廊")
+	eq(card.get("title", ""), "腐液墓园")
 	eq(card.get("subtitle", ""), "锈墓・壹")
 	almost(float(card.get("seconds", 0.0)), Opening.CARD_SECONDS, 0.001)
 

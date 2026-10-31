@@ -21,7 +21,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level06_NightGraveyard"
-	host.scene_file_path = GameContext.LEVELS["level06"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level06"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new()
@@ -48,7 +48,7 @@ func test_main_route_and_all_checkpoints_remain_reachable_without_optional_cores
 		ok(LevelSanity.is_reachable(host, Vector2(96, 300), LevelSanity.feet_of(node), false), "%s is reachable" % name_)
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level06_done")
-	eq(exit.target_scene, GameContext.LEVELS["level07"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level07"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level07"))
 
 

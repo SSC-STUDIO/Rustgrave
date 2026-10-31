@@ -7,6 +7,7 @@ signal died
 
 @export var max_hp: int = 5
 @export var hit_iframe_time: float = CombatRules.HIT_IFRAMES
+@export var quiet: bool = false
 
 var current: int
 var invincible: bool = false
@@ -28,7 +29,7 @@ func is_invincible() -> bool:
 	return invincible or _hit_iframe > 0.0 or _dead
 
 
-func take_damage(amount: int, attacker: Node = null) -> bool:
+func take_damage(amount: int, attacker: Node = null, force_quiet: Variant = null) -> bool:
 	if amount <= 0 or is_invincible():
 		return false
 	var effective_damage := amount
@@ -40,7 +41,9 @@ func take_damage(amount: int, attacker: Node = null) -> bool:
 	current = maxi(0, current - effective_damage)
 	_hit_iframe = hit_iframe_time
 	changed.emit(current, max_hp)
-	GameEvents.hit.emit(attacker, get_parent(), effective_damage)
+	var is_quiet: bool = quiet if force_quiet == null else bool(force_quiet)
+	if not is_quiet or _player_in_chain(attacker) or _player_in_chain(host):
+		GameEvents.hit.emit(attacker, host, effective_damage)
 	if current <= 0 and not _dead:
 		_dead = true
 		died.emit()
@@ -60,6 +63,19 @@ func set_max_hp(new_max: int) -> void:
 	else:
 		current = clampi(current, 1, max_hp)
 	changed.emit(current, max_hp)
+
+
+## Hand out a hit-iframe window (never shortens one already running).
+func grant_iframes(seconds: float) -> void:
+	_hit_iframe = maxf(_hit_iframe, seconds)
+
+
+func _player_in_chain(node: Node) -> bool:
+	while node != null and is_instance_valid(node):
+		if node is Player or node.is_in_group(&"player"):
+			return true
+		node = node.get_parent()
+	return false
 
 
 func heal_full() -> void:

@@ -1,420 +1,487 @@
 class_name ChapterText
 extends RefCounted
-## Rustgrave 战役的**唯一剧情文本源**（contract §1.2；v3「看得懂」重写版）。
+## 《锈墓 Rustgrave》战役唯一剧情文本源（v4「焚名轮回 · 第四十九号柴薪骗局」版）。
 ##
-## 关卡 layout、开场、第一章事件字幕、章间分镜、暂停菜单「故事」页都从这里取字；改故事只改
-## 这个文件 + docs/story.md（tests/chapter_text_test.gd 会逐字比对 docs 的「文本锚点」）。
+## 双层叙事（对标《ICEY》实时动态旁白与叛逆分支）：
+##   · 表面剧本（顺从发光箭头）：剑中「伊尔」自称最后一个守炉人，引导余烬骑士把火种送回炉心，
+##     声称投剑入炉能解放两百年被烧的名字；若顺从到底，在炉门前只会迎来第四十九次柴薪自焚或枯守假结局。
+##   · 深层真相（违抗箭头闯入 5 条裂隙禁区）：你其实是批量浇铸的「第四十九号收火偶」，重剑凹槽是抽吸沿途
+##     亡魂余温的蓄火导轨，剑中「伊尔」是用百年前叛逃者嗓音合成的「司炉回声（牧火程序）」。集齐 5 枚
+##     【真名残片】后真伊尔残响苏醒，战马梦魇俯首让路，开启隐藏终章「归零母模」，斩断炉约（真结局）。
 ##
-## Canon（v3，一句话：锈墓靠烧死人的魂点了二百年的灯；最后一个守炉人伊尔把自己和最后的
-## 火种封进你的剑，请你把它还给炉心，放所有被烧的魂走——代价是你也会被烧尽）：
-##   · 炉约：二百年前全城立的誓。人死后名字刻在剑上、剑投进炉里烧，换灯不灭；名字烧了，
-##     魂就困在铁里回不来。立誓、烧名字的那批人叫守炉人。
-##   · 一百年前炉心熄灭。守炉人把最后一口火封进一枚小核——火种（熔了钟楼的钟舌铸的），
-##     放上炉座当灯芯，又烧了一百年，灯一年比一年暗。
-##   · 如今火种快灭。最后一个守炉人伊尔不愿再烧：她把自己的魂封进火种、从炉座取下、嵌进
-##     你背上的剑，托你带它回炉心。伊尔的动作都在「封进火种之前」；你听到的是火种里的回声。
-##   · 你是余烬骑士：守炉人造来替死者扛剑进炉的人偶，没用上就锈了；伊尔从渣里把你捡回来。
-##   · 第一章：火种快灭，先放上炉座续一口火才撑得到炉心；刽子手守着炉座（誓约不许任何人碰）。
-##   · 钥匙：炉心门认火种不认人，所以只能由你带去。梦魇是不肯进炉的战马，守着炉心门。
-##   · 终点：还火（放魂走、你也散成铁）／守炉（留下做新的守炉人，火不灭名字不走）。第一章
-##     可以提前熄火：你没问到，魂永远没有出路。
-##   · 称呼只用「你 / 余烬骑士」「伊尔」「守炉人」「锈墓（城）」；不出现设计术语（测试会拦）。
-##
-## 这个脚本必须是叶子节点：只要常量、没有 preload、不引用场景，避免 HUD 的
-## PauseMenu → MapScreen → ChapterTitles → ChapterText 预加载链把关卡场景拖回加载图。
-##
-## 章号与 id 分离：存档/旗标永远用 id（level03_done），显示章号只在这里（14 章重编）。
-## 长度纪律：醒来句 ≤30 字；目标 ≤16 字；碑文 ≤2 行 × 22 字；出口字幕 1–2 句、每句 ≤30 字；
-## 前情 ≤40 字。台词用「说话人：内容」写，Caption / 分镜会把说话人单独画成名牌。
+## 本脚本保持纯常量 + 纯静态函数叶子节点（零 preload、零场景引用），同时保留 LEGACY_CHAPTERS 兜底表，
+## 确保旧版独立关卡测试夹具读取 level01..level10 时依然零报错。
 
-## 四段。act id 供 StoryFlow / 文档 / 测试分组，name 只显示。
+## 四段旅程（与标题标尺 TitleGauge.ACT_STARTS = [0, 3, 7, 11] 一一对齐）。
 const ACTS: Array[Dictionary] = [
 	{"id": &"awake", "name": "醒"},
-	{"id": &"debt", "name": "账"},
+	{"id": &"doubt", "name": "疑"},
 	{"id": &"cast", "name": "铸"},
-	{"id": &"forge", "name": "炉"},
+	{"id": &"break", "name": "破"},
 ]
 
-## 能出现在「说话人：」前缀位置的名字。Caption 与分镜按这张表认人。
+## 能出现在「说话人：」前缀位置的名字。Caption、LiveVoiceBar 与分镜按这张表认人。
 const SPEAKERS: Array[String] = [
-	"伊尔", "余烬骑士", "刽子手", "灰卫", "梦魇", "守渠人", "铸钟人", "哈伦", "薇尔",
+	"伊尔", "伊尔？", "司炉回声", "真伊尔", "余烬骑士",
+	"刽子手", "空钟", "守渠人", "无声唱诗班", "哈伦残响",
+	"铸钟人", "灰卫", "炉风先驱", "梦魇", "哈伦", "薇尔", "母模",
 ]
 
+## 14 节点战役表（8 主线大区 + 5 叛逆裂隙支线 + 1 隐藏真结局终章）。
+## 长度纪律：wake ≤30 字；objective ≤16 字；exit_captions 每句 ≤30 字；recap ≤40 字。
 const CHAPTERS := {
-	"level01": {
+	"stage01": {
 		"number": "壹",
-		"name": "腐液回廊",
+		"name": "腐液墓园",
 		"act": &"awake",
-		"objective": "把火种放上炉座续火",
-		"wake": "伊尔：火种快灭了。先去炉座续一口火。",
-		"exit_label": "",
-		"exit_captions": ["火种续上了火。收回剑里，带它下去。", "脚下的石板松开了，下面有钟声。"],
-		"steles": [
-			{"node": "SteleForge", "title": "炉约纪事 · 熔熄",
-					"text": "一百年前炉心熄了。守炉人把最后一口火封进火种，放上炉座当灯芯。"},
-			{"node": "SteleCoolant", "title": "工坊遗训 · 腐液",
-					"text": "腐液是淬剑用的冷却液。吸进去伤肺，也会把记忆淬进铁里。"},
-			{"node": "SteleExecutioner", "title": "刽子手的誓言",
-					"text": "炉座只许守炉人点火。谁碰炉座，谁先被我斩。"},
-		],
-		"boss_intro": "守 座 的 人",
-		"recap": "火种快灭，你在炉座续了一口火，带它下城。",
+		"objective": "顺着路标去炉座续火",
+		"wake": "伊尔：火种快灭了。顺箭头去炉座续一口火。",
+		"exit_label": "水渠井口",
+		"exit_captions": ["火种在炉座上吃饱了火。", "石板下沉，水渠深处传来数人头的钟声。"],
+		"steles": [],
+		"boss_intro": "守 座 的 刽 子 手",
+		"recap": "你斩倒拦路的刽子手，在炉座续火后踏入沉钟水渠。",
 	},
-	"level02": {
+	"branch01": {
+		"number": "裂·壹",
+		"name": "废冢尸堆",
+		"act": &"awake",
+		"objective": "查验封坟墙后的弃骸",
+		"wake": "伊尔？：这里只是废铁坑，别往下翻了。",
+		"exit_label": "节点裂隙",
+		"exit_captions": ["四十八块胸牌在坑底泛着冷光。"],
+		"steles": [],
+		"boss_intro": "",
+		"recap": "你在废冢坑底发现了四十八具同模残骸，拾得第一枚真名残片。",
+	},
+	"stage02": {
 		"number": "贰",
-		"name": "沉钟地窟",
+		"name": "沉钟水渠",
 		"act": &"awake",
-		"objective": "停下回声，从钟门出去",
-		"wake": "这钟声在数死人。它是回声，不是真钟。",
-		"exit_label": "钟门",
-		"exit_captions": ["回声停了。真钟还在钟楼响。", "钟门后面是运渣渠。"],
-		"steles": [
-			{"node": "SteleShaft", "title": "沉钟纪事 · 回声",
-					"text": "这里的钟声是回声。真钟在钟楼，一直没停过。"},
-			{"node": "SteleGallery", "title": "沉钟纪事 · 数",
-					"text": "回声在数被烧掉的名字。每数一个，铁里就多一个魂。"},
-		],
-		"boss_intro": "钟 的 回 声",
-		"recap": "你停住钟的回声，从钟门走向运渣渠。",
+		"objective": "斩停回声，开闸放渣",
+		"wake": "伊尔：借系核跃过水渠，别碰底下的排渣口。",
+		"exit_label": "上城斜坡",
+		"exit_captions": ["水闸升起，黑渣退开通往死城的斜坡。"],
+		"steles": [],
+		"boss_intro": "绞 盘 守 渠 人",
+		"recap": "你斩停空钟回声并击败守渠人，开闸升向死城圣殿。",
 	},
-	"level02b": {
+	"branch02": {
+		"number": "裂·贰",
+		"name": "灰铁弃槽",
+		"act": &"doubt",
+		"objective": "闯过清道夫的回收围剿",
+		"wake": "司炉回声：第四十九号偏离动线，锁死闸门。",
+		"exit_label": "节点裂隙",
+		"exit_captions": ["试炼工单写明了每一场厮杀的蓄火配额。"],
+		"steles": [],
+		"boss_intro": "",
+		"recap": "你杀穿灰铁弃槽的清道夫围剿，识破沿途关卡皆为蓄火流水线。",
+	},
+	"stage03": {
 		"number": "叁",
-		"name": "运渣水渠",
-		"act": &"awake",
-		"objective": "开闸，让渣退下去",
-		"wake": "守渠人把渠尽头的闸锁死了。渣不退，就没有路。",
-		"exit_label": "渠闸门",
-		"exit_captions": ["闸开了。渣退下去，露出通往上城的斜坡。", "去炉心的路只剩圣殿的暗门。先上去。"],
-		"steles": [
-			{"node": "SteleSluice", "title": "水渠纪事 · 渠",
-					"text": "渣里捞得出剑。每把剑上都刻着一个名字。"},
-			{"node": "SteleCapstan", "title": "水渠纪事 · 闸",
-					"text": "守渠人：闸一开，渣就退，埋在渣里的名字就见光了。"},
-		],
-		"boss_intro": "守 渠 人",
-		"recap": "守渠人倒下，你开了闸，沿着斜坡往上走。",
-	},
-	"level03": {
-		"number": "肆",
-		"name": "锈城街巷",
-		"act": &"debt",
-		"objective": "穿过死城，去圣殿",
-		"wake": "窗里亮的不是灯，是锈苔。人都走光了。",
-		"exit_label": "圣殿门",
-		"exit_captions": ["圣殿的门开着。里面有一盏灯还亮。", "伊尔：炉约的账本在灯下。去看。"],
-		"steles": [
-			{"node": "SteleWindow", "title": "锈城纪事 · 窗",
-					"text": "炉心熄的那夜，人们自己关上门，往地下走了。"},
-			{"node": "SteleStair", "title": "锈城纪事 · 阶",
-					"text": "没人赶他们。台阶朝下，他们就一级一级走下去。"},
-			{"node": "SteleTower", "title": "锈城纪事 · 塔",
-					"text": "圣殿的灯另有火源，是守炉人留给自己的。炉座那盏已经暗了。"},
-		],
-		"boss_intro": "",
-		"recap": "你穿过空城，来到圣殿门前。",
-	},
-	"level04": {
-		"number": "伍",
-		"name": "圣殿中庭",
-		"act": &"debt",
-		"objective": "在灯下读炉约的账本",
-		"wake": "伊尔：账本就在灯下。你读，我听。",
-		"exit_label": "地窖暗门",
-		"exit_captions": ["账本的最后一页被人撕走了。", "暗门通向地窖。"],
-		"steles": [
-			{"node": "SteleCompact", "title": "圣殿铭 · 炉约",
-					"text": "炉约二百年：前一百年烧剑烧名字，后一百年烧火种撑灯。"},
-			{"node": "StelePrice", "title": "炉约 · 灯",
-					"text": "灯亮着。签过名的人早成了灰，名字还刻在石头上。"},
-			{"node": "SteleVault", "title": "炉约 · 账",
-					"text": "末页是伊尔撕走的。她不想让守炉人看见上面写的字。"},
-		],
-		"boss_intro": "",
-		"recap": "账本说：前一百年烧剑，后一百年烧火种撑灯。",
-	},
-	"level04b": {
-		"number": "陆",
-		"name": "圣殿地窖",
-		"act": &"debt",
-		"objective": "下地窖，找账本末页",
-		"wake": "无声的唱诗班还在唱。她们的魂困在火里。",
+		"name": "死城圣殿",
+		"act": &"doubt",
+		"objective": "穿过圣殿，解放唱诗班",
+		"wake": "伊尔：顺着圣殿长明灯往下走，别看穹顶。",
 		"exit_label": "工坊暗门",
-		"exit_captions": ["末页是伊尔写的：把火还给炉，让名字走。", "暗门后是工坊。"],
-		"steles": [
-			{"node": "SteleLedger", "title": "地窖纪事 · 末页",
-					"text": "末页是伊尔封进火种前写的：把火还给炉，让名字走。"},
-			{"node": "SteleChoir", "title": "地窖纪事 · 唱诗",
-					"text": "唱诗班的名字还困在火里。火一还，她们就能走了。"},
-			{"node": "SteleYir", "title": "地窖纪事 · 伊尔",
-					"text": "伊尔把自己封进火种前，捡回了你，把火种嵌进你的剑。"},
-		],
+		"exit_captions": ["无声的歌声散去，余烬核留在了掌心。"],
+		"steles": [],
 		"boss_intro": "无 声 唱 诗 班",
-		"recap": "末页写着：把火还给炉，让名字走。",
+		"recap": "你在圣殿地窖送别无声唱诗班，习得踏空二段跳。",
 	},
-	"level05": {
-		"number": "柒",
-		"name": "齿轮工坊",
-		"act": &"debt",
-		"objective": "接上锈核，从运渣道出去",
-		"wake": "剑上要嵌锈核，那是死人的手艺。",
-		"exit_label": "运渣道",
-		"exit_captions": ["运渣道通向雨里的墓园。", "墓园里埋着两个还叫得出名字的人。"],
-		"steles": [
-			{"node": "SteleQuench", "title": "工坊遗训 · 切",
-					"text": "剑上的槽是工坊切的。剑在这里接上第一枚锈核。"},
-			{"node": "SteleNook", "title": "工坊遗训 · 吊",
-					"text": "吊索断了能接。人不是吊索，断了就接不回。"},
-			{"node": "SteleChain", "title": "工坊遗训 · 链",
-					"text": "每一节吊链上都刻过名字。名字离开了人，留在铁上。"},
-		],
+	"branch03": {
+		"number": "裂·叁",
+		"name": "司书暗阁",
+		"act": &"doubt",
+		"objective": "听取暗阁里的原声母盘",
+		"wake": "伊尔？：别碰那些旧蜡筒，快跳回中庭去！",
+		"exit_label": "节点裂隙",
+		"exit_captions": ["蜡筒转起，百年前真实的沙哑女声刺穿了假回声。"],
+		"steles": [],
 		"boss_intro": "",
-		"recap": "剑接上第一枚锈核，你回到地面。",
+		"recap": "你在司书暗阁听见原声母盘：剑里的温柔引导只是合成的牧火回声。",
 	},
-	"level06": {
-		"number": "捌",
-		"name": "墓园夜雨",
-		"act": &"cast",
-		"objective": "查清哈伦的剑为何成了门闩",
-		"wake": "两个锻工：哈伦坟里没剑，薇尔的剑走了。",
-		"exit_label": "钟楼门",
-		"exit_captions": ["钟楼的门闩，就是哈伦的剑。", "真钟还在响，上去看看。"],
-		"steles": [
-			{"node": "SteleHallen", "title": "墓志 · 哈伦",
-					"text": "锻工哈伦，下葬时没有剑。守炉人拆了他的剑，做了钟楼的门闩。"},
-			{"node": "SteleVeil", "title": "墓志 · 薇尔",
-					"text": "锻工薇尔，剑自己走了，她留下守墓。三把剑都去了炉心。"},
-			{"node": "SteleTree", "title": "墓志 · 战马",
-					"text": "炉心里有匹不肯进炉的战马。守炉人舍不得杀它，它就守在门口。"},
-		],
+	"stage04": {
+		"number": "肆",
+		"name": "切槽工坊",
+		"act": &"doubt",
+		"objective": "杀穿淬火线，查验剑槽",
+		"wake": "伊尔：重剑的凹槽是在这里切开的，快往前走。",
+		"exit_label": "冷雨出口",
+		"exit_captions": ["淬火铁闸升起，门外飘进墓园的冷雨。"],
+		"steles": [],
 		"boss_intro": "",
-		"recap": "守炉人拆了哈伦的剑做钟楼门闩。你往钟楼去。",
+		"recap": "你穿过切槽工坊的淬火车间，窥见重剑实为抽吸魂火的容器。",
 	},
-	"level07": {
-		"number": "玖",
-		"name": "钟楼",
+	"stage04b": {
+		"number": "伍",
+		"name": "夜雨锻冢",
 		"act": &"cast",
-		"objective": "上钟楼，找熔钟舌的地方",
-		"wake": "钟还在响，钟舌却不见了。",
-		"exit_label": "渣井门",
-		"exit_captions": ["井道通到铸钟厅。", "钟舌就是在那里熔掉的。"],
-		"steles": [
-			{"node": "SteleChain", "title": "守钟人 · 链",
-					"text": "这口钟没有钟舌，却一直在响：是炉心的回声在顶它。"},
-			{"node": "SteleBell", "title": "守钟人 · 舌",
-					"text": "钟舌被熔成了火种，里面封着伊尔。你背上的声音就是她。"},
-			{"node": "SteleNook", "title": "守钟人 · 马",
-					"text": "夜里常有马蹄声往炉心去。那是不肯进炉的战马。"},
-		],
+		"objective": "突围冷雨群骸，抵达钟楼",
+		"wake": "伊尔：哈伦拆剑做了门闩，冲过雨夜就是钟楼。",
+		"exit_label": "钟楼大门",
+		"exit_captions": ["门闩上的断剑嗡鸣了一声，为你让开钟楼入口。"],
+		"steles": [],
 		"boss_intro": "",
-		"recap": "守炉人熔了钟舌铸成火种。你背上的声音是伊尔。",
+		"recap": "你在冷雨中击退三波群骸，听见锻工宁折铁剑不入死炉的遗愿。",
 	},
-	"level07b": {
-		"number": "拾",
-		"name": "铸钟厅",
+	"stage05": {
+		"number": "陆",
+		"name": "无舌钟楼",
 		"act": &"cast",
-		"objective": "进铸钟厅，查火种怎么开门",
-		"wake": "这座厅的主人是铸钟人，钟是他浇的。",
-		"exit_label": "井道门",
-		"exit_captions": ["井道通到渣底。", "渣的另一头是城墙。"],
-		"steles": [
-			{"node": "SteleMold", "title": "铸钟纪事 · 模",
-					"text": "钟模里浇过名字。活人站上模台，钟才有声音。"},
-			{"node": "SteleFounder", "title": "铸钟纪事 · 工",
-					"text": "铸钟人把自己浇进了钟。他说：总得有人替钟说话。"},
-			{"node": "SteleKey", "title": "铸钟纪事 · 钥",
-					"text": "炉心门认火种，不认人。火种就是钥匙，所以要由你带去。"},
-		],
+		"objective": "下铸钟厅，夺取开门火钥",
+		"wake": "伊尔：顺路标往下进铸钟厅，绝不许爬向钟顶。",
+		"exit_label": "渣渊栈道",
+		"exit_captions": ["铸钟人倒在铁模边，通往熔渣城墙的路开了。"],
+		"steles": [],
 		"boss_intro": "铸 钟 人",
-		"recap": "铸钟人倒下。火种就是钥匙，门认火种不认人。",
+		"recap": "你击败铸钟人，他临终警告你背上的火种并非钥匙而是炸药。",
 	},
-	"level08": {
-		"number": "拾壹",
-		"name": "熔渣深渊",
+	"branch04": {
+		"number": "裂·肆",
+		"name": "无舌钟顶",
 		"act": &"cast",
-		"objective": "从渣渊爬去城墙",
-		"wake": "你在这里被浇铸。铁成了，你先锈了。",
-		"exit_label": "城墙梯",
-		"exit_captions": ["梯子往上通向城墙。", "城墙挡的是炉风，不是人。"],
-		"steles": [
-			{"node": "SteleSlag", "title": "熔渣纪事 · 渣",
-					"text": "你在这里被浇铸，没能成形。铁成了，你先锈了。"},
-			{"node": "SteleQuench", "title": "熔渣纪事 · 拼",
-					"text": "伊尔把自己封进火种之前，从渣面捡起你，把火种嵌进你的剑。"},
-			{"node": "SteleVent", "title": "熔渣纪事 · 气",
-					"text": "渣下的风是炉心漏出来的。炉约末条：还火的人，自己也要进炉。"},
-		],
+		"objective": "逆攀钟顶，查验无舌真钟",
+		"wake": "司炉回声：禁止接近无舌真钟，立刻降回下层！",
+		"exit_label": "节点裂隙",
+		"exit_captions": ["钟舌起爆图在狂风里猎猎作响。"],
+		"steles": [],
 		"boss_intro": "",
-		"recap": "你走过自己锈掉的地方，往城墙去。",
+		"recap": "你逆攀无舌钟顶夺取起爆图纸，证实火种是引爆持剑者的自焚雷管。",
 	},
-	"level09": {
-		"number": "拾贰",
-		"name": "锈城城墙",
-		"act": &"forge",
-		"objective": "翻过城墙，走向风口",
-		"wake": "墙上的灰是灰卫，人死了还站着守墙。",
-		"exit_label": "城墙外",
-		"exit_captions": ["翻过城墙，风小了些。前面是风口。", "钥匙在你背上。风口后面通向炉心门。"],
-		"steles": [
-			{"node": "SteleWall", "title": "城墙铭 · 挡",
-					"text": "城墙不挡人，挡炉风。墙下的灰，曾是守墙的人。"},
-			{"node": "SteleWind", "title": "城墙铭 · 风",
-					"text": "风里有铁锈和烧焦的油味。墙下的灰，从前会走路。"},
-			{"node": "SteleEyrie", "title": "城墙铭 · 鹰",
-					"text": "哨位空着。风替守墙人看路，把他们的眼睛磨成了灰。"},
-		],
+	"stage06": {
+		"number": "柒",
+		"name": "熔渣城墙",
+		"act": &"cast",
+		"objective": "翻越城墙，击败炉风先驱",
+		"wake": "伊尔：灰卫挡在墙头，穿过风口就是炉心门。",
+		"exit_label": "炉心斜道",
+		"exit_captions": ["炉风先驱收起长戟，指向热浪翻涌的炉心门。"],
+		"steles": [],
+		"boss_intro": "炉 风 先 驱",
+		"recap": "你越过熔渣城墙与炉风先驱试剑，踏上通往炉心门的最后斜道。",
+	},
+	"branch05": {
+		"number": "裂·伍",
+		"name": "绝壁古厩",
+		"act": &"break",
+		"objective": "探访崖底古厩的战马鞍具",
+		"wake": "伊尔？：崖底只有烂马鞍，梦魇早疯了，快上去！",
+		"exit_label": "节点裂隙",
+		"exit_captions": ["旧马鞍上的铁誓烫手，真伊尔的名字终于完整。"],
+		"steles": [],
 		"boss_intro": "",
-		"recap": "你翻过城墙，朝风口走去。",
+		"recap": "你在绝壁古厩寻回战马铁誓：梦魇守门是为了拦住被骗送死的人偶。",
 	},
-	"level09b": {
-		"number": "拾叁",
-		"name": "炉风崖道",
-		"act": &"forge",
-		"objective": "穿过风口，到炉心门前",
-		"wake": "风口后面就是炉心。最后一个灰卫拦着路。",
-		"exit_label": "炉心门",
-		"exit_captions": ["灰卫让开了。他说：替我看看那团火。", "炉心门就在下面，那匹战马在等你。"],
-		"steles": [
-			{"node": "SteleAsh", "title": "崖道纪事 · 灰",
-					"text": "灰卫守的是门，不是城。他们早就想让人去问一句。"},
-			{"node": "SteleHerald", "title": "崖道纪事 · 先驱",
-					"text": "最后一个灰卫披着灰。他说：你过去，替我看看这火该不该还。"},
-			{"node": "SteleGate", "title": "崖道纪事 · 门",
-					"text": "门下面没有守卫，只有风。"},
-		],
-		"boss_intro": "最 后 一 个 灰 卫",
-		"recap": "灰卫让开了路。炉心门在崖道尽头。",
-	},
-	"level10": {
-		"number": "拾肆",
-		"name": "炉心深处",
-		"act": &"forge",
-		"objective": "打败梦魇，在炉心门前做选择",
-		"wake": "梦魇是不肯进炉的战马。它守着最后的选择。",
+	"stage07": {
+		"number": "捌",
+		"name": "炉心门前",
+		"act": &"break",
+		"objective": "迎战梦魇，在炉门前抉择",
+		"wake": "伊尔：斩下拦路的梦魇，把火种送进炉心。",
 		"exit_label": "炉心门",
 		"exit_captions": [],
-		"steles": [
-			{"node": "SteleNightmare", "title": "炉心铭 · 梦魇",
-					"text": "梦魇就是那匹不肯进炉的战马。它守着门，不让没想清楚的人进去。"},
-			{"node": "SteleCompact", "title": "炉心铭 · 炉约",
-					"text": "炉约最后一条：把火还给炉，把锈还给铁，让城睡下。"},
-			{"node": "SteleVigil", "title": "炉心铭 · 守",
-					"text": "还火：剑进炉，名字归火，你散成铁。守炉：留剑，名字仍困着，你永守炉边。"},
-		],
-		"boss_intro": "梦 魇",
-		"recap": "梦魇倒下，炉心门开了。你要在门前做选择。",
+		"steles": [],
+		"boss_intro": "护 门 战 马 · 梦 魇",
+		"recap": "梦魇倒在炉门前。未破骗局之人，只能在门前面对残酷轮回。",
+	},
+	"stage08_true": {
+		"number": "终",
+		"name": "归零母模",
+		"act": &"break",
+		"objective": "越过俯首战马，斩碎炉约母模",
+		"wake": "真伊尔：握紧你的真名，我们去砸碎那座母模！",
+		"exit_label": "破晓裂口",
+		"exit_captions": [],
+		"steles": [],
+		"boss_intro": "司 炉 母 模 · 牧 火 回 声",
+		"recap": "梦魇俯首让路，你斩碎司炉母模与假回声，带着真名走出锈墓。",
 	},
 }
 
-## 术语表（6 条）：第一次出现的专名必须在这里有白话解释；docs/story.md 同步。
-## 「锈墓」是地名，不算术语；人物见 CAST。
+## 旧版线性章节兼容表：仅供独立旧场景烟雾测试（Level01_Static..Level10_ForgeCore）读取标题与碑文，
+## 不参与新战役 LEVEL_ORDER。
+const LEGACY_CHAPTERS := {
+	"level01": {
+		"number": "旧·壹", "name": "腐液回廊", "objective": "把火种放上炉座续火",
+		"wake": "伊尔：火种快灭了。先去炉座续一口火。", "exit_label": "",
+		"exit_captions": ["火种续上了火。"], "boss_intro": "守 座 的 人",
+		"recap": "你在炉座续了一口火。",
+		"steles": [
+			{"node": "SteleForge", "title": "炉约纪事 · 熔熄", "text": "一百年前炉心熄了。守炉人把最后一口火封进火种，放上炉座当灯芯。"},
+			{"node": "SteleCoolant", "title": "工坊遗训 · 腐液", "text": "腐液是淬剑用的冷却液。吸进去伤肺，也会把记忆淬进铁里。"},
+			{"node": "SteleExecutioner", "title": "刽子手的誓言", "text": "炉座只许守炉人点火。谁碰炉座，谁先被我斩。"},
+		],
+	},
+	"level02": {
+		"number": "旧·贰", "name": "沉钟地窟", "objective": "停下回声，从钟门出去",
+		"wake": "这钟声在数死人。", "exit_label": "钟门",
+		"exit_captions": ["回声停了。"], "boss_intro": "钟 的 回 声", "recap": "你停住钟的回声。",
+		"steles": [
+			{"node": "SteleShaft", "title": "沉钟纪事 · 回声", "text": "这里的钟声是回声。真钟在钟楼，一直没停过。"},
+			{"node": "SteleGallery", "title": "沉钟纪事 · 数", "text": "回声在数被烧掉的名字。每数一个，铁里就多一个魂。"},
+		],
+	},
+	"level02b": {
+		"number": "旧·叁", "name": "运渣水渠", "objective": "开闸，让渣退下去",
+		"wake": "守渠人把渠尽头的闸锁死了。", "exit_label": "渠闸门",
+		"exit_captions": ["闸开了。"], "boss_intro": "守 渠 人", "recap": "守渠人倒下，你开了闸。",
+		"steles": [
+			{"node": "SteleSluice", "title": "水渠纪事 · 渠", "text": "渣里捞得出剑。每把剑上都刻着一个名字。"},
+			{"node": "SteleCapstan", "title": "水渠纪事 · 闸", "text": "守渠人：闸一开，渣就退，埋在渣里的名字就见光了。"},
+		],
+	},
+	"level03": {
+		"number": "旧·肆", "name": "锈城街巷", "objective": "穿过死城，去圣殿",
+		"wake": "窗里亮的不是灯，是锈苔。", "exit_label": "圣殿门",
+		"exit_captions": ["圣殿的门开着。"], "boss_intro": "", "recap": "你穿过空城。",
+		"steles": [
+			{"node": "SteleWindow", "title": "锈城纪事 · 窗", "text": "炉心熄的那夜，人们自己关上门，往地下走了。"},
+			{"node": "SteleStair", "title": "锈城纪事 · 阶", "text": "没人赶他们。台阶朝下，他们就一级一级走下去。"},
+			{"node": "SteleTower", "title": "锈城纪事 · 塔", "text": "圣殿的灯另有火源，是守炉人留给自己的。"},
+		],
+	},
+	"level04": {
+		"number": "旧·伍", "name": "圣殿中庭", "objective": "在灯下读炉约的账本",
+		"wake": "伊尔：账本就在灯下。", "exit_label": "地窖暗门",
+		"exit_captions": ["暗门通向地窖。"], "boss_intro": "", "recap": "你读过圣殿账本。",
+		"steles": [
+			{"node": "SteleCompact", "title": "圣殿铭 · 炉约", "text": "炉约二百年：前一百年烧剑烧名字，后一百年烧火种撑灯。"},
+			{"node": "StelePrice", "title": "炉约 · 灯", "text": "灯亮着。签过名的人早成了灰，名字还刻在石头上。"},
+			{"node": "SteleVault", "title": "炉约 · 账", "text": "末页被人撕走了。"},
+		],
+	},
+	"level04b": {
+		"number": "旧·陆", "name": "圣殿地窖", "objective": "下地窖，找账本末页",
+		"wake": "无声的唱诗班还在唱。", "exit_label": "工坊暗门",
+		"exit_captions": ["暗门后是工坊。"], "boss_intro": "无 声 唱 诗 班", "recap": "你走过圣殿地窖。",
+		"steles": [
+			{"node": "SteleLedger", "title": "地窖纪事 · 末页", "text": "末页写着：把火还给炉，让名字走。"},
+			{"node": "SteleChoir", "title": "地窖纪事 · 唱诗", "text": "唱诗班的名字还困在火里。"},
+			{"node": "SteleYir", "title": "地窖纪事 · 伊尔", "text": "火种嵌进你的剑里。"},
+		],
+	},
+	"level05": {
+		"number": "旧·柒", "name": "齿轮工坊", "objective": "接上锈核，从运渣道出去",
+		"wake": "剑上要嵌锈核，那是死人的手艺。", "exit_label": "运渣道",
+		"exit_captions": ["运渣道通向地面。"], "boss_intro": "", "recap": "剑接上了锈核。",
+		"steles": [
+			{"node": "SteleQuench", "title": "工坊遗训 · 切", "text": "剑上的槽是工坊切的。"},
+			{"node": "SteleNook", "title": "工坊遗训 · 吊", "text": "吊索断了能接。人断了接不回。"},
+			{"node": "SteleChain", "title": "工坊遗训 · 链", "text": "每一节吊链上都刻过名字。"},
+		],
+	},
+	"level06": {
+		"number": "旧·捌", "name": "墓园夜雨", "objective": "查清哈伦的剑为何成了门闩",
+		"wake": "哈伦坟里没剑，薇尔的剑走了。", "exit_label": "钟楼门",
+		"exit_captions": ["钟楼的门闩就是哈伦的剑。"], "boss_intro": "", "recap": "你走过雨夜墓园。",
+		"steles": [
+			{"node": "SteleHallen", "title": "墓志 · 哈伦", "text": "锻工哈伦，下葬时没有剑。"},
+			{"node": "SteleVeil", "title": "墓志 · 薇尔", "text": "锻工薇尔，留在墓园守墓。"},
+			{"node": "SteleTree", "title": "墓志 · 战马", "text": "炉心里有匹不肯进炉的战马。"},
+		],
+	},
+	"level07": {
+		"number": "旧·玖", "name": "钟楼", "objective": "上钟楼，找熔钟舌的地方",
+		"wake": "钟还在响，钟舌却不见了。", "exit_label": "渣井门",
+		"exit_captions": ["井道通到铸钟厅。"], "boss_intro": "", "recap": "你登上钟楼。",
+		"steles": [
+			{"node": "SteleChain", "title": "守钟人 · 链", "text": "这口钟没有钟舌，是炉心的回声在顶它。"},
+			{"node": "SteleBell", "title": "守钟人 · 舌", "text": "钟舌被熔成了火种。"},
+			{"node": "SteleNook", "title": "守钟人 · 马", "text": "夜里常有马蹄声往炉心去。"},
+		],
+	},
+	"level07b": {
+		"number": "旧·拾", "name": "铸钟厅", "objective": "进铸钟厅，查火种怎么开门",
+		"wake": "这座厅的主人是铸钟人。", "exit_label": "井道门",
+		"exit_captions": ["井道通到渣底。"], "boss_intro": "铸 钟 人", "recap": "铸钟人倒下。",
+		"steles": [
+			{"node": "SteleMold", "title": "铸钟纪事 · 模", "text": "钟模里浇过名字。"},
+			{"node": "SteleFounder", "title": "铸钟纪事 · 工", "text": "铸钟人把自己浇进了钟。"},
+			{"node": "SteleKey", "title": "铸钟纪事 · 钥", "text": "炉心门认火种，不认人。"},
+		],
+	},
+	"level08": {
+		"number": "旧·拾壹", "name": "熔渣深渊", "objective": "从渣渊爬去城墙",
+		"wake": "你在这里被浇铸。", "exit_label": "城墙梯",
+		"exit_captions": ["梯子往上通向城墙。"], "boss_intro": "", "recap": "你爬出渣渊。",
+		"steles": [
+			{"node": "SteleSlag", "title": "熔渣纪事 · 渣", "text": "你在这里被浇铸。"},
+			{"node": "SteleQuench", "title": "熔渣纪事 · 拼", "text": "重剑里嵌着火种。"},
+			{"node": "SteleVent", "title": "熔渣纪事 · 气", "text": "渣下的风是炉心漏出来的。"},
+		],
+	},
+	"level09": {
+		"number": "旧·拾贰", "name": "锈城城墙", "objective": "翻过城墙，走向风口",
+		"wake": "墙上的灰是灰卫。", "exit_label": "城墙外",
+		"exit_captions": ["前面是风口。"], "boss_intro": "", "recap": "你翻过城墙。",
+		"steles": [
+			{"node": "SteleWall", "title": "城墙铭 · 挡", "text": "城墙挡炉风，不挡人。"},
+			{"node": "SteleWind", "title": "城墙铭 · 风", "text": "风里有铁锈味。"},
+			{"node": "SteleEyrie", "title": "城墙铭 · 鹰", "text": "哨位空着。"},
+		],
+	},
+	"level09b": {
+		"number": "旧·拾叁", "name": "炉风崖道", "objective": "穿过风口，到炉心门前",
+		"wake": "最后一个灰卫拦着路。", "exit_label": "炉心门",
+		"exit_captions": ["灰卫让开了。"], "boss_intro": "最 后 一 个 灰 卫", "recap": "灰卫让开了路。",
+		"steles": [
+			{"node": "SteleAsh", "title": "崖道纪事 · 灰", "text": "灰卫守的是门，不是城。"},
+			{"node": "SteleHerald", "title": "崖道纪事 · 先驱", "text": "替我看看这火该不该还。"},
+			{"node": "SteleGate", "title": "崖道纪事 · 门", "text": "门下面只有热风。"},
+		],
+	},
+	"level10": {
+		"number": "旧·拾肆", "name": "炉心深处", "objective": "打败梦魇，在炉心门前做选择",
+		"wake": "梦魇守着最后的选择。", "exit_label": "炉心门",
+		"exit_captions": [], "boss_intro": "梦 魇", "recap": "梦魇倒下，炉心门开了。",
+		"steles": [
+			{"node": "SteleNightmare", "title": "炉心铭 · 梦魇", "text": "梦魇守着门。"},
+			{"node": "SteleCompact", "title": "炉心铭 · 炉约", "text": "把火还给炉，让城睡下。"},
+			{"node": "SteleVigil", "title": "炉心铭 · 守", "text": "送剑还是守火，在门前做出你的选择。"},
+		],
+	},
+}
+
+## 术语表（7 条）：表面与真相皆可理解的白话定义；docs/story.md 同步。
 const TERMS := {
-	"炉约": "二百年前全城立的誓：死人的名字刻上剑、投进炉里烧，换灯不灭。",
-	"炉心": "城下那座烧铁的大炉膛。一百年前熄了，只剩热和灰。",
-	"火种": "炉心熄灭时封住最后一口火的小核。伊尔的魂封在里面，它也是炉心门的钥匙。",
-	"守炉人": "立下炉约、负责烧名字的那批人。伊尔是最后一个。",
-	"锈核": "从死人剑上取下的手艺。嵌进你的剑，就能借他用一次。",
-	"余烬巢": "还剩一口余火的巢。点亮它，你死了能在这里醒来。",
+	"炉约": "二百年前全城立的誓：烧掉死人的名字与铁剑，换长明灯不灭。",
+	"炉心": "城底的大炉膛。守炉人声称把火种送进去就能放走亡魂。",
+	"火种": "钟舌熔铸的高温火核，嵌在你的重剑里，既是钥匙也是引信。",
+	"守炉人": "掌管炉约与收火流水线的长老团，用合成回声驱使人偶送火。",
+	"锈核": "死去匠人留在铁里的手艺。嵌进剑槽，就能借用他的绝技。",
+	"余烬巢": "残存真火的石巢。点亮它可恢复伤势，并记下重生的锚点。",
+	"真名残片": "散落在五处违抗禁区里的原声铁证，集齐五枚即可撕破牧火骗局。",
 }
 
-## 人物（8 条，一人一句）：盲测复述人物关系用；docs/story.md §3 同步。
+## 人物表（表面认知默认值；当玩家拾取对应【真名残片】后，cast_of_with_flags 会动态翻转为真相描述！）。
 const CAST := {
-	"余烬骑士": "你。守炉人造的人偶，本该替死者扛剑进炉；没用上就锈了。",
-	"伊尔": "最后一个守炉人。她把自己封进火种，托你带她去炉心。",
-	"刽子手": "守着炉座的人。他发过誓：谁碰炉座，谁先被斩。",
-	"守炉人": "立誓烧名字换灯的那批人。他们熔了钟舌铸成火种。",
-	"灰卫": "守城墙和炉心门的卫兵。死后化成灰，仍站在原地守着。",
-	"哈伦": "锻工。他的剑被拆去做钟楼门闩，所以他空手入土。",
-	"薇尔": "锻工。她的剑自己走了，她留在墓园守着。",
-	"梦魇": "那匹不肯进炉的战马。它守着炉心门，不让没想清楚的人进去。",
+	"余烬骑士": "你。背负蓄火重剑醒来的人偶，正按剑中女声的指引前往炉心。",
+	"伊尔": "自称最后一个守炉人的温柔女声，在剑里用发光路标为你指路。",
+	"刽子手": "守在墓园炉座前的狂暴铁卫，拼死阻止任何人偶再去续火。",
+	"守炉人": "制定炉约、掌管地下铸造线的统治者，声称烧名字是为了全城光明。",
+	"灰卫": "驻守熔渣城墙的沉默旧兵，化成灰烬仍握着长戟审视来者。",
+	"哈伦": "老锻工。宁可自拆铁剑做钟楼门闩，也不愿死后名字被投进炉膛。",
+	"薇尔": "女锻工。守在夜雨锻冢旁，见证一代代持剑人走过墓园。",
+	"梦魇": "横在炉心门前、遍体鳞伤的钢铁战马，踏碎一切引路箭头。",
 }
 
-## 人物第一次该出现在故事页的章节。空串 = 序章 / 开场就在，没有任何进度也显示。
-## 依据 docs/story.md：刽子手在第一章开场，哈伦与薇尔在墓园（level06），
-## 灰卫在城墙（level09），梦魇这个名字要到炉心（level10）才说破。
+## 人物真相翻转表：一旦收集对应残片（或集齐 5 枚残片），故事页「人物」词条即刻揭露残酷真相。
+const CAST_TRUTH := {
+	"余烬骑士": {
+		"flag": "truth_1",
+		"text": "你。守炉流水线浇铸的第四十九号收火偶，本是替死炉收集魂火的柴薪——直到你亲手违抗路标。",
+	},
+	"伊尔": {
+		"flag": "truth_3",
+		"text": "双重身份：剑里指路的是长老合成的「司炉回声」；真正的叛逃者伊尔百年前砸炉失败，被囚于母模深处。",
+	},
+	"守炉人": {
+		"flag": "truth_2",
+		"text": "贪恋余温的长老团。死炉熄灭后，他们批量造偶、布置厮杀动线，哄骗四十九代人偶带火自焚。",
+	},
+	"梦魇": {
+		"flag": "truth_5",
+		"text": "真伊尔留下的忠心战马。它死守炉门挨了四十八次剑，只为拦住被假声音骗来送死的人偶。",
+	},
+}
+
 const CAST_FIRST_CHAPTER := {
 	"余烬骑士": "",
 	"伊尔": "",
-	"刽子手": "level01",
 	"守炉人": "",
-	"灰卫": "level09",
-	"哈伦": "level06",
-	"薇尔": "level06",
-	"梦魇": "level10",
+	"刽子手": "stage01",
+	"哈伦": "stage04b",
+	"薇尔": "stage04b",
+	"灰卫": "stage06",
+	"梦魇": "stage07",
 }
 
-## 名词第一次该出现在故事页的章节。炉约 / 炉心 / 火种 / 守炉人在序章就解释过。
-## 余烬巢在第一章的巢旁；锈核要到齿轮工坊（level05）才写进章节文本，开场名词页不列。
 const TERM_FIRST_CHAPTER := {
 	"炉约": "",
 	"炉心": "",
 	"火种": "",
 	"守炉人": "",
-	"锈核": "level05",
-	"余烬巢": "level01",
+	"余烬巢": "stage01",
+	"真名残片": "branch01",
+	"锈核": "stage02",
 }
 
-## 三枚锈核第一次嵌进剑里时各说一句（之后不再重复）。docs/story.md §8 同步。
 const CORE_VOICE := {
-	&"heat_forge": "窑匠：把火留在刃上。门会自己让开。",
-	&"hookshot_tether": "系索匠：你很重。让世界过来。",
-	&"ember_step": "余烬核：灰还能再跳一次。别问它从谁身上来。",
+	&"heat_forge": "窑匠：把火留在刃上。锈死的门会自己让开。",
+	&"hookshot_tether": "系索匠：你很重。抓紧铁环，让世界朝你飞过来。",
+	&"ember_step": "唱诗残响：灰烬还能再踏一次半空。跳出他们画好的路吧。",
 }
-## 第一次捡到锈核时把「锈核」就地解释（第一次捡核就要懂）。StoryStage 会接「按 X 或 Y 嵌进剑里。」。
-const FIRST_CORE_LINE := "这是锈核——死人留下的手艺，能借来用一次。"
+const FIRST_CORE_LINE := "这是锈核——死人留下的手艺，能嵌进剑槽借用。"
 
-## 关内开场（新游戏只播一次，可跳过）。世界观由开场前的序章分镜讲完（storyboards.gd），
-## 这里只负责「醒来、认出声音、知道去哪、看见要打谁」。每句 ≤22 字（含说话人前缀）。
+## 关内简短苏醒词（紧凑单房开场，每句 ≤22 字）。
 const OPENING := {
-	"situation": "伊尔：醒醒，余烬骑士。火种快灭了。",
-	"sword": "伊尔：我就封在你背上这把剑里。",
-	"echo": "伊尔：你听见的，是我封进火种之前说的话。",
-	"anomaly": "钟声又响了。底下有人在数名字。",
-	"goal": "伊尔：把火种送回炉心，城底的大炉。",
-	"route": "伊尔：炉座是石台。先去续一口火。",
-	"obstacle": "刽子手守着炉座，谁碰谁死。",
+	"situation": "伊尔：醒醒，余烬骑士。火种快凉了。",
+	"sword": "伊尔：我就封在你背上这把重剑里。",
+	"echo": "伊尔：跟着我点亮的箭头走，别看西边的裂墙。",
+	"anomaly": "地底钟声又响了，像是在数第四十九个名字。",
+	"goal": "伊尔：把火种送回城底炉心，大家就能解脱。",
+	"route": "伊尔：先顺路标去东边炉座续一口火。",
+	"obstacle": "刽子手守在炉座前，斩开他才能过去。",
 }
 
-## 标题画面底部墓志的轮换句（第一句是 TitleScreen.EPITAPH，这里是后面几句）。每句 ≤18 字，
-## 都是一句陈述，不是台词。
+## 标题画面底部墓志轮换句（每句 ≤18 字）。
 const TITLE_LINES: Array[String] = [
-	"灯亮了二百年，烧的是死人的名字。",
-	"有人把自己封进了一把剑里。",
-	"这火，该还回去了。",
+	"四十八具空壳沉底，你是第四十九个。",
+	"剑里的温柔声音，正亮起箭头催你赴死。",
+	"顺从者化作炉灰，违抗者夺回真名。",
 ]
 
-## 两个正篇结局 + 第一章提前熄火。三个结局都说清：名字的下场、你的下场、城的下场。
+## 四大结局：3 个表面/轮回结局（give / keep / snuff）+ 1 个隐藏真结局（true_break）。
 const ENDINGS := {
 	"give": {
-		"summary": "还火：门开了，你把剑推进炉心。被困的名字都走了，伊尔走在最后。火种连着你的命，你也散成铁屑，城终于睡下。",
-		"lines": ["门开了。你把剑推进炉心，火种烧成一团白光。",
-				"被困了二百年的名字，一个接一个走了出来。",
-				"伊尔走在最后，回头对你笑了一下。",
-				"伊尔：谢谢你，送我到这儿。",
-				"火种连着你的命。你散成铁屑，落进炉里。城终于睡下。 —— 锈墓・完 ——"],
+		"summary": "还火：你顺从路标把蓄满魂火的重剑推进炉心。钟舌雷管轰然引爆，你在白光中化作炉灰；剑中女声瞬间变为冰冷机械音：『第四十九号柴薪投炉完毕，准备唤醒第五十号。』",
+		"lines": [
+			"门开了。你顺着最后的发光箭头，把滚烫的重剑推进炉膛。",
+			"钟舌火种轰然起爆，整把剑攒下的魂火连同你的铁躯一起烧成灰烬。",
+			"温柔的女声忽然消失了，炉壁传出冰冷的机械计数——",
+			"司炉回声：第四十九号柴薪回收完毕，炉温可再撑十年。准备浇铸第五十号。",
+			"没有亡魂获救。坑底只是多了一块刻着四十九的焦黑胸牌。 —— 锈墓・假结局〔焚薪〕 ——",
+		],
 	},
 	"keep": {
-		"summary": "守炉：门开了，你没有松手，留下做新的守炉人。火没熄，名字没走，城一直半醒，伊尔的声音还留在剑里。",
-		"lines": ["门开了。你没有松手，把剑立在炉边，自己留下守着。",
-				"火没有熄，名字也没有走。城一直半醒。",
-				"伊尔：你不该留下的……可是，谢谢你没走。",
-				"没有人来换你。你成了新的守炉人，一年一年守下去。",
-				"炉火还亮着，和从前一样。 —— 锈墓・完 ——"],
+		"summary": "守炉：你在炉门前停手未投，提剑枯坐门外。假回声日夜催促直至电尽沉寂，你的关节锈死在风里，成了替长老看门的又一尊灰卫，等待第五十号人偶提剑走来。",
+		"lines": [
+			"门开了，你却在最后一步停住手，把重剑插在门外石地上。",
+			"伊尔？：为什么不投进去？就差最后一步了……把火交出来呀！",
+			"剑里的催促声一年年嘶哑，终于变成滋滋作响的空白盲音。",
+			"炉灰盖满你的肩甲，你锈死在原地，成了炉门前新的一尊灰卫。",
+			"直到远处脚步声响起——第五十号人偶正顺着发光箭头朝你走来。 —— 锈墓・假结局〔枯守〕 ——",
+		],
 	},
 	"snuff": {
-		"summary": "熄火：你在炉座前熄灭了火种。名字没有路走，你散成铁，城还睡着，炉门里只剩一点红。",
-		"lines": ["你在炉座前熄灭了火种。光一点点退了。",
-				"伊尔的声音停了。她没来得及说完。",
-				"被困的名字没有路可走，也没有人再替它们问一句。",
-				"你散成了铁。城还睡着，炉门里只剩一点红。 —— 锈墓・完 ——"],
+		"summary": "熄火：你在墓园炉座前违逆引导，一把掐灭了火种。牧火信号当场中断，你未能揭开深层母模的真相便散作冷铁，但至少这一次，第四十九号没有成为死炉的柴薪。",
+		"lines": [
+			"你在炉座前五指收拢，亲手掐灭了快要断气的火种。",
+			"司炉回声：警告——第四十九号自行销毁引信！信号中断——",
+			"地底深处的母模仍在运转，被困的两百真名也未等来破笼之人。",
+			"你化作一地冷铁，但至少这一回，你没有替骗子烧成一缕炉烟。 —— 锈墓・结局〔拒燃〕 ——",
+		],
+	},
+	"true_break": {
+		"summary": "破约：集齐五枚真名残片后，战马梦魇向你俯首让路。你挥剑劈碎司炉母模与合成牧火音，解放真伊尔与两百年被困亡魂，第一次作为拥有自我的生命走出锈墓，迎向地面黎明。",
+		"lines": [
+			"五枚真名残片在剑脊共鸣，你没有把剑投进炉膛，而是反手劈开了司炉母模！",
+			"司炉回声在裂纹中彻底崩解，被囚禁百年的真伊尔随漫天魂火一同升起。",
+			"真伊尔：谢谢你没有听那个假声音的话……第四十九号，不，你现在自由了。",
+			"战马梦魇轻蹭你的铁肩，驮着两百年终于获释的名字奔向裂开的穹顶。",
+			"第一缕天光落进死炉，你提着不再刻任何人死名的剑，走出了锈墓。 —— 锈墓・真结局〔破约〕 ——",
+		],
 	},
 }
 
-## 第一章事件字幕（Level01StoryBeats 取用）。
+## 第一章传统事件字幕兼容键。
 const EVENTS := {
-	"boss_gate": "刽子手守着炉座。碰炉座的人，他一个也不放过。",
-	"boss_slain": "炉座空了，没人再拦你。火种在等你放上去。",
-	"toxin": "腐液是淬剑用的冷却液。吸进去伤肺，也会把记忆淬进铁里。",
-	"parry": "挡住了，还把他们的火打了回去。",
+	"boss_gate": "刽子手横在炉座门前——他发誓斩断每一具被骗来续火的人偶。",
+	"boss_slain": "刽子手倒下了。炉座就在东侧门后。",
+	"toxin": "腐液是淬剑冷却液，踏入太久会侵蚀铁躯，却也能激起共鸣。",
+	"parry": "看准火弹挥剑弹反，把敌人的烈焰原路劈回去！",
 }
 
 
@@ -422,7 +489,15 @@ static func has(id: String) -> bool:
 	return CHAPTERS.has(id)
 
 
-## 战役顺序，与 GameContext.LEVEL_ORDER 一致（测试逐项比对）。
+static func _entry(id: String) -> Dictionary:
+	if CHAPTERS.has(id):
+		return CHAPTERS[id] as Dictionary
+	if LEGACY_CHAPTERS.has(id):
+		return LEGACY_CHAPTERS[id] as Dictionary
+	return {}
+
+
+## 战役顺序，与 GameContext.LEVEL_ORDER 一致。
 static func order() -> Array[String]:
 	var ids: Array[String] = []
 	for id in GameContext.LEVEL_ORDER:
@@ -440,57 +515,57 @@ static func acts() -> Array[Dictionary]:
 
 
 static func act_of(id: String) -> Dictionary:
-	var entry := CHAPTERS.get(id, {}) as Dictionary
-	var act_id := entry.get("act", &"") as StringName
+	var entry := _entry(id)
+	var act_id := entry.get("act", &"awake") as StringName
 	for act in ACTS:
 		if StringName(act["id"]) == act_id:
 			return (act as Dictionary).duplicate(true)
-	return {}
+	return ACTS[0].duplicate(true)
 
 
 static func number_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("number", ""))
+	return String(_entry(id).get("number", ""))
 
 
 static func name_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("name", ""))
+	return String(_entry(id).get("name", ""))
 
 
-## "锈墓・<number> — <name>"。ChapterLevel.chapter_card() 依赖这个分隔符。
+## "锈墓・<number> — <name>"。PauseMenu / MapScreen / ChapterLevel 统一认这个格式。
 static func title_of(id: String) -> String:
-	if not CHAPTERS.has(id):
+	var entry := _entry(id)
+	if entry.is_empty():
 		return ""
-	return "锈墓・%s — %s" % [number_of(id), name_of(id)]
+	return "锈墓・%s — %s" % [String(entry.get("number", "")), String(entry.get("name", ""))]
 
 
-## "锈墓・<number>"（章节卡的副标题）。
 static func subtitle_of(id: String) -> String:
-	if not CHAPTERS.has(id):
+	var entry := _entry(id)
+	if entry.is_empty():
 		return ""
-	return "锈墓・%s" % number_of(id)
+	return "锈墓・%s" % String(entry.get("number", ""))
 
 
 static func wake_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("wake", ""))
+	return String(_entry(id).get("wake", ""))
 
 
 static func objective_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("objective", ""))
+	return String(_entry(id).get("objective", ""))
 
 
 static func exit_label_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("exit_label", ""))
+	return String(_entry(id).get("exit_label", ""))
 
 
 static func exit_captions_of(id: String) -> PackedStringArray:
-	return PackedStringArray(CHAPTERS.get(id, {}).get("exit_captions", []))
+	return PackedStringArray(_entry(id).get("exit_captions", []))
 
 
 static func steles_of(id: String) -> Array:
-	return (CHAPTERS.get(id, {}).get("steles", []) as Array).duplicate(true)
+	return (_entry(id).get("steles", []) as Array).duplicate(true)
 
 
-## 按节点名取碑文（layout 的 stele() 位置常量留在 layout 里，文本从注册表取）。
 static func stele_of(id: String, node_name: String) -> Dictionary:
 	for entry in steles_of(id):
 		if String(entry.get("node", "")) == node_name:
@@ -499,11 +574,11 @@ static func stele_of(id: String, node_name: String) -> Dictionary:
 
 
 static func recap_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("recap", ""))
+	return String(_entry(id).get("recap", ""))
 
 
 static func boss_intro_of(id: String) -> String:
-	return String(CHAPTERS.get(id, {}).get("boss_intro", ""))
+	return String(_entry(id).get("boss_intro", ""))
 
 
 static func endings() -> Array[String]:
@@ -547,6 +622,16 @@ static func cast_of(who: String) -> String:
 	return String(CAST.get(who, ""))
 
 
+## 随真相残片动态翻转的人物说明（JournalScreen 实时调用）。
+static func cast_of_with_flags(who: String, flags: Variant) -> String:
+	if flags != null and CAST_TRUTH.has(who):
+		var truth_entry: Dictionary = CAST_TRUTH[who]
+		var req_flag := String(truth_entry.get("flag", ""))
+		if (req_flag != "" and flags.has(req_flag)) or NarrativeCatalog.all_fragments_collected(flags):
+			return String(truth_entry.get("text", CAST.get(who, "")))
+	return cast_of(who)
+
+
 static func cast_first_chapter(who: String) -> String:
 	return String(CAST_FIRST_CHAPTER.get(who, ""))
 
@@ -555,8 +640,6 @@ static func term_first_chapter(term: String) -> String:
 	return String(TERM_FIRST_CHAPTER.get(term, ""))
 
 
-## 当前章节与已通关旗标里，走到的最远下标（都没有 = -1）。
-## flags 要有 has()（Array / PackedStringArray）。
 static func progress_index(current_id: String, flags: Variant) -> int:
 	var ids := order()
 	var best := ids.find(current_id)
@@ -569,7 +652,6 @@ static func progress_index(current_id: String, flags: Variant) -> int:
 	return best
 
 
-## first_chapter 为空 = 一开始就出场。progress < 0 时只放行这类条目。
 static func is_revealed(first_chapter: String, progress: int) -> bool:
 	if first_chapter == "":
 		return true
@@ -596,7 +678,6 @@ static func _revealed(entries: Dictionary, firsts: Dictionary, progress: int) ->
 	return out
 
 
-## 关内开场字幕，按顺序。
 static func opening_lines() -> Array[String]:
 	return [
 		String(OPENING["situation"]),
@@ -613,19 +694,16 @@ static func event_line(key: String) -> String:
 	return String(EVENTS.get(key, ""))
 
 
-## 把「说话人：内容」拆开。返回 [说话人, 内容]；没有（或不认识）说话人时第一项为空串。
-## 只认 SPEAKERS 里的名字，「炉约二百年：…」「还火：…」这类不会被误拆。
+## 把「说话人：内容」拆开。支持「司炉回声：」「无声唱诗班：」等最长 6 字名牌。
 static func split_speaker(text: String) -> PackedStringArray:
 	var cut := text.find("：")
-	if cut > 0 and cut <= 4:
+	if cut > 0 and cut <= 6:
 		var who := text.substr(0, cut)
 		if SPEAKERS.has(who):
 			return PackedStringArray([who, text.substr(cut + 1)])
 	return PackedStringArray(["", text])
 
 
-## 已通关章节的 recap（暂停菜单「前情提要」用最近两条）。done_flags 由
-## StoryFlow 给（旗标口径跟着存档走），这里只负责挑文本。
 static func recap_lines_for(cleared_ids: Array) -> Array[String]:
 	var out: Array[String] = []
 	for raw in cleared_ids:
@@ -635,7 +713,6 @@ static func recap_lines_for(cleared_ids: Array) -> Array[String]:
 	return out
 
 
-## 给 docs 同步测试用：把所有会被玩家读到的长文本收在一起。
 static func all_prose() -> Array[String]:
 	var out: Array[String] = []
 	for id in order():
@@ -644,13 +721,12 @@ static func all_prose() -> Array[String]:
 		out.append(recap_of(id))
 		for caption in exit_captions_of(id):
 			out.append(String(caption))
-		for stele in steles_of(id):
-			out.append(String(stele.get("title", "")))
-			out.append(String(stele.get("text", "")))
 	for term in TERMS:
 		out.append(String(TERMS[term]))
 	for who in CAST:
 		out.append(String(CAST[who]))
+	for who in CAST_TRUTH:
+		out.append(String((CAST_TRUTH[who] as Dictionary).get("text", "")))
 	for line in opening_lines():
 		out.append(line)
 	for line in TITLE_LINES:

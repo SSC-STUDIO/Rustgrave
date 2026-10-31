@@ -24,6 +24,7 @@ $outputDir = Join-Path $workspace ($OutDir -replace '/', '\')
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $previousAppData = $env:APPDATA
 $previousUpdateCheck = $env:RUSTGRAVE_NO_UPDATE_CHECK
+$previousAllowSmall = $env:RUSTGRAVE_ALLOW_SMALL_WINDOW
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
 $first = ($Sizes -split ',')[0]
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $first,
@@ -38,10 +39,13 @@ $stderrFile = Join-Path $outputDir 'stderr.log'
 try {
     $env:APPDATA = Join-Path $outputDir 'isolated-userdata'
     $env:RUSTGRAVE_NO_UPDATE_CHECK = '1'
+    # Diagnostic sizes below 1280x720 stay possible; a real player window is clamped.
+    $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = '1'
     $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
 } finally {
     $env:APPDATA = $previousAppData
     $env:RUSTGRAVE_NO_UPDATE_CHECK = $previousUpdateCheck
+    $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = $previousAllowSmall
 }
 if (-not $process.WaitForExit(300000)) {
     Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $process.Id) | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }

@@ -72,6 +72,7 @@ func interact(actor: Node) -> void:
 		return
 	# 回火试炼：炉心结局不属于试炼流程（会写战役结局/旗标），试炼里不触发。
 	if TrialRun.active():
+		TrialRun.reach_goal()
 		return
 	_choosing = true
 	_open_choice()
@@ -123,6 +124,7 @@ func _on_chosen(id: StringName) -> void:
 	var kind := "rekindle" if id == ID_REKINDLE else "snuff"
 	if kind == "snuff":
 		SaveData.ending = kind
+		SaveData.unlock_node("branch01")
 		# 契约 §5：任一结局解锁回火试炼（战役写；试炼里 mark_flag 会被守卫 no-op）。
 		SaveData.mark_flag("trial_unlocked")
 	GameEvents.ending_chosen.emit(id)
@@ -136,6 +138,12 @@ func _on_chosen(id: StringName) -> void:
 		# 故事页才回放得出这个结局（续火那条路由 LevelExit.travel 自己会存）。
 		SaveData.persist_story(player if is_instance_valid(player) else null)
 	if kind == "rekindle":
+		SaveData.mark_node_cleared("stage01")
+		SaveData.unlock_node("stage02")
+		var world := GameContext.world_root(self)
+		if world != null and world.has_method("request_room_transition"):
+			world.call("request_room_transition", "S1", "west", "stage02")
+			return
 		if player is Player:
 			LevelExit.travel(GameContext.LEVEL02_PATH, Level02Undercroft.ENTRY_SPAWN, player as Player)
 		else:
@@ -153,7 +161,7 @@ static func choice_steps(kind: String) -> Array:
 			{"kind": "fx", "id": "heart_pulse", "seconds": 0.5},
 			{"kind": "fx", "id": "ember_rise", "seconds": 0.8},
 		]
-		for line in ChapterText.exit_captions_of("level01"):
+		for line in ChapterText.exit_captions_of("stage01"):
 			steps.append({"kind": "caption", "text": String(line), "hold": 2.0})
 		steps.append({"kind": "wait", "seconds": 0.2})
 		steps.append({"kind": "unlock"})

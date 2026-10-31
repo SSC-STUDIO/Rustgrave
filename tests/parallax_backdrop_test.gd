@@ -19,7 +19,7 @@ func setup() -> void:
 
 func teardown() -> void:
 	for child in get_children():
-		child.free()
+		child.queue_free()
 	ThemeBackdrop.clear_cache()
 	WorldClock.reset()
 

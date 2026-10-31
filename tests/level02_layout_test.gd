@@ -158,7 +158,7 @@ func test_props_checkpoints_and_exit_are_placed() -> void:
 	var exit := props.get_node_or_null("BellDoor") as LevelExit
 	ok(exit != null, "the bell door ends the level")
 	if exit != null:
-		eq(exit.target_scene, GameContext.LEVELS["level02b"], "bell door hops to the slag conduit")
+		eq(exit.target_scene, GameContext.LEGACY_LEVELS["level02b"], "bell door hops to the slag conduit")
 		eq(exit.flag_id, "undercroft_done")
 		eq(exit.position, Level02Layout.EXIT_POS, "bell door sits at the authored arena exit")
 		ok(_standing_on(rects, exit.position), "exit door stands on FloorE")

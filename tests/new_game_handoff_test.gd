@@ -118,7 +118,7 @@ func test_real_first_level_restores_safe_spawn_and_skip_survives_continue() -> v
 	var origin := OriginCatalog.rust_automaton()
 	ok(SaveData.init_new_game(origin.id, {"weapon": origin.default_weapon,
 			"armor": origin.default_armor, "trinket": &"toxic_filter_talisman"}))
-	var level := (load(GameContext.WORLD_PATH) as PackedScene).instantiate() as Level01Static
+	var level := (load(GameContext.WORLD_PATH) as PackedScene).instantiate() as StageLevel
 	add_child(level)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -352,12 +352,12 @@ func test_title_failure_returns_to_selection_and_success_is_idempotent() -> void
 	await get_tree().process_frame
 
 func test_real_level_reload_heals_checkpoint_but_preserves_wounded_continue() -> void:
-	for level_id in ["level01", "level03"]:
+	for level_id in ["stage01", "stage03"]:
 		var path: String = GameContext.LEVELS[level_id]
 		var spawn := Level01Static.DEFAULT_SPAWN
-		if level_id != "level01":
-			var layout := (load(GameContext.LAYOUTS[level_id]) as GDScript).new() as ChapterLayout
-			spawn = layout.default_spawn()
+		if level_id != "stage01":
+			var layout := (load(GameContext.STAGE_SCRIPTS[level_id]) as GDScript).new() as StageRoomBuilder
+			spawn = layout.spawn_for_room(layout.default_room(), "west")
 			layout.free()
 		for origin in OriginCatalog.get_all_origins():
 			ok(SaveData.init_new_game(origin.id, {"weapon": origin.default_weapon,
@@ -370,7 +370,7 @@ func test_real_level_reload_heals_checkpoint_but_preserves_wounded_continue() ->
 			cfg.set_value("player", "toxin", 50.0)
 			# This fixture tests arrival replay, so its existing toxin is already familiar.
 			# Otherwise the first nonzero toxin tick starts the separate toxin tutorial.
-			cfg.set_value("story", "flags", ["wake", "opening_seen", "level03_wake", "toxin"])
+			cfg.set_value("story", "flags", ["wake", "opening_seen", "stage01_wake", "stage03_wake", "toxin"])
 			cfg.set_value("story", "opening_pending", false)
 			eq(cfg.save(TEST_SAVE), OK)
 			SaveData.pending_spawn = spawn + Vector2(12, 0)

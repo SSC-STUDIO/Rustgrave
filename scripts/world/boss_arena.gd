@@ -518,6 +518,18 @@ func nearest_nest() -> Node2D:
 func checkpoint_report() -> Dictionary:
 	var anchor := checkpoint_anchor()
 	var nest := nearest_nest()
+	if nest == null:
+		var world := GameContext.world_root(self)
+		if world is StageLevel:
+			var cp := (world as StageLevel).room_checkpoint_spawn()
+			return {
+				"anchor": anchor,
+				"checkpoint_max_distance": checkpoint_max_distance,
+				"nest": "StageRoomCheckpoint",
+				"nest_position": cp,
+				"distance": 0.0,
+				"ok": true,
+			}
 	var distance := INF
 	if nest != null:
 		distance = nest.global_position.distance_to(anchor)

@@ -4,7 +4,7 @@ extends Control
 ## Default is the old vertical rod (act names beside it). The title note calls
 ## `use_horizontal()` and gets one faint rail instead: lit cells, a pulsing current
 ## cell, and a tick at each act start. No stacked numerals.
-## Act boundaries (醒 / 债 / 铸 / 炉 = chapters 1-3, 4-7, 8-11, 12-14).
+## Act boundaries (醒 / 疑 / 铸 / 破 = nodes 1-3, 4-7, 8-11, 12-14).
 
 const TICKS := 14
 const SPACING := 19.0

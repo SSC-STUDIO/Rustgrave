@@ -257,7 +257,7 @@ func test_death_flag_survives_a_save_round_trip() -> void:
 	var host: Node2D = built[0]
 	var boss: Node2D = built[1]
 	var player := await spawn_player(host)
-	ok(SaveData.save_game(GameContext.LEVELS["level04b"], player), "chapter save exists")
+	ok(SaveData.save_game(GameContext.LEGACY_LEVELS["level04b"], player), "chapter save exists")
 	boss.call("announce")
 	(boss.get_node("Health") as Health).take_damage(99, null)
 	await flush(2)

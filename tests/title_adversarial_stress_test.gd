@@ -2,13 +2,12 @@ extends TestCase
 ## 对抗性压力测试套件（Milestone 1 UI 升级：T1–T5）：
 ##   1. LockTag 非重叠压力测试：多分辨率/长宽比、Row 1 & Row 3 & 场景告示牌非碰撞、无注解行不生成虚假 LockTag
 ##   2. MenuShade 中线与裁剪压力测试：所有视口配置下右界严格 < 640.0，不遮暗中央骑士
-##   3. FooterShade 与精简致谢：致谢文字严格终止于 x < 480（熔河前）、FooterShade 忽略鼠标事件不阻挡底部按钮点击
+##   3. FooterShade 与完整致谢：署名完整落在 label 内、字形终点停在页脚提示前、FooterShade 忽略鼠标事件不阻挡底部按钮点击
 ##   4. 坩埚熔铁流：自适应密集采样相邻点距 <= 2px (<= 1.415px) 与连续双层折线
 ##   5. 吊灯光标与暖度渐变：3x 比例、136px 衰减范围与单调暖度变化
 
 const TITLE_SCENE := "res://scenes/ui/TitleScreen.tscn"
 const KEYART_CENTER := 640.0
-const LAVA_RIVER_X := 480.0
 const SCENE_SIGNS_X := 240.0
 
 const STRESS_WINDOWS := [
@@ -211,7 +210,7 @@ func test_menu_shade_bounds_across_all_resolutions() -> void:
 	await get_tree().process_frame
 
 
-## 场景 3：FooterShade 与精简致谢文案及鼠标穿透验证
+## 场景 3：FooterShade 与完整致谢文案及鼠标穿透验证
 func test_footer_shade_and_credits_adversarial() -> void:
 	var title: TitleScreen = await _open_title()
 	var shade := title.find_child("FooterShade", true, false) as Control
@@ -230,18 +229,25 @@ func test_footer_shade_and_credits_adversarial() -> void:
 	ok(credits != null, "Credits 标签必须存在")
 
 	if credits != null:
+		var hint := title.find_child("FooterHint", true, false) as Label
+		ok(hint != null, "FooterHint 标签必须存在")
+		var hint_rect := title.design_rect(hint) if hint != null else Rect2()
 		var credits_rect := title.design_rect(credits)
-		ok(credits_rect.end.x < LAVA_RIVER_X,
-				"Credits 矩形右端严格停在熔河之前 (%.1f < %.1f)" % [credits_rect.end.x, LAVA_RIVER_X])
+		if hint != null:
+			ok(credits_rect.end.x < hint_rect.position.x,
+					"Credits 矩形右端停在页脚提示之前 (%.1f < %.1f)" % [credits_rect.end.x, hint_rect.position.x])
 
-		# 验证致谢文字渲染实际宽度
+		# 完整署名必须真的画出来，不能被 label 宽度或省略号截断。
 		var font := credits.get_theme_default_font()
 		if font != null:
 			var font_size := credits.get_theme_font_size("font_size")
 			var actual_text_w: float = font.get_string_size(credits.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 			var text_end_x := credits_rect.position.x + actual_text_w
-			ok(text_end_x < LAVA_RIVER_X,
-					"致谢文字实际字形终点严格在熔河前 (%.1f < %.1f)" % [text_end_x, LAVA_RIVER_X])
+			ok(actual_text_w <= credits.size.x - 2.0,
+					"完整致谢宽度落在 label 内，不会被省略号截断 (%.1f <= %.1f)" % [actual_text_w, credits.size.x - 2.0])
+			if hint != null:
+				ok(text_end_x < hint_rect.position.x,
+						"致谢实际字形终点停在页脚提示之前 (%.1f < %.1f)" % [text_end_x, hint_rect.position.x])
 
 	# 对抗性测试：在 FooterShade 覆盖区域放置测试按钮，验证点击穿透不被阻拦
 	var test_btn := Button.new()

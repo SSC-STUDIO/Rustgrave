@@ -198,10 +198,10 @@ func test_hover_and_keyboard_share_one_selection() -> void:
 	await get_tree().process_frame
 
 
-## 菜单下标 → 菜单 id（七格顺序与 _build_rail 一致）。
+## 菜单下标 → 菜单 id（七格顺序与 _build_rail 一致；「更新提示」不在菜单里）。
 func _id_for(index: int) -> StringName:
 	var ids: Array[StringName] = [&"new", &"continue", &"trial", &"arena",
-			&"settings", &"controls", &"quit", &"update"]
+			&"settings", &"controls", &"quit"]
 	return ids[index] if index < ids.size() else &""
 
 
@@ -285,7 +285,7 @@ func test_quit_plays_an_exit_sequence_and_can_be_skipped() -> void:
 func test_quit_puts_the_lanterns_out_one_by_one() -> void:
 	# 中期存档：第三幕，四盏吊灯亮着
 	TitleWorld.forced_state = TitleWorld.build_state({"has_save": true,
-			"scene": GameContext.LEVELS["level08"], "flags": PackedStringArray(), "ending": "",
+			"scene": GameContext.LEVELS["stage05"], "flags": PackedStringArray(), "ending": "",
 			"skin": "", "origin": "", "rank": 3})
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
@@ -432,8 +432,8 @@ func test_gauge_lights_the_cleared_chapters() -> void:
 	SaveData.delete_save()
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "version", 3)
-	cfg.set_value("meta", "scene", String(GameContext.LEVELS["level04"]))
-	cfg.set_value("story", "flags", ["boss_dead", "undercroft_done", "level02b_done", "level03_done"])
+	cfg.set_value("meta", "scene", String(GameContext.LEVELS["stage03"]))
+	cfg.set_value("story", "flags", ["stage01_done", "branch01_done", "stage02_done", "branch02_done"])
 	cfg.save(path)
 	var title: TitleScreen = await _open_title()
 	var gauge := title.find_child("JourneyGauge", true, false) as TitleGauge
@@ -442,7 +442,7 @@ func test_gauge_lights_the_cleared_chapters() -> void:
 		eq(gauge.lit_count(), 4, "已通关四章 -> 四个刻度亮")
 		eq(gauge.current_index(), 4, "当前章是第五个刻度")
 	var chapter := title.find_child("JourneyChapter", true, false) as Label
-	ok(chapter != null and chapter.text.contains(ChapterText.name_of("level04")), "章节行写当前章名：%s" % (chapter.text if chapter != null else ""))
+	ok(chapter != null and chapter.text.contains(ChapterText.name_of("stage03")), "章节行写当前章名：%s" % (chapter.text if chapter != null else ""))
 	title.queue_free()
 	await get_tree().process_frame
 	SaveData.delete_save()
@@ -546,23 +546,28 @@ func test_blocks_do_not_overlap_and_stay_inside_at_three_window_shapes() -> void
 	await get_tree().process_frame
 
 
-## 墓志是慢速打字机：第一句永远是 EPITAPH；打完整句后停一会儿再换下一句。
-func test_epitaph_types_slowly_and_starts_with_the_epitaph_line() -> void:
+## 墓志是慢速打字机：开屏结束时第一句已经整句"在"了（不停在打字中途）；
+## 之后每次轮换才逐字打出来。
+func test_epitaph_first_line_is_complete_after_the_intro() -> void:
 	var title: TitleScreen = await _open_title()
 	eq(title.epitaph_line(), TitleScreen.EPITAPH, "第一句是 EPITAPH")
 	var label := title.get_node("Inscription/EpitaphRow/Epitaph") as Label
 	eq(label.text, TitleScreen.EPITAPH, "标签里就是这一句")
 	title._skip_intro()
-	title._ep_t = 0.0
-	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 3.0 + 0.001)
-	eq(label.visible_characters, 3, "打了三个字")
-	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 40.0)
-	eq(label.visible_characters, -1, "整句打完")
-	# 停留够久 -> 淡出 -> 换下一句
+	# A8：跳/播完开屏 = 第一句整句可见 + 进入停留，不再从 0 打字。
+	eq(label.visible_characters, -1, "开屏落位后第一句整句可见")
+	eq(title._ep_phase, 2, "第一句进入停留阶段，不是打字中")
+	# 停留够久 -> 淡出 -> 换下一句（下一句才从 0 开始逐字打）。
 	title._update_epitaph(TitleScreen.EPITAPH_HOLD + 0.01)
 	title._update_epitaph(TitleScreen.EPITAPH_FADE + 0.01)
 	ok(title.epitaph_line() != TitleScreen.EPITAPH, "轮到下一句")
-	ok(label.text == title.epitaph_line(), "标签跟着换句")
+	eq(label.text, title.epitaph_line(), "标签跟着换句")
+	eq(label.visible_characters, 0, "下一句从 0 开始")
+	title._ep_t = 0.0
+	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 3.0 + 0.001)
+	eq(label.visible_characters, 3, "后续轮换仍走打字机：打了三个字")
+	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 40.0)
+	eq(label.visible_characters, -1, "整句打完")
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -572,30 +577,49 @@ func test_epitaph_types_slowly_and_starts_with_the_epitaph_line() -> void:
 const RECAP_SAVE := "user://title_recap_test.cfg"
 
 
-## 把 SaveData 指到一个临时存档路径，并清空内存里的旗标 / 结局（标题冷启动时它们还没读档）。
+## 把 SaveData 指到一个临时存档路径，并清空内存里的旗标 / 结局 / 已读档数据
+## （标题冷启动时它们还没读档，但同一个测试进程里前面的用例可能留下内存态）。
 func _begin_recap_env() -> Dictionary:
 	var saved := {"path": SaveData.save_path, "flags": SaveData.flags.duplicate(),
-			"ending": SaveData.ending}
+			"ending": SaveData.ending, "data": SaveData.data.duplicate(true)}
 	SaveData.save_path = RECAP_SAVE
 	SaveData.flags = PackedStringArray()
 	SaveData.ending = ""
+	SaveData.data = {}
 	if FileAccess.file_exists(RECAP_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE))
+	if FileAccess.file_exists(RECAP_SAVE + ".bak"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE + ".bak"))
 	return saved
 
 
 func _end_recap_env(saved: Dictionary) -> void:
 	if FileAccess.file_exists(RECAP_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE))
+	if FileAccess.file_exists(RECAP_SAVE + ".bak"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE + ".bak"))
 	SaveData.save_path = String(saved["path"])
 	SaveData.flags = saved["flags"]
 	SaveData.ending = String(saved["ending"])
+	SaveData.data = saved.get("data", {})
 
 
 func _write_recap_save(ending: String, flags: Array) -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "version", 3)
-	cfg.set_value("meta", "scene", String(GameContext.LEVELS["level05"]))
+	cfg.set_value("meta", "scene", String(GameContext.LEVELS["stage04"]))
+	if ending != "":
+		cfg.set_value("meta", "ending", ending)
+	cfg.set_value("player", "origin", "ember_vanguard")
+	cfg.set_value("story", "flags", flags)
+	cfg.save(RECAP_SAVE)
+
+
+## 直接写一份存档（自定义场景路径 / 损坏内容用）。
+func _write_raw_save(scene: String, ending: String = "", flags: Array = []) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 3)
+	cfg.set_value("meta", "scene", scene)
 	if ending != "":
 		cfg.set_value("meta", "ending", ending)
 	cfg.set_value("player", "origin", "ember_vanguard")
@@ -606,7 +630,7 @@ func _write_recap_save(ending: String, flags: Array) -> void:
 ## 有结局时菜单行写着「回看余烬」：选它必须打开总结页，而不是直接读档进关。
 func test_continue_row_with_an_ending_opens_the_recap_page() -> void:
 	var saved := _begin_recap_env()
-	_write_recap_save("give", [StoryFlow.done_flag("level01"), StoryFlow.done_flag("level02")])
+	_write_recap_save("give", [StoryFlow.done_flag("stage01"), StoryFlow.done_flag("stage02")])
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
 	var items := _items(title)
@@ -623,9 +647,9 @@ func test_continue_row_with_an_ending_opens_the_recap_page() -> void:
 	eq(recap.count_text(), "已过 2 / 14 章",
 			"前两章的完成旗标是 boss_dead / undercroft_done：按 DONE_FLAGS 数，冷启动（存档还没读进内存）也数得对")
 	ok(recap.row_ids().has(&"continue"), "总结页里仍有「继续旅程」")
-	ok(recap.row_ids().has(&"chapter_level01") and recap.row_ids().has(&"chapter_level02"),
+	ok(recap.row_ids().has(&"chapter_stage01") and recap.row_ids().has(&"chapter_stage02"),
 			"第一、二章能再入")
-	ok(not recap.row_ids().has(&"chapter_level03"), "没通关的章不列")
+	ok(not recap.row_ids().has(&"chapter_stage03"), "没通关的章不列")
 	recap.close()
 	await get_tree().process_frame
 	ok(not title.recap_open(), "Esc / 返回关掉总结页")
@@ -638,7 +662,7 @@ func test_continue_row_with_an_ending_opens_the_recap_page() -> void:
 ## 没有结局时「继续旅程」仍然是直接读档；旅程列里的「回看余烬」按钮随时能开同一页。
 func test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page() -> void:
 	var saved := _begin_recap_env()
-	_write_recap_save("", [StoryFlow.done_flag("level01")])
+	_write_recap_save("", [StoryFlow.done_flag("stage01")])
 	var title: TitleScreen = await _open_title()
 	title._skip_intro()
 	ok(not title._continue_opens_recap, "没结局：继续就是继续")
@@ -665,11 +689,12 @@ func test_chapter_entry_spawns_come_from_the_levels() -> void:
 			"第一章：Level01Static.DEFAULT_SPAWN（表里的数值没漂移）")
 	eq(TitleScreen.chapter_entry_spawn("level02"), Level02Layout.ENTRY_SPAWN,
 			"第二章：Level02Layout.ENTRY_SPAWN")
-	eq(TitleScreen.chapter_entry_spawn("level09b"), Vector2(96, -340), "风口崖道的入口在高处")
+	eq(TitleScreen.chapter_entry_spawn("stage01"), Level01Static.DEFAULT_SPAWN, "首节点入口出生点对齐默认落点")
 	for id in GameContext.LEVEL_ORDER:
 		var spawn := TitleScreen.chapter_entry_spawn(id)
 		ok(spawn != Vector2(176, 240), "%s 的落点不再是写死的 (176,240)" % id)
-		if id != "level01" and id != "level02":
+		if id != "level01":
+			eq(spawn, ChapterLayout.entry_spawn_of(id), "%s：和出口门送人过来的是同一个点" % id)
 			eq(spawn, ChapterLayout.entry_spawn_of(id), "%s：和出口门送人过来的是同一个点" % id)
 
 
@@ -813,9 +838,13 @@ func test_lamp_cursor_dimensions_and_halo() -> void:
 	await get_tree().process_frame
 
 
-## T5: 页脚渐变暗斑（截止在熔河上方）与精简致谢文案。
-func test_footer_shade_and_shortened_credits() -> void:
+## T5 + B2: 页脚渐变暗斑（截止在熔河上方）与完整署名（全员 + 字体，≥4.5:1 暖灰）。
+## 旧版为了 35 字上限删掉了作者/字体名；现在完整列出，并用字宽证明最后一位没被省略号吃掉。
+func test_footer_shade_and_complete_credits() -> void:
+	var original_scale := Settings.assist(&"text_scale")
+	Settings.set_value(&"text_scale", 1.0, false)
 	var title: TitleScreen = await _open_title()
+	title._skip_intro()
 	var shade := title.find_child("FooterShade", true, false) as Control
 	ok(shade != null, "FooterShade 节点存在")
 	if shade != null:
@@ -823,15 +852,31 @@ func test_footer_shade_and_shortened_credits() -> void:
 		ok(shade.position.y + shade.size.y >= 716.0, "暗渐变覆盖整个页脚高度")
 		ok(shade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "FooterShade 忽略鼠标事件")
 	var credits := title.find_child("Credits", true, false) as Label
-	if credits == null:
-		var band := title.find_child("CreditBand", true, false)
-		if band != null and band.get_child_count() > 1:
-			credits = band.get_child(1) as Label
 	ok(credits != null, "致谢文本存在")
+	var hint := title.find_child("FooterHint", true, false) as Label
+	ok(hint != null, "导航提示存在")
 	if credits != null:
-		ok(credits.text.length() <= 35, "致谢文案已精简为短句 (长 %d <= 35): %s" % [credits.text.length(), credits.text])
-		var credits_right := title.design_rect(credits).end.x
-		ok(credits_right < 480.0, "致谢文字右端停在左侧暗区 (%.0f < 480)" % credits_right)
+		eq(credits.text, TitleScreen.CREDITS, "页脚列的是完整署名")
+		for name in ["ansimuz", "aamatniekss", "Kronovi", "CodeManu", "Kenney", "Jacquard 24"]:
+			ok(credits.text.contains(name), "署名包含 %s" % name)
+		ok(credits.text.contains("Jacquard 24"), "最后一位署名 Jacquard 24 在文案里")
+		eq(credits.get_theme_color("font_color"), TitleScreen.CREDITS_INK,
+				"署名叫暖灰，不是压暗的灰（对比度 ≥4.5:1）")
+		var credits_rect := title.design_rect(credits)
+		# 没有被省略号截断：整串字形宽度放得进标签（最后一位 Jacquard 24 的右缘也在标签内）。
+		var font := credits.get_theme_font(&"font")
+		var font_size := credits.get_theme_font_size(&"font_size")
+		var glyph_w := 0.0
+		if font != null:
+			glyph_w = font.get_string_size(credits.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		ok(glyph_w <= credits_rect.size.x + 0.5,
+				"整串字形宽 %.0f 放得进署名条 %.0f：最后一位没被省略" % [glyph_w, credits_rect.size.x])
+		# 设计空间里：署名右端 < 页脚提示左端（band 坐标 736，绝对坐标 72+736=808）。
+		var hint_rect := title.design_rect(hint)
+		ok(credits_rect.end.x < hint_rect.position.x + 0.5,
+				"署名右端 %.0f 停在导航提示左端 %.0f 之前" % [credits_rect.end.x, hint_rect.position.x])
+		ok(credits_rect.end.x < TitleScreen.FOOTER_RECT.position.x + 736.0 + 0.5, "署名右端 < 736（band 坐标）")
+	Settings.set_value(&"text_scale", original_scale, false)
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -943,3 +988,505 @@ func test_journey_note_rows_do_not_overlap_at_any_text_scale() -> void:
 	title.queue_free()
 	await get_tree().process_frame
 	Settings.set_value(&"text_scale", original_scale, false)
+
+
+# ------------------------------------------------------- continue row (A1/A3) ----
+
+## 「继续旅程」行的行内注与页脚说明：无档 / 有档 / 有结局 / 章节认不出，四种都说真话。
+## 行内注是 10px、不撑高 52px 行；无档时禁用行再压暗一档（描边保留）。
+func test_continue_row_note_and_hint_are_honest() -> void:
+	var saved := _begin_recap_env()
+	# 1) 冷启动：没有存档
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var item := _items(title)[1] as MenuItem
+	eq(TitleScreen.continue_note(title.look()), "尚无存档", "无档：行内注写「尚无存档」")
+	eq(TitleScreen.continue_hint(title.look()), "继续旅程 · 尚无存档，先点燃余烬", "无档：页脚说先点燃余烬")
+	ok(item.disabled, "无档：「继续旅程」置灰")
+	ok(item._note != null and item._note.visible, "行内注可见")
+	eq(item._note.text, "尚无存档", "行内注就是这句")
+	eq(item._note.get_theme_font_size("font_size"), 10, "行内注 10px 小字")
+	almost(title.design_rect(item).size.y, MenuItem.HEIGHT, 0.5, "小注不撑高行：仍是 52px")
+	ok(item._label.get_theme_color("font_color").a <= 0.6,
+			"无档时禁用行再压暗一档 (alpha %.2f <= 0.6)" % item._label.get_theme_color("font_color").a)
+	ok(item._label.get_theme_constant("outline_size") >= 1, "描边保留，压暗仍可读")
+	ok(not (title._recap_button as Control).visible, "无档：旅程列的「回看余烬」不出现")
+	title.queue_free()
+	await get_tree().process_frame
+
+	# 2) 有档无结局：章节 + 进度
+	_write_recap_save("", [StoryFlow.done_flag("stage01"), StoryFlow.done_flag("stage02")])
+	title = await _open_title()
+	title._skip_intro()
+	item = _items(title)[1] as MenuItem
+	var look := title.look()
+	eq(String(look.get("chapter_id", "")), "stage04", "存档停在第四幕（stage04）")
+	var expected_note := "%s章 · %02d/%02d" % [ChapterText.number_of("stage04"),
+			int(look.get("cleared", 1)), ChapterText.order().size()]
+	eq(TitleScreen.continue_note(look), expected_note, "有档：行内注写章节 + 进度")
+	eq(item._note.text, expected_note, "行内注同步到菜单行")
+	eq(TitleScreen.continue_hint(look), "继续旅程 · %s · %02d/%02d" % [ChapterText.name_of("stage04"),
+			int(look.get("cleared", 1)), ChapterText.order().size()], "有档：页脚写章节 + 进度")
+	ok(not item.disabled, "有档：继续可点")
+	ok((title._recap_button as Control).visible, "有档无结局：旅程列的「回看余烬」是唯一回看入口")
+	title.queue_free()
+	await get_tree().process_frame
+
+	# 3) 有结局：结局名 + 回看说明；旅程列按钮收起（菜单行就是一步入口）
+	_write_recap_save("give", [StoryFlow.done_flag("stage01")])
+	title = await _open_title()
+	title._skip_intro()
+	item = _items(title)[1] as MenuItem
+	look = title.look()
+	eq(TitleScreen.continue_note(look), "结局 · 还火", "有结局：行内注写结局名")
+	eq(TitleScreen.continue_hint(look), TitleScreen.RECAP_HINT, "有结局：页脚是回看说明")
+	ok(item._text.contains("回 看 余 烬"), "有结局：行文案是回看余烬")
+	ok(not (title._recap_button as Control).visible, "有结局：旅程列表按钮不再重复出现")
+	title.queue_free()
+	await get_tree().process_frame
+
+	# 4) 有档但章节认不出：继续上次旅程
+	_write_raw_save("res://scenes/levels/RemovedLevel.tscn")
+	title = await _open_title()
+	title._skip_intro()
+	look = title.look()
+	eq(String(look.get("chapter_id", "")), "", "认不出的场景没有章节 id")
+	eq(TitleScreen.continue_note(look), "继续上次旅程", "认不出章节：行内注不猜")
+	eq(TitleScreen.continue_hint(look), TitleScreen.MENU_HINTS[TitleScreen.ID_CONTINUE],
+			"认不出章节：页脚退回旧说明")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+## A3：继续读档失败（损坏存档）—— 不开始、不淡出、不删文件；菜单保留，页脚说清楚。
+func test_continue_load_failure_keeps_the_menu_and_the_file() -> void:
+	var saved := _begin_recap_env()
+	if FileAccess.file_exists(RECAP_SAVE + ".bak"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECAP_SAVE + ".bak"))
+	var file := FileAccess.open(RECAP_SAVE, FileAccess.WRITE)
+	file.store_string("this is not a config file\n[[[ broken ]]]\n")
+	file.close()
+	ok(SaveData.has_save(), "损坏的存档文件仍然被检测到（has_save）")
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var menu := title.get_node("Menu") as MenuList
+	title._on_chosen(TitleScreen.ID_CONTINUE)
+	await get_tree().process_frame
+	ok(not title._started, "读档失败：没有开始游戏（_started 仍 false）")
+	ok(menu.active, "读档失败：菜单保留可操作")
+	ok(not title.character_select_screen().is_open(), "读档失败：没有误开角色选择")
+	eq(title.footer_hint_text(), TitleScreen.LOAD_FAILED_HINT,
+			"读档失败：页脚说「存档读不出来 · 已保留原文件，可点燃余烬」")
+	ok(FileAccess.file_exists(RECAP_SAVE), "读档失败：原存档文件没有被删除")
+	ok(not title.is_quitting(), "读档失败：没有进入退场")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+# ------------------------------------------------------ quit guard (A4) --------
+
+## 退场跳过：只认"按下"；宽限期内的按下/松开都不跳；宽限期后按下立即收尾。
+func test_quit_ignores_release_and_grants_a_grace_window() -> void:
+	var title: TitleScreen = await _open_title()
+	title.quit_on_finish = false
+	title._skip_intro()
+	title._on_chosen(TitleScreen.ID_QUIT)
+	await get_tree().process_frame
+	ok(title.is_quitting(), "进入退场")
+	var key_up := InputEventKey.new()
+	key_up.keycode = KEY_ENTER
+	key_up.pressed = false
+	var key_down := InputEventKey.new()
+	key_down.keycode = KEY_ENTER
+	key_down.pressed = true
+	# 选中「离开锈墓」的那次按下，以及它的 release：都不该跳过退场。
+	title._unhandled_input(key_up)
+	ok(not title.quit_finished(), "release 不能跳过退场（旧 bug）")
+	title._unhandled_input(key_down)
+	ok(not title.quit_finished(), "宽限期内的按下也不跳（不是拒绝服务）")
+	# 宽限期过后：新的按下立即收尾。
+	title._time += title.quit_skip_grace + 0.01
+	var later := InputEventKey.new()
+	later.keycode = KEY_SPACE
+	later.pressed = true
+	title._unhandled_input(later)
+	ok(title.quit_finished(), "宽限期过后的按下立即收尾")
+	title.queue_free()
+	await get_tree().process_frame
+
+	# 宽限为 0 时：release 仍然永远不跳过（只认按下），按下立即收尾。
+	title = await _open_title()
+	title.quit_on_finish = false
+	title._skip_intro()
+	title.quit_skip_grace = 0.0
+	title._on_chosen(TitleScreen.ID_QUIT)
+	await get_tree().process_frame
+	title._unhandled_input(key_up)
+	ok(not title.quit_finished(), "宽限为 0 时 release 也不跳")
+	title._unhandled_input(key_down)
+	ok(title.quit_finished(), "宽限为 0 时按下立即收尾")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+# ------------------------------------------------- modal arbitration (A5) -----
+
+## 模态仲裁：总结页开着时其它弹窗/档案/确认不能叠上来；打开时释放 GUI 焦点，
+## 旅程列两个辅助按钮暂时不收焦点，关闭后恢复。
+func test_modals_arbitrate_and_restore_aux_focus() -> void:
+	var saved := _begin_recap_env()
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var recap_button := title.find_child("RecapButton", true, false) as Button
+	var notice := title.find_child("UpdateNotice", true, false) as Button
+	ok(recap_button != null and notice != null, "回看按钮与更新按钮都在")
+	eq(recap_button.focus_mode, Control.FOCUS_ALL, "平时回看按钮收焦点")
+	eq(notice.focus_mode, Control.FOCUS_ALL, "平时更新按钮收焦点")
+	# 先把焦点放到回看按钮上，验证打开模态会释放它。
+	recap_button.grab_focus()
+	await get_tree().process_frame
+	var had_focus := title.get_viewport().gui_get_focus_owner() == recap_button
+	title.open_recap()
+	ok(title.recap_open(), "总结页打开")
+	eq(title._recap_button.focus_mode, Control.FOCUS_NONE, "总结页开着：回看按钮不收焦点")
+	eq(notice.focus_mode, Control.FOCUS_NONE, "总结页开着：更新按钮不收焦点")
+	if had_focus:
+		eq(title.get_viewport().gui_get_focus_owner(), null, "打开模态时释放了 GUI 焦点")
+	# 叠窗仲裁：确认信 / 更新提示 / 档案都不许叠在总结页上。
+	title.open_confirm()
+	ok(not title.confirm_open(), "总结页开着时覆盖确认不叠上来")
+	title._open_update_prompt()
+	ok(not title._update_prompt.is_open(), "总结页开着时更新提示不打开")
+	title._toggle_dossier_pinned()
+	ok(not title.dossier_open(), "总结页开着时点按/手柄不展开档案")
+	title.recap_page().close()
+	await get_tree().process_frame
+	ok(not title.recap_open(), "总结页关闭")
+	eq(title._recap_button.focus_mode, Control.FOCUS_ALL, "关闭后回看按钮恢复焦点")
+	eq(notice.focus_mode, Control.FOCUS_ALL, "关闭后更新按钮恢复焦点")
+	# 确认信同样仲裁并恢复。
+	title.open_confirm()
+	ok(title.confirm_open(), "确认信打开")
+	eq(title._recap_button.focus_mode, Control.FOCUS_NONE, "确认信开着：回看按钮不收焦点")
+	title.close_confirm()
+	await get_tree().process_frame
+	ok(not title.confirm_open(), "确认信关闭")
+	eq(title._recap_button.focus_mode, Control.FOCUS_ALL, "确认信关闭后回看按钮恢复焦点")
+	eq(notice.focus_mode, Control.FOCUS_ALL, "确认信关闭后更新按钮恢复焦点")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+## A5：总结页 / 确认信关闭后，页脚说明回到当前焦点行（而不是停在被弹窗打断的那句）。
+func test_footer_hint_returns_after_closing_a_modal() -> void:
+	var saved := _begin_recap_env()
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var menu := title.get_node("Menu") as MenuList
+	menu.select(3, false)   # 余烬竞技场
+	await get_tree().process_frame
+	var expected := title.footer_hint_text()
+	eq(expected, TitleScreen.MENU_HINTS[TitleScreen.ID_ARENA], "焦点行是竞技场说明")
+	title.open_recap()
+	await get_tree().process_frame
+	title._on_recap_attention(true)
+	eq(title.footer_hint_text(), TitleScreen.RECAP_HINT, "回看悬停会临时改写页脚")
+	title.recap_page().close()
+	await get_tree().process_frame
+	eq(title.footer_hint_text(), expected, "关掉总结页后页脚回到当前焦点行")
+	title.open_confirm()
+	await get_tree().process_frame
+	title._set_footer_hint("被打断的说明")
+	eq(title.footer_hint_text(), "被打断的说明")
+	title.close_confirm()
+	await get_tree().process_frame
+	eq(title.footer_hint_text(), expected, "关掉确认信后页脚回到当前焦点行")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+# ------------------------------------------------- journey shade (B1/A2) ------
+
+## 旅程短注垫了一块静态径向暗斑（比注大一圈）；短注 96 高、回看条 30/14px，
+## 基础小字 13px；高亮只推墨层 alpha，暗斑不跟着呼吸。
+func test_journey_shade_tokens_and_static_layer() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var shade := title.find_child("JourneyShade", true, false) as Control
+	ok(shade != null, "JourneyShade 存在")
+	var ink := title.find_child("JourneyInk", true, false) as CanvasItem
+	ok(ink != null, "JourneyInk 存在")
+	if shade != null and ink != null:
+		var rect := title.design_rect(shade)
+		almost(rect.position.x, TitleScreen.JOURNEY_X - 14.0, 0.5, "暗斑左缘外扩 14")
+		almost(rect.position.y, TitleScreen.JOURNEY_Y - 12.0, 0.5, "暗斑上缘外扩 12")
+		almost(rect.size.x, TitleScreen.JOURNEY_W + 28.0, 0.5, "暗斑宽 +28")
+		almost(rect.size.y, TitleScreen.JOURNEY_H + 24.0, 0.5, "暗斑高 +24")
+		eq(shade.mouse_filter, Control.MOUSE_FILTER_IGNORE, "暗斑不吃鼠标")
+		almost(TitleScreen.JOURNEY_H, 96.0, 0.01, "短注高 96")
+		almost(TitleScreen.JOURNEY_DIM, 0.62, 0.001, "暗态 0.62")
+		almost(TitleScreen.JOURNEY_LIT, 1.0, 0.001, "亮态 1.0")
+		almost(TitleScreen.RecapStrip.HEIGHT, 30.0, 0.01, "回看条高 30")
+		eq(TitleScreen.RecapStrip.FONT_SIZE, 14, "回看条 14px")
+		var chapter := title.find_child("JourneyChapter", true, false) as Label
+		eq(chapter.get_theme_font_size("font_size"), 13, "短注基础小字 13px")
+		var shade_alpha := shade.modulate.a
+		(title.get_node("Menu") as MenuList).select(1, false)
+		await get_tree().process_frame
+		ok(ink.modulate.a > TitleScreen.JOURNEY_DIM, "焦点在「继续」时短注点亮")
+		almost(shade.modulate.a, shade_alpha, 0.0001, "暗斑是静态的，不跟高亮呼吸")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+# ------------------------------------------------- confirm letter (B3) --------
+
+## 确认信：羊皮纸上的 kicker/正文/提示/返回用深墨、标题深锈；蜡封按钮 48px 正对火漆，
+## 上方有 12px 墨色"按住火漆 · 确认覆盖"；确认覆盖行压暗、取消仍是默认主行动。
+func test_confirm_letter_ink_and_seal_inset() -> void:
+	var saved := _begin_recap_env()
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	title.open_confirm()
+	await get_tree().process_frame
+	ok(title.confirm_open(), "确认信打开")
+	var root := title._confirm_shell["root"] as Control
+	ok(root != null, "确认信根节点存在")
+	for node_name in ["Kicker", "Hint", "Back", "ConfirmBody"]:
+		var label := root.find_child(node_name, true, false) as Label
+		ok(label != null, "%s 存在" % node_name)
+		if label != null:
+			eq(label.get_theme_color("font_color"), TitleScreen.LETTER_INK, "%s 用深墨" % node_name)
+	var title_label := root.find_child("Title", true, false) as Label
+	ok(title_label != null, "标题存在")
+	if title_label != null:
+		eq(title_label.get_theme_color("font_color"), TitleScreen.LETTER_RUST, "标题保持深锈")
+	var seal_button := root.find_child("SealButton", true, false) as Button
+	ok(seal_button != null, "蜡封按钮存在")
+	var hint := root.find_child("SealHint", true, false) as Label
+	ok(hint != null, "蜡封上方有可见操作说明")
+	if seal_button != null and hint != null:
+		print("SEAL-DEBUG size=%s pos=%s min=%s sb_min=%s font=%d textlen=%d same=%s" % [seal_button.size,
+				seal_button.position, seal_button.get_combined_minimum_size(),
+				seal_button.get_theme_stylebox("normal").get_minimum_size(),
+				seal_button.get_theme_font_size("font_size"), seal_button.text.length(),
+				title._confirm_seal_button == seal_button])
+		almost(seal_button.size.x, 48.0, 0.5, "蜡封按钮 48px")
+		almost(seal_button.size.y, 48.0, 0.5, "蜡封按钮 48px 高")
+		eq(hint.text, TitleScreen.SEAL_HOLD_LABEL, "说明文案是「按住火漆 · 确认覆盖」")
+		eq(hint.get_theme_font_size("font_size"), 12, "说明 12px")
+		eq(hint.get_theme_color("font_color"), TitleScreen.LETTER_INK, "说明用深墨")
+		ok(hint.position.y + hint.size.y <= seal_button.position.y,
+				"说明在蜡封按钮上方 (%.0f <= %.0f)" % [hint.position.y + hint.size.y, seal_button.position.y])
+		var dressing := title._confirm_shell["dressing"] as Node2D
+		ok(dressing != null, "信笺蜡封绘制层存在")
+		if dressing != null:
+			var center: Vector2 = dressing.call("seal_center")
+			almost(seal_button.position.x + seal_button.size.x * 0.5, center.x, 1.0, "按钮中心对齐蜡封中心 x")
+			almost(seal_button.position.y + seal_button.size.y * 0.5, center.y, 1.0, "按钮中心对齐蜡封中心 y")
+	ok(title._confirm_overwrite_item != null, "确认覆盖行存在")
+	if title._confirm_overwrite_item != null:
+		ok(title._confirm_overwrite_item.tint.r <= 0.87,
+				"确认覆盖行压暗（tint %.2f <= 0.87）" % title._confirm_overwrite_item.tint.r)
+	var keep_item := title._confirm_menu.items()[0] as MenuItem
+	ok(keep_item.selected, "取消仍是默认选中项（安全出口）")
+	ok(not (title._confirm_overwrite_item as MenuItem).selected, "默认不选中确认覆盖")
+	title.close_confirm()
+	await get_tree().process_frame
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+## B3：火漆按住 0.45s 才确认；按住中途松手取消（不开角色选择）；按满了才进选人。
+func test_seal_hold_cancels_early_and_completes() -> void:
+	var saved := _begin_recap_env()
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	title.open_confirm()
+	await get_tree().process_frame
+	var char_select := title.character_select_screen()
+	ok(title.confirm_open() and not char_select.is_open(), "确认信开着，角色选择还没开")
+	# 短按：按下 -> 进到一半 -> 松开。不开选人，信笺仍开着。
+	title._confirm_seal_button.button_down.emit()
+	title._update_seal_hold(0.2)
+	var mid := title.seal_hold_progress()
+	ok(mid > 0.0 and mid < 1.0, "按住中段有进度 (%.2f)" % mid)
+	title._confirm_seal_button.button_up.emit()
+	ok(not char_select.is_open(), "没按满松手：不打开角色选择")
+	ok(title.confirm_open(), "没按满松手：信笺仍然开着")
+	almost(title.seal_hold_progress(), 0.0, 0.01, "松手清空按住进度")
+	# 长按：按住满 0.45s -> 真的确认。
+	title._begin_seal_hold()
+	title._update_seal_hold(TitleScreen.SEAL_HOLD_TIME + 0.02)
+	await get_tree().process_frame
+	ok(not title.confirm_open(), "按满后确认信收起")
+	ok(char_select.is_open(), "按满后进入角色选择")
+	title.queue_free()
+	await get_tree().process_frame
+	_end_recap_env(saved)
+
+
+# ------------------------------------------------- text scale layout (C2) -----
+
+## 85/100/135% 三档字号：字标/副题/菜单/旅程/墓志/页脚互不重叠且都在内容矩形内；
+## 135% 档案卡内容最小高不超过卡身；副题行高、墓志底边也跟着重排。
+func test_title_blocks_do_not_overlap_at_three_text_scales() -> void:
+	var original_scale := Settings.assist(&"text_scale")
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var notice := title.find_child("UpdateNotice", true, false) as Control
+	if notice != null:
+		notice.visible = true
+	var blocks := ["Masthead", "Subtitle", "Menu", "JourneyColumn", "Epitaph", "CreditBand"]
+	var content := Rect2(Vector2.ZERO, PresentationMetrics.UI_SIZE)
+	var masthead_column := title.find_child("MastheadColumn", true, false) as Control
+	for text_scale in [0.85, 1.0, 1.35]:
+		Settings.set_value(&"text_scale", text_scale, false)
+		await flush(3)
+		var rects := {}
+		for block in blocks:
+			var node := title.find_child(block, true, false) as Control
+			ok(node != null, "区块 %s 存在 @%.2f" % [block, text_scale])
+			if node == null:
+				continue
+			var rect := title.design_rect(node)
+			rects[block] = rect
+			ok(content.grow(0.6).encloses(rect),
+					"%s 落在内容矩形内 @%.2f：%s" % [block, text_scale, rect])
+		var names := rects.keys()
+		for i in names.size():
+			for j in range(i + 1, names.size()):
+				var ra: Rect2 = rects[names[i]]
+				var rb: Rect2 = rects[names[j]]
+				ok(not ra.grow(-0.6).intersects(rb.grow(-0.6)),
+						"%s 与 %s 不重叠 @%.2f" % [names[i], names[j], text_scale])
+		# 字标列底边跟着副题行高，但停在菜单顶（RAIL_TOP）上方。
+		if masthead_column != null:
+			var col := title.design_rect(masthead_column)
+			ok(col.end.y <= TitleScreen.RAIL_TOP, "字标列底不压菜单顶 @%.2f (%.0f)" % [text_scale, col.end.y])
+		# 墓志：字号封顶 30、底边停在 656。
+		var epitaph := title.find_child("Epitaph", true, false) as Control
+		ok(epitaph.get_theme_font_size("font_size") <= 30, "墓志字号封顶 30 @%.2f" % text_scale)
+		almost(title.design_rect(epitaph).end.y, 656.0, 1.0, "墓志底边停在 656 @%.2f" % text_scale)
+		# 档案卡：135% 收紧行距、底注封顶，内容最小高不超过卡身。
+		var dossier := title.find_child("Dossier", true, false) as Control
+		var contents := title._dossier_contents as Control
+		if contents != null and dossier != null:
+			var sep: int = contents.get_theme_constant("separation")
+			eq(sep, 8 if text_scale >= 1.3 else 12, "档案卡行距 @%.2f" % text_scale)
+			var min_h: float = contents.get_combined_minimum_size().y
+			var body_h := TitleScreen.CARD_RECT.size.y - 44.0
+			print("DOSSIER-DEBUG scale=%.2f min=%.1f body=%.1f size=%.1f sep=%d" % [text_scale, min_h, body_h, dossier.size.y, sep])
+			ok(min_h <= body_h + 0.5,
+					"%.2f 档案内容最小高 %.0f <= 卡身 %.0f" % [text_scale, min_h, body_h])
+			ok(dossier.size.y <= body_h + 0.5, "%.2f 档案卡身没被内容撑大 (%.0f)" % [text_scale, dossier.size.y])
+	Settings.set_value(&"text_scale", original_scale, false)
+	title.queue_free()
+	await get_tree().process_frame
+
+
+# --------------------------------------------- dossier input parity (C3) ------
+
+## 档案三路径：点按旅程短注（触屏）/ 手柄 Y / Tab 都能开合；点按区不盖「回看余烬」，
+## 不抢键盘焦点；页脚默认提示写明 Tab/Y。
+func test_dossier_input_parity_gamepad_and_touch() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	ok(not title.dossier_open(), "默认收起")
+	var tap := title.find_child("JourneyButton", true, false) as Button
+	ok(tap != null, "旅程短注有点按区")
+	if tap != null:
+		eq(tap.mouse_filter, Control.MOUSE_FILTER_STOP, "点按区收鼠标/触屏")
+		eq(tap.focus_mode, Control.FOCUS_NONE, "点按区不抢 Tab / 键盘焦点")
+		var recap := title.find_child("RecapButton", true, false) as Control
+		if recap != null:
+			ok(tap.position.y + tap.size.y <= recap.position.y + 0.5,
+					"点按区不盖「回看余烬」按钮")
+		tap.pressed.emit()
+		await get_tree().process_frame
+		ok(title.dossier_open(), "点按旅程短注展开档案（触屏路径）")
+		tap.pressed.emit()
+		await get_tree().process_frame
+		ok(not title.dossier_open(), "再点一下收起")
+	# 手柄 Y
+	var pad := InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_Y
+	pad.pressed = true
+	(title.get_node("Menu") as MenuList).active = true
+	title._unhandled_input(pad)
+	await get_tree().process_frame
+	ok(title.dossier_open(), "手柄 Y 展开档案")
+	title._unhandled_input(pad)
+	await get_tree().process_frame
+	ok(not title.dossier_open(), "再按 Y 收起")
+	# Tab 仍是键盘路径
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	title._unhandled_input(tab)
+	await get_tree().process_frame
+	ok(title.dossier_open(), "Tab 仍然展开档案")
+	title._dossier_pinned = false
+	title._set_dossier_open(false)
+	eq(TitleScreen.FOOTER_DEFAULT, "↑↓ 选择 · Enter 确认 · Tab/Y 档案", "页脚默认提示写明 Tab/Y")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+# ------------------------------------------------- menu cursor / lamp (A7) ----
+
+## A7：可点的菜单行是手形光标、禁用行是箭头（在 _refresh 里同步）；
+## 选中行下划线是这一行字的真实宽度（不再是写死的 148px 上限）。
+func test_menu_rows_use_hand_cursor_and_lamp_underline() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var items := _items(title)
+	for i in items.size():
+		var expected := Control.CURSOR_ARROW if items[i].disabled else Control.CURSOR_POINTING_HAND
+		eq(items[i].mouse_default_cursor_shape, expected, "第 %d 行光标形状（禁用=%s）" % [i, items[i].disabled])
+	# 禁用行改状态后光标跟着变（_refresh 同步，不是构造时定死）。
+	var continue_item := items[1] as MenuItem
+	ok(continue_item.disabled, "无档时继续行是禁用的")
+	continue_item.disabled = false
+	eq(continue_item.mouse_default_cursor_shape, Control.CURSOR_POINTING_HAND, "解禁后变手形")
+	continue_item.disabled = true
+	eq(continue_item.mouse_default_cursor_shape, Control.CURSOR_ARROW, "再禁用变回箭头")
+	# 下划线 = 字的实际宽度：挑最长的一行（竞技场），旧上限 148 会截短它。
+	var menu := title.get_node("Menu") as MenuList
+	menu.select(3, false)
+	await get_tree().process_frame
+	var arena := items[3] as MenuItem
+	var font := arena._label.get_theme_font(&"font")
+	var font_size := arena._label.get_theme_font_size(&"font_size")
+	var text_w := 0.0
+	if font != null:
+		text_w = font.get_string_size(arena._label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	ok(text_w > 148.0, "竞技场行的字比旧上限 148px 长 (%.0f)" % text_w)
+	almost(arena.underline_span(), text_w, 1.0, "选中下划线等于整行字的宽度")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## A6：版本提示按钮右对齐页脚右缘（x = 1208 - 宽），高 22，不压导航提示。
+func test_update_notice_is_right_aligned_in_the_footer() -> void:
+	var title: TitleScreen = await _open_title()
+	title._skip_intro()
+	var notice := title.find_child("UpdateNotice", true, false) as Control
+	ok(notice != null, "版本提示按钮存在")
+	var hint := title.find_child("FooterHint", true, false) as Control
+	if notice != null:
+		notice.visible = true
+		var rect := title.design_rect(notice)
+		almost(rect.size.y, 22.0, 0.5, "版本提示高 22")
+		almost(rect.end.x, TitleScreen.FOOTER_RECT.end.x, 0.5, "右对齐页脚右缘 1208")
+		almost(rect.position.y, 661.0, 0.5, "停在页脚带上方")
+		if hint != null:
+			ok(rect.position.x > title.design_rect(hint).position.x,
+					"不压导航提示（提示从 %.0f 起）" % title.design_rect(hint).position.x)
+	title.queue_free()
+	await get_tree().process_frame

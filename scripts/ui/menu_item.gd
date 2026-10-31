@@ -52,6 +52,10 @@ const STRIP_IRON := Color("#4A3E44")
 const STRIP_EMBER := Color("#FFC14A")
 ## 灯标行的字从这里开始，左边留给吊灯。
 const LAMP_LABEL_X := 56.0
+## 灯标行右侧的行内小注（「继续旅程」行的章节/进度，10px 小字）：贴右缘、不撑高行。
+const NOTE_INLINE_W := 96.0
+const NOTE_INLINE_RIGHT := 8.0
+const NOTE_INLINE_SIZE := 10
 
 ## 菜单项 id（MenuList.add_item 写入；标题测试/旧调用按它读行）。
 var id: StringName = &""
@@ -83,6 +87,20 @@ var disabled := false:
 		disabled = value
 		_refresh()
 
+## 禁用行的字色透明度（默认 0.90；「继续旅程」无档时压到 0.55，让"先点燃余烬"更明确）。
+## 描边走主题的独立颜色，不跟着这个 alpha 一起淡掉。
+var disabled_alpha := 0.90:
+	set(value):
+		disabled_alpha = value
+		if lamp:
+			_paint_lamp()
+			queue_redraw()
+## 非选中 / 选中都保持的基础色调（确认信里「确认覆盖」行压暗到 0.85，不再提亮）。
+var tint := Color.WHITE:
+	set(value):
+		tint = value
+		_refresh()
+
 var selected := false:
 	set(value):
 		if selected == value:
@@ -95,6 +113,8 @@ var _panel: Panel
 var _plate: TextureRect
 var _label: Label
 var _note: Label
+## 小注是行内右侧（不撑高行），还是悬挂铁签（试炼未解锁）。
+var _note_inline := false
 var _lock_tag: LockTag
 var _cursor: TextureRect
 var _brazier: Node2D
@@ -314,8 +334,27 @@ func set_lamp_light(amount: float) -> void:
 
 
 ## 条右端的小字（例如试炼未解锁时的"第七章后解锁"）；空串 = 不显示。
-func set_note(value: String) -> void:
+## inline=true：灯标行右侧的 10px 行内注（章节/进度），行高保持 52，不挂铁签。
+func set_note(value: String, inline: bool = false) -> void:
 	if _note == null:
+		return
+	if inline:
+		_note_inline = true
+		_note.text = value
+		_note.visible = value != ""
+		_note.modulate = Color.WHITE
+		_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_note.clip_text = true
+		_note.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_note.add_theme_font_size_override("font_size",
+				mini(roundi(float(NOTE_INLINE_SIZE) * Settings.assist(&"text_scale")), 12))
+		_note.add_theme_color_override("font_color", Color(0.73, 0.67, 0.58, 0.92))
+		_note.add_theme_constant_override("outline_size", 1)
+		_note.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
+		_note.position = Vector2(STRIP_WIDTH.get(kind, 344.0) - NOTE_INLINE_RIGHT - NOTE_INLINE_W, 0.0)
+		_note.size = Vector2(NOTE_INLINE_W, HEIGHT)
+		queue_redraw()
 		return
 	_note.text = value
 	var has_text := value != ""
@@ -356,7 +395,10 @@ func _apply_land() -> void:
 	if _lock_tag != null:
 		_lock_tag.position.x = LAMP_LABEL_X + 6.0 + ox
 	elif _note != null:
-		_note.position.x = size.x - 124.0 + ox
+		if _note_inline:
+			_note.position.x = STRIP_WIDTH.get(kind, 344.0) - NOTE_INLINE_RIGHT - NOTE_INLINE_W + ox
+		else:
+			_note.position.x = size.x - 124.0 + ox
 	queue_redraw()
 
 
@@ -473,6 +515,8 @@ func _notification(what: int) -> void:
 func _refresh() -> void:
 	if _label == null:
 		return
+	# 可点的行给一只手形光标；禁用行退回箭头，别让玩家以为还能点。
+	mouse_default_cursor_shape = Control.CURSOR_ARROW if disabled else Control.CURSOR_POINTING_HAND
 	if kind == Kind.DEFAULT:
 		_refresh_default()
 	elif ink:
@@ -495,9 +539,9 @@ func _refresh() -> void:
 	if not lit:
 		# 灯标与墨水行的淡入淡出走 modulate.a（开屏 / 退场）。这里不能把 alpha 打回 1。
 		if lamp or ink:
-			modulate = Color(1.0, 1.0, 1.0, modulate.a)
+			modulate = Color(tint.r, tint.g, tint.b, modulate.a)
 		else:
-			modulate = Color.WHITE
+			modulate = tint
 		_time = 0.0
 	set_process(lit)
 
@@ -548,7 +592,9 @@ func _paint_lamp() -> void:
 	if _label == null or not lamp:
 		return
 	if disabled:
-		_label.add_theme_color_override("font_color", Color(0.68, 0.64, 0.60, 0.90))
+		# 禁用行：冷灰 + 可调的透明度；描边仍由主题给的高对比深色独立画。
+		_label.add_theme_color_override("font_color",
+				Color(0.68, 0.64, 0.60, clampf(disabled_alpha, 0.0, 1.0)))
 		return
 	var warmth := lamp_light
 	if selected:
@@ -566,18 +612,37 @@ func _paint_lamp() -> void:
 	_label.add_theme_color_override("font_color", col)
 
 
-## 选中行底下一条烧着的细线，从字的左端亮起。不画条身。
+## 选中行底下一条烧着的细线：从字的左端亮起，长度就是这一行字的真实宽度
+## （不是写死的一小截），行首左侧再点一粒 3x5px 的火星。不画条身。
 func _draw_lamp() -> void:
 	if _label == null or not selected or disabled:
 		return
 	var x := _label.position.x
 	var y := floorf(size.y * 0.5 + 12.0)
-	var span := minf(148.0, size.x - x - 16.0)
+	if y > size.y - 2.0:
+		return
+	var span := underline_span()
 	if span < 8.0:
 		return
 	draw_rect(Rect2(x, y, span, 1.0), Color(1.0, 0.45, 0.14, 0.45))
-	draw_rect(Rect2(x, y, 22.0, 1.0), Color(1.0, 0.92, 0.7, 0.95))
-	draw_rect(Rect2(x, y - 1.0, 4.0, 3.0), Color(1.0, 0.78, 0.35, 0.9))
+	draw_rect(Rect2(x, y, minf(span, 22.0), 1.0), Color(1.0, 0.92, 0.7, 0.95))
+	# 行首 3x5px 余烬：下划线从这里"点着"。
+	var cy := floorf(size.y * 0.5)
+	draw_rect(Rect2(x - 9.0, cy - 2.0, 3.0, 5.0), Color(0.55, 0.28, 0.10, 0.9))
+	draw_rect(Rect2(x - 9.0, cy - 2.0, 3.0, 2.0), Color(1.0, 0.78, 0.35, 0.95))
+
+
+## 选中行下划线的长度：这一行字的实际宽度，不超过行内可用宽（测试可读）。
+func underline_span() -> float:
+	if _label == null:
+		return 0.0
+	var avail := maxf(size.x - _label.position.x - 16.0, 0.0)
+	var font := _label.get_theme_font(&"font")
+	if font == null:
+		return avail
+	var font_size := _label.get_theme_font_size(&"font_size")
+	var text_w := font.get_string_size(_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	return minf(ceilf(text_w), avail)
 
 
 func _refresh_default() -> void:

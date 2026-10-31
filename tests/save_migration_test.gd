@@ -21,7 +21,7 @@ func teardown() -> void:
 func _write_v1_save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "version", 1)
-	cfg.set_value("meta", "scene", GameContext.LEVELS["level03"])
+	cfg.set_value("meta", "scene", GameContext.LEGACY_LEVELS["level03"])
 	cfg.set_value("meta", "saved_at", "2026-10-17 12:00:00")
 	cfg.set_value("player", "hp", 3)
 	cfg.set_value("player", "max_hp", 5)
@@ -55,7 +55,7 @@ func test_v1_save_loads_with_default_profile_and_keeps_every_old_field() -> void
 	_write_v1_save()
 	ok(SaveData.load_game(), "v1 save loads")
 	eq(int((SaveData.data["meta"] as Dictionary)["version"]), 1, "old version is reported, not rewritten")
-	eq(SaveData.saved_scene(), GameContext.LEVELS["level03"], "old scene survives")
+	eq(SaveData.saved_scene(), GameContext.LEGACY_LEVELS["level03"], "old scene survives")
 	eq(SaveData.character_id, "", "missing profile block -> empty character id (default character)")
 	eq(SaveData.extras.size(), 0, "missing extras -> empty")
 	eq(SaveData.ember_rank, 1, "missing rank -> rank 1")

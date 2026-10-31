@@ -19,7 +19,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level05_Workshop"
-	host.scene_file_path = GameContext.LEVELS["level05"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level05"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := L5.new()
@@ -71,7 +71,7 @@ func test_metadata_story_order_and_v2_paths_survive() -> void:
 		ok(host.get_node_or_null(path) != null, "stable v2 path: " + path)
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level05_done")
-	eq(exit.target_scene, GameContext.LEVELS["level06"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level06"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level06"))
 	ok(L5.EAST - exit.position.x >= 80)
 	for node_name in ["SteleQuench", "SteleChain", "SteleNook"]:

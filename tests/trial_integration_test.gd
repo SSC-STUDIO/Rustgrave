@@ -75,8 +75,8 @@ func _delete_save() -> void:
 
 func _start_timed_trial() -> bool:
 	SaveData.mark_flag("trial_unlocked")
-	SaveData.mark_flag("level03_done")
-	return RunScript.start(Catalog.Track.TIME_ATTACK, "level03")
+	SaveData.mark_flag("stage03_done")
+	return RunScript.start(Catalog.Track.TIME_ATTACK, "stage03")
 
 
 ## P2：试炼会话中战役档只读——所有写入口 no-op，且不产生存档文件。
@@ -182,7 +182,7 @@ func test_level_exit_reaches_goal_instead_of_travelling() -> void:
 	eq(_requested.size(), requested_before, "不载入下一关（试炼没有战役换场）")
 	eq(SaveData.flags, flags_before, "不写章节完成旗标")
 	ok(not FileAccess.file_exists(SAVE_TEST_PATH), "没有写战役档")
-	var record := Records.best(Catalog.Track.TIME_ATTACK, "level03")
+	var record := Records.best(Catalog.Track.TIME_ATTACK, "stage03")
 	ok(not record.is_empty(), "结算写进试炼记录")
 	Results.close_all()
 	RunScript.abandon()

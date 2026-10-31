@@ -375,7 +375,8 @@ static func on_boss_defeated() -> void:
 		return
 	if _track != Catalog.Track.BOSS_RUSH:
 		var stage_row := stage()
-		if String(stage_row.get("level_id", "")) == "level01":
+		var lid := String(stage_row.get("level_id", ""))
+		if lid == "level01" or lid == "stage01":
 			finish(&"boss_dead")
 		return
 	var hp := _live_player_health()

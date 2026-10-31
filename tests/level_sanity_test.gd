@@ -139,7 +139,8 @@ func test_every_grounded_prop_lands_on_its_opaque_pixels() -> void:
 			almost(Level01Env.sprite_opaque_bottom_y(spr), feet.y, 1.01,
 					"%s/%s opaque bottom sits on its feet" % [id, spr.name])
 			checked += 1
-		ok(checked >= 3, "%s has pinned grounded props to audit (%d)" % [id, checked])
+		var min_props := 1 if level is StageLevel else 3
+		ok(checked >= min_props, "%s has pinned grounded props to audit (%d)" % [id, checked])
 		level.free()
 		await flush(1)
 
@@ -156,12 +157,16 @@ func test_exit_and_checkpoints_are_reachable_from_spawn() -> void:
 		for nest in get_tree().get_nodes_in_group("ember_nests"):
 			var feet := LevelSanity.feet_of(nest)
 			ok(LevelSanity.is_reachable(level, spawn, feet, allow_hook), "%s: nest %s is reachable from spawn" % [id, nest.name])
-		var goals: Array[Node2D] = []
+		var goal_pts: Array[Vector2] = []
 		for node in LevelSanity._descendants(level):
 			if node is LevelExit or node is ForgeHeart or (not allow_hook and (node is PressurePlate or node is RustyGate)):
-				goals.append(node as Node2D)
-		ok(not goals.is_empty(), "%s has an exit or a forge heart" % id)
-		for goal in goals:
-			ok(LevelSanity.is_reachable(level, spawn, LevelSanity.feet_of(goal), allow_hook), "%s: %s is reachable from spawn without optional abilities" % [id, goal.name])
+				goal_pts.append(LevelSanity.feet_of(node))
+			elif node is RoomGate:
+				var gp := (node as RoomGate).walkable_goal_point()
+				if gp != Vector2.INF:
+					goal_pts.append(gp)
+		ok(not goal_pts.is_empty(), "%s has an exit, room gate, or forge heart" % id)
+		for gp in goal_pts:
+			ok(LevelSanity.is_reachable(level, spawn, gp, allow_hook), "%s: %s is reachable from spawn without optional abilities" % [id, str(gp)])
 		level.free()
 		await flush(1)

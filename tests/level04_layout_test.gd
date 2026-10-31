@@ -20,7 +20,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level04_Cathedral"
-	host.scene_file_path = GameContext.LEVELS["level04"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level04"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := L4.new()
@@ -84,7 +84,7 @@ func test_metadata_and_persistent_v2_paths_are_preserved() -> void:
 		ok(host.get_node_or_null(path) != null, "v2 path survives: " + path)
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level04_done")
-	eq(exit.target_scene, GameContext.LEVELS["level04b"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level04b"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level04b"))
 	ok(L4.EAST_LIMIT - exit.position.x >= 80)
 	for e in host.get_node("Enemies").get_children():

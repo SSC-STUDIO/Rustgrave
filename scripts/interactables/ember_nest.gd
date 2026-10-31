@@ -3,7 +3,7 @@ extends Interactable
 ## Ember Nest: a weighted checkpoint. Interacting saves the game and sets this
 ## nest as the respawn point (the knight is fully restored here on death).
 
-const SCENE_PATH := "res://scenes/levels/Level01_Static.tscn"
+const SCENE_PATH := "res://scenes/levels/Stage01_Graveyard.tscn"
 const BASE_PATH := "res://assets/env/ember_nest.png"
 const COALS_PATH := "res://assets/env/ember_nest_coals.png"
 const FLAME_PATH := "res://assets/fx/shrine_flame.png"
@@ -311,6 +311,9 @@ func interact(actor: Node) -> void:
 		_lit = true
 		_apply_flame_state()
 		SaveData.register_lit_nest(SaveData.persist_path(self))
+		var world := GameContext.world_root(self)
+		if world is StageLevel and (world as StageLevel).stage_id != "":
+			SaveData.set_stage_room((world as StageLevel).stage_id, (world as StageLevel).current_room_id, (world as StageLevel).current_spawn_tag)
 		var scene_path := GameContext.world_scene_path(self)
 		if scene_path == "":
 			scene_path = SCENE_PATH

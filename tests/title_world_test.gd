@@ -1,11 +1,13 @@
 extends TestCase
 ## 标题活景（TitleWorld）：每种变体都能无报错地在 headless 里搭起来、灯 / 节点预算、
-## 存档 → 变体的映射（无存档 / 每一幕 / 每个结局）、骑士穿着当前外观、齿轮循环无缝、
-## 视差只走整数像素、USE_LIVE_SCENE 回退仍显示 keyart。
+## 存档 → 变体的映射（无存档 / 每一幕 / 每个结局，含 true_break）、骑士穿着当前外观、
+## 齿轮循环无缝、炉口 16 帧单写入点动画与冷炉停帧、视差只走整数像素、
+## USE_LIVE_SCENE 回退仍显示 keyart。
 
 const TITLE_SCENE := "res://scenes/ui/TitleScreen.tscn"
 const WORLD_SCENE := "res://scenes/ui/TitleWorld.tscn"
 const SAVE_PATH := "user://title_world_test.cfg"
+const SwordChain := preload("res://scripts/ui/title_sword_chain.gd")
 
 
 func setup() -> void:
@@ -64,10 +66,10 @@ func _free_world(world: TitleWorld) -> void:
 func _all_states() -> Array:
 	var out: Array = []
 	out.append(["cold", TitleWorld.build_state(_peek("", [], "", false))])
-	for entry in [["act1", "level02", 2], ["act2", "level04", 4], ["act3", "level08", 8], ["act4", "level10", 13]]:
+	for entry in [["act1", "stage02", 2], ["act2", "stage03", 4], ["act3", "stage05", 8], ["act4", "stage08_true", 13]]:
 		out.append([entry[0], TitleWorld.build_state(_peek(entry[1], _done_flags(entry[2])))])
-	for ending in ["give", "keep", "snuff"]:
-		out.append([ending, TitleWorld.build_state(_peek("level10", _done_flags(14), ending))])
+	for ending in ["give", "keep", "snuff", "true_break"]:
+		out.append([ending, TitleWorld.build_state(_peek("stage08_true", _done_flags(14), ending))])
 	return out
 
 
@@ -101,47 +103,74 @@ func test_state_for_no_save_is_a_cold_forge() -> void:
 
 func test_state_for_a_journey_grades_by_act_and_counts_lanterns() -> void:
 	# 刚开局（存档在第一章、什么都没通）
-	var fresh := TitleWorld.build_state(_peek("level01"))
+	var fresh := TitleWorld.build_state(_peek("stage01"))
 	eq(fresh["variant"], TitleWorld.VARIANT_JOURNEY)
 	eq(fresh["act"], 1)
 	eq(fresh["lit"], 0, "没通关任何一章，灯还没亮")
 	eq(TitleWorld.grade_id(fresh), &"act1")
 	# 每一幕取一个章：存档章节决定幕，通关旗标决定灯
-	var cases := [["level02b", 2, 2, &"act1"], ["level03", 3, 3, &"act2"], ["level05", 6, 6, &"act2"],
-			["level07", 8, 8, &"act3"], ["level08", 10, 10, &"act3"], ["level09", 11, 11, &"act4"],
-			["level10", 13, 13, &"act4"]]
+	var cases := [["stage02", 2, 2, &"act1"], ["branch02", 3, 3, &"act2"], ["stage04", 6, 6, &"act2"],
+			["stage05", 8, 8, &"act3"], ["stage06", 10, 10, &"act3"], ["branch05", 11, 11, &"act4"],
+			["stage08_true", 13, 13, &"act4"]]
 	for c in cases:
 		var s := TitleWorld.build_state(_peek(String(c[0]), _done_flags(int(c[1]))))
 		eq(s["cleared"], int(c[1]), "%s: 通关章数" % String(c[0]))
 		eq(s["lit"], int(c[2]), "%s: 亮灯数" % String(c[0]))
 		eq(TitleWorld.grade_id(s), c[3], "%s: 调色" % String(c[0]))
-	# 通关旗标缺失时，存档章节之前的章也算通关（读档回到第五章，前四章必然过了）
-	var inferred := TitleWorld.build_state(_peek("level04"))
-	eq(inferred["cleared"], 4, "第五章之前的四章视为通关")
+	# 通关旗标缺失时，存档章节之前的章也算通关（读档回到第五节点，前四节点必然过了）
+	var inferred := TitleWorld.build_state(_peek("stage03"))
+	eq(inferred["cleared"], 4, "第五节点之前的四节点视为通关")
 	var done: Array = inferred["done"]
 	eq(done.size(), 14, "每章一个通关标记")
 	ok(done[3] and not done[4], "第四个亮、第五个（当前章）不亮")
 
 
 func test_state_for_each_ending() -> void:
-	for ending in ["give", "keep", "snuff"]:
-		var s := TitleWorld.build_state(_peek("level10", _done_flags(14), ending))
+	for ending in ["give", "keep", "snuff", "true_break"]:
+		var s := TitleWorld.build_state(_peek("stage08_true", _done_flags(14), ending))
 		eq(s["variant"], StringName(ending), "%s 变体" % ending)
 		eq(s["act"], 4, "结局都在第四幕的终点")
 		eq(s["cleared"], 14, "全部通关")
 		eq(TitleWorld.grade_id(s), StringName(ending), "%s 有自己的调色" % ending)
-	eq(TitleWorld.build_state(_peek("level10", [], "give"))["lit"], 14, "送剑：灯全亮")
-	eq(TitleWorld.build_state(_peek("level10", [], "keep"))["lit"], 14, "守火：灯全亮")
-	eq(TitleWorld.build_state(_peek("level10", [], "snuff"))["lit"], 0, "熄灭：灯全暗")
+	eq(TitleWorld.build_state(_peek("stage07", [], "give"))["lit"], 14, "送剑：灯全亮")
+	eq(TitleWorld.build_state(_peek("stage07", [], "keep"))["lit"], 14, "守火：灯全亮")
+	eq(TitleWorld.build_state(_peek("stage07", [], "snuff"))["lit"], 0, "熄灭：灯全暗")
+	eq(TitleWorld.build_state(_peek("stage08_true", [], "true_break"))["lit"], 14, "真结局：灯全亮")
 	# 没见过的结局 id（旧测试里写过 "purified"）按已完成处理，不崩
-	eq(TitleWorld.build_state(_peek("level10", [], "purified"))["variant"], TitleWorld.VARIANT_GIVE)
+	eq(TitleWorld.build_state(_peek("stage07", [], "purified"))["variant"], TitleWorld.VARIANT_GIVE)
+
+
+## 真结局「破约」：变体 / 灯全亮 / 独立调色 / prop_plan 里的空链、升魂、零亡魂和半亮火盆。
+func test_true_break_has_its_own_state_grade_and_prop_plan() -> void:
+	var s := TitleWorld.build_state(_peek("stage08_true", _done_flags(14), "true_break"))
+	eq(s["variant"], TitleWorld.VARIANT_TRUE_BREAK, "结局 id 直接成为变体")
+	eq(s["ending"], "true_break", "状态里记着结局")
+	eq(s["cleared"], 14, "真结局：全章通关")
+	eq(s["lit"], 14, "真结局：十四盏灯全亮")
+	eq(s["act"], 4, "真结局在第四幕的终点")
+	ok(TitleWorld.VARIANTS.has(TitleWorld.VARIANT_TRUE_BREAK), "VARIANTS 收录 true_break")
+	eq(TitleWorld.grade_id(s), TitleWorld.VARIANT_TRUE_BREAK, "grade_id 指向自己的调色")
+	ok(TitleWorld.GRADES.has(TitleWorld.VARIANT_TRUE_BREAK), "GRADES 里有 true_break")
+	var grade: Dictionary = TitleWorld.GRADES[TitleWorld.VARIANT_TRUE_BREAK]
+	for key in ["ambient", "furnace", "furnace_color", "forge", "shaft", "shaft_color", "embers",
+			"ash", "steam", "gears", "lantern", "flicker"]:
+		ok(grade.has(key), "true_break 调色有 %s" % String(key))
+	eq(grade["furnace_color"], Color(0.45, 0.82, 0.96), "真结局的炉火是冷蓝色")
+	ok(float(grade["forge"]) < float(TitleWorld.GRADES[&"keep"]["forge"]), "真结局比守炉冷")
+	var plan := TitleWorld.prop_plan(s)
+	eq(plan["chain_mode"], SwordChain.MODE_EMPTY, "真结局：送剑链停空")
+	eq(plan["ghosts"], 0, "真结局：亡魂都被放走了")
+	eq(plan["souls_escape"], true, "真结局：真名升出屋顶")
+	almost(float(plan["souls_rate"]), 1.0, 0.0001, "真结局：魂光满额")
+	eq(plan["braziers"], [0.6, 0.6], "真结局：火盆半亮")
+	eq(plan["knight_turns"], false, "真结局：桥上没有骑士")
 
 
 func test_state_picks_the_saved_skin_or_the_origin_default() -> void:
-	eq(TitleWorld.build_state(_peek("level01", [], "", true, "skin_gothic_hero"))["skin"], &"skin_gothic_hero")
-	eq(TitleWorld.build_state(_peek("level01", [], "", true, "not_a_skin"))["skin"], SkinCatalog.DEFAULT_SKIN,
+	eq(TitleWorld.build_state(_peek("stage01", [], "", true, "skin_gothic_hero"))["skin"], &"skin_gothic_hero")
+	eq(TitleWorld.build_state(_peek("stage01", [], "", true, "not_a_skin"))["skin"], SkinCatalog.DEFAULT_SKIN,
 			"未知外观退回默认")
-	eq(TitleWorld.build_state(_peek("level01", [], "", true, "", "rust_automaton"))["skin"],
+	eq(TitleWorld.build_state(_peek("stage01", [], "", true, "", "rust_automaton"))["skin"],
 			&"skin_cemetery_hero", "没选外观时跟随起源的默认外观")
 	eq(TitleWorld.build_state(_peek("", [], "", false))["skin"], SkinCatalog.DEFAULT_SKIN, "无存档默认骑士")
 
@@ -160,7 +189,7 @@ func test_state_from_save_peeks_the_file_on_disk() -> void:
 
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "version", 3)
-	cfg.set_value("meta", "scene", String(GameContext.LEVELS["level05"]))
+	cfg.set_value("meta", "scene", String(GameContext.LEVELS["stage04"]))
 	cfg.set_value("player", "origin", "scrap_scavenger")
 	cfg.set_value("story", "flags", _done_flags(6))
 	cfg.set_value("profile", "ember_rank", 5)
@@ -169,7 +198,7 @@ func test_state_from_save_peeks_the_file_on_disk() -> void:
 	cfg.save(SAVE_PATH)
 	var s := TitleWorld.state_from_save()
 	eq(s["variant"], TitleWorld.VARIANT_JOURNEY, "读盘：旅程中")
-	eq(s["chapter_id"], "level05", "读盘：存档章节")
+	eq(s["chapter_id"], "stage04", "读盘：存档章节")
 	eq(s["cleared"], 6, "读盘：旗标里的通关数")
 	eq(s["skin"], &"skin_ash_runner", "读盘：外观")
 	eq(s["rank"], 5, "读盘：阶位")
@@ -214,10 +243,31 @@ func test_every_variant_builds_within_the_light_and_node_budget() -> void:
 		await _free_world(world)
 
 
+## 真结局也在 headless 里搭得起来：灯 / 节点不出预算，活景用的就是 prop_plan。
+func test_true_break_builds_headless_within_the_light_and_node_budget() -> void:
+	var state := TitleWorld.build_state(_peek("stage08_true", _done_flags(14), "true_break"))
+	var world := _make_world(state)
+	await flush(6)
+	eq(world.variant(), TitleWorld.VARIANT_TRUE_BREAK, "活景按真结局搭起来")
+	eq(world.grade(), TitleWorld.GRADES[TitleWorld.VARIANT_TRUE_BREAK], "场景用的是 true_break 调色")
+	ok(world.light_count() <= TitleWorld.MAX_LIGHTS,
+			"灯 %d <= %d" % [world.light_count(), TitleWorld.MAX_LIGHTS])
+	ok(world.node_count() <= 250, "节点 %d <= 250" % world.node_count())
+	eq(world.lantern_count(), 14, "十四盏可见吊灯")
+	eq(world.lit_lanterns(), 14, "真结局：灯全亮")
+	var plan := TitleWorld.prop_plan(state)
+	eq(world.plan(), plan, "活景用的就是 prop_plan")
+	eq(world.sword_chain().mode(), SwordChain.MODE_EMPTY, "送剑链停空")
+	eq(world.ghosts().count(), 0, "没有亡魂")
+	eq(world.braziers().levels(), [0.6, 0.6], "火盆半亮")
+	ok(world.souls().is_escaping(), "魂光升出屋顶")
+	await _free_world(world)
+
+
 ## 骑士穿着当前外观（帧、染色、巨剑）；每套皮肤都试一遍。
 func test_the_knight_wears_the_current_skin() -> void:
 	for skin in SkinCatalog.ids():
-		var world := _make_world(TitleWorld.build_state(_peek("level04", _done_flags(4), "", true, String(skin))))
+		var world := _make_world(TitleWorld.build_state(_peek("stage03", _done_flags(4), "", true, String(skin))))
 		await flush(3)
 		var sprite := world.knight_sprite()
 		ok(sprite != null, "%s: 骑士精灵存在" % String(skin))
@@ -240,7 +290,7 @@ func test_each_variant_puts_the_right_actors_on_the_bridge() -> void:
 	ok(cold.knight() != null and cold.planted_sword() == null and cold.nest() == null, "冷炉：只有骑士")
 	await _free_world(cold)
 
-	var give := _make_world(TitleWorld.build_state(_peek("level10", [], "give")))
+	var give := _make_world(TitleWorld.build_state(_peek("stage07", [], "give")))
 	await flush(3)
 	ok(give.knight() == null, "送剑：骑士不在了")
 	ok(give.planted_sword() != null, "送剑：桥上只剩插着的巨剑")
@@ -248,7 +298,7 @@ func test_each_variant_puts_the_right_actors_on_the_bridge() -> void:
 			"送剑：飘着一些锈屑")
 	await _free_world(give)
 
-	var keep := _make_world(TitleWorld.build_state(_peek("level10", [], "keep")))
+	var keep := _make_world(TitleWorld.build_state(_peek("stage07", [], "keep")))
 	await flush(3)
 	ok(keep.knight() != null, "守火：骑士在")
 	ok(keep.knight().position.x > TitleWorld.KNIGHT_X + 40.0, "守火：骑士位于炉口那一端")
@@ -257,7 +307,7 @@ func test_each_variant_puts_the_right_actors_on_the_bridge() -> void:
 	ok(keep.nest() != null, "守火：余烬巢点着")
 	await _free_world(keep)
 
-	var snuff := _make_world(TitleWorld.build_state(_peek("level10", [], "snuff")))
+	var snuff := _make_world(TitleWorld.build_state(_peek("stage07", [], "snuff")))
 	await flush(3)
 	ok(snuff.knight() == null and snuff.planted_sword() == null, "熄灭：桥上空了")
 	eq(snuff.lit_lanterns(), 0, "熄灭：灯全暗")
@@ -270,11 +320,11 @@ func test_configure_swaps_the_actors() -> void:
 	var world := _make_world(TitleWorld.build_state(_peek("", [], "", false)))
 	await flush(3)
 	ok(world.knight() != null, "起初骑士在")
-	world.configure(TitleWorld.build_state(_peek("level10", [], "give")))
+	world.configure(TitleWorld.build_state(_peek("stage07", [], "give")))
 	await flush(3)
 	ok(world.knight() == null, "切到送剑后骑士被收走")
 	ok(world.planted_sword() != null, "巨剑插上了")
-	world.configure(TitleWorld.build_state(_peek("level04", _done_flags(4))))
+	world.configure(TitleWorld.build_state(_peek("stage03", _done_flags(4))))
 	await flush(3)
 	ok(world.knight() != null and world.planted_sword() == null, "回到旅程：骑士回来，巨剑收走")
 	eq(world.lit_lanterns(), 4, "亮灯数跟着状态走")
@@ -285,7 +335,7 @@ func test_configure_swaps_the_actors() -> void:
 
 ## 齿轮的帧覆盖整整一个辐条周期：转满一个周期正好回到起始帧（循环无缝），且不越界。
 func test_gears_loop_seamlessly_over_one_spoke_period() -> void:
-	var world := _make_world(TitleWorld.build_state(_peek("level04", _done_flags(4))))
+	var world := _make_world(TitleWorld.build_state(_peek("stage03", _done_flags(4))))
 	await flush(2)
 	ok(world.gears().size() >= 3, "至少三个齿轮")
 	for gear in world.gears():
@@ -316,8 +366,8 @@ func test_gears_loop_seamlessly_over_one_spoke_period() -> void:
 
 func test_cold_forge_gears_barely_turn_and_a_snuffed_one_stops() -> void:
 	var cold := _make_world(TitleWorld.build_state(_peek("", [], "", false)))
-	var snuff := _make_world(TitleWorld.build_state(_peek("level10", [], "snuff")))
-	var act3 := _make_world(TitleWorld.build_state(_peek("level08", _done_flags(8))))
+	var snuff := _make_world(TitleWorld.build_state(_peek("stage07", [], "snuff")))
+	var act3 := _make_world(TitleWorld.build_state(_peek("stage05", _done_flags(8))))
 	await flush(2)
 	ok(cold.gears()[0].speed_mult < act3.gears()[0].speed_mult * 0.5, "冷炉的齿轮比第三幕慢得多")
 	almost(snuff.gears()[0].speed_mult, 0.0, 0.0001, "熄灭的炉：齿轮不转")
@@ -326,9 +376,76 @@ func test_cold_forge_gears_barely_turn_and_a_snuffed_one_stops() -> void:
 	await _free_world(act3)
 
 
+## 炉口是一条 16 帧的预渲染贴图，只有一个写入点：烧着时整帧走遍 0..15（8..15 也得看得到），
+## 冷炉 / 熄火停止切帧（冷炉从头搭起就停在冷帧 0），不在冷厅里继续动画。
+func test_furnace_mouth_plays_all_sixteen_frames_and_a_cold_forge_holds_a_cold_frame() -> void:
+	var world := _make_world(TitleWorld.build_state(_peek("stage07", [], "keep")))
+	await flush(2)
+	var mouth := world.get_node_or_null("MassRight/ForgeMouth") as Sprite2D
+	ok(mouth != null, "MassRight 下挂着自发光炉口")
+	if mouth == null:
+		await _free_world(world)
+		return
+	eq(mouth.hframes, 16, "炉口贴图条有 16 帧")
+	eq(TitleWorld.MOUTH_FRAMES, 16, "16 帧常量与资产一致")
+	eq(mouth.vframes, 1, "帧条只有一行")
+	ok(mouth.texture != null and mouth.texture.get_width() % mouth.hframes == 0,
+			"贴图宽度能被帧数整除")
+	eq(mouth.get_rect().size, Vector2(60.0, 66.0), "单帧仍是 60x66 的炉口锚点")
+	world.set_process(false)
+	# 烧着：从同一时刻起按 60Hz 推进 1.5s（12fps 一轮再加两帧），收集看得到的帧。
+	world._t = 0.0
+	var dt := 1.0 / 60.0
+	var seen := {}
+	var previous := -1
+	for _i in 90:
+		world._process(dt)
+		var frame := mouth.frame
+		ok(frame >= 0 and frame < TitleWorld.MOUTH_FRAMES, "炉口帧不越界 (%d)" % frame)
+		if previous >= 0:
+			ok(frame == previous or frame == (previous + 1) % TitleWorld.MOUTH_FRAMES,
+					"整帧步进，不跳帧（%d -> %d）" % [previous, frame])
+		previous = frame
+		seen[frame] = true
+	for frame in range(8, TitleWorld.MOUTH_FRAMES):
+		ok(seen.has(frame), "烧着时第 %d 帧真的显示过" % frame)
+	eq(seen.size(), TitleWorld.MOUTH_FRAMES, "烧着时走遍 16 帧 (%d/16)" % seen.size())
+	# 热炉切到冷炉：时间继续走，炉口停在切换那一刻的帧上，不再切帧。
+	world.configure(TitleWorld.build_state(_peek("", [], "", false)))
+	world._t = 41.0
+	var stopped := mouth.frame
+	for _i in 30:
+		world._process(dt)
+	eq(mouth.frame, stopped, "切到冷炉：30 帧里炉口一帧都不切")
+	# 熄火同理：冷厅里没有任何切帧。
+	world.configure(TitleWorld.build_state(_peek("stage07", [], "snuff")))
+	var stopped_snuff := mouth.frame
+	for _i in 10:
+		world._process(dt)
+	eq(mouth.frame, stopped_snuff, "切到熄火：炉口也停住")
+	await _free_world(world)
+
+	# 冷炉从头搭起来：炉口停在贴图条第 0 帧（冷帧），从不播放。
+	var cold := _make_world(TitleWorld.build_state(_peek("", [], "", false)))
+	await flush(2)
+	cold.set_process(false)
+	var cold_mouth := cold.get_node_or_null("MassRight/ForgeMouth") as Sprite2D
+	ok(cold_mouth != null, "冷炉也有炉口")
+	if cold_mouth != null:
+		eq(cold_mouth.frame, 0, "冷炉：炉口停在冷帧 0")
+		cold._t = 23.0
+		var cold_frames := {}
+		for _i in 30:
+			cold._process(dt)
+			cold_frames[cold_mouth.frame] = true
+		eq(cold_frames.size(), 1, "冷炉：炉口一帧都不动")
+		eq(cold_mouth.frame, 0, "冷炉：始终停在冷帧 0")
+	await _free_world(cold)
+
+
 ## 视差走整数像素：指针推到边上，每一层的位置和摄像机偏移都是整数，且不超出振幅。
 func test_parallax_and_camera_move_in_whole_pixels() -> void:
-	var world := _make_world(TitleWorld.build_state(_peek("level04", _done_flags(4))))
+	var world := _make_world(TitleWorld.build_state(_peek("stage03", _done_flags(4))))
 	await flush(2)
 	for pointer in [Vector2(1, 1), Vector2(-1, 0.4), Vector2(0.37, -0.81)]:
 		world.set_pointer(pointer)
@@ -360,7 +477,7 @@ func test_parallax_and_camera_move_in_whole_pixels() -> void:
 
 ## 开屏：黑起 -> 灯逐盏亮；跳过 = 直接落到终态；退场 = 灯逐盏灭。
 func test_intro_lights_come_on_one_by_one_and_skip_lands_the_final_state() -> void:
-	var state := TitleWorld.build_state(_peek("level08", _done_flags(8)))
+	var state := TitleWorld.build_state(_peek("stage05", _done_flags(8)))
 	var world := _make_world(state)
 	await flush(2)
 	var want: int = state["lit"]
@@ -401,7 +518,7 @@ func test_intro_lights_come_on_one_by_one_and_skip_lands_the_final_state() -> vo
 
 
 func test_particles_stay_inside_their_pools() -> void:
-	var world := _make_world(TitleWorld.build_state(_peek("level10", _done_flags(13))))
+	var world := _make_world(TitleWorld.build_state(_peek("stage08_true", _done_flags(13))))
 	await flush(30)
 	var nodes_before := world.node_count()
 	for _i in 300:
@@ -490,7 +607,7 @@ func test_without_the_live_scene_the_old_keyart_is_shown() -> void:
 
 
 func test_the_title_hands_its_look_to_the_world() -> void:
-	TitleWorld.forced_state = TitleWorld.build_state(_peek("level10", [], "snuff"))
+	TitleWorld.forced_state = TitleWorld.build_state(_peek("stage07", [], "snuff"))
 	var title: TitleScreen = await _open_title(true)
 	eq(title.world().variant(), TitleWorld.VARIANT_SNUFF, "活景按存档状态搭起来")
 	eq(title.look()["variant"], TitleWorld.VARIANT_SNUFF, "标题也持有同一份状态")

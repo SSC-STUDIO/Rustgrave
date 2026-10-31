@@ -26,7 +26,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level07bLayoutHost"
-	host.scene_file_path = GameContext.LEVELS[CHAPTER_ID]
+	host.scene_file_path = GameContext.LEGACY_LEVELS[CHAPTER_ID]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new()
@@ -70,7 +70,7 @@ func test_main_route_support_and_original_persistent_nodes() -> void:
 	var exit_node := host.get_node("Props/Exit") as LevelExit
 	eq(exit_node.flag_id, "level07b_done")
 	eq(exit_node.requires_flag, "founder_dead")
-	eq(exit_node.target_scene, GameContext.LEVELS["level08"])
+	eq(exit_node.target_scene, GameContext.LEGACY_LEVELS["level08"])
 	eq(exit_node.spawn, ChapterLayout.entry_spawn_of("level08"))
 	ok(LAYOUT.EXIT_X <= LAYOUT.EAST_LIMIT - LevelSanity.EXIT_WALL_CLEAR, "east wall clearance")
 	for name_ in ["SteleMold", "SteleFounder", "SteleKey"]:
@@ -330,7 +330,7 @@ func test_forge_decor_support_and_scene_wiring() -> void:
 				eq(child.scale, Vector2.ONE, "grounded art at integer1x")
 				ok(LevelSanity.standing_on(LevelSanity.top_segments(host), child.get_meta("feet")) != null, "decor foot matches a platform")
 	ok(count >= 16, "each foundry beat carries grounded set dressing")
-	var level := (load(GameContext.LEVELS[CHAPTER_ID]) as PackedScene).instantiate()
+	var level := (load(GameContext.LEGACY_LEVELS[CHAPTER_ID]) as PackedScene).instantiate()
 	add_child(level)
 	await flush(2)
 	Director.abort()

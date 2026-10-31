@@ -48,12 +48,13 @@ const DOSSIER_SPLIT := 0.52
 const DOSSIER_GAP := 16.0
 ## 两列题头距卡片正文顶边的距离：左列「行程入口」与右侧「旅程档案」落在同一行。
 const HEAD_TOP := 36.0
-const ENDING_KINDS := ["give", "keep", "snuff"]
+const ENDING_KINDS := ["give", "keep", "snuff", "true_break"]
 ## 结局印记与结局三格的颜色：还火金、守炉橙、熄火灰紫；没有结局用冷铁。
 const ENDING_COLORS := {
 	"give": Color("#FFC14A"),
 	"keep": Color("#D9743A"),
 	"snuff": Color("#8C8290"),
+	"true_break": Color("#7CE8FF"),
 }
 
 var _root: Control
@@ -291,7 +292,7 @@ func _endings_row(seen: Array[String]) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "Endings"
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 24)
+	row.add_theme_constant_override("separation", 14)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for kind in ENDING_KINDS:
 		var known := seen.has(kind)
@@ -379,7 +380,7 @@ static func rows_for(info: Dictionary) -> Array[Dictionary]:
 	var trial_ready := bool(info.get("trial_ready", true))
 	var trial_text := "回 火 试 炼"
 	if not trial_ready:
-		trial_text = "回 火 试 炼 · %s后解锁" % ChapterText.number_of("level07")
+		trial_text = "回 火 试 炼 · %s后解锁" % ChapterText.number_of("stage05")
 	rows.append({"id": ID_TRIAL, "disabled": not trial_ready, "text": trial_text})
 	rows.append({"id": ID_BACK, "text": "返 回"})
 	return rows

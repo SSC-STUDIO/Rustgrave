@@ -107,10 +107,11 @@ func test_selected_boss_scene_really_rebuilds_after_campaign_kills() -> void:
 
 func test_individual_rematch_uses_current_chapter_and_safe_arena_entry() -> void:
 	SaveData.flags = PackedStringArray(["boss_dead", "hollow_bell_dead", "capstan_dead", "choir_dead", "founder_dead", "herald_dead", "nightmare_dead", "trial_unlocked"])
-	var expected := {"capstan_warden": "level02b", "silent_choir": "level04b", "hollow_bell": "level02"}
+	var expected := {"capstan_warden": "stage02", "silent_choir": "stage03", "hollow_bell": "stage02"}
 	for row in Catalog.available_bosses():
 		var stages := Catalog.stages_for(Catalog.Track.BOSS_RUSH, String(row["kind"]))
 		eq(stages.size(), 1)
 		if expected.has(row["kind"]):
 			eq(stages[0]["level_id"], expected[row["kind"]])
-		ok((stages[0]["spawn"] as Vector2).x > 1800.0, "practice starts in the current arena")
+		ok(String(stages[0].get("room", "")) != "", "practice boots directly into the Boss room")
+		ok((stages[0]["spawn"] as Vector2).x > 0.0, "practice starts in the current arena")

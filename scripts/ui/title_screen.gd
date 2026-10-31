@@ -32,7 +32,7 @@ const USE_LIVE_SCENE := true
 const WORLD_SCENE := "res://scenes/ui/TitleWorld.tscn"
 const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
 const FORGE_SHADER := preload("res://assets/shaders/title_forge.gdshader")
-const LEVEL_PATH := "res://scenes/levels/Level01_Static.tscn"
+const LEVEL_PATH := "res://scenes/levels/Stage01_Graveyard.tscn"
 const Transitions := preload("res://scripts/ui/ui_transition.gd")
 const Modal := preload("res://scripts/ui/ui_modal.gd")
 const ObjectKit := preload("res://scripts/ui/ui_object.gd")
@@ -63,8 +63,9 @@ const ENTRY_SPAWN_FALLBACK := Vector2(96.0, 300.0)
 ## 常态暗锈；焦点 / 悬停时边与色条烧成余烬色，右侧箭头旁亮一粒火星。
 class RecapStrip:
 	extends Control
-	const HEIGHT := 26.0
+	const HEIGHT := 30.0
 	const LABEL := "回 看 余 烬"
+	const FONT_SIZE := 14
 	var _lit := false
 
 	func _init() -> void:
@@ -87,7 +88,8 @@ class RecapStrip:
 			draw_rect(Rect2(1.0, h * 0.5 - 1.0, 2.0, 2.0), Color(1.0, 0.94, 0.72))
 		var font := get_theme_default_font()
 		if font != null:
-			draw_string(font, Vector2(10.0, h * 0.5 + 5.0), LABEL, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
+			draw_string(font, Vector2(10.0, h * 0.5 + 5.0), LABEL, HORIZONTAL_ALIGNMENT_LEFT, -1,
+					FONT_SIZE, col)
 
 ## 副题两侧的余烬菱形饰：作为 Subtitle 的子节点画在文字两边，随副题定宽自动对中。
 class SubtitleFlanks:
@@ -143,6 +145,36 @@ class MenuShade:
 			draw_circle(Vector2.ZERO, rx * t, fill)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
+## 覆盖存档的"按住火漆"进度圈：12 段余烬沿蜡封外圈逐段点亮。
+## 按下开始填、松手提前取消就清空；填满才真的压蜡。
+class SealHoldGauge:
+	extends Control
+	const SEGMENTS := 12
+
+	var progress := 0.0:
+		set(value):
+			var next := clampf(value, 0.0, 1.0)
+			if is_equal_approx(progress, next):
+				return
+			progress = next
+			queue_redraw()
+
+	func _init() -> void:
+		name = "SealHoldGauge"
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var lit := int(round(float(SEGMENTS) * progress))
+		for i in SEGMENTS:
+			var a0 := -PI * 0.5 + TAU * float(i) / float(SEGMENTS) + 0.08
+			var a1 := -PI * 0.5 + TAU * float(i + 1) / float(SEGMENTS) - 0.08
+			var col := Color(1.0, 0.68, 0.24, 0.95) if i < lit else Color(0.42, 0.26, 0.16, 0.45)
+			if i < lit:
+				col = col.lerp(Color(1.0, 0.94, 0.72), 1.0 - progress)
+			draw_arc(c, minf(size.x, size.y) * 0.5 - 2.0, a0, a1, 3, col, 2.0, true)
+
+
 ## 墓志取「没用上的人偶自己先锈透」（你就是那个人偶）。一句，不是台词。
 const EPITAPH := "没用上的人偶，自己先锈透了。"
 const FADE_OUT := 0.7
@@ -167,10 +199,12 @@ const QUIT_CENTER_Y := 640.0
 const JOURNEY_X := 1000.0
 const JOURNEY_Y := 188.0
 const JOURNEY_W := 208.0
-const JOURNEY_H := 92.0
+const JOURNEY_H := 96.0
 ## 没停在「继续旅程」上时，这条注就这么淡。停上去才亮满。
-const JOURNEY_DIM := 0.36
-const JOURNEY_LIT := 0.92
+const JOURNEY_DIM := 0.62
+const JOURNEY_LIT := 1.0
+## 短注后面一块径向暗斑（比注大一圈，向下偏），让 12/13px 小字从炉影里读出来。
+const JOURNEY_SHADE_RECT := Rect2(JOURNEY_X - 14.0, JOURNEY_Y - 12.0, JOURNEY_W + 28.0, JOURNEY_H + 24.0)
 ## 展开的档案卡（收起时停在右侧 CARD_SLIDE 处不可见，展开时滑回）。
 const CARD_RECT := Rect2(820.0, 184.0, 388.0, 424.0)
 const CARD_SLIDE := 24.0
@@ -207,10 +241,10 @@ const ID_CONTROLS := &"controls"
 const ID_QUIT := &"quit"
 const ID_KEEP := &"keep"
 const ID_OVERWRITE := &"overwrite"
-const ID_UPDATE := &"update"
 
 ## 页脚右侧：焦点停在哪一行，就用一句话说明这一行是什么（每句 ≤ 24 字）。
-## 「继续」行在有结局时写作「回看余烬」，说明见 RECAP_HINT。没有说明（或没有焦点）时是 FOOTER_DEFAULT。
+## 「继续」行有结局时写作「回看余烬」（RECAP_HINT），有档时写章节与进度（continue_hint），
+## 无档时写「尚无存档」。没有说明（或没有焦点）时是 FOOTER_DEFAULT。
 const MENU_HINTS := {
 	ID_NEW: "点燃余烬 · 选出身，开始新的旅程",
 	ID_CONTINUE: "继续旅程 · 回到上次的余烬巢",
@@ -221,7 +255,21 @@ const MENU_HINTS := {
 	ID_QUIT: "离开锈墓 · 退出游戏",
 }
 const RECAP_HINT := "回看余烬 · 翻看行程，重温序章与结局"
-const FOOTER_DEFAULT := "↑↓ 选择 · Enter 确认 · Tab 档案"
+const FOOTER_DEFAULT := "↑↓ 选择 · Enter 确认 · Tab/Y 档案"
+
+## 页脚左端的完整素材/字体署名（不再为了 35 字删名字）。
+const CREDITS := "素材 ansimuz · aamatniekss · Kronovi · CodeManu　音频 Kenney　字形 Fusion Pixel · Jacquard 24"
+## 署名是暖灰，不是压暗的灰（页脚对比度 ≥ 4.5:1）。
+const CREDITS_INK := Color(0.82, 0.78, 0.72, 1.0)
+const CREDITS_W := 700.0
+## 确认信：羊皮纸上用深墨（≈9:1），标题保持深锈，页脚/提示同理。
+const LETTER_INK := Color(0.18, 0.11, 0.06)
+const LETTER_RUST := Color(0.44, 0.16, 0.05)
+## 覆盖存档：火漆必须按住这么久才生效；键盘路径不变。
+const SEAL_HOLD_TIME := 0.45
+const SEAL_HOLD_LABEL := "按住火漆 · 确认覆盖"
+## 覆盖存档失败的页脚说明（保留原文件，不 fades，不清档）。
+const LOAD_FAILED_HINT := "存档读不出来 · 已保留原文件，可点燃余烬"
 
 ## Instance switch (tests set it before add_child); defaults to the USE_LIVE_SCENE const.
 var live_scene_enabled: bool = USE_LIVE_SCENE
@@ -229,6 +277,9 @@ var live_scene_enabled: bool = USE_LIVE_SCENE
 var quit_on_finish := true
 ## 测试接缝：替换 ArenaRun.start()（返回是否真的开始了一场）。
 var arena_start: Callable = Callable()
+## 退场宽限：选择「离开锈墓」的那次输入（以及同一次按键的 release）不能立刻跳完整段退场。
+## 测试可调小到 0；只认"按下"的键盘/鼠标/手柄，release 永远不跳过。
+var quit_skip_grace := 0.25
 
 var _started := false
 var _time := 0.0
@@ -238,6 +289,7 @@ var _world: TitleWorld
 var _smooth_material: ShaderMaterial
 var _keyart: TextureRect
 var _masthead: Control
+var _masthead_column: VBoxContainer
 var _logo: TextureRect
 var _logo_material: ShaderMaterial
 var _logo_flash: ColorRect
@@ -255,6 +307,12 @@ var _confirm_closing := false
 var _confirm_action_serial := 0
 var _confirm_seal_button: Button
 var _confirm_seal_tween: Tween
+var _confirm_seal_hint: Label
+var _confirm_seal_gauge: Control
+var _confirm_overwrite_item: MenuItem
+## 按住火漆：按下开始计时，松手（未满）取消，满 0.45s 才走 _press_confirm_seal。
+var _confirm_hold_t := 0.0
+var _confirm_hold_active := false
 var _char_select: CharacterSelectScreen
 var _update_prompt: UpdatePrompt
 var _update_notice: Button
@@ -263,6 +321,8 @@ var _quit_caption: Label
 var _quitting := false
 var _quit_done := false
 var _quit_tween: Tween
+## 退场宽限截止（_time 秒）；在此之前收到的事件不跳退场。
+var _quit_guard_until := 0.0
 ## 开屏黑幕：整段开场里盖在最上层的纯黑矩形，播完即撤。
 var _curtain: ColorRect
 var _intro_playing := false
@@ -274,23 +334,34 @@ var _ui_sparks: TitleSparks
 var _journey: Control
 ## 淡入淡出和「继续」高亮都打在这一层上，不跟开屏那层 JourneyColumn 的 alpha 抢。
 var _journey_ink: Control
+## 短注后面的径向暗斑（静态，不跟呼吸亮暗）。
+var _journey_shade: TextureRect
 var _gauge: TitleGauge
 var _journey_count: Label
 var _journey_chapter: Label
+## 盖在计数/章名/横轨上的透明点按区：触屏/手柄也能展开档案（不盖「回看余烬」）。
+var _journey_button: Button
 ## 通关后的「回看余烬」总结页（ember_recap.gd）；菜单「继续」行在有结局时也打开它。
 var _recap
+var _recap_button: Button
 var _continue_opens_recap := false
+## 菜单里的「继续旅程」行（有档时行内写章节/进度，无档时写"尚无存档"）。
+var _continue_item: MenuItem
 ## 页脚右侧的一句话说明（焦点在哪行就写哪行）。
 var _footer_hint: Label
 var _hint_tween: Tween
 ## 界面搭完之后才置 true：搭菜单时默认选中「继续」那一下焦点不触发场景反应。
 var _ui_ready := false
 var _card: TitleCard
+var _dossier_panel: PanelContainer
 var _dossier_values: Dictionary = {}
+var _dossier_contents: VBoxContainer
 var _dossier_recap: Label
 var _dossier_open := false
 var _dossier_pinned := false
 var _card_tween: Tween
+## 模态打开时：旅程列的两个辅助焦点目标（回看 / 更新提示）暂时不收焦点。
+var _aux_focus_locked := false
 
 # epitaph typewriter
 var _epitaph: Label
@@ -330,6 +401,9 @@ func _ready() -> void:
 	_build_ui_sparks()
 	# 覆盖层最后加：Control 的绘制与鼠标拾取都按子节点顺序，越后越上。
 	_build_overlays()
+	# 文字缩放改成主题单一来源后，标题自己的固定版式（副题行高 / 墓志条 / 档案卡 /
+	# 版本按钮）要按真实字号重新排一遍；85/100/135% 下都不叠。
+	_refresh_text_layout()
 	# 新版本检查：静默拉一次 manifest，结果只让页脚多一个按钮，
 	# 不弹窗、不打断。检查失败/没有新版时保持原样。
 	UpdateService.checked.connect(_on_update_checked)
@@ -420,6 +494,7 @@ func _build_masthead() -> void:
 	column.alignment = BoxContainer.ALIGNMENT_BEGIN
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(column)
+	_masthead_column = column
 
 	_masthead = HBoxContainer.new()
 	_masthead.name = "Masthead"
@@ -478,9 +553,13 @@ func _build_rail() -> void:
 	# 行动
 	_menu.add_item(ID_NEW, "点 燃 余 烬", false, MenuItem.Kind.PRIMARY, true)
 	# 通关过：这一行写「回看余烬」，也就真的打开总结页（总结页里仍有「继续旅程」）。
-	_continue_opens_recap = SaveData.peek_ending() != ""
+	_continue_opens_recap = String(_look.get("ending", SaveData.peek_ending())) != ""
 	var cont := "回 看 余 烬" if _continue_opens_recap else "继 续 旅 程"
-	_menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY, true)
+	_continue_item = _menu.add_item(ID_CONTINUE, cont, not has_save, MenuItem.Kind.PRIMARY, true)
+	# 行内小注是"上次行程"的真话：结局 / 章节+进度 / 尚无存档。
+	_continue_item.set_note(continue_note(_look), true)
+	# 无档时这一行是禁用行：字再压暗一档（描边仍由主题保持可读）。
+	_continue_item.disabled_alpha = 0.55
 	_gap(GROUP_GAP)
 	# 模式
 	var trial_ready := _trial_ready()
@@ -537,6 +616,34 @@ func _build_journey() -> void:
 	_journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_journey)
 
+	# 静态径向暗斑：12/13px 小字压在炉厅亮光上也能读出来。压暗的是注后面的空气，
+	# 不跟着「继续」高亮或厅灯呼吸变亮（不脉动）。
+	var shade := TextureRect.new()
+	shade.name = "JourneyShade"
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.position = JOURNEY_SHADE_RECT.position - Vector2(JOURNEY_X, JOURNEY_Y)
+	shade.size = JOURNEY_SHADE_RECT.size
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	var spot := Gradient.new()
+	spot.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	spot.colors = PackedColorArray([
+		Color(0.02, 0.01, 0.015, 0.62),
+		Color(0.02, 0.01, 0.015, 0.32),
+		Color(0.02, 0.01, 0.015, 0.0),
+	])
+	var spot_tex := GradientTexture2D.new()
+	spot_tex.gradient = spot
+	spot_tex.width = 128
+	spot_tex.height = 128
+	spot_tex.fill = GradientTexture2D.FILL_RADIAL
+	spot_tex.fill_from = Vector2(0.5, 0.5)
+	spot_tex.fill_to = Vector2(1.12, 1.12)
+	shade.texture = spot_tex
+	_journey.add_child(shade)
+	_journey_shade = shade
+
 	_journey_ink = Control.new()
 	_journey_ink.name = "JourneyInk"
 	_journey_ink.position = Vector2.ZERO
@@ -570,7 +677,23 @@ func _build_journey() -> void:
 	_gauge.position = Vector2(0.0, 38.0)
 	_journey_ink.add_child(_gauge)
 
-	# 回看余烬收进这条注里。Button 负责点击；字由 RecapStrip 画，12px。
+	# 触屏 / 鼠标点按短注上半区 = 展开档案；focus_mode NONE（键盘仍走 Tab，手柄走 Y），
+	# 不盖住下面那条「回看余烬」按钮。
+	var tap := Button.new()
+	tap.name = "JourneyButton"
+	tap.flat = true
+	tap.text = ""
+	tap.focus_mode = Control.FOCUS_NONE
+	tap.mouse_filter = Control.MOUSE_FILTER_STOP
+	tap.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tap.position = Vector2.ZERO
+	tap.custom_minimum_size = Vector2(JOURNEY_W, 56.0)
+	tap.size = Vector2(JOURNEY_W, 56.0)
+	tap.pressed.connect(_toggle_dossier_pinned)
+	_journey_ink.add_child(tap)
+	_journey_button = tap
+
+	# 回看余烬收进这条注里。Button 负责点击；字由 RecapStrip 画，14px。
 	var recap := Button.new()
 	recap.name = "RecapButton"
 	recap.flat = true
@@ -594,18 +717,22 @@ func _build_journey() -> void:
 	recap.focus_exited.connect(strip.set_lit.bind(false))
 	recap.mouse_entered.connect(strip.set_lit.bind(true))
 	recap.mouse_exited.connect(strip.set_lit.bind(false))
+	# 冷启动（没有存档）没有可回看的行程；有结局时菜单「继续」行本身就是一步入口：
+	# 两种情况下都不再放第二个入口。有档无结局时保留这个按钮。
+	recap.visible = bool(_look.get("has_save", SaveData.has_save())) and not _continue_opens_recap
+	_recap_button = recap
 
 	_build_dossier_card()
 	_refresh_dossier()
 	_refresh_journey_typography()
 
 
-## 短注沿用 12px 小字的层级；辅助字号放大时按真实行高向下排，
-## 不让正文默认字号把固定 16px 的标题/章名行挤在一起。
+## 短注用 13px 小字（辅助字号放大时封顶 16）；按真实行高向下排，
+## 不让正文默认字号把标题/章名行挤在一起。横轨和「回看」跟着行高往下走。
 func _refresh_journey_typography() -> void:
 	if _journey_ink == null:
 		return
-	var font_size := mini(roundi(12.0 * Settings.assist(&"text_scale")), 16)
+	var font_size := mini(roundi(13.0 * Settings.assist(&"text_scale")), 16)
 	var line_height := 16.0
 	for node_name in ["JourneyHeader", "JourneyCount", "JourneyChapter"]:
 		var label := _journey_ink.get_node_or_null(node_name) as Label
@@ -626,8 +753,15 @@ func _refresh_journey_typography() -> void:
 	_journey_chapter.size = Vector2(JOURNEY_W, line_height)
 	var gauge_y := maxf(38.0, line_height * 2.0)
 	_gauge.position.y = gauge_y
-	var recap := _journey_ink.get_node("RecapButton") as Control
-	recap.position.y = minf(JOURNEY_H - RecapStrip.HEIGHT, gauge_y + 20.0)
+	var recap := _journey_ink.get_node_or_null("RecapButton") as Control
+	var recap_y := minf(JOURNEY_H - RecapStrip.HEIGHT, gauge_y + 20.0)
+	if recap != null:
+		recap.position.y = recap_y
+	if _journey_button != null:
+		# 点按区只盖计数/章名/横轨，不盖「回看余烬」（那条自己收点击）。
+		var tap_h := maxf(recap_y - 4.0, 24.0)
+		_journey_button.custom_minimum_size = Vector2(JOURNEY_W, tap_h)
+		_journey_button.size = Vector2(JOURNEY_W, tap_h)
 
 
 ## 顶底一层很软的纵向渐变。中间是透的，左右不再压一块硬遮罩。
@@ -676,10 +810,12 @@ func _build_dossier_card() -> void:
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card.add_child(panel)
+	_dossier_panel = panel
 	var box := VBoxContainer.new()
 	box.name = "Content"
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
+	_dossier_contents = box
 	var head := UiKit.label("行 程 档 案", &"TinyStrongLabel", HORIZONTAL_ALIGNMENT_CENTER)
 	head.modulate = UiKit.EMBER
 	head.name = "DossierHead"
@@ -695,6 +831,10 @@ func _build_dossier_card() -> void:
 	_dossier_recap.name = "DossierRecap"
 	_dossier_recap.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_dossier_recap.custom_minimum_size = Vector2(0.0, 44.0)
+	# max_lines_visible 同时封顶最小高度：autowrap 标签在宽度 0 下会把每个字算一行，
+	# 不封顶会把整张卡的最小高撑到几百像素（135% 下直接溢出卡身）。
+	_dossier_recap.max_lines_visible = 3
+	_dossier_recap.clip_text = true
 	_dossier_recap.modulate = Color(UiKit.EMBER_ASH.r, UiKit.EMBER_ASH.g, UiKit.EMBER_ASH.b, 0.85)
 	box.add_child(_dossier_recap)
 	if not _trial_ready():
@@ -702,6 +842,9 @@ func _build_dossier_card() -> void:
 		trial_hint.name = "TrialLockHint"
 		trial_hint.modulate = UiKit.ASH
 		trial_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		# 同上：给 autowrap 底注封顶，避免它按"每字一行"撑爆卡片最小高。
+		trial_hint.max_lines_visible = 2
+		trial_hint.clip_text = true
 		trial_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		trial_hint.custom_minimum_size = Vector2(0.0, 30.0)
 		box.add_child(trial_hint)
@@ -823,9 +966,42 @@ func _refresh_dossier() -> void:
 
 ## 结局的短名（取自结局概述冒号前的几个字：还火 / 守炉 / 熄火）。
 func _ending_name(kind: String) -> String:
+	return ending_name(kind)
+
+
+## 结局的短名。静态版给「继续」行的行内小注 / 页脚说明用。
+static func ending_name(kind: String) -> String:
 	var summary := ChapterText.ending_summary_of(kind)
 	var cut := summary.find("：")
 	return summary.substr(0, cut) if cut > 0 else "旅程已终"
+
+
+## 「继续旅程」行的行内小注（说真话，不猜）：结局名 / 章节 + 进度 / 尚无存档。
+## 有档但章节认不出来（旧档 / meta.scene 缺失）时写「继续上次旅程」。
+static func continue_note(look: Dictionary) -> String:
+	var ending := String(look.get("ending", ""))
+	if ending != "":
+		return "结局 · %s" % ending_name(ending)
+	if not bool(look.get("has_save", false)):
+		return "尚无存档"
+	var number := ChapterText.number_of(String(look.get("chapter_id", "")))
+	if number == "":
+		return "继续上次旅程"
+	return "%s章 · %02d/%02d" % [number, int(look.get("cleared", 0)), ChapterText.order().size()]
+
+
+## 「继续旅程」行的页脚说明（焦点停在这一行时写）：无档先点燃余烬；有结局回看；有档写章节 + 进度。
+static func continue_hint(look: Dictionary) -> String:
+	var ending := String(look.get("ending", ""))
+	if ending != "":
+		return RECAP_HINT
+	if not bool(look.get("has_save", false)):
+		return "继续旅程 · 尚无存档，先点燃余烬"
+	var chapter_name := ChapterText.name_of(String(look.get("chapter_id", "")))
+	if chapter_name == "":
+		return String(MENU_HINTS[ID_CONTINUE])
+	return "继续旅程 · %s · %02d/%02d" % [chapter_name, int(look.get("cleared", 0)),
+			ChapterText.order().size()]
 
 
 # ------------------------------------------------------------- inscription -----
@@ -919,16 +1095,16 @@ func _build_chrome() -> void:
 	rule.size = Vector2(FOOTER_RECT.size.x, 1.0)
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	band.add_child(rule)
-	var credits := UiKit.label(
-			"致谢 ansimuz · Kenney · Fusion Pixel",
-			&"FootnoteLabel")
+	var credits := UiKit.label(CREDITS, &"FootnoteLabel")
 	credits.name = "Credits"
 	credits.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	credits.modulate = Color(UiKit.ASH.r, UiKit.ASH.g, UiKit.ASH.b, 0.72)
+	# 完整署名用暖灰（≥4.5:1），不是压暗 0.72 的灰；宽度 700，右端还停在导航提示左边。
+	credits.add_theme_color_override("font_color", CREDITS_INK)
+	credits.modulate = Color.WHITE
 	band.add_child(credits)
 	credits.reset_size()
 	credits.position = Vector2(0.0, 4.0)
-	credits.size = Vector2(360.0, 24.0)
+	credits.size = Vector2(CREDITS_W, 24.0)
 	# 页脚右侧染成余烬色：页脚里只有这一行是"给玩家的话"——焦点停在哪一行，
 	# 就用一句话说明它是什么（MENU_HINTS）；没有焦点时是操作提示。
 	var hint := UiKit.label(FOOTER_DEFAULT, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_RIGHT)
@@ -967,31 +1143,81 @@ func _build_chrome() -> void:
 	add_child(_update_notice)
 	# Size only after it is in the tree: a Control's size is clamped *up* to its minimum, and
 	# outside the tree the minimum still comes from the default (24px, wide-margin) button theme.
+	# 右对齐到页脚右缘 1208，不压住中间的导航提示（x=736 起）。
 	_update_notice.reset_size()
-	_update_notice.position = Vector2(1040.0, 661.0)
-	_update_notice.size = Vector2(168.0, 22.0)
+	_update_notice.size = Vector2(_update_notice.size.x, 22.0)
+	_update_notice.position = Vector2(FOOTER_RECT.end.x - _update_notice.size.x, 661.0)
 
 
-## 页脚保留 12px 小字的比例，不套用 UiKit.label 的 16px 正文覆盖。
-## 24px 行框容纳最大 16px 字号，始终停在 28px 页脚带内。
+## 页脚小字：署名 13px（封顶 16）、导航提示 12px（封顶 16），都停在 28px 页脚带内。
+## 署名宽 700，右端在导航提示（x=736）左侧收住；最后一位署名不省略。
 func _refresh_footer_typography() -> void:
-	var font_size := mini(roundi(12.0 * Settings.assist(&"text_scale")), 16)
-	for node_name in ["Credits", "FooterHint"]:
-		var label := get_node_or_null("CreditBand/" + node_name) as Label
-		if label == null:
-			continue
-		label.add_theme_font_size_override("font_size", font_size)
-		label.clip_text = true
-		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		label.reset_size()
-		label.position = Vector2(0.0 if node_name == "Credits" else FOOTER_RECT.size.x - 400.0, 4.0)
-		label.size = Vector2(360.0 if node_name == "Credits" else 400.0, 24.0)
+	var scale_f := Settings.assist(&"text_scale")
+	var credits_size := mini(roundi(13.0 * scale_f), 16)
+	var hint_size := mini(roundi(12.0 * scale_f), 16)
+	var credits := get_node_or_null("CreditBand/Credits") as Label
+	if credits != null:
+		credits.add_theme_font_size_override("font_size", credits_size)
+		credits.add_theme_color_override("font_color", CREDITS_INK)
+		credits.modulate = Color.WHITE
+		credits.clip_text = true
+		credits.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		credits.reset_size()
+		credits.position = Vector2(0.0, 4.0)
+		credits.size = Vector2(CREDITS_W, 24.0)
+	if _footer_hint != null:
+		_footer_hint.add_theme_font_size_override("font_size", hint_size)
+		_footer_hint.clip_text = true
+		_footer_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_footer_hint.reset_size()
+		_footer_hint.position = Vector2(FOOTER_RECT.size.x - 400.0, 4.0)
+		_footer_hint.size = Vector2(400.0, 24.0)
+
+
+## 辅助字号（85/100/135%）下标题自己的固定版式重排：副题行高、字标列底、
+## 墓志字号与条高、档案卡间距、页脚字号、版本按钮右对齐。主题是唯一字号来源，
+## 这里只跟着真实行高挪盒子，85/100/135% 下各区块都不叠。
+func _refresh_text_layout() -> void:
+	var scale_f := Settings.assist(&"text_scale")
+	# 副题：行高至少 30，字标列底边跟着它走，但永远停在菜单顶（RAIL_TOP）上方。
+	if _subtitle != null:
+		_subtitle.reset_size()
+		var sub_h := maxf(SUBTITLE_H, _subtitle.get_combined_minimum_size().y)
+		_subtitle.custom_minimum_size = Vector2(0.0, sub_h)
+		if _masthead_column != null:
+			var bottom := TOP_INSET + LOGO_H + 8.0 + sub_h
+			_masthead_column.offset_bottom = minf(bottom, RAIL_TOP - 12.0)
+	# 墓志：字号封顶 30（32px 的正文级字号会把单行条顶出 656 底线），
+	# 条高跟着真实行高，底边仍停在 EPITAPH_RECT 的底边（656）。
+	if _epitaph != null:
+		var ep_size := mini(roundi(24.0 * scale_f), 30)
+		_epitaph.add_theme_font_size_override("font_size", ep_size)
+		_fit_epitaph()
+	_refresh_journey_typography()
+	_refresh_footer_typography()
+	# 档案卡：135% 时 12px 行距会把内容顶出卡身，收紧到 8 并给底注封顶；
+	# 行距/字号变化会让最小高先涨后落，重设回卡身尺寸，避免面板被瞬时撑大后收不回来。
+	if _dossier_contents != null:
+		var tight := scale_f >= 1.3
+		_dossier_contents.add_theme_constant_override("separation", 8 if tight else 12)
+		if _dossier_recap != null:
+			_dossier_recap.custom_minimum_size = Vector2(0.0, 30.0 if tight else 44.0)
+			_dossier_recap.max_lines_visible = 2 if tight else 3
+			_dossier_recap.clip_text = true
+		if _dossier_panel != null:
+			var body_size := CARD_RECT.size - Vector2(44.0, 44.0)
+			_dossier_panel.custom_minimum_size = body_size
+			_dossier_panel.size = body_size
+	# 版本按钮：右对齐页脚右缘，高 22。
+	if _update_notice != null:
+		_update_notice.reset_size()
+		_update_notice.size = Vector2(_update_notice.size.x, 22.0)
+		_update_notice.position = Vector2(FOOTER_RECT.end.x - _update_notice.size.x, 661.0)
 
 
 func _on_title_setting_changed(key: StringName) -> void:
 	if key == &"text_scale":
-		_refresh_footer_typography()
-		_refresh_journey_typography()
+		_refresh_text_layout()
 
 
 ## UI 层的火星池（聚焦迸火星、字标锻入的火星）：复用 TitleSparks 的火星部分，放大两倍，
@@ -1011,6 +1237,7 @@ func _build_overlays() -> void:
 	_controls.closed.connect(func() -> void:
 		_menu.active = true
 		_fade_title_menu(1.0)
+		_sync_aux_focus()
 	)
 	add_child(_controls)
 	_settings = SettingsScreen.new()
@@ -1018,6 +1245,7 @@ func _build_overlays() -> void:
 	_settings.closed.connect(func() -> void:
 		_menu.active = true
 		_fade_title_menu(1.0)
+		_sync_aux_focus()
 	)
 	add_child(_settings)
 	_build_recap_page()
@@ -1025,7 +1253,10 @@ func _build_overlays() -> void:
 	_build_character_select()
 	_update_prompt = UpdatePrompt.new()
 	_update_prompt.layer = 7
-	_update_prompt.closed.connect(func() -> void: _menu.active = true)
+	_update_prompt.closed.connect(func() -> void:
+		_menu.active = true
+		_sync_aux_focus()
+	)
 	add_child(_update_prompt)
 
 	_fade = ColorRect.new()
@@ -1142,7 +1373,19 @@ func _finish_intro() -> void:
 	if _curtain != null and is_instance_valid(_curtain):
 		_curtain.queue_free()
 		_curtain = null
-	_ep_phase = 1
+	# 第一句墓志在开屏结束时已经"在"了：整句可见 + 进入停留，不再从 0 开始打字。
+	_hold_first_epitaph()
+
+
+## 开屏落位后的墓志：第一句整句可见并停留，之后的轮换才走打字机。
+func _hold_first_epitaph() -> void:
+	if _epitaph == null or _ep_lines.is_empty():
+		return
+	_epitaph.text = _ep_lines[_ep_index]
+	_epitaph.visible_characters = -1
+	_epitaph.modulate.a = EPITAPH_PEAK
+	_fit_epitaph()
+	_ep_phase = 2
 	_ep_t = 0.0
 
 
@@ -1191,8 +1434,8 @@ func _skip_intro() -> void:
 	if _curtain != null and is_instance_valid(_curtain):
 		_curtain.queue_free()
 		_curtain = null
-	_ep_phase = 1
-	_ep_t = 0.0
+	# 跳过开屏 = 直接落到终态：第一句墓志整句可见（不是停在打字机中途）。
+	_hold_first_epitaph()
 
 
 ## 开屏是否还在播（测试与 _on_chosen 用：动画期间选择键不响应）。
@@ -1227,6 +1470,8 @@ func _process(delta: float) -> void:
 	_update_pointer()
 	_update_dossier_hover()
 	_update_epitaph(delta)
+	_update_seal_hold(delta)
+	_sync_aux_focus()
 	if _lamp != null and _menu != null:
 		if _quitting:
 			_lamp.douse()
@@ -1257,16 +1502,43 @@ func _update_pointer() -> void:
 	_world.set_pointer(Vector2(local.x / 640.0 - 1.0, local.y / 360.0 - 1.0))
 
 
-func _sub_screen_open() -> bool:
+## 任何盖在标题上的子界面（设置 / 说明 / 续看页 / 选人 / 覆盖确认 / 更新提示）。
+func _modal_open() -> bool:
 	return (_settings != null and _settings.visible) \
 			or (_controls != null and _controls.visible) \
 			or (_recap != null and _recap.is_open()) \
 			or (_char_select != null and _char_select.is_open()) \
-			or confirm_open()
+			or confirm_open() \
+			or (_update_prompt != null and _update_prompt.is_open())
+
+
+func _sub_screen_open() -> bool:
+	return _modal_open()
 
 
 func sub_screen_open() -> bool:
 	return _sub_screen_open()
+
+
+## 模态开着时，旅程列里的「回看余烬」和页脚版本按钮暂时不收焦点；
+## 关闭后恢复。只在真的换状态时写属性。
+func _sync_aux_focus() -> void:
+	var locked := _modal_open()
+	if locked == _aux_focus_locked:
+		return
+	_aux_focus_locked = locked
+	if _recap_button != null:
+		_recap_button.focus_mode = Control.FOCUS_NONE if locked else Control.FOCUS_ALL
+	if _update_notice != null:
+		_update_notice.focus_mode = Control.FOCUS_NONE if locked else Control.FOCUS_ALL
+
+
+## 点按短注（触屏/鼠标）或手柄 Y：固定 / 收起完整档案（和 Tab 同一条路）。
+func _toggle_dossier_pinned() -> void:
+	if _quitting or _started or _modal_open():
+		return
+	_dossier_pinned = not _dossier_pinned
+	_set_dossier_open(_dossier_pinned)
 
 
 ## 悬停旅程列（或展开后悬停在卡上）/ Tab 固定：展开完整档案。
@@ -1344,6 +1616,7 @@ func _update_epitaph(delta: float) -> void:
 
 
 ## 墓志标签按当前这一行的整句定宽，右端贴着墓志条，不超出条的右缘。
+## 条高跟着真实字形行高：字大了只向上长，底边永远停在 656（页脚带上沿之上）。
 func _fit_epitaph() -> void:
 	var font := _epitaph.get_theme_font(&"font")
 	var font_size := _epitaph.get_theme_font_size(&"font_size")
@@ -1353,14 +1626,15 @@ func _fit_epitaph() -> void:
 	var max_w := EPITAPH_RECT.size.x
 	var use := minf(ceilf(width) + 8.0, max_w)
 	_epitaph.clip_text = true
-	_epitaph.custom_minimum_size = Vector2(use, EPITAPH_RECT.size.y)
-	_epitaph.size = Vector2(use, EPITAPH_RECT.size.y)
-	_epitaph.position = Vector2(max_w - use, 0.0)
+	var line_h := maxf(EPITAPH_RECT.size.y, _epitaph.get_combined_minimum_size().y)
+	_epitaph.custom_minimum_size = Vector2(use, line_h)
+	_epitaph.size = Vector2(use, line_h)
+	_epitaph.position = Vector2(max_w - use, EPITAPH_RECT.size.y - line_h)
 	_epitaph.modulate = Color(0.78, 0.72, 0.66, _epitaph.modulate.a)
 	if _ep_shade != null:
 		# 暗斑比字宽，并往右下偏进炉影，不给字加框。
-		_ep_shade.position = Vector2(max_w - use - 36.0, -8.0)
-		_ep_shade.size = Vector2(use + 72.0, 52.0)
+		_ep_shade.position = Vector2(max_w - use - 36.0, EPITAPH_RECT.size.y - line_h - 8.0)
+		_ep_shade.size = Vector2(use + 72.0, line_h + 16.0)
 
 
 ## 当前打字机的那一行（测试读）。
@@ -1371,6 +1645,7 @@ func epitaph_line() -> String:
 # ------------------------------------------------------------------ choices -----
 
 ## 短注跟着厅里 14 盏吊灯一起呼吸；焦点在「继续旅程」上才从淡变亮。
+## 后排的 JourneyShade 是静态的：这里只推 _journey_ink 的 alpha。
 func _pulse_journey() -> void:
 	if _journey_ink == null or _menu == null or _dossier_open:
 		return
@@ -1431,7 +1706,9 @@ func _on_recap_attention(over: bool) -> void:
 
 
 func _refresh_footer_hint(id: StringName) -> void:
-	var text := hint_for(id, _continue_opens_recap)
+	# 「继续旅程」这一行的说明要跟着存档说真话（结局 / 章节+进度 / 尚无存档），
+	# 其余行仍走静态 MENU_HINTS。
+	var text := continue_hint(_look) if id == ID_CONTINUE else hint_for(id, _continue_opens_recap)
 	_set_footer_hint(text if text != "" else FOOTER_DEFAULT)
 
 
@@ -1485,6 +1762,7 @@ func _on_chosen(id: StringName) -> void:
 			else:
 				_menu.active = false
 				_char_select.open()
+				_sync_aux_focus()
 		ID_CONTINUE:
 			# 有结局时这一行写的是「回看余烬」：打开总结页，由总结页决定继续 / 重温 / 再入某章。
 			if _continue_opens_recap:
@@ -1508,14 +1786,12 @@ func _on_chosen(id: StringName) -> void:
 			_menu.active = false
 			_fade_title_menu(0.0)
 			_settings.open()
+			_sync_aux_focus()
 		ID_CONTROLS:
 			_menu.active = false
 			_fade_title_menu(0.0)
 			_controls.open()
-		ID_UPDATE:
-			_menu.active = false
-			if _update_prompt != null:
-				_update_prompt.open(UpdateService.entry())
+			_sync_aux_focus()
 		ID_QUIT:
 			_quit_sequence()
 
@@ -1530,17 +1806,17 @@ func _start_arena() -> bool:
 ## 有结局时菜单里的「继续」行（写作「回看余烬」）和旅程列的「回看余烬」按钮都打开它。
 ## 页面本身见 ember_recap.gd（OrnatePanel 卡片 + MenuList，与其他弹窗一致）。
 func open_recap() -> void:
-	if _started or _quitting or _recap == null:
+	if _started or _quitting or _recap == null or _modal_open():
 		return
 	if _intro_playing:
 		_skip_intro()
-	if _recap.is_open():
-		return
+	get_viewport().gui_release_focus()
 	_menu.active = false
 	# 总结页是一块半透明的玻璃卡：标题菜单若还亮着，它的文字会从卡片下面透出来。淡出菜单，
 	# 只让场景的光透过去（关闭时再淡回来）。
 	_fade_title_menu(0.0)
 	_recap.open(_recap_info())
+	_sync_aux_focus()
 
 
 ## 标题菜单的淡入淡出：只动 modulate:a，不碰 active（输入由 active 单独管）。
@@ -1599,11 +1875,13 @@ func _build_recap_page() -> void:
 	add_child(_recap)
 
 
-## 总结页关了（Esc / 返回 / 点卡片外）：菜单把输入拿回来。
+## 总结页关了（Esc / 返回 / 点卡片外）：菜单把输入拿回来，页脚说明也回到当前焦点行。
 func _close_recap() -> void:
 	if _menu != null and not _started and not _quitting:
 		_menu.active = true
 		_fade_title_menu(1.0)
+		_refresh_footer_hint(_menu.selected_id())
+	_sync_aux_focus()
 
 
 ## 总结页里的「继续旅程」：和菜单的「继续」行读同一份存档。
@@ -1655,6 +1933,11 @@ func _reenter_chapter(id: String) -> void:
 	(SaveData.data["meta"] as Dictionary)["scene"] = path
 	if SaveData.data.has("player") and SaveData.data["player"] is Dictionary:
 		(SaveData.data["player"] as Dictionary)["pos"] = spawn
+	if GameContext.STAGE_SCRIPTS.has(id):
+		var rm := MapScreen.default_entry_room(id)
+		StageRoomMemory.clear_stage(id)
+		StageRoomMemory.set_pending(id, rm, "west")
+		SaveData.set_stage_room(id, rm, "west")
 	SaveData.pending_spawn = spawn
 	Sfx.play(&"gate")
 	_confirm_effect()
@@ -1698,13 +1981,15 @@ func _on_update_checked(status: StringName, _entry: Dictionary) -> void:
 
 ## 版本提示不进菜单（模式组固定，不会被动态行撑出屏幕）：页脚上方一个小按钮。
 func _open_update_prompt() -> void:
-	if _quitting or _started:
+	if _quitting or _started or _modal_open():
 		return
 	if _intro_playing:
 		_skip_intro()
+	get_viewport().gui_release_focus()
 	_menu.active = false
 	if _update_prompt != null:
 		_update_prompt.open(UpdateService.entry())
+	_sync_aux_focus()
 
 
 # --------------------------------------------------------------------- quit -----
@@ -1718,6 +2003,8 @@ func _quit_sequence() -> void:
 	if _intro_playing:
 		_skip_intro()
 	_quitting = true
+	# 宽限：选中「离开锈墓」的那一次按下，以及同一次输入的 release，都不能一把跳完整段退场。
+	_quit_guard_until = _time + quit_skip_grace
 	_menu.active = false
 	_dossier_pinned = false
 	if _dossier_open:
@@ -1806,8 +2093,10 @@ func _build_confirm() -> void:
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_theme_constant_override("separation", 18)
 	(_confirm_shell["body"] as Control).add_child(column)
-	column.add_child(UiKit.label("现有进度会被清除，从头点燃。", &"DimLabel",
-			HORIZONTAL_ALIGNMENT_CENTER))
+	var body_label := UiKit.label("现有进度会被清除，从头点燃。", &"DimLabel",
+			HORIZONTAL_ALIGNMENT_CENTER)
+	body_label.name = "ConfirmBody"
+	column.add_child(body_label)
 	_confirm_menu = MenuList.new()
 	_confirm_menu.name = "ConfirmMenu"
 	_confirm_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -1818,17 +2107,26 @@ func _build_confirm() -> void:
 	# 取消是默认项、也是安全出口，用燕尾板；清档是不可逆动作，只留四只角标。
 	_confirm_menu.compact(_confirm_menu.add_item(
 			ID_KEEP, "取 消", false, MenuItem.Kind.SECONDARY))
-	_confirm_menu.compact(_confirm_menu.add_item(
-			ID_OVERWRITE, "确 认 覆 盖", false, MenuItem.Kind.GHOST))
+	_confirm_overwrite_item = _confirm_menu.add_item(
+			ID_OVERWRITE, "确 认 覆 盖", false, MenuItem.Kind.GHOST)
+	_confirm_menu.compact(_confirm_overwrite_item)
+	# 确认覆盖永远比「取消」低一档：压暗 0.85，被键盘选中也不额外提亮。
+	_confirm_overwrite_item.tint = Color(0.85, 0.85, 0.85, 1.0)
 	_confirm_menu.chosen.connect(_on_confirm_chosen)
-	# The drawn wax seal is also the actual action target. Keep the two menu
-	# rows for keyboard navigation and route both triggers through one press.
+	# 羊皮纸上的字用深墨（≈9:1），标题保持深锈；提示带也一并用墨色，不再用会糊在纸上的灰。
+	var root := _confirm_shell["root"] as Control
+	_ink_letter_label(root.find_child("Kicker", true, false) as Label)
+	_ink_letter_label(root.find_child("Title", true, false) as Label, LETTER_RUST)
+	_ink_letter_label(body_label)
+	_ink_letter_label(_confirm_shell.get("hint") as Label)
+	_ink_letter_label(_confirm_shell.get("back") as Label)
+	# 画出来的蜡封同时也是真正的操作目标：外观由 LetterDressing 画，按钮只负责接输入。
 	_confirm_seal_button = Button.new()
 	_confirm_seal_button.name = "SealButton"
-	_confirm_seal_button.tooltip_text = "按下蜡封，确认覆盖"
+	_confirm_seal_button.tooltip_text = SEAL_HOLD_LABEL
 	_confirm_seal_button.focus_mode = Control.FOCUS_ALL
 	_confirm_seal_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_confirm_seal_button.size = Vector2(56.0, 56.0)
+	_confirm_seal_button.size = Vector2(48.0, 48.0)
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		_confirm_seal_button.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 	var focus_ring := StyleBoxFlat.new()
@@ -1837,31 +2135,69 @@ func _build_confirm() -> void:
 	focus_ring.set_border_width_all(2)
 	focus_ring.set_corner_radius_all(12)
 	_confirm_seal_button.add_theme_stylebox_override("focus", focus_ring)
-	(_confirm_shell["root"] as Control).add_child(_confirm_seal_button)
-	_confirm_seal_button.pressed.connect(_on_confirm_chosen.bind(ID_OVERWRITE))
+	root.add_child(_confirm_seal_button)
+	print("SEAL-TITLE build size=", _confirm_seal_button.size, " roottype=", root.get_class(),
+			" in_tree=", _confirm_seal_button.is_inside_tree())
+	# 按住 0.45s 才生效：按下开始填圈，松手（没满）取消；键盘改走 _on_confirm_chosen 两步确认。
+	_confirm_seal_button.button_down.connect(_begin_seal_hold)
+	_confirm_seal_button.button_up.connect(_end_seal_hold)
+	var gauge := SealHoldGauge.new()
+	gauge.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gauge.visible = false
+	_confirm_seal_button.add_child(gauge)
+	_confirm_seal_gauge = gauge
+	# 蜡封上方的可见操作说明（12px 墨色）：告诉玩家这里是"按住"而不是点一下。
+	_confirm_seal_hint = UiKit.label(SEAL_HOLD_LABEL, &"FootnoteLabel", HORIZONTAL_ALIGNMENT_CENTER)
+	_confirm_seal_hint.name = "SealHint"
+	_confirm_seal_hint.add_theme_font_size_override("font_size", 12)
+	_confirm_seal_hint.add_theme_color_override("font_color", LETTER_INK)
+	_confirm_seal_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_confirm_seal_hint.size = Vector2(240.0, 16.0)
+	root.add_child(_confirm_seal_hint)
 	(_confirm_shell["card"] as Control).item_rect_changed.connect(_place_confirm_seal_button)
 	_place_confirm_seal_button.call_deferred()
+
+
+## 羊皮纸上的字一律深墨；标题用深锈（比正文重但仍比纸暗得多）。
+func _ink_letter_label(label: Label, color: Color = LETTER_INK) -> void:
+	if label == null:
+		return
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color.TRANSPARENT)
+	label.add_theme_constant_override("outline_size", 0)
 
 
 func _place_confirm_seal_button() -> void:
 	if _confirm_seal_button == null:
 		return
 	var seal: Node2D = _confirm_shell["dressing"]
+	if seal == null:
+		return
 	var center: Vector2 = seal.call("seal_center")
 	_confirm_seal_button.position = (center - _confirm_seal_button.size * 0.5).round()
+	if _confirm_seal_hint != null:
+		_confirm_seal_hint.position = Vector2(
+				roundf(center.x - _confirm_seal_hint.size.x * 0.5),
+				roundf(_confirm_seal_button.position.y - _confirm_seal_hint.size.y - 6.0))
 
 
 func open_confirm() -> void:
-	if _started or _quitting or _confirm_sealing:
+	if _started or _quitting or _confirm_sealing or _modal_open():
 		return
 	_confirm_action_serial += 1
 	_confirm_closing = false
+	_cancel_seal_hold()
 	_menu.active = false
+	get_viewport().gui_release_focus()
 	_confirm.visible = true
 	_confirm_menu.active = true
 	_confirm_seal_button.disabled = false
 	_confirm_menu.select(0, false)
 	(_confirm_shell["play_intro"] as Callable).call()
+	print("SEAL-TITLE open-before-place size=", _confirm_seal_button.size)
+	_place_confirm_seal_button()
+	print("SEAL-TITLE open-after-place size=", _confirm_seal_button.size)
+	_sync_aux_focus()
 
 
 func close_confirm() -> void:
@@ -1872,12 +2208,15 @@ func close_confirm() -> void:
 	var serial := _confirm_action_serial
 	_confirm_menu.active = false
 	_confirm_seal_button.disabled = true
+	_cancel_seal_hold()
 	(_confirm_shell["play_outro"] as Callable).call(func() -> void:
 		if serial != _confirm_action_serial or not _confirm_closing:
 			return
 		_confirm_closing = false
 		_confirm.visible = false
-		_menu.active = not _started and not _quitting)
+		_menu.active = not _started and not _quitting
+		_refresh_footer_hint(_menu.selected_id())
+		_sync_aux_focus())
 
 
 func confirm_open() -> bool:
@@ -1893,9 +2232,54 @@ func _on_confirm_chosen(id: StringName) -> void:
 		close_confirm()
 
 
+## 按下蜡封：开始累计按住时长（不立即确认）。
+func _begin_seal_hold() -> void:
+	if _started or _quitting or _confirm_sealing or _confirm_closing or not confirm_open():
+		return
+	_confirm_hold_active = true
+	_confirm_hold_t = 0.0
+	if _confirm_seal_gauge != null:
+		_confirm_seal_gauge.progress = 0.0
+		_confirm_seal_gauge.visible = true
+
+
+## 松开蜡封：没按满就取消（不弹选人、不覆盖），按满了由 _update_seal_hold 结算。
+func _end_seal_hold() -> void:
+	_cancel_seal_hold()
+
+
+func _cancel_seal_hold() -> void:
+	_confirm_hold_active = false
+	_confirm_hold_t = 0.0
+	if _confirm_seal_gauge != null:
+		_confirm_seal_gauge.progress = 0.0
+		_confirm_seal_gauge.visible = false
+
+
+## 按住进度：满了才走一次真正的压蜡（_press_confirm_seal）。释放前松手在 _end_seal_hold 里取消。
+func _update_seal_hold(delta: float) -> void:
+	if not _confirm_hold_active:
+		return
+	if not confirm_open() or _confirm_sealing or _confirm_closing:
+		_cancel_seal_hold()
+		return
+	_confirm_hold_t += delta
+	if _confirm_seal_gauge != null:
+		_confirm_seal_gauge.progress = _confirm_hold_t / SEAL_HOLD_TIME
+	if _confirm_hold_t >= SEAL_HOLD_TIME:
+		_cancel_seal_hold()
+		_press_confirm_seal()
+
+
+## 按住火漆的当前进度 0..1（测试读）。
+func seal_hold_progress() -> float:
+	return clampf(_confirm_hold_t / SEAL_HOLD_TIME, 0.0, 1.0) if _confirm_hold_active else 0.0
+
+
 func _press_confirm_seal(force_tween: bool = false) -> Tween:
 	if _started or _quitting or _confirm_sealing or _confirm_closing or not confirm_open():
 		return null
+	_cancel_seal_hold()
 	_confirm_menu.active = false
 	_confirm_seal_button.disabled = true
 	_confirm_sealing = true
@@ -1926,6 +2310,7 @@ func _finish_seal(serial: int = -1) -> void:
 	_confirm_sealing = false
 	_confirm.visible = false
 	_char_select.open()
+	_sync_aux_focus()
 
 
 func _build_character_select() -> void:
@@ -1945,6 +2330,7 @@ func _on_char_select_cancelled() -> void:
 		return
 	_char_select.close()
 	_menu.active = true
+	_sync_aux_focus()
 
 
 func _on_char_select_embark(origin_id: StringName, loadout: Dictionary) -> void:
@@ -1978,9 +2364,17 @@ func character_select_screen() -> CharacterSelectScreen:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _quitting:
-		# 退出游戏不该被退场动画拖住：任意按键 / 点击直接收尾。
-		if event is InputEventKey or event is InputEventMouseButton \
-				or event is InputEventJoypadButton:
+		# 退场不该被动画拖住：宽限期过后，任意"按下"直接收尾。只认 pressed ——
+		# 选择离开的那次输入自己的 release 不能把整段退场跳掉（宽限期也兜住这一点）。
+		if _time < _quit_guard_until:
+			get_viewport().set_input_as_handled()
+			return
+		var pressed := false
+		if event is InputEventKey:
+			pressed = (event as InputEventKey).pressed and not (event as InputEventKey).echo
+		elif event is InputEventMouseButton or event is InputEventJoypadButton:
+			pressed = event.is_pressed()
+		if pressed:
 			_finish_quit()
 			get_viewport().set_input_as_handled()
 		return
@@ -1990,26 +2384,41 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# Tab：固定 / 收起完整档案（没有弹窗压在上面时）。
 	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
-			and (event as InputEventKey).keycode == KEY_TAB and _menu != null and _menu.active:
-		_dossier_pinned = not _dossier_pinned
-		_set_dossier_open(_dossier_pinned)
+			and (event as InputEventKey).keycode == KEY_TAB and _menu != null and _menu.active \
+			and not _modal_open() and not _quitting:
+		_toggle_dossier_pinned()
 		get_viewport().set_input_as_handled()
+		return
+	# 手柄 Y：和 Tab / 点按短注同一条路（菜单激活且没有弹窗时才收）。
+	if event is InputEventJoypadButton:
+		var pad := event as InputEventJoypadButton
+		if pad.pressed and pad.button_index == JOY_BUTTON_Y \
+				and _menu != null and _menu.active and not _modal_open() and not _quitting:
+			_toggle_dossier_pinned()
+			get_viewport().set_input_as_handled()
 
 
 func _start(continue_game: bool) -> void:
 	if _started or _quitting:
 		return
+	var target := LEVEL_PATH
+	if continue_game:
+		# 读档失败：不能假装开始（会 fade 进一个空场景，甚至把档删了）。
+		# 菜单留在原地、保留原文件，页脚说清楚，玩家可以改点「点燃余烬」。
+		if not SaveData.load_game():
+			_menu.active = true
+			_fade_title_menu(1.0)
+			Sfx.play(&"ui_denied")
+			_set_footer_hint(LOAD_FAILED_HINT)
+			return
+		target = SaveData.saved_scene(LEVEL_PATH)
+	else:
+		SaveData.delete_save()
 	_started = true
 	_menu.active = false
 	# 标题进关不沿用上一局死亡排队：继续走存档坐标，新开清档。
 	SaveData.pending_spawn = Vector2.INF
 	SaveData.entering_from_checkpoint = false
-	var target := LEVEL_PATH
-	if continue_game:
-		SaveData.load_game()
-		target = SaveData.saved_scene(LEVEL_PATH)
-	else:
-		SaveData.delete_save()
 	Sfx.play(&"gate")
 	_confirm_effect()
 	Director.fade_to(target, FADE_OUT)

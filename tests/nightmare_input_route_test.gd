@@ -40,7 +40,7 @@ func teardown() -> void:
 func _build_probe() -> RouteProbe:
 	var host := Node2D.new()
 	host.name = "Level10_ForgeCore"
-	host.scene_file_path = GameContext.LEVELS["level10"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level10"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new() as ChapterLayout

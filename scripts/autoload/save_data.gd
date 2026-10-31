@@ -362,6 +362,7 @@ func init_new_game(origin_id: Variant = &"ember_vanguard", loadout: Dictionary =
 	skill_2 = ""
 	skin_id = String(fresh_profile["skin_id"])
 	skin_rune = String(fresh_profile["skin_rune"])
+	StageRoomMemory.clear_all()
 	pending_spawn = Vector2.INF
 	entering_from_checkpoint = false
 	WorldClock.reset()
@@ -564,6 +565,7 @@ func delete_save() -> void:
 	flags.clear()
 	ending = ""
 	opening_pending = false
+	StageRoomMemory.clear_all()
 	character_id = ""
 	extras.clear()
 	pending_spawn = Vector2.INF
@@ -636,7 +638,7 @@ func mark_flag(id: String) -> void:
 	if not flags.has(id):
 		flags.append(id)
 	# 契约 §5：第七章通关 / 任一结局给试炼入口上锁解除（trial_unlocked）。
-	if id == "level07_done" or id == "game_complete":
+	if id in ["level07_done", "stage05_done", "stage07_done", "true_ending_done", "game_complete"]:
 		if not flags.has("trial_unlocked"):
 			flags.append("trial_unlocked")
 
@@ -657,6 +659,44 @@ func has_flag(id: String) -> bool:
 ## persistent world nodes (looted scrap, opened doors). Writing `consumed` alone used to
 ## record a picked-up core as gone while the pouch on disk still lacked it, so a death
 ## before the next nest lost the core for good (and with it the grapple route).
+## 解锁树状选关图中的节点并发射 `stage_node_unlocked` 信号。
+func unlock_node(node_id: String) -> void:
+	if _trial_active() or node_id == "":
+		return
+	var spec := NarrativeCatalog.node_spec(node_id)
+	if spec.is_empty():
+		return
+	var uflag := String(spec.get("unlock_flag", ""))
+	if uflag == "":
+		return
+	var newly := not flags.has(uflag)
+	mark_flag(uflag)
+	if newly:
+		GameEvents.stage_node_unlocked.emit(node_id)
+
+
+## 标记树状选关图节点通关（同时确保该节点已解锁）。
+func mark_node_cleared(node_id: String) -> void:
+	if _trial_active() or node_id == "":
+		return
+	unlock_node(node_id)
+	var spec := NarrativeCatalog.node_spec(node_id)
+	if spec.is_empty():
+		return
+	var dflag := String(spec.get("done_flag", ""))
+	if dflag != "":
+		mark_flag(dflag)
+
+
+## 记录玩家当前所在的节点与房间（供继续游戏定位回对应房间）。
+func set_stage_room(stage_id: String, room_id: String, spawn_tag: String = "west") -> void:
+	if _trial_active() or stage_id == "":
+		return
+	set_extra("saved_stage", stage_id)
+	set_extra("saved_room", room_id)
+	set_extra("saved_spawn_tag", spawn_tag)
+
+
 func persist_story(player: Node = null) -> void:
 	if _trial_active():
 		return
@@ -1147,6 +1187,9 @@ func _normalize_saved_path(path: String) -> String:
 func _level_prefix_for(scene: Node) -> String:
 	if scene == null or not is_instance_valid(scene):
 		return ""
+	if scene.has_method("save_namespace"):
+		var ns := String(scene.call("save_namespace"))
+		return ns + ":" if ns != "" else ""
 	var id := GameContext.level_id(String(scene.scene_file_path))
 	return id + ":" if id != "" else ""
 

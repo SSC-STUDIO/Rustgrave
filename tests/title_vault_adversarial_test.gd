@@ -62,7 +62,7 @@ func _state(variant_id: String) -> Dictionary:
 			return _journey(8)
 		"act4":
 			return _journey(13)
-	return TitleWorld.build_state(_peek("level10", _done_flags(14), variant_id))
+	return TitleWorld.build_state(_peek("stage08_true", _done_flags(14), variant_id))
 
 
 func _all_variants() -> Array:

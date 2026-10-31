@@ -1,150 +1,130 @@
 extends TestCase
-## Scene integration fixtures may position players directly. The separate campaign
-## acceptance driver uses only input and proves the actual route is playable.
+## StageLevel 节点推进、房间存档恢复与双终章（炉心门表面结局 / 归零母模真结局）集成测试。
 
 func setup() -> void:
+	SaveData.save_path = "user://rustgrave_progression_test.cfg"
 	SaveData.delete_save()
+	StageRoomMemory.clear_all()
+	Director.abort()
+
 
 func teardown() -> void:
 	SaveData.delete_save()
+	SaveData.save_path = "user://rustgrave_save.cfg"
+	StageRoomMemory.clear_all()
 	Director.abort()
 	WorldClock.set_zone(WorldClock.Zone.OUTDOORS)
 
-func _load_level(id: String) -> Node2D:
-	var level := (load(GameContext.LEVELS[id]) as PackedScene).instantiate() as Node2D
+
+func _load_stage(id: String, room_id: String = "") -> StageLevel:
+	if room_id != "":
+		StageRoomMemory.set_pending(id, room_id, "west")
+	var level := (load(String(GameContext.LEVELS[id])) as PackedScene).instantiate() as StageLevel
+	level.instant_room_transitions = true
 	add_child(level)
 	await flush(2)
 	Director.abort()
-	for enemy in level.get_node("Enemies").get_children(): enemy.set_physics_process(false)
+	var enemies := level.get_node_or_null("Enemies")
+	if enemies != null:
+		for enemy in enemies.get_children():
+			enemy.set_physics_process(false)
 	return level
+
 
 func _player() -> Player:
 	return get_tree().get_first_node_in_group("player") as Player
 
-func _exit_of(level: Node) -> LevelExit:
-	for node in level.get_node("Props").get_children():
-		if node is LevelExit: return node
-	return null
 
-
-## 章节出口可能用 Boss 死亡旗标锁着（空钟/守渠人/唱诗班/铸钟人/炉风先驱��。
-## 这个 fixture 允许直接摆位/击杀来验证路由（真输入走 campaign_walkthrough）。
-func _open_gated_exit(level: Node, exit: LevelExit) -> void:
-	if exit == null or not exit.is_locked():
-		return
-	for enemy in level.get_node("Enemies").get_children():
-		var health = enemy.get("health")
-		if health != null and health.has_method("take_damage"):
-			health.take_damage(9999, _player())
-	await flush(3)
-
-func test_every_chapter_exit_saves_the_next_arrival_and_keeps_heat_forge() -> void:
-	var level := await _load_level("level02")
-	_player().inventory.add_to_pouch(AbilityCatalog.kiln_core())
-	_player().inventory.insert_into_socket(0)
-	var order := GameContext.LEVEL_ORDER
-	var start := maxi(1, order.find("level02"))
-	for i in range(start, order.size() - 1):
-		var next_id := order[i + 1]
-		var exit := _exit_of(level)
-		await _open_gated_exit(level, exit)
-		exit.interact(_player())
-		await flush(1)
-		Director.abort()
-		ok(await wait_until(func() -> bool: return SaveData.saved_scene() == GameContext.LEVELS[next_id]), "exit saves " + next_id)
-		ok(SaveData.has_flag(exit.flag_id), "exit records its chapter flag")
-		level.free()
-		await flush(1)
-		level = await _load_level(next_id)
-		ok(_player().position.distance_to(ChapterLayout.entry_spawn_of(next_id)) < 12, "next scene uses arrival point")
-		ok(_player().inventory.has_ability(AbilityIds.HEAT_FORGE), "heat forge survives transition")
-		eq(_player().health.current, _player().health.max_hp)
-		ok(_player()._resolve_lit_nest() == null, "earlier chapter checkpoint is not a respawn here")
-
-## Richer chapters now build the scene three times for this contract. Keep the
-## same assertions, but split by chapter group under the runner's 30s watchdog.
-## Together these slices still cover every chapter from level03 through level10.
-func test_early_chapters_restore_checkpoints_and_open_mechanisms() -> void:
-	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(
-			GameContext.LEVEL_ORDER.find("level03"), GameContext.LEVEL_ORDER.find("level06")))
-
-
-func test_middle_chapters_restore_checkpoints_and_open_mechanisms() -> void:
-	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(
-			GameContext.LEVEL_ORDER.find("level06"), GameContext.LEVEL_ORDER.find("level09")))
-
-
-func test_final_chapters_restore_checkpoints_and_open_mechanisms() -> void:
-	await _assert_checkpoint_restores(GameContext.LEVEL_ORDER.slice(GameContext.LEVEL_ORDER.find("level09")))
-
-
-func _assert_checkpoint_restores(ids: Array) -> void:
-	for id in ids:
-		SaveData.delete_save()
-		var level := await _load_level(id)
-		var player := _player()
-		player.inventory.add_to_pouch(AbilityCatalog.kiln_core())
-		player.inventory.insert_into_socket(0)
-		var nest: EmberNest
-		var opened: Array[String] = []
-		var melted: Array[String] = []
-		for node in level.get_node("Props").get_children():
-			if node is EmberNest and nest == null: nest = node
-			if node is ArenaDoor:
-				node.open_door()
-				opened.append(str(node.name))
-			if node is RustyGate:
-				melted.append(str(node.name))
-				node.interact(player)
-		await flush(2)
-		player.position = LevelSanity.feet_of(nest) - Vector2(6, 2)
-		var checkpoint := player.position
-		nest.interact(player)
-		var path := SaveData.persist_path(nest)
-		ok(path.begins_with(id + ":"))
-		level.free()
-		await flush(1)
-		level = await _load_level(id)
-		ok(_player().position.distance_to(checkpoint) < 12, "continue restores " + id)
-		eq(SaveData.persist_path(_player()._resolve_lit_nest()), path)
-		for name_ in opened: ok(level.get_node("Props/" + name_).is_open, "opened gate stays open")
-		for name_ in melted: ok(level.get_node_or_null("Props/" + name_) == null, "melted gate stays absent")
-		SaveData.respawn(GameContext.LEVELS[id], checkpoint)
-		level.free()
-		await flush(2)
-		level = await _load_level(id)
-		eq(_player().health.current, _player().health.max_hp)
-		ok(_player().position.distance_to(checkpoint) < 12, "death arrival consumes pending spawn")
-		level.free()
-		await flush(1)
-
-func test_nightmare_death_survives_reload_and_final_exit_saves_completion() -> void:
-	var level := await _load_level("level10")
-	var player := _player()
-	var nest := level.get_node("Props/EmberNestArena") as EmberNest
-	player.position = Vector2(880, 320)
-	nest.interact(player)
-	var boss = level.get_node("Enemies/Nightmare")
-	var exit := _exit_of(level)
-	ok(exit.is_locked())
-	boss.health.take_damage(99, player)
+func test_cross_stage_room_gate_saves_next_arrival_and_keeps_abilities() -> void:
+	SaveData.mark_flag("capstan_dead")
+	var level := await _load_stage("stage02", "S6")
+	var p := _player()
+	p.inventory.add_to_pouch(AbilityCatalog.kiln_core())
+	p.inventory.insert_into_socket(0)
+	var out_gate := level.get_node("Props/ToStage03Gate") as RoomGate
+	ok(out_gate != null and out_gate.is_gate_open(), "ToStage03Gate opens once Capstan Warden falls")
+	out_gate.interact(p)
 	await flush(2)
-	SaveData.flags.clear()
+	Director.abort()
+	eq(SaveData.saved_scene(), String(GameContext.LEVELS["stage03"]), "cross-stage gate saves stage03")
+	ok(SaveData.has_flag("stage02_done"), "marks stage02_done")
+	ok(NarrativeCatalog.is_node_unlocked("stage03", SaveData.flags), "unlocks stage03")
 	level.free()
 	await flush(1)
-	level = await _load_level("level10")
-	ok(level.get_node_or_null("Enemies/Nightmare") == null, "disk flag prevents boss respawn")
-	exit = _exit_of(level)
-	ok(not exit.is_locked())
-	exit.interact(_player())
-	exit.confirm_ending(&"give")
+
+	var next_stage := await _load_stage("stage03")
+	eq(next_stage.current_room_id, "S1")
+	ok(_player().inventory.has_ability(AbilityIds.HEAT_FORGE), "heat forge survives stage transition")
+	eq(_player().health.current, _player().health.max_hp)
+	next_stage.free()
 	await flush(1)
+
+
+func test_stage_room_nest_and_room_persistence_round_trip() -> void:
+	for id in ["stage01", "stage03", "stage05"]:
+		SaveData.delete_save()
+		StageRoomMemory.clear_all()
+		var level := await _load_stage(id)
+		var player := _player()
+		var nest: EmberNest = null
+		for node in level.get_node("Props").get_children():
+			if node is EmberNest:
+				nest = node as EmberNest
+				break
+		ok(nest != null, "%s entry room has an EmberNest" % id)
+		if nest != null:
+			player.position = LevelSanity.feet_of(nest) - Vector2(6.0, 2.0)
+			var ckpt := player.position
+			nest.interact(player)
+			var path := SaveData.persist_path(nest)
+			ok(path.begins_with("%s_%s:" % [id, level.current_room_id]), "room-scoped persist_path: " + path)
+			level.free()
+			await flush(1)
+
+			var reloaded := await _load_stage(id)
+			ok(_player().position.distance_to(ckpt) < 14.0, "Continue restores saved room position in " + id)
+			eq(SaveData.persist_path(_player()._resolve_lit_nest()), path)
+			reloaded.free()
+			await flush(1)
+
+
+func test_surface_finale_and_true_core_finale_save_endings() -> void:
+	# 1. Surface finale: stage07 S3 ending door -> "give"
+	SaveData.mark_flag("nightmare_dead")
+	var s7 := await _load_stage("stage07", "S3")
+	var door7 := s7.get_node("Props/Exit") as LevelExit
+	ok(door7 != null and not door7.is_locked())
+	door7.interact(_player())
+	door7.confirm_ending(&"give")
+	await flush(2)
 	Director.abort()
-	await flush(3)
 	ok(SaveData.load_game())
-	ok(SaveData.has_flag("game_complete"))
-	ok(SaveData.has_flag("nightmare_dead"))
 	eq(SaveData.ending, "give")
-	ok(await wait_until(func() -> bool:
-		return not Director.is_fading() and Director.last_fade_target == "res://scenes/ui/TitleScreen.tscn"
-	), "finale fade completes at the title")
+	ok(SaveData.has_flag("game_complete"))
+	s7.free()
+	await flush(1)
+
+	# 2. Hidden True Core finale: stage08_true T4 FurnaceMotherBoss -> "true_break"
+	SaveData.delete_save()
+	StageRoomMemory.clear_all()
+	for f in NarrativeCatalog.FRAGMENT_IDS:
+		SaveData.mark_flag(f)
+	SaveData.mark_flag("true_ending_unlocked")
+	var s8 := await _load_stage("stage08_true", "T4")
+	var mother := s8.get_node("Enemies/FurnaceMother") as FurnaceMotherBoss
+	var door8 := s8.get_node("Props/Exit") as LevelExit
+	ok(mother != null and door8 != null)
+	ok(door8.is_locked(), "dawn door locked while FurnaceMother lives")
+	mother.announce()
+	mother.health.take_damage(999, _player())
+	await flush(3)
+	ok(SaveData.has_flag("furnace_mother_dead"), "killing FurnaceMother sets furnace_mother_dead")
+	ok(not door8.is_locked(), "dawn door unlocks after FurnaceMother falls")
+	door8.interact(_player())
+	await flush(2)
+	Director.abort()
+	ok(SaveData.load_game())
+	eq(SaveData.ending, "true_break", "direct true_break ending saved")
+	ok(SaveData.has_flag("true_ending_done"), "marks true_ending_done")
+	s8.free()
+	await flush(1)

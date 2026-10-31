@@ -53,6 +53,7 @@ var _letter_amount: float = 0.0
 var _letter_target: float = 0.0
 ## 全屏分镜播放器（层 13）。board 步骤把它跑起来，见 storyboard_player.gd。
 var _board: CanvasLayer
+var _narrative: NarrativeDirector
 ## 测试跑器里 board 步骤默认只是一小段等待（TEST_BOARD_STUB_SECONDS）；要走真播放的用例置位它。
 var test_boards: bool = false
 const TEST_BOARD_STUB_SECONDS := 0.3
@@ -78,6 +79,8 @@ func _ready() -> void:
 	add_child(_board)
 	_board.connect("board_finished", _on_board_finished)
 	add_child(preload("res://scripts/ui/story_stage.gd").new())
+	_narrative = preload("res://scripts/levels/narrative_director.gd").new()
+	add_child(_narrative)
 
 
 func _build_overlay() -> void:
@@ -163,6 +166,14 @@ func _apply_letterbox() -> void:
 
 func caption() -> Caption:
 	return _caption
+
+
+func narrative() -> NarrativeDirector:
+	return _narrative
+
+
+func live_voice() -> LiveVoiceBar:
+	return _narrative.voice_bar if _narrative != null else null
 
 
 ## 分镜播放器（故事页回放直接用它：play_board(id, {"replay": true})）。
@@ -274,6 +285,10 @@ func fade_to(scene: String, duration: float = FADE_DEFAULT) -> void:
 	# the save alone, with no "already seen this session" memory (see StoryStage.once).
 	if scene.get_file() == "TitleScreen.tscn":
 		StoryStage.forget()
+		NarrativeDirector.forget_session()
+		StageRoomMemory.clear_all()
+		if _narrative != null:
+			_narrative.clear_voice()
 	if _fading:
 		_queued_fade_path = scene
 		_queued_fade_duration = duration

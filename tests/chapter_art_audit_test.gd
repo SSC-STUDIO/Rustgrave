@@ -44,7 +44,7 @@ func _texture(path: String) -> Texture2D:
 func _build_layout(level_id: String) -> Dictionary:
 	var host := Node2D.new()
 	host.name = level_id.capitalize()
-	host.scene_file_path = String(GameContext.LEVELS[level_id])
+	host.scene_file_path = String(GameContext.LEGACY_LEVELS[level_id])
 	host.add_to_group("game_world")
 	add_child(host)
 	var script := load(String(GameContext.LAYOUTS[level_id])) as GDScript

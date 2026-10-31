@@ -67,13 +67,21 @@ const MASS_LEFT_POS := Vector2(-16.0, -8.0)
 const MASS_RIGHT_POS := Vector2(400.0, -8.0)
 const MOUTH_IN_MASS := Vector2(50.0, 210.0)
 const BEAM_POS := Vector2(146.0, 16.0)
+## The furnace mouth is one pre-rendered strip: `forge_mouth.png` holds MOUTH_FRAMES whole
+## frames (`hframes`), stepped at MOUTH_FPS and never interpolated (whole-frame pixel art).
+const MOUTH_FRAMES := 16
+const MOUTH_FPS := 12.0
+## Forge heat at or below this is a cold / snuffed hall: the mouth stops stepping instead of
+## flickering. The coldest burning grade is 0.25, the cold (no save) grade 0.16.
+const MOUTH_FORGE_MIN := 0.2
 
 const VARIANT_COLD := &"cold"
 const VARIANT_JOURNEY := &"journey"
 const VARIANT_GIVE := &"give"
 const VARIANT_KEEP := &"keep"
 const VARIANT_SNUFF := &"snuff"
-const VARIANTS: Array[StringName] = [VARIANT_COLD, VARIANT_JOURNEY, VARIANT_GIVE, VARIANT_KEEP, VARIANT_SNUFF]
+const VARIANT_TRUE_BREAK := &"true_break"
+const VARIANTS: Array[StringName] = [VARIANT_COLD, VARIANT_JOURNEY, VARIANT_GIVE, VARIANT_KEEP, VARIANT_SNUFF, VARIANT_TRUE_BREAK]
 
 ## --- living details (see the header) ---
 ## 对岸细栈桥的桥面高度。比近桥栏杆顶（y≈249）高出一截，才不会被近景的桥面、栏杆和火盆挡住。
@@ -160,6 +168,11 @@ const GRADES := {
 		"ambient": Color(0.36, 0.32, 0.40), "furnace": 0.05, "furnace_color": Color(0.9, 0.2, 0.1),
 		"forge": 0.0, "shaft": 0.28, "shaft_color": Color(0.36, 0.46, 0.54), "embers": 0.0, "ash": 0.6,
 		"steam": 0.0, "gears": 0.0, "lantern": Color(1.0, 0.5, 0.25), "flicker": 1.0,
+	},
+	&"true_break": {
+		"ambient": Color(0.58, 0.62, 0.68), "furnace": 0.22, "furnace_color": Color(0.45, 0.82, 0.96),
+		"forge": 0.25, "shaft": 1.15, "shaft_color": Color(0.62, 0.86, 0.96), "embers": 0.35, "ash": 0.20,
+		"steam": 0.25, "gears": 0.0, "lantern": Color(0.75, 0.92, 1.0), "flicker": 0.12,
 	},
 }
 
@@ -283,13 +296,18 @@ static func build_state(peek: Dictionary) -> Dictionary:
 		if String(GameContext.LEVELS[id]) == scene:
 			chapter_id = String(id)
 			break
+	if chapter_id == "":
+		for leg_id in GameContext.LEGACY_LEVELS:
+			if String(GameContext.LEGACY_LEVELS[leg_id]) == scene:
+				chapter_id = String(GameContext.LEGACY_TO_STAGE.get(leg_id, ""))
+				break
 	var chapter_index := order.find(chapter_id)
 	var flags: PackedStringArray = peek.get("flags", PackedStringArray())
 	var ending := String(peek.get("ending", ""))
 	var has_save := bool(peek.get("has_save", false))
 	var variant := VARIANT_COLD
 	if ending != "":
-		variant = StringName(ending) if (ending == "give" or ending == "keep" or ending == "snuff") \
+		variant = StringName(ending) if (ending == "give" or ending == "keep" or ending == "snuff" or ending == "true_break") \
 				else VARIANT_GIVE
 	elif has_save:
 		variant = VARIANT_JOURNEY
@@ -319,7 +337,7 @@ static func build_state(peek: Dictionary) -> Dictionary:
 	match variant:
 		VARIANT_JOURNEY:
 			lit = lit_lantern_count(cleared)
-		VARIANT_GIVE, VARIANT_KEEP:
+		VARIANT_GIVE, VARIANT_KEEP, VARIANT_TRUE_BREAK:
 			lit = LANTERN_COUNT
 	return {
 		"variant": variant,
@@ -407,6 +425,13 @@ static func prop_plan(s: Dictionary) -> Dictionary:
 			plan["ghosts"] = 3
 			plan["souls_rate"] = 0.55
 			plan["braziers"] = [1.3, 1.3]
+			plan["knight_turns"] = false
+		VARIANT_TRUE_BREAK:
+			plan["chain_mode"] = SwordChainScript.MODE_EMPTY
+			plan["ghosts"] = 0
+			plan["souls_rate"] = 1.0
+			plan["souls_escape"] = true
+			plan["braziers"] = [0.6, 0.6]
 			plan["knight_turns"] = false
 		VARIANT_SNUFF:
 			plan["chain_mode"] = SwordChainScript.MODE_STILL
@@ -608,7 +633,7 @@ func _build() -> void:
 	_mouth = Sprite2D.new()
 	_mouth.name = "ForgeMouth"
 	_mouth.texture = _tex("forge_mouth.png")
-	_mouth.hframes = 16
+	_mouth.hframes = MOUTH_FRAMES
 	_mouth.centered = false
 	_mouth.position = MOUTH_IN_MASS
 	_mouth.show_behind_parent = true
@@ -916,7 +941,7 @@ func _apply_state() -> void:
 	for g in _gears:
 		g.speed_mult = float(_grade["gears"])
 	var embers := float(_grade["embers"])
-	_sparks.set_rates(embers, float(_grade["ash"]), 0.0, 1.0 if var_id == VARIANT_GIVE else 0.0)
+	_sparks.set_rates(embers, float(_grade["ash"]), 0.0, 1.0 if (var_id == VARIANT_GIVE or var_id == VARIANT_TRUE_BREAK) else 0.0)
 	_motes.set_rates(0.0, 0.0, clampf(float(_grade["shaft"]), 0.0, 1.0), 0.0)
 	_sparks.set_vents(PackedVector2Array([Vector2(194.0, 244.0), Vector2(172.0, 204.0), Vector2(470.0, 150.0)]),
 			float(_grade["steam"]))
@@ -1116,8 +1141,7 @@ func _update_lights(_delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if _mouth != null and float(_grade.get("forge", 0.0)) * _intro_level * _quit_level > 0.1:
-		_mouth.frame = posmod(int(floor(_t * 12.0)), 16)
+	_animate_mouth()
 	var k := 1.0 - exp(-POINTER_EASE * delta)
 	var motion_scale := Settings.shake_scale
 	_shift = _shift.lerp(Vector2(_pointer.x * PARALLAX.x, _pointer.y * PARALLAX.y) * motion_scale, k)
@@ -1147,9 +1171,20 @@ func _apply_parallax(force: bool) -> void:
 			node.position = pos
 
 
+## The only writer of `_mouth.frame` (do not add another one: a second writer here silently
+## clipped the 16-frame strip to its first 8 frames and kept it moving in cold variants).
+## While the forge burns the strip steps through every whole frame at MOUTH_FPS. A cold or
+## snuffed hall (heat at or below MOUTH_FORGE_MIN) stops stepping: the mouth holds the frame
+## it stopped on, so a fresh cold variant rests on the strip's base frame and nothing flicks.
+func _animate_mouth() -> void:
+	if _mouth == null:
+		return
+	if float(_grade.get("forge", 0.0)) * _intro_level * _quit_level <= MOUTH_FORGE_MIN:
+		return
+	_mouth.frame = posmod(int(floor(_t * MOUTH_FPS)), MOUTH_FRAMES)
+
+
 func _animate_actors(delta: float) -> void:
-	if _mouth != null:
-		_mouth.frame = int(_t * 12.0) % 8
 	if _knight != null and is_instance_valid(_knight):
 		var sword := _knight.get_node_or_null("Visual/Greatsword") as Greatsword
 		if sword != null:

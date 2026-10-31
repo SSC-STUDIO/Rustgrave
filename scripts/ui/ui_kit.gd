@@ -60,9 +60,10 @@ static func label(text: String, variation: StringName = &"",
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if variation != &"":
 		l.theme_type_variation = variation
-	var text_scale := clampf(float(Settings.value(&"text_scale", 1.0)), 0.85, 1.35)
-	if not is_equal_approx(text_scale, 1.0):
-		l.add_theme_font_size_override("font_size", int(round(16.0 * text_scale)))
+	# Font sizes come from the shared theme only. `UiKit.apply_text_scale()` already
+	# rescales every theme variation from an immutable baseline; adding a blanket
+	# 16*scale override here would collapse 12/24/36 ratios (and shrink the 24px menu
+	# to 22px at 135%) for every label created after settings load.
 	return l
 
 

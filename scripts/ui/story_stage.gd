@@ -196,6 +196,8 @@ static func ending_stinger(kind: StringName) -> StringName:
 			return &"ending_keep"
 		&"snuff":
 			return &"ending_snuff"
+		&"true_break":
+			return &"ending_give"
 	return &""
 
 
@@ -275,7 +277,11 @@ func _on_boss_defeated() -> void:
 	if player == null or GameContext.level_id_of(player) == "":
 		return
 	var boss := _find_boss()
-	if not StoryStage.once("boss_down_%s" % GameContext.level_id_of(player)):
+	var world := GameContext.world_root(player)
+	var down_key := GameContext.level_id_of(player)
+	if world is StageLevel and (world as StageLevel).current_room_id != "":
+		down_key = "%s_%s" % [down_key, (world as StageLevel).current_room_id]
+	if not StoryStage.once("boss_down_%s" % down_key):
 		return
 	Director.play(boss_defeat_steps(boss, _find_door(player)), true)
 

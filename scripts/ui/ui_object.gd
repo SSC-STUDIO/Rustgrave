@@ -955,12 +955,15 @@ class LetterDressing extends Node2D:
 	func withdraw_duration() -> float:
 		return WITHDRAW_TIME
 	func seal_center() -> Vector2:
-		return (_card.position + Vector2(_card.size.x * 0.5, _card.size.y - 32.0)).round()
+		# Keep the wax at least 12px inside the panel's bottom border: the old
+		# `size.y - 32` put the 22px stamp almost on the edge and made it read
+		# as a decoration instead of an action target.
+		return (_card.position + Vector2(_card.size.x * 0.5, _card.size.y - 52.0)).round()
 	func seal_point(point: Vector2) -> Vector2:
 		# Compress only the wax geometry; the card and its lettering never scale.
 		return (seal_center() + Vector2(point.x, point.y * (1.0 - press * 0.24) + press * 4.0)).round()
 	func seal_rect() -> Rect2:
-		return Rect2(seal_point(Vector2(-22, -22)), seal_point(Vector2(22, 22)) - seal_point(Vector2(-22, -22)))
+		return Rect2(seal_point(Vector2(-18, -18)), seal_point(Vector2(18, 18)) - seal_point(Vector2(-18, -18)))
 	func fold_pose() -> Dictionary:
 		var rect := _card.get_rect().grow(-4.0)
 		rect.position += Vector2(0.0, roundf(withdraw * 36.0))
@@ -1006,13 +1009,13 @@ class LetterDressing extends Node2D:
 			_draw_folded_letter()
 			return
 		# Chunked wax rim and a stamped furnace rune, never a new texture/light.
-		for y in range(-20, 22, 2):
-			for x in range(-20, 22, 2):
+		for y in range(-18, 20, 2):
+			for x in range(-18, 20, 2):
 				var d := Vector2(x, y).length()
-				if d > 20.0 + sin(float(x + y)) * 1.5:
+				if d > 18.0 + sin(float(x + y)) * 1.5:
 					continue
-				var color: Color = PAL["wax_dark"] if d > 16.0 else PAL["wax_base"]
-				if y < -8 and d < 16.0:
+				var color: Color = PAL["wax_dark"] if d > 14.0 else PAL["wax_base"]
+				if y < -6 and d < 14.0:
 					color = PAL["wax_mid"]
 				draw_rect(Rect2(seal_point(Vector2(x, y)), Vector2(2, 2)), color.lerp(PAL["wax_hot"], heat))
 		var ink: Color = PAL["wax_lit"].lerp(PAL["wax_hot"], heat)

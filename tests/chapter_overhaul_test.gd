@@ -75,7 +75,7 @@ func test_each_later_chapter_keeps_a_sane_signature_hazard() -> void:
 
 func _build(id: String) -> Node2D:
 	var host := Node2D.new()
-	host.scene_file_path = String(GameContext.LEVELS[id])
+	host.scene_file_path = String(GameContext.LEGACY_LEVELS[id])
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout = LAYOUTS[id].new()

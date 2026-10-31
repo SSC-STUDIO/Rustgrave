@@ -41,6 +41,13 @@ const LEVEL_THEMES := {
 	"level05": &"workshop", "level06": &"graveyard", "level07": &"bell_tower",
 	"level07b": &"slag", "level08": &"slag",
 	"level09": &"ramparts", "level09b": &"ramparts", "level10": &"core",
+	"stage01": &"graveyard", "branch01": &"graveyard",
+	"stage02": &"undercroft", "branch02": &"workshop",
+	"stage03": &"cathedral", "branch03": &"cathedral",
+	"stage04": &"workshop", "stage04b": &"graveyard",
+	"stage05": &"bell_tower", "branch04": &"bell_tower",
+	"stage06": &"ramparts", "branch05": &"ramparts",
+	"stage07": &"core", "stage08_true": &"core",
 }
 ## Boss track per theme (a boss in a theme without an entry uses the executioner loop).
 const BOSS_TRACKS := {
@@ -58,6 +65,13 @@ const BOSS_TRACKS_BY_LEVEL := {
 	"level07b": &"boss_bell_founder",
 	"level09b": &"boss_emberwind_herald",
 	"level10": &"boss_nightmare",
+	"stage01": &"boss_executioner",
+	"stage02": &"boss_capstan",
+	"stage03": &"boss_choir",
+	"stage05": &"boss_bell_founder",
+	"stage06": &"boss_emberwind_herald",
+	"stage07": &"boss_nightmare",
+	"stage08_true": &"boss_nightmare",
 }
 const DEFAULT_BOSS_TRACK: StringName = &"boss_executioner"
 const ENDING_TRACK: StringName = &"ending"
@@ -185,6 +199,8 @@ func _init() -> void:
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_headless = DisplayServer.get_name() == "headless"
+	for id in GameContext.LEGACY_LEVELS:
+		_path_level[GameContext.LEGACY_LEVELS[id]] = id
 	for id in GameContext.LEVELS:
 		_path_level[GameContext.LEVELS[id]] = id
 	GameEvents.chapter_started.connect(_on_chapter_started)
@@ -707,6 +723,9 @@ func _on_ending_chosen(kind: StringName) -> void:
 		&"snuff":
 			set_state(&"silent")
 			stinger(&"ending_snuff")
+		&"true_break":
+			set_state(&"ending")
+			stinger(&"ending_give")
 
 
 func _on_parried(_projectile: Node, _by: Node) -> void:

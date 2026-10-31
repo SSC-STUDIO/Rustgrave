@@ -22,7 +22,7 @@ func _release() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level08_SlagDepths"
-	host.scene_file_path = GameContext.LEVELS["level08"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level08"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := L8.new()
@@ -90,7 +90,7 @@ func test_story_save_paths_and_indoor_forge_identity_survive() -> void:
 		eq((host.get_node("Props/" + name_) as LoreStele).lore_text, String(ChapterText.stele_of("level08", name_).get("text")))
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level08_done")
-	eq(exit.target_scene, GameContext.LEVELS["level09"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level09"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level09"))
 	eq(exit.requires_flag, "")
 	ok(4200 - exit.position.x >= 80)

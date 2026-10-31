@@ -72,6 +72,7 @@ var _chapter_label: Label
 var _chapter_rail: GlassKit.ChapterRail
 var _objective_label: Label
 var _recap_label: Label
+var _truth_label: Label
 var _cast_rows: Array[Control] = []
 var _term_rows: Array[Control] = []
 var _replay_scroll: ScrollContainer
@@ -119,6 +120,9 @@ class CastCard extends Control:
 		add_child(_met_label)
 		_layout()
 
+	func set_text(text: String) -> void:
+		if _text_label != null:
+			_text_label.text = text
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_RESIZED:
 			_layout()
@@ -350,6 +354,9 @@ func _build_now_page(host: Control) -> void:
 	list.add_child(_section("前情"))
 	_recap_label = _body_label("Recap")
 	list.add_child(_recap_label)
+	list.add_child(_section("真名残片"))
+	_truth_label = _body_label("TruthFragments")
+	list.add_child(_truth_label)
 
 
 ## 人物页：两列玻璃卡，行优先排（已出场的才显示，见 _reveal_rows）。
@@ -480,6 +487,8 @@ func current_chapter_id() -> String:
 	if _chapter_override != "":
 		return _chapter_override
 	var world := GameContext.world_root(self)
+	if world is StageLevel and (world as StageLevel).stage_id != "":
+		return (world as StageLevel).stage_id
 	var path := ""
 	if world != null:
 		path = String(world.scene_file_path)
@@ -522,6 +531,17 @@ func refresh() -> void:
 	var goal := ChapterText.objective_of(_chapter_id)
 	_objective_label.text = goal if goal != "" else GOAL_FALLBACK
 	_recap_label.text = StoryFlow.recap_text()
+	if _truth_label != null:
+		var fcnt := NarrativeCatalog.fragment_count(SaveData.flags)
+		if fcnt <= 0:
+			_truth_label.text = "已拾得 0 / 5 枚。顺从路标只会重蹈柴薪覆辙；试着违抗指引探查裂隙。"
+		else:
+			var lines := PackedStringArray(["已拾得 %d / 5 枚：" % fcnt])
+			for fid in NarrativeCatalog.FRAGMENT_IDS:
+				if SaveData.flags.has(fid):
+					var fspec := NarrativeCatalog.fragment_spec(fid)
+					lines.append("· %s — %s" % [String(fspec.get("title", fid)), String(fspec.get("summary", ""))])
+			_truth_label.text = "\n".join(lines)
 	_apply_reveals()
 	_refresh_replay()
 	for scroller in _scrollers:
@@ -545,6 +565,8 @@ func _reveal_rows(rows: Array[Control], is_cast: bool, progress: int) -> void:
 		var first := ChapterText.term_first_chapter(who)
 		if is_cast:
 			first = ChapterText.cast_first_chapter(who)
+			if row is CastCard:
+				(row as CastCard).set_text(ChapterText.cast_of_with_flags(who, SaveData.flags))
 		row.visible = ChapterText.is_revealed(first, progress)
 
 
@@ -771,6 +793,10 @@ func objective_label() -> Label:
 
 func recap_label() -> Label:
 	return _recap_label
+
+
+func truth_label() -> Label:
+	return _truth_label
 
 
 ## 人物页每一行的名字（按显示顺序）。

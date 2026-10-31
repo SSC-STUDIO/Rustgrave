@@ -16,7 +16,7 @@ func teardown() -> void:
 
 func _build() -> Node2D:
 	var host := Node2D.new()
-	host.scene_file_path = GameContext.LEVELS["level03"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level03"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new()
@@ -41,7 +41,7 @@ func test_rooftop_plate_and_main_route_work_without_optional_cores() -> void:
 func test_tower_reward_is_optional_and_exit_reaches_the_cathedral() -> void:
 	var host := _build()
 	var exit := host.get_node("Props/Exit") as LevelExit
-	eq(exit.target_scene, GameContext.LEVELS["level04"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level04"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level04"))
 	eq(exit.position, LAYOUT.EXIT_POS)
 	eq(host.get_node("Enemies").get_child_count(), LAYOUT.ENEMIES.size())

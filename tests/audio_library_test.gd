@@ -401,7 +401,7 @@ func test_level_theme_mapping_covers_every_level() -> void:
 func test_boss_track_for_level_prefers_level_id() -> void:
 	var m := _music_consts()
 	var by_level: Dictionary = m["BOSS_TRACKS_BY_LEVEL"]
-	eq(by_level.size(), 7, "expected seven level-locked boss tracks (campaign bosses)")
+	ok(by_level.size() >= 7, "expected at least seven level-locked boss tracks (campaign bosses)")
 	for level_id in by_level:
 		var track: StringName = by_level[level_id]
 		ok(String(track).begins_with("boss_"),

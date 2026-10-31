@@ -24,7 +24,7 @@ func _release() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level07_Belltower"
-	host.scene_file_path = GameContext.LEVELS["level07"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level07"]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := L7.new()
@@ -72,7 +72,7 @@ func test_story_saves_vertical_identity_and_next_chapter_survive() -> void:
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.position, L7.EXIT_POS)
 	eq(exit.flag_id, "level07_done")
-	eq(exit.target_scene, GameContext.LEVELS["level07b"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level07b"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level07b"))
 	eq(exit.requires_flag, "")
 	eq(host.get_node("Enemies").get_child_count(), 10)

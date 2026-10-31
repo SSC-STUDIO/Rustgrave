@@ -245,7 +245,7 @@ func _kicker_for_current_level() -> String:
 	if world == null or not world.is_in_group("game_world"):
 		return ""
 	var level := GameContext.level_id_of(player)
-	if level == "" and world.scene_file_path == GameContext.WORLD_PATH:
+	if level == "" and world.scene_file_path == GameContext.LEGACY_WORLD_PATH:
 		level = "level01"
 	return ChapterText.boss_intro_of(level)
 

@@ -3,14 +3,57 @@ extends RefCounted
 ## The authored level owns physics and save paths; presentation owns screen UI.
 
 const PRESENTATION_PATH := "res://scenes/ui/GamePresentation.tscn"
-## First level; also the fallback whenever a save names an unknown scene.
-const WORLD_PATH := "res://scenes/levels/Level01_Static.tscn"
+## First stage of the v4 ICEY-style node-tree campaign; also fallback when a save names an unknown scene.
+const WORLD_PATH := "res://scenes/levels/Stage01_Graveyard.tscn"
+const LEGACY_WORLD_PATH := "res://scenes/levels/Level01_Static.tscn"
 const LEVEL02_PATH := "res://scenes/levels/Level02_Undercroft.tscn"
-## Every authored level keyed by its save id, in play order. Level01 predates
-## ids, so its save paths stay bare ("Props/EmberNest"); later levels prefix
-## theirs ("level02:Props/EmberNest") so identical node names never collide.
+
+## Active 14-node campaign (9 main stages + 5 disobedience truth branches + hidden True Core).
 const LEVELS := {
-	"level01": WORLD_PATH,
+	"stage01": WORLD_PATH,
+	"branch01": "res://scenes/levels/Branch01_CorpsePit.tscn",
+	"stage02": "res://scenes/levels/Stage02_Conduit.tscn",
+	"branch02": "res://scenes/levels/Branch02_DiscardPit.tscn",
+	"stage03": "res://scenes/levels/Stage03_Cathedral.tscn",
+	"branch03": "res://scenes/levels/Branch03_Archive.tscn",
+	"stage04": "res://scenes/levels/Stage04_Workshop.tscn",
+	"stage04b": "res://scenes/levels/Stage04b_RainGraveyard.tscn",
+	"stage05": "res://scenes/levels/Stage05_BellFoundry.tscn",
+	"branch04": "res://scenes/levels/Branch04_BellSummit.tscn",
+	"stage06": "res://scenes/levels/Stage06_Ramparts.tscn",
+	"branch05": "res://scenes/levels/Branch05_CliffStable.tscn",
+	"stage07": "res://scenes/levels/Stage07_ForgeGate.tscn",
+	"stage08_true": "res://scenes/levels/Stage08_TrueCore.tscn",
+}
+
+## 14-node campaign order matching NarrativeCatalog.NODE_ORDER.
+const LEVEL_ORDER: Array[String] = [
+	"stage01", "branch01", "stage02", "branch02", "stage03", "branch03",
+	"stage04", "stage04b", "stage05", "branch04", "stage06", "branch05",
+	"stage07", "stage08_true",
+]
+
+## StageRoomBuilder scripts driving each StageLevel scene.
+const STAGE_SCRIPTS := {
+	"stage01": "res://scripts/levels/stages/stage01_graveyard.gd",
+	"branch01": "res://scripts/levels/stages/branch01_corpse_pit.gd",
+	"stage02": "res://scripts/levels/stages/stage02_conduit.gd",
+	"branch02": "res://scripts/levels/stages/branch02_discard_pit.gd",
+	"stage03": "res://scripts/levels/stages/stage03_cathedral.gd",
+	"branch03": "res://scripts/levels/stages/branch03_archive.gd",
+	"stage04": "res://scripts/levels/stages/stage04_workshop.gd",
+	"stage04b": "res://scripts/levels/stages/stage04b_rain_graveyard.gd",
+	"stage05": "res://scripts/levels/stages/stage05_bellfoundry.gd",
+	"branch04": "res://scripts/levels/stages/branch04_bell_summit.gd",
+	"stage06": "res://scripts/levels/stages/stage06_ramparts.gd",
+	"branch05": "res://scripts/levels/stages/branch05_cliff_stable.gd",
+	"stage07": "res://scripts/levels/stages/stage07_forge_gate.gd",
+	"stage08_true": "res://scripts/levels/stages/stage08_true_core.gd",
+}
+
+## Legacy linear scenes preserved so standalone smoke/combat tests continue loading cleanly.
+const LEGACY_LEVELS := {
+	"level01": LEGACY_WORLD_PATH,
 	"level02": LEVEL02_PATH,
 	"level02b": "res://scenes/levels/Level02b_SlagConduit.tscn",
 	"level03": "res://scenes/levels/Level03_RustTown.tscn",
@@ -25,14 +68,39 @@ const LEVELS := {
 	"level09b": "res://scenes/levels/Level09b_EmberwindCliffs.tscn",
 	"level10": "res://scenes/levels/Level10_ForgeCore.tscn",
 }
-## 14 章战役顺序。显示章号（壹…拾肆）只由 ChapterText 决定；存档旗标始终用 id，
-## 因此插入章不需要迁移旧档。
-const LEVEL_ORDER: Array[String] = [
+
+const LEGACY_LEVEL_ORDER: Array[String] = [
 	"level01", "level02", "level02b", "level03", "level04", "level04b",
 	"level05", "level06", "level07", "level07b", "level08", "level09",
 	"level09b", "level10",
 ]
-## ChapterLayout scripts for the data-driven chapters (level03+).
+
+static func scene_for(id: String) -> String:
+	if LEVELS.has(id):
+		return String(LEVELS[id])
+	if LEGACY_LEVELS.has(id):
+		return String(LEGACY_LEVELS[id])
+	return ""
+
+## Maps legacy chapter ids to their corresponding v4 stage node id.
+const LEGACY_TO_STAGE := {
+	"level01": "stage01",
+	"level02": "stage02",
+	"level02b": "stage02",
+	"level03": "stage03",
+	"level04": "stage03",
+	"level04b": "stage03",
+	"level05": "stage04",
+	"level06": "stage04b",
+	"level07": "stage05",
+	"level07b": "stage05",
+	"level08": "stage06",
+	"level09": "stage06",
+	"level09b": "stage06",
+	"level10": "stage07",
+}
+
+## ChapterLayout scripts for legacy data-driven chapters (level02b+).
 const LAYOUTS := {
 	"level02b": "res://scripts/levels/chapters/level02b_layout.gd",
 	"level03": "res://scripts/levels/chapters/level03_layout.gd",
@@ -47,6 +115,7 @@ const LAYOUTS := {
 	"level09b": "res://scripts/levels/chapters/level09b_layout.gd",
 	"level10": "res://scripts/levels/chapters/level10_layout.gd",
 }
+
 ## 竞技场等模式场景不是战役关卡（is_world_scene 保持 false，存档不收它们），
 ## 但仍要走 640×360 表现层，否则会把窗口当成世界视口。
 const MODE_SCENES: Array[String] = [
@@ -54,12 +123,24 @@ const MODE_SCENES: Array[String] = [
 ]
 
 
-## The level after `id` in play order, or "" for the last one.
+## The main-line stage after `id` in campaign progression, or "" for branch / final nodes.
 static func next_level_id(id: String) -> String:
+	var spec := NarrativeCatalog.node_spec(id)
+	if not spec.is_empty() and String(spec.get("kind", "main")) == "main":
+		for child_id in spec.get("children", []):
+			var c_spec := NarrativeCatalog.node_spec(String(child_id))
+			if String(c_spec.get("kind", "")) == "main":
+				return String(child_id)
+		return ""
+	var li := LEGACY_LEVEL_ORDER.find(id)
+	if li >= 0:
+		return "" if li + 1 >= LEGACY_LEVEL_ORDER.size() else LEGACY_LEVEL_ORDER[li + 1]
 	var i := LEVEL_ORDER.find(id)
 	if i < 0 or i + 1 >= LEVEL_ORDER.size():
 		return ""
 	return LEVEL_ORDER[i + 1]
+
+
 ## Level the presentation shell instantiates next. route_scene() sets it.
 static var pending_world_path: String = WORLD_PATH
 static var _blocked_through_frame: int = -1
@@ -91,25 +172,32 @@ static func world_scene_path(node: Node = null) -> String:
 
 
 static func is_world_scene(path: String) -> bool:
-	return LEVELS.values().has(path)
+	return LEVELS.values().has(path) or LEGACY_LEVELS.values().has(path)
 
 
 static func is_mode_scene(path: String) -> bool:
 	return MODE_SCENES.has(path)
 
 
-## Save-namespace id for a level scene path; "" for Level01 and for unknown
+## Save-namespace id for a level scene path; "" for legacy Level01 and for unknown
 ## scenes (unit-test hosts), which keep the legacy bare paths.
 static func level_id(path: String) -> String:
 	for id in LEVELS:
-		if LEVELS[id] == path and id != "level01":
+		if LEVELS[id] == path:
+			return id
+	for id in LEGACY_LEVELS:
+		if LEGACY_LEVELS[id] == path and id != "level01":
 			return id
 	return ""
 
 
 static func level_id_of(node: Node) -> String:
 	var world := world_root(node)
-	if world == null or world.scene_file_path == "":
+	if world == null:
+		return ""
+	if world is StageLevel and (world as StageLevel).stage_id != "":
+		return (world as StageLevel).stage_id
+	if world.scene_file_path == "":
 		return ""
 	return level_id(world.scene_file_path)
 

@@ -93,15 +93,16 @@ func test_every_checkpoint_can_reach_its_chapter_exit_without_optional_abilities
 		for node in LevelSanity._descendants(level):
 			if node is LevelExit or node is ForgeHeart:
 				goals.append(LevelSanity.feet_of(node))
+			elif node is RoomGate:
+				var gp := (node as RoomGate).walkable_goal_point()
+				if gp != Vector2.INF:
+					goals.append(gp)
 		for nest in get_tree().get_nodes_in_group("ember_nests"):
 			var from := LevelSanity.feet_of(nest)
 			var reached := LevelSanity.reachable_segments(level, from, false)
 			var furthest := -INF
 			for seg in reached:
 				furthest = maxf(furthest, seg.x1)
-			if id in ["level01", "level03"] and from.x < 300.0:
-				for seg in reached:
-					print("ROUTE ", id, " ", seg.owner_name, " ", seg.x0, "..", seg.x1, " y", seg.y)
 			for goal in goals:
 				var found := false
 				for seg in reached:

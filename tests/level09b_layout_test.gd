@@ -29,7 +29,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level09b_EmberwindCliffs"
-	host.scene_file_path = GameContext.LEVELS["level09b"]
+	host.scene_file_path = GameContext.LEGACY_LEVELS["level09b"]
 	host.add_to_group("game_world")
 	add_child(host)
 	_layout = LAYOUT.new()
@@ -61,7 +61,7 @@ func test_metadata_story_and_basic_route_preserve_the_campaign_contract() -> voi
 	var exit := host.get_node("Props/Exit") as LevelExit
 	eq(exit.flag_id, "level09b_done")
 	eq(exit.requires_flag, "herald_dead")
-	eq(exit.target_scene, GameContext.LEVELS["level10"])
+	eq(exit.target_scene, GameContext.LEGACY_LEVELS["level10"])
 	eq(exit.spawn, ChapterLayout.entry_spawn_of("level10"))
 	for name_ in ["SteleAsh", "SteleHerald", "SteleGate"]:
 		var stele := host.get_node("Props/" + name_) as LoreStele

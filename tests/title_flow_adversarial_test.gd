@@ -65,7 +65,7 @@ func _create_dummy_save() -> void:
 # 1. Menu Rail: Exactly 7 MenuItem Child Nodes (modes grouped) & Invariants
 # ===========================================================================
 
-func test_menu_rail_strictly_six_menu_items_and_structure() -> void:
+func test_menu_rail_has_exactly_seven_menu_items_and_structure() -> void:
 	var title: TitleScreen = await _open_title()
 	var menu := title.get_node_or_null("Menu") as MenuList
 	ok(menu != null, "Menu exists on TitleScreen")

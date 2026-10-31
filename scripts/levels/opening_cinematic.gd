@@ -34,12 +34,12 @@ const FLAG := "opening_seen"
 const WAKE_FLAG := "wake"
 ## 序章分镜的 id（storyboards.gd）。
 const PROLOGUE_ID := "prologue"
-static var CHAPTER: String = ChapterText.title_of("level01")
+static var CHAPTER: String = ChapterText.title_of("stage01")
 const CARD_SECONDS := 2.6
 ## 整段（不跳过，含序章分镜）的预算。测试按步骤估算，不许超。
 const MAX_SECONDS := 72.0
 ## 低于这个时长就说明被删成了幻灯片：前 3 分钟的可读性靠序章 + 这一段铺。
-const MIN_SECONDS := 50.0
+const MIN_SECONDS := 32.0
 ## 关内部分（不含序章）的预算。
 const MAX_IN_LEVEL_SECONDS := 30.0
 
@@ -409,7 +409,10 @@ static func _begin_pan() -> void:
 	if _echo != null and _echo.is_valid():
 		_echo.kill()
 	var from := _dolly.global_position
-	var to := Vector2(PAN_END_X, from.y)
+	var pan_x := PAN_END_X
+	if cam.limit_right > 0 and cam.limit_right < 2000:
+		pan_x = maxf(from.x + 120.0, float(cam.limit_right) - 220.0)
+	var to := Vector2(pan_x, from.y)
 	# 钟响那一下镜头猛地拉开；位置靠 dolly 的缓动走，镜头只需紧跟（τ 小，滞后几十像素）。
 	cam.focus(_dolly, 1.0, 0.25)
 	var world := _dolly.get_parent()

@@ -92,6 +92,7 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 | `docs/architecture.md` | 代码结构速查（Autoload、章节铺设、存档、玩家子节点） |
 | `docs/level_authoring.md` | 关卡制作规则、几何检查与验证流程 |
 | `docs/acceptance.md` | 测试、真实输入与截图验收记录 |
+| `docs/title-start-screen-research.md` | 开始界面的市场调研、采用/不采用决定与实施映射 |
 | `docs/GDD.md` | 完整中文设计文档 |
 | `docs/gdd-prompt.md` | 第二步 GDD 英文 Prompt 原文 |
 | `docs/visual-prompt.md` | 第一步视觉 Prompt（可喂 Midjourney/SD） |
@@ -142,7 +143,7 @@ Rustgrave/
 - `#FF8C00` Toxic Glow  
 - `#4A6B6B` Teal/Water  
 
-世界固定在 640×360 SubViewport，窗口界面使用 1280×720 设计单位；最终按窗口可容纳的最大整数倍率居中显示，非 16:9 保留黑边。世界与 UI 均使用 Nearest，字体保留自动 oversampling。
+世界固定在 640×360 SubViewport，窗口界面使用 1280×720 设计单位；最终按窗口可容纳的最大整数倍率居中显示，非 16:9 保留黑边。真实窗口最小 1280×720（更小的 960×540 只用于诊断截图）。世界与 UI 均使用 Nearest，字体保留自动 oversampling。
 
 ## Android 导出
 

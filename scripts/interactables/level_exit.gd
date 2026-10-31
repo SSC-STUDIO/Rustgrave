@@ -24,6 +24,7 @@ const CHOICE_KEEP_HINT := "守炉：你留下，名字也留下。"
 ## 炉心之门：打开还火 / 守炉两个选择，而不是直接播 captions。
 ## 选完播结局分镜 + 滚动字幕；give_captions / keep_captions 是没有分镜时的字幕兜底。
 @export var ending_choice: bool = false
+@export var fixed_ending: String = ""
 @export var give_captions: PackedStringArray = []
 @export var keep_captions: PackedStringArray = []
 
@@ -62,6 +63,9 @@ func interact(actor: Node) -> void:
 		Sfx.play(&"ui_denied", 0.04, -4.0)
 		GameEvents.announcement.emit(locked_prompt)
 		return
+	if fixed_ending != "":
+		confirm_fixed_ending(fixed_ending, actor as Player)
+		return
 	if ending_choice:
 		_open_ending_choice(actor as Player)
 		return
@@ -78,12 +82,40 @@ func confirm_ending(id: StringName) -> void:
 	_close_ending_choice()
 	var kind := "keep" if id == &"keep" else "give"
 	SaveData.ending = kind
+	SaveData.mark_node_cleared("stage07")
 	# 契约 §5：任一结局都解锁回火试炼（战役写；试炼中 mark_flag 会被守卫 no-op）。
 	SaveData.mark_flag("trial_unlocked")
 	GameEvents.ending_chosen.emit(StringName(kind))
 	var lines := keep_captions if kind == "keep" else give_captions
+	_persist_ending_immediately(_ending_actor)
 	Sfx.play(&"gate")
 	_play_and_leave(lines, _ending_actor, "ash_fall" if kind == "give" else "ember_rise", kind)
+
+
+func confirm_fixed_ending(kind: String, actor: Player = null) -> void:
+	if _used or kind == "":
+		return
+	_used = true
+	SaveData.ending = kind
+	SaveData.mark_flag("trial_unlocked")
+	if kind == "true_break":
+		SaveData.mark_node_cleared("stage08_true")
+	_persist_ending_immediately(actor)
+	GameEvents.ending_chosen.emit(StringName(kind))
+	Sfx.play(&"gate")
+	_play_and_leave(ChapterText.ending_lines_of(kind), actor, "ember_rise", kind)
+
+
+func _persist_ending_immediately(actor: Player) -> void:
+	if flag_id != "":
+		SaveData.mark_flag(flag_id)
+	if target_scene != "" or TrialRun.active():
+		return
+	var p := actor
+	if (p == null or not is_instance_valid(p)) and is_inside_tree():
+		p = get_tree().get_first_node_in_group("player") as Player
+	if p != null and is_instance_valid(p) and is_inside_tree():
+		SaveData.save_game(GameContext.world_scene_path(self), p)
 
 
 func _open_ending_choice(actor: Player) -> void:

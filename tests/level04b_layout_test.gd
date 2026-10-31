@@ -28,7 +28,7 @@ func teardown() -> void:
 func _build() -> Node2D:
 	var host := Node2D.new()
 	host.name = "Level04bLayoutHost"
-	host.scene_file_path = GameContext.LEVELS[CHAPTER_ID]
+	host.scene_file_path = GameContext.LEGACY_LEVELS[CHAPTER_ID]
 	host.add_to_group("game_world")
 	add_child(host)
 	var layout := LAYOUT.new()
@@ -63,7 +63,7 @@ func test_main_route_completes_without_optional_abilities() -> void:
 	var spawn: Vector2 = LAYOUT.ENTRY_SPAWN
 	var exit_node := host.get_node("Props/Exit") as LevelExit
 	ok(exit_node != null, "exit door is planted")
-	eq(exit_node.target_scene, GameContext.LEVELS["level05"])
+	eq(exit_node.target_scene, GameContext.LEGACY_LEVELS["level05"])
 	eq(exit_node.spawn, ChapterLayout.entry_spawn_of("level05"))
 	ok(LevelSanity.is_reachable(host, spawn, LevelSanity.feet_of(exit_node), false),
 			"exit reachable on foot")
@@ -453,7 +453,7 @@ func test_decor_is_themed_layered_and_grounded() -> void:
 
 ## 场景接线：Level04b_Crypt.tscn 真的加载这张 layout（不是旧 stub）。
 func test_scene_boots_the_real_layout() -> void:
-	var packed := load(GameContext.LEVELS[CHAPTER_ID]) as PackedScene
+	var packed := load(GameContext.LEGACY_LEVELS[CHAPTER_ID]) as PackedScene
 	ok(packed != null, "level scene loads")
 	if packed == null:
 		return
