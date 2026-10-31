@@ -1,13 +1,5 @@
 Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
 
-[PASS] ember_sigils_test_test_ago_text_is_human (5 asserts)
-[PASS] ember_sigils_test_test_chapter_label_lookup (3 asserts)
-[PASS] ember_sigils_test_test_production_recording_is_gated_off_in_automation (2 asserts)
-[PASS] ember_sigils_test_test_ring_holds_records_and_reveals (6 asserts)
-[PASS] ember_sigils_test_test_store_roundtrip_caps_and_kinds (11 asserts)
-SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-[PASS] ember_sigils_test_test_title_stays_quiet_without_any_sigils (3 asserts)
-SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
-[PASS] ember_sigils_test_test_title_wires_ring_epitaph_ghosts_and_dossier (9 asserts)
+[FAIL] no tests discovered
 ================================================
-OK — 7/7 passed; 0 engine errors
+FAILED — 0/0 passed; 0 engine errors
