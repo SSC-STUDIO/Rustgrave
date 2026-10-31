@@ -1,65 +1,83 @@
-# 标题与实物界面收尾验收记录
+# 标题、开屏与六件实物界面验收记录
 
-日期：2026-10-31。继续本地 `5c12a161` 及前代理遗留的工作区实现，范围为标题、远厅开屏及六个二级界面。改动分批提交在本地 `master`，未推送。
+2026-10-31。本轮在 `5c12a161` 及已有工作区实现上继续完成标题、远厅开屏和六个二级界面。功能逐项本地提交，最终 UI 源码快照为 `1af71861`，未推送。
 
-## 交付结果
+## 按原计划逐项核对
 
-| 范围 | 当前行为 |
-|---|---|
-| 标题 | 羽化烟斑压住复杂管线；锁签下挂；36×51 吊灯照暖选中行；连续铁水；页脚渐暗 |
-| 远厅与开屏 | 冷蓝拱顶在暖厅后透出；高窗光柱、暖反光；1.6 秒推镜；任意键鼠／手柄按钮可跳过；震屏与闪光设置生效 |
-| 暂停 | 双链吊挂铁牌、刻字灯标菜单、纸质行程签；链子位于背景模糊前方 |
-| 设置 | 双页账簿、布书签、墨线与黄铜滑块、开关实印／空印；标签和滑条避开中缝 |
-| 地图 | 冷轧铁板、发亮章节冲孔、角钉纸签；选章同步正文与剖面 |
-| 操作说明 | 四张独立旧纸，错开 0.06 秒进场；24px 说明与键帽，四纸首屏完整；滚轮不会误关闭 |
-| 教程 | 左页墨写目录、右页课文与键帽，留出书脊 |
-| 覆盖确认 | 默认取消；取消时分帧折回，确认时封蜡白热；进入角色选择时仍保留原存档，直到启程才替换 |
+用户再次要求严格对照六行规格后，检查发现旧版本仍有差项：设置书签只是装饰、条目跨书脊分放、铁牌只有链条在摆、地图钉子提前出现、封面与信封动作不完整。本轮已补齐下表实际行为。
 
-六件实物的布局、文字、输入和动态附件由运行时处理。用户随后允许增加贴图，并指出程序外壳的实物感仍然不足，因此本轮新增六张原创烘焙 PNG：厚铁、冷轧钢、皮革账簿、随身手札、信纸和钉纸。`tools/gen_ui_object_textures.py` 用固定种子的本地绘制制作，未调用外部生图服务；半分辨率绘制后以最近邻放大，保持 2px 视觉单元。保留 `ModalRoot/Card/Content/Body/...`、`ConfirmMenu` 以及设置的查询辅助接口，不增加 `PointLight2D`。HUD、装备、角色选择、试炼、故事／日志和回看余烬继续使用各自已有界面。
+| 界面 | 实物、内容与选中反馈 | 实际动作 |
+|---|---|---|
+| 暂停菜单 | 两根屏幕顶链吊挂锈铁牌；左侧刻字与标题同款吊灯；右侧真钉行程签，显示章节／目标／锈核 | 放链、回弹，0.24 秒落位后板体与链底一起整数像素微晃，链顶固定；退场精确归位 |
+| 设置 | 960×560 摊开账簿；顶沿声音／画面／键位／辅助四根布条本身就是可点击页签；左页分类说明，所有编辑条目在右页；墨线与黄铜珠、开／关印章 | 从下滑上，封面绕书脊切换三个姿态，每帧 0.07 秒；条目名称单行，长页可滚动 |
+| 地图 | 1120×640 冷轧钢板；顶沿真实章节冲孔可点击，所选孔烧亮；路线刻在板内，右角档案纸四钉固定 | 0.20 秒落位后，每 0.08 秒安装一枚角钉，并有压入与短促火星；PNG 不预画静态钉头 |
+| 操作说明 | 移动／战斗／交互·剑核／系统四张独立旧纸；四枚黄铜钉对准纸孔，按键使用铅字键帽；40px 内容内边距、24px 说明 | 各纸错开 0.06 秒滑入；透明布局载体没有第五张大纸；四纸首屏完整 |
+| 教程回看 | 880×520 随身手札，小于设置账簿；左页墨写目录、右页课文与相关键帽 | 同账簿滑上、绕书脊三帧翻开；反复开关或同帧重建不会调用过期滚动目标 |
+| 覆盖存档确认 | 640×420 封蜡信笺，默认取消；可以直接点击蜡封，也可以选确认行 | 信笺落下；确认先压低蜡封再白热一闪，关闭闪光仍保留按压；取消三段折成封口信封后撤走；重开撤销旧回调 |
 
-真实动画现在共享可取消的过渡句柄，整段位移取整。重新打开会撤销旧退场回调，避免位置漂移或被旧窗口关闭。子界面打开时隐藏暂停铁牌的视觉层，暂停所有权仍由原菜单持有。截图工具等待上一界面退完、当前实物进完，避免残影被误当成最终布局。
+标题的羽化菜单暗斑、下挂锁签、36×51 吊灯与暖光、连续铁水折线和页脚渐暗均保留。冷蓝 `FarVault` 拱顶、高窗光束、熔河暖反光与 1.6 秒可即时跳过的推镜已接入，遵守既有节点与光源预算。
 
-## 渲染证据
+用户允许增加贴图后，使用 `tools/gen_ui_object_textures.py` 本地制作六张原创 PNG：`board / ledger / plate / journal / letter / paper.png`。固定种子、RGBA、透明边缘和 2×2 像素单元可复验，未调用外部生图服务。运行时负责文字、布局、交互、动态附件与动画，不新增 `PointLight2D`。
 
-![六件实物概览](../screenshots/peek/ui-upgrade/physical-ui-overview.jpg)
+`ModalRoot/Card/Content/Body/...`、`ConfirmMenu` 与设置查询接口保留。过渡可取消、位移取整，重复开关恢复原位。子界面打开时隐藏暂停铁牌，关闭后归还暂停输入。确认覆盖只进入角色选择，真正启程才用一次写入保存身份、装备、皮肤与符文；写盘失败保留旧档。
 
-![与方案基线对照](../screenshots/peek/ui-upgrade/before-after.jpg)
+## 实际渲染证据
 
-旧基线的残影包含截图时机的影响；这组对照用于复核版式和可读性。
+![六件实物最终实际渲染](../screenshots/peek/ui-upgrade/strict-final/six-interface-overview.jpg)
 
-- 标题：`screenshots/peek/ui-upgrade/title-final-retry/`，132 张截图及对应 JSON；四种状态、三档分辨率、开屏与焦点变体。`contact-idle.png`、`contact-intro.png`、`contact-focus.png` 已实际查看。
-- 纯场景：`title-bare-final/contact-bare.png`，cold／act2 两张。
-- 六件实物：`menus-final/{960x540,1280x720,1920x1080}/`，每档 12 张，尺寸核对记录在 `menus-final/visual-checks.json`；最终贴图版复核在 `menus-baked-final/{960x540,1280x720,1920x1080}/`，每档 8 张，暂停铁牌、设置账簿和 960/1920 两端尺寸已查看。
-- 火漆与折纸：`letter-detail/seal-hot.png`、`letter-detail/fold-pose.png` 为固定姿态的真实渲染样张，用于检查绘制；不代表连续动画的主观手感。
+- 最终静态界面：`screenshots/peek/ui-upgrade/strict-final/{960x540,1280x720,2560x1440}/`，每档 13 张，含四页设置与改键状态。已检查六界面概览、辅助／画面页以及大小两端的布局。辅助页截图发现的条目折行已修正并重拍。
+- 铁牌动态：`strict-plan-motion/pause/evidence.json` 与 `left-chain-motion-contact.png`，记录落位后板体 x 从 130 到 132、129 再回 130，链顶固定、链底跟随。
+- 地图逐钉：`strict-plan-motion/map/evidence.json` 与六个实际时间点渲染，安装数按 0、1、2、3、4、4 递增；刷新新钢板贴图导入缓存后重拍。
+- 翻书：`strict-books/cover-contact.jpg`，设置／手札各四个原生姿态，实际渲染不透明封面绕书脊翻过。
+- 火漆与折信：`strict-letter/` 的八张原生 1280×720 姿态、`wax_pose_detail.png` 与 `pose_manifest.json`，含按压、白热、三段折叠和封口撤离。
+- 标题与开屏：`title-final-retry/` 的 132 张截图与 JSON，以及 `title-bare-final/contact-bare.png`，覆盖不同存档状态、开屏和焦点。标题专项同样在最终源码快照验证。
 
-标题 JSON 中 14 盏可见吊灯、8 个点光源；idle 点亮数 cold=0、act2=4、keep=14、snuff=0。页脚内容区平均 sRGB 亮度为 0.0244–0.0318。节点数 ≤150、锁签避让及整像素视差由对应测试验证，未把这些说成截图 JSON 的字段。
+这些是实际引擎渲染与定时／定姿态记录，未据此宣称连续动画的主观手感或物理手柄已经验收。960×540 沿用项目整数缩放，内容是居中的 640×360，带黑边。
 
-960×540 沿用项目现有整数缩放：1280×720 设计画布缩为居中的 640×360，带黑边。操作说明已按这个实际内容尺寸调整字号；本批不改缩放策略。
+截图与日志位于忽略的 `screenshots/`，是本地交付证据，不随源代码提交。旧 `physical-ui-baked-overview.jpg`、`committed-final/` 和 `strict-final-before-label-fix/` 已被本次严格版取代。一次初始标准截图在标题四张后 180 秒超时、stderr 为空，原因未确定，日志保留于 `strict-final-initial-timeout/`；成功的同源跟踪 fixture 只增加七条定位输出，没有修改状态或动画时序，源文件和清单一并保留。 随后正式 `run_ui_peek.ps1` 在 1280×720 复现成功，13/13 张保存，stderr 为空，日志与图片保留于 `strict-standard-repro/1280x720/`。
 
-上述截图与日志在被忽略的 `screenshots/` 内，是本地证据，未随源代码提交；可用下面命令重新生成。较早的 `title-final/` 包含一次编辑期间的解析失败日志，最终标题证据应使用 `title-final-retry/`。
+## 最终专项验证
 
-## 自动验证
+测试在隔离检出中执行，使用独立存档与设置。62 个本轮源文件、工具、测试及素材与最终提交逐一核对，文本按 LF 归一后全部一致。记录在 `regression/strict-final/source-manifest.json`。
 
-| 最终专项 | 通过用例 |
-|---|---:|
-| title | 118/118 |
-| modal（含真实 Tween 生命周期） | 28/28 |
-| settings | 16/16 |
-| pause_menu | 7/7 |
-| physical_secondary | 3/3 |
-| overwrite_letter | 3/3 |
-| physical_material | 4/4 |
-| tester_appearance | 3/3 |
-| tester_layout | 3/3 |
-| qhd_fire | 2/2 |
-| gate5 | 4/4 |
-| 合计 | 191/191 |
+| 分组 | 独立用例 | 通过断言 |
+|---|---:|---:|
+| title | 118 | 92,042 |
+| modal | 28 | 918 |
+| settings | 16 | 134 |
+| pause_menu | 7 | 42 |
+| physical_secondary | 3 | 94 |
+| physical_material | 4 | 112 |
+| gate5 | 5 | 135 |
+| ui_transition | 6 | 50 |
+| letter_gesture | 4 | 48 |
+| overwrite_letter | 3 | 30 |
+| travel_journal_size | 2 | 8 |
+| new_game_handoff | 11 | 303 |
+| tester_appearance | 3 | 8 |
+| tester_layout | 3 | 7 |
+| qhd_fire | 2 | 40 |
+| 合计 | **215/215** | **93,971** |
 
-专项汇总在 `screenshots/peek/ui-upgrade/regression/ui-focused-summary.json`，记录 191 个专项用例、93,443 条通过断言和 0 引擎错误。启程交接专项为 10/11、195 条通过断言、0 引擎错误；剩余 1 项是旧 Continue 场景导演锁定边界。另对必要的旧基线修复核实了 arena_depth 4/4、ember_recap 3/3、far_view_depth 2/2。扩大字体后的页脚与旅程短注布局、隐藏界面的越界探针、启程保存原子性，以及已有原生炉口贴图的过时断言也在最后一轮修正。
+用例名交叉去重为零重复，各组取得完成标记，0 引擎错误。除拒绝写盘用例的预期警告外 stderr 均为空。最终汇总是 `regression/strict-final/strict-final-summary.json`。旧摆动测试失败和名称折行修正前日志另存并排除最终统计。装备布局诊断仍打印 `overlaps=1015`，该方法没有重叠断言；通过计数不代表本轮已修复装备界面。
 
-本轮没有复现历史记录的「全量全绿」。当前工作区单次全量在 1500 秒超时：已执行 1276 个用例，1235 通过、41 失败，未取得完成标记，观察到的引擎错误为 0。分段合并覆盖当前声明的 1,824 个方法，其中 1,777 通过、47 个仍失败，0 个有效运行引擎错误；这不是单进程全量通过。失败明细与原始日志保存在 `regression/full-suite-summary.json`、`regression/full-suite/` 和 `regression/segmented-regression-summary.json`。剩余失败涉及关卡可达性／道具摆放、分镜战斗安全、战斗教程交接、炉火与旧美术约定、旧 Continue 场景边界等，与本批已通过的标题和实物专项分开记录。
+## 范围与主工作区状态
 
-工作区还有未提交的玩家、字幕、导入与其它测试改动。此全量结果描述当前混合工作区，不能当成本批提交在干净检出中的独立全绿证明。超时后从 `prop_fit_test.gd` 开始补跑剩余部分，分段结果以 `regression/` 中的续跑记录为准。
+本轮没有复现历史交接的全仓全绿。较早混合工作区全量运行在 1500 秒超时，执行 1276 例、1235 通过、41 失败；分段合并覆盖当时的 1824 个方法，1778 通过、46 失败，未完成单进程全量全绿。失败涉及关卡可达性／摆放、分镜战斗、教程交接与旧版美术约定，明细保留于 `regression/full-suite-summary.json` 与 `regression/segmented-regression-summary.json`。这是较早混合工作区的记录，不是最终隔离快照全量结果。
+
+主工作区同时存在另一任务的叙事／节点地图、玩家、字幕、标题场景和大量导入修改。地图的并行版本保留了实物外壳，但新增了 `NarrativeCatalog / StageLevel` 等接口；本轮提交的是独立验证过的 UI 地图版本，保留主工作文件及并行修改，未将它们混入提交。**主工作区这些并行改动尚未纳入本轮验收，不能把隔离 UI 通过当成主工作区整体集成通过。** 原有字幕暂存 blob `26998f5840694e41b5e4fb3e3b13dee1b49ae181` 保持不变。
+
+本轮未迁移 HUD、装备、角色选择、试炼、故事／日志及回看余烬的既有外壳。
+
+## 关键本地提交
+
+- `38face0a`：四纸真钉。
+- `5629ae80`：可点击火漆、先按压后白热、取消三段折信。
+- `9a7e29e6`：真实顶沿书签、右页设置条目、绕书脊翻书及较小手札。
+- `61913f16`：铁牌板体微晃、链底跟随、行程签真钉、地图落位后逐钉火星。
+- `a411cdbe`：真实弹簧驱动的链端随板／归位回归。
+- `12ea91a6`：正式截图工具补辅助页。
+- `1af71861`：条目名称单行排版及 29 条跨页检查。
 
 ## 复现
 
@@ -68,15 +86,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter title -
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter modal -TimeoutSeconds 240
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter settings -TimeoutSeconds 240
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter physical -TimeoutSeconds 240
-powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter overwrite_letter -TimeoutSeconds 180
-powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter physical_material -TimeoutSeconds 240
+powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter letter_gesture -TimeoutSeconds 180
+powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter travel_journal_size -TimeoutSeconds 180
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter new_game_handoff -TimeoutSeconds 360
-powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter qhd_fire -TimeoutSeconds 240
-powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter tester_appearance -TimeoutSeconds 240
-powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 -CaseFilter tester_layout -TimeoutSeconds 240
 python tools/gen_ui_object_textures.py --check
-powershell -ExecutionPolicy Bypass -File tools/run_ui_peek.ps1
-powershell -ExecutionPolicy Bypass -File tools/run_title_peek.ps1 -Variants 'cold,act2,keep,snuff' -Sizes '960x540,1280x720,1920x1080' -Shots 'boot,idle,focus' -OutDir 'screenshots/peek/ui-upgrade/title-final-retry'
+powershell -ExecutionPolicy Bypass -File tools/run_ui_peek.ps1 -Sizes '960x540,1280x720,2560x1440' -Only 'title,menus' -OutDir 'screenshots/peek/ui-upgrade/strict-final'
 ```
 
-测试与截图使用隔离存档和设置目录。物理手柄、真实触屏以及连续动画的主观手感仍需人工体验；合成输入断言和固定渲染样张不替代这些验证。
+复现时应从上述提交建立干净检出，避免主工作区并行改动影响结果。完整材质与接口规则见 [UI 语言](./ui-language.md)。
