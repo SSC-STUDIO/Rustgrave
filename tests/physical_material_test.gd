@@ -58,17 +58,17 @@ func test_baked_object_materials_bind_to_the_authored_surfaces() -> void:
 					"kind %d material has non-empty authored pixels" % kind)
 
 
-func test_paper_tag_and_notes_shell_use_baked_paper_and_wash_is_subtle() -> void:
+func test_notes_outer_carrier_is_clear_while_paper_and_light_are_baked() -> void:
 	var tag := Objects.journey_tag_style_box()
 	ok(tag.texture != null, "journey tag has a paper material")
 	if tag.texture != null:
 		eq(String(tag.texture.get_meta(&"source_path", tag.texture.resource_path)), "res://assets/ui/objects/paper.png")
 		eq(tag.texture.get_size(), Vector2(460.0, 480.0))
 	var notes := Objects.style_box(Objects.Kind.NOTES, Vector2(420.0, 300.0))
-	ok(notes.texture != null, "notes shell consumes the shared paper material")
+	ok(notes.texture != null, "notes outer carrier has a layout texture")
 	if notes.texture != null:
-		eq(String(notes.texture.get_meta(&"source_path", notes.texture.resource_path)),
-				"res://assets/ui/objects/paper.png", "notes uses the shared paper background")
+		eq(notes.texture.get_image().get_used_rect(), Rect2i(),
+				"four independent sheets have no fifth paper behind them")
 	var wash := Objects.light_wash(Objects.Kind.LEDGER, Vector2(320.0, 240.0))
 	var wash_image := wash.texture.get_image()
 	var max_alpha := 0.0

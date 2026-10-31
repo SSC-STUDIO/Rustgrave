@@ -79,7 +79,6 @@ const BAKED_OBJECT_PATHS := {
 	Kind.BOARD: "res://assets/ui/objects/board.png",
 	Kind.LEDGER: "res://assets/ui/objects/ledger.png",
 	Kind.PLATE: "res://assets/ui/objects/plate.png",
-	Kind.NOTES: "res://assets/ui/objects/paper.png",
 	Kind.JOURNAL: "res://assets/ui/objects/journal.png",
 	Kind.LETTER: "res://assets/ui/objects/letter.png",
 }
@@ -194,15 +193,6 @@ static func _baked_style_box(kind: Kind) -> StyleBoxTexture:
 			sb.content_margin_top = 32.0
 			sb.content_margin_right = 36.0
 			sb.content_margin_bottom = 32.0
-		Kind.NOTES:
-			sb.texture_margin_left = 24.0
-			sb.texture_margin_top = 24.0
-			sb.texture_margin_right = 24.0
-			sb.texture_margin_bottom = 24.0
-			sb.content_margin_left = 32.0
-			sb.content_margin_top = 32.0
-			sb.content_margin_right = 32.0
-			sb.content_margin_bottom = 30.0
 		Kind.LEDGER:
 			sb.texture_margin_left = 24.0
 			sb.texture_margin_top = 24.0
