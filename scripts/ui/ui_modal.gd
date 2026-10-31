@@ -186,6 +186,8 @@ static func build(host: CanvasLayer, opts: Dictionary) -> Dictionary:
 				play_outro(root, veil, card, on_done),
 		"finish_instantly": func() -> void:
 			finish_instantly(root, veil, card, card.get_meta("_modal_home", card.position))
+			if dressing != null:
+				dressing.modulate.a = 1.0
 			if dressing != null and dressing.has_method("snap"):
 				dressing.call("snap"),
 	}

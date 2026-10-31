@@ -251,6 +251,10 @@ var _confirm: CanvasLayer
 var _confirm_menu: MenuList
 var _confirm_shell: Dictionary = {}
 var _confirm_sealing := false
+var _confirm_closing := false
+var _confirm_action_serial := 0
+var _confirm_seal_button: Button
+var _confirm_seal_tween: Tween
 var _char_select: CharacterSelectScreen
 var _update_prompt: UpdatePrompt
 var _update_notice: Button
@@ -1818,23 +1822,61 @@ func _build_confirm() -> void:
 	_confirm_menu.compact(_confirm_menu.add_item(
 			ID_OVERWRITE, "确 认 覆 盖", false, MenuItem.Kind.GHOST))
 	_confirm_menu.chosen.connect(_on_confirm_chosen)
+	# The drawn wax seal is also the actual action target. Keep the two menu
+	# rows for keyboard navigation and route both triggers through one press.
+	_confirm_seal_button = Button.new()
+	_confirm_seal_button.name = "SealButton"
+	_confirm_seal_button.tooltip_text = "按下蜡封，确认覆盖"
+	_confirm_seal_button.focus_mode = Control.FOCUS_ALL
+	_confirm_seal_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_confirm_seal_button.size = Vector2(56.0, 56.0)
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		_confirm_seal_button.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	var focus_ring := StyleBoxFlat.new()
+	focus_ring.bg_color = Color.TRANSPARENT
+	focus_ring.border_color = UiKit.EMBER
+	focus_ring.set_border_width_all(2)
+	focus_ring.set_corner_radius_all(12)
+	_confirm_seal_button.add_theme_stylebox_override("focus", focus_ring)
+	(_confirm_shell["root"] as Control).add_child(_confirm_seal_button)
+	_confirm_seal_button.pressed.connect(_on_confirm_chosen.bind(ID_OVERWRITE))
+	(_confirm_shell["card"] as Control).item_rect_changed.connect(_place_confirm_seal_button)
+	_place_confirm_seal_button.call_deferred()
+
+
+func _place_confirm_seal_button() -> void:
+	if _confirm_seal_button == null:
+		return
+	var seal: Node2D = _confirm_shell["dressing"]
+	var center: Vector2 = seal.call("seal_center")
+	_confirm_seal_button.position = (center - _confirm_seal_button.size * 0.5).round()
 
 
 func open_confirm() -> void:
-	if _confirm_sealing:
+	if _started or _quitting or _confirm_sealing:
 		return
+	_confirm_action_serial += 1
+	_confirm_closing = false
 	_menu.active = false
 	_confirm.visible = true
 	_confirm_menu.active = true
+	_confirm_seal_button.disabled = false
 	_confirm_menu.select(0, false)
 	(_confirm_shell["play_intro"] as Callable).call()
 
 
 func close_confirm() -> void:
-	if _confirm_sealing:
+	if _confirm_sealing or _confirm_closing or not _confirm.visible:
 		return
+	_confirm_closing = true
+	_confirm_action_serial += 1
+	var serial := _confirm_action_serial
 	_confirm_menu.active = false
+	_confirm_seal_button.disabled = true
 	(_confirm_shell["play_outro"] as Callable).call(func() -> void:
+		if serial != _confirm_action_serial or not _confirm_closing:
+			return
+		_confirm_closing = false
 		_confirm.visible = false
 		_menu.active = not _started and not _quitting)
 
@@ -1844,26 +1886,44 @@ func confirm_open() -> bool:
 
 
 func _on_confirm_chosen(id: StringName) -> void:
-	if _started or _quitting or _confirm_sealing:
+	if _started or _quitting or _confirm_sealing or _confirm_closing or not confirm_open():
 		return
 	if id == ID_OVERWRITE:
-		_confirm_menu.active = false
-		_confirm_sealing = true
-		# Finish arrival before stamping; neither a flash nor a cancel clears a save.
-		(_confirm_shell["finish_instantly"] as Callable).call()
-		var seal := _confirm_shell["dressing"] as Node2D
-		if DisplayServer.get_name() == "headless" or is_zero_approx(Settings.flash_scale):
-			_finish_seal()
-		else:
-			var tw := _confirm.create_tween()
-			tw.tween_property(seal, "heat", Settings.flash_scale, 0.07)
-			tw.tween_property(seal, "heat", 0.0, 0.09)
-			tw.tween_callback(_finish_seal)
+		_press_confirm_seal()
 	else:
 		close_confirm()
 
 
-func _finish_seal() -> void:
+func _press_confirm_seal(force_tween: bool = false) -> Tween:
+	if _started or _quitting or _confirm_sealing or _confirm_closing or not confirm_open():
+		return null
+	_confirm_menu.active = false
+	_confirm_seal_button.disabled = true
+	_confirm_sealing = true
+	_confirm_action_serial += 1
+	var serial := _confirm_action_serial
+	# Finish arrival before the actual wax press. Appearance stays in the same
+	# save transaction as identity/gear later, only after character embark.
+	(_confirm_shell["finish_instantly"] as Callable).call()
+	var seal := _confirm_shell["dressing"] as Node2D
+	if DisplayServer.get_name() == "headless" and not force_tween:
+		_finish_seal(serial)
+		return null
+	var tw := _confirm.create_tween()
+	_confirm_seal_tween = tw
+	tw.tween_property(seal, "press", 1.0, 0.07)
+	# Reduced flash suppresses heat, while the tactile press still plays.
+	tw.tween_property(seal, "heat", Settings.flash_scale, 0.06)
+	tw.tween_property(seal, "heat", 0.0, 0.09)
+	tw.parallel().tween_property(seal, "press", 0.6, 0.09)
+	tw.tween_callback(_finish_seal.bind(serial))
+	return tw
+
+
+func _finish_seal(serial: int = -1) -> void:
+	if not _confirm_sealing or (serial >= 0 and serial != _confirm_action_serial):
+		return
+	_confirm_seal_tween = null
 	_confirm_sealing = false
 	_confirm.visible = false
 	_char_select.open()

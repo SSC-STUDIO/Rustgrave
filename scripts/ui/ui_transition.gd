@@ -229,6 +229,28 @@ static func _leave(kind: int, root: CanvasItem, card: CanvasItem, veil: CanvasIt
 		return null
 
 	var tw := _tween(root)
+	if kind == 5 and dressing != null and dressing.has_method("fold_pose"):
+		# Replace the flat sheet with three folding silhouettes. Keep the sealed
+		# envelope visible before withdrawing it; no text or card scaling occurs.
+		if card != null:
+			card.position = home
+			card.modulate.a = 0.0
+		dressing.modulate.a = 1.0
+		dressing.call("play_close")
+		var fold_time := float(dressing.call("fold_duration"))
+		var withdraw_time := float(dressing.call("withdraw_duration"))
+		tw.tween_property(dressing, "fold_progress", 1.0, fold_time)
+		tw.tween_property(dressing, "withdraw", 1.0, withdraw_time).set_delay(fold_time)
+		tw.tween_property(dressing, "modulate:a", 0.0, 0.08).set_delay(fold_time + 0.06)
+		if veil != null:
+			tw.tween_property(veil, "modulate:a", 0.0, VEIL_OUT).set_delay(fold_time)
+		tw.tween_callback(func() -> void:
+			if is_instance_valid(card):
+				card.position = home
+			if on_done.is_valid():
+				on_done.call()
+		).set_delay(fold_time + withdraw_time)
+		return tw
 	if veil != null:
 		tw.tween_property(veil, "modulate:a", 0.0, VEIL_OUT)
 	var offset := Vector2(0.0, MODAL_LIFT)

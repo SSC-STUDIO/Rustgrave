@@ -860,31 +860,96 @@ class JournalDressing extends LedgerDressing:
 		_draw_cover()
 
 class LetterDressing extends Node2D:
+	const FOLD_TIME := 0.24
+	const WITHDRAW_TIME := 0.14
 	var _card: Control
-	var _fold_time := 1.0
+	var folding := false
+	var fold_progress := 0.0:
+		set(value):
+			fold_progress = clampf(value, 0.0, 1.0)
+			queue_redraw()
+	var withdraw := 0.0:
+		set(value):
+			withdraw = clampf(value, 0.0, 1.0)
+			queue_redraw()
+	var press := 0.0:
+		set(value):
+			press = clampf(value, 0.0, 1.0)
+			queue_redraw()
 	var heat := 0.0:
 		set(value):
-			heat = value
+			heat = clampf(value, 0.0, 1.0)
 			queue_redraw()
 	func bind_card(card: Control) -> void:
 		_card = card
 		card.item_rect_changed.connect(queue_redraw)
 	func snap() -> void:
+		folding = false
+		fold_progress = 0.0
+		withdraw = 0.0
+		press = 0.0
 		heat = 0.0
-		_fold_time = 1.0
+	func play_open() -> void:
+		snap()
 	func play_close() -> void:
-		_fold_time = 0.0
+		snap()
+		folding = true
 		queue_redraw()
-	func _process(delta: float) -> void:
-		if _fold_time < 0.14:
-			_fold_time += delta
-			queue_redraw()
+	func fold_duration() -> float:
+		return FOLD_TIME
+	func withdraw_duration() -> float:
+		return WITHDRAW_TIME
 	func seal_center() -> Vector2:
 		return (_card.position + Vector2(_card.size.x * 0.5, _card.size.y - 32.0)).round()
+	func seal_point(point: Vector2) -> Vector2:
+		# Compress only the wax geometry; the card and its lettering never scale.
+		return (seal_center() + Vector2(point.x, point.y * (1.0 - press * 0.24) + press * 4.0)).round()
+	func seal_rect() -> Rect2:
+		return Rect2(seal_point(Vector2(-22, -22)), seal_point(Vector2(22, 22)) - seal_point(Vector2(-22, -22)))
+	func fold_pose() -> Dictionary:
+		var rect := _card.get_rect().grow(-4.0)
+		rect.position += Vector2(0.0, roundf(withdraw * 36.0))
+		var stage := mini(2, int(fold_progress * 3.0))
+		var third := roundf(rect.size.y / 3.0)
+		var body := rect
+		if stage == 0:
+			body.size.y = third * 2.0
+		elif stage == 1:
+			body.position.y += third
+			body.size.y = third
+		else:
+			body.position += Vector2(8.0, third)
+			body.size = Vector2(rect.size.x - 16.0, third)
+		return {"stage": stage, "body": body, "closed": stage == 2}
+	func _draw_folded_letter() -> void:
+		var pose := fold_pose()
+		var body: Rect2 = pose["body"]
+		var stage: int = pose["stage"]
+		# The open card is hidden during this replacement drawing. Its silhouette
+		# becomes a folded band, then a closed envelope, before it is withdrawn.
+		draw_rect(body.grow(2.0), PAL["parchment_dark"])
+		draw_rect(body, PAL["parchment_base"])
+		var tip_y := body.position.y + body.size.y * (0.42 if stage == 0 else 0.70)
+		var flap := PackedVector2Array([
+			body.position, Vector2(body.end.x, body.position.y),
+			Vector2(body.position.x + body.size.x * 0.5, roundf(tip_y)),
+		])
+		draw_colored_polygon(flap, PAL["parchment_light"])
+		draw_polyline(flap, PAL["parchment_shadow"], 2.0)
+		if stage == 0:
+			var crease_y := roundf(body.position.y + body.size.y * 0.5)
+			draw_line(Vector2(body.position.x, crease_y), Vector2(body.end.x, crease_y), PAL["parchment_dark"], 2.0)
+		elif stage == 2:
+			var center := Vector2(body.get_center().x, roundf(tip_y))
+			draw_rect(Rect2(center - Vector2(12, 8), Vector2(24, 16)), PAL["wax_dark"])
+			draw_rect(Rect2(center - Vector2(8, 6), Vector2(16, 12)), PAL["wax_base"])
+			draw_line(center + Vector2(-4, 2), center + Vector2(4, -2), PAL["wax_lit"], 2.0)
 	func _draw() -> void:
 		if not is_instance_valid(_card):
 			return
-		var center := seal_center()
+		if folding:
+			_draw_folded_letter()
+			return
 		# Chunked wax rim and a stamped furnace rune, never a new texture/light.
 		for y in range(-20, 22, 2):
 			for x in range(-20, 22, 2):
@@ -894,22 +959,11 @@ class LetterDressing extends Node2D:
 				var color: Color = PAL["wax_dark"] if d > 16.0 else PAL["wax_base"]
 				if y < -8 and d < 16.0:
 					color = PAL["wax_mid"]
-				draw_rect(Rect2(center + Vector2(x, y), Vector2(2, 2)), color.lerp(PAL["wax_hot"], heat))
+				draw_rect(Rect2(seal_point(Vector2(x, y)), Vector2(2, 2)), color.lerp(PAL["wax_hot"], heat))
 		var ink: Color = PAL["wax_lit"].lerp(PAL["wax_hot"], heat)
-		draw_rect(Rect2(center + Vector2(-8, -8), Vector2(16, 16)), ink, false, 2.0)
-		draw_line(center + Vector2(-6, 4), center + Vector2(0, -5), ink, 2.0)
-		draw_line(center + Vector2(0, -5), center + Vector2(6, 4), ink, 2.0)
-		if _fold_time < 0.14:
-			# Two drawn fold poses; the card and its pixel text keep unit scale.
-			var rect := _card.get_rect().grow(-4.0)
-			var crease := roundf(rect.position.y + rect.size.y * 0.55)
-			var tip := crease + 24.0 if _fold_time < 0.07 else crease - 72.0
-			var flap := PackedVector2Array([
-				Vector2(rect.position.x, crease), Vector2(rect.end.x, crease),
-				Vector2(rect.end.x - 12.0, tip), Vector2(rect.position.x + 12.0, tip),
-			])
-			draw_colored_polygon(flap, PAL["parchment_shadow"])
-			draw_line(Vector2(rect.position.x, crease), Vector2(rect.end.x, crease), PAL["parchment_dark"], 2.0)
+		draw_rect(Rect2(seal_point(Vector2(-8, -8)), seal_point(Vector2(8, 8)) - seal_point(Vector2(-8, -8))), ink, false, 2.0)
+		draw_line(seal_point(Vector2(-6, 4)), seal_point(Vector2(0, -5)), ink, 2.0)
+		draw_line(seal_point(Vector2(0, -5)), seal_point(Vector2(6, 4)), ink, 2.0)
 
 
 # ==============================================================================
