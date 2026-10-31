@@ -741,18 +741,50 @@ class LedgerDressing extends Node2D:
 		queue_redraw()
 
 	func _process(delta: float) -> void:
-		if _cover_time < 0.18:
+		if _cover_time < 0.21:
 			_cover_time += delta
 			queue_redraw()
 
+	func cover_pose() -> int:
+		return mini(3, int(_cover_time / 0.07))
+
+	func cover_polygon() -> PackedVector2Array:
+		if not is_instance_valid(_card) or cover_pose() == 3:
+			return PackedVector2Array()
+		var cp := _card.position.round()
+		var cs := _card.size.round()
+		var spine := cp.x + roundf(cs.x * 0.5)
+		var top := cp.y + 12.0
+		var bottom := cp.y + cs.y - 14.0
+		match cover_pose():
+			0: # Closed front cover lies over the right folio.
+				return PackedVector2Array([Vector2(spine, top), Vector2(cp.x + cs.x - 12, top + 6),
+					Vector2(cp.x + cs.x - 12, bottom), Vector2(spine, bottom - 6)])
+			1: # The same rigid cover stands almost upright on its stitched hinge.
+				var edge := spine - roundf(cs.x * 0.10 / 2.0) * 2.0
+				return PackedVector2Array([Vector2(spine, top), Vector2(edge, top - 8),
+					Vector2(edge, bottom + 8), Vector2(spine, bottom)])
+			_: # It lands to the left before the open pages are revealed.
+				return PackedVector2Array([Vector2(spine, top), Vector2(cp.x + 12, top + 8),
+					Vector2(cp.x + 12, bottom - 8), Vector2(spine, bottom)])
+
 	func _draw_cover() -> void:
-		if _cover_time >= 0.18 or not is_instance_valid(_card):
+		var polygon := cover_polygon()
+		if polygon.is_empty():
 			return
-		var amount := 0.45 if _cover_time < 0.09 else 0.16
-		var height := roundf(_card.size.y * amount / 2.0) * 2.0
-		var base := _card.position + Vector2(12, _card.size.y - height - 12)
-		draw_rect(Rect2(base, Vector2(_card.size.x - 24, height)), PAL["leather_mid"])
-		draw_line(base, base + Vector2(_card.size.x - 24, 0), PAL["stitch_gold"], 2.0)
+		draw_colored_polygon(polygon, PAL["leather_deep"] if cover_pose() == 1 else PAL["leather_mid"])
+		var outline := polygon.duplicate()
+		outline.append(polygon[0])
+		draw_polyline(outline, PAL["outline"], 4.0)
+		draw_line(polygon[0], polygon[3], PAL["stitch_gold"], 2.0)
+		for edge in [0, 1, 2]:
+			var a := polygon[edge]
+			var b := polygon[edge + 1]
+			var count := maxi(1, int(a.distance_to(b) / 14.0))
+			for i in count:
+				var p := a.lerp(b, (float(i) + 0.25) / float(count)).round()
+				var q := a.lerp(b, (float(i) + 0.65) / float(count)).round()
+				draw_line(p, q, PAL["stitch_gold"], 2.0)
 
 	const RIBBON_COLORS := [
 		Color("#8C1D24"), # Tab 0: 音频 Crimson
@@ -782,31 +814,7 @@ class LedgerDressing extends Node2D:
 		if cs.x <= 0 or cs.y <= 0:
 			return
 
-		# 绘制 4 根从账簿顶部边缘探出的丝绸书签布条
-		var tab_w := 156.0
-		var sep := 12.0
-		var total_w := 4.0 * tab_w + 3.0 * sep
-		var start_x := roundf(cp.x + (cs.x - total_w) * 0.5)
-
-		for i in 4:
-			var rx := start_x + float(i) * (tab_w + sep) + tab_w * 0.5 - 14.0
-			var is_active := (i == _active_tab)
-			var h := 22.0 if is_active else 14.0
-			var ry := roundf(cp.y + 12.0 - h)
-			var col: Color = RIBBON_COLORS[i]
-			if is_active:
-				col = col.lightened(0.2)
-
-			# 丝带本体 (28px 宽)
-			draw_rect(Rect2(rx, ry, 28.0, h), col)
-			# 丝带金边与暗影
-			draw_rect(Rect2(rx, ry, 2.0, h), PAL["stitch_gold"] if is_active else col.darkened(0.3))
-			draw_rect(Rect2(rx + 26.0, ry, 2.0, h), col.darkened(0.4))
-			# 燕尾剪口 (Chevron notch)
-			var tip_y := ry
-			draw_line(Vector2(rx, tip_y), Vector2(rx + 14.0, tip_y + 5.0), PAL["outline"], 1.0)
-			draw_line(Vector2(rx + 28.0, tip_y), Vector2(rx + 14.0, tip_y + 5.0), PAL["outline"], 1.0)
-
+		# Settings owns the four real bookmark buttons. No duplicate decorative tabs.
 		_draw_cover()
 
 # --- PlateDressing / NotesDressing / JournalDressing / LetterDressing ---------
@@ -1079,8 +1087,8 @@ static func ribbon_style_box(tab_index: int, active: bool) -> StyleBoxTexture:
 	if _ribbon_cache.has(key):
 		return _ribbon_cache[key]
 
-	var w := 156
-	var h := 52 if active else 44
+	var w := 112
+	var h := 84 if active else 72
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 
 	var colors := [
@@ -1093,10 +1101,16 @@ static func ribbon_style_box(tab_index: int, active: bool) -> StyleBoxTexture:
 	if active:
 		base_col = base_col.lightened(0.18)
 
-	img.fill(base_col)
+	img.fill(Color.TRANSPARENT)
 	# 织物边缘暗影
 	for y in range(0, h, CELL):
 		for x in range(0, w, CELL):
+			# A cut swallowtail makes this a cloth strip hanging from the binding.
+			var notch := int((1.0 - absf(float(x - w / 2)) / float(w / 2)) * 14.0)
+			if y >= h - notch:
+				continue
+			var cloth := base_col.lightened(0.025) if (x / CELL + y / CELL) % 3 == 0 else base_col
+			img.fill_rect(Rect2i(x, y, CELL, CELL), cloth)
 			var dist := mini(mini(x, w - x - CELL), mini(y, h - y - CELL))
 			if dist < 2:
 				img.fill_rect(Rect2i(x, y, CELL, CELL), PAL["outline"])
@@ -1111,9 +1125,9 @@ static func ribbon_style_box(tab_index: int, active: bool) -> StyleBoxTexture:
 	sb.texture_margin_right = 12.0
 	sb.texture_margin_bottom = 12.0
 	sb.content_margin_left = 16.0
-	sb.content_margin_top = 8.0
+	sb.content_margin_top = 12.0
 	sb.content_margin_right = 16.0
-	sb.content_margin_bottom = 8.0
+	sb.content_margin_bottom = 22.0
 	_ribbon_cache[key] = sb
 	return sb
 

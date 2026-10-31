@@ -1,6 +1,6 @@
 class_name SettingsScreen
 extends CanvasLayer
-## 设置界面：声音 / 画面 / 键位三页，标题屏与暂停菜单共用（与 ControlsPanel 同一套挂法）。
+## 设置界面：声音 / 画面 / 键位 / 辅助四根布书签，所有条目写在右页。
 ##
 ## 一切走 Settings 自动加载：音量、震屏与闪光强度、键位改动立刻生效并落盘，
 ## 不在这里重复实现总线或键位逻辑。滑条拖动期间只改内存，松手 / 停手 SAVE_DELAY 秒后
@@ -35,10 +35,10 @@ const TAB_HINTS: Array[String] = [
 const STEP := 5.0
 const SAVE_DELAY := 0.5
 const NOTICE_HOLD := 4.0
-const ROW_WIDTH := 800.0
-## 两列键位在 900px 卡片里：2×380 + 24 = 784，仍小于 832 的内容宽。
-## 旧值 480 时网格 984px，会从花边卡两侧各挤出 76px。
-const KEY_COLUMN_WIDTH := 380.0
+const ROW_WIDTH := 384.0
+## 右页一列，超出页高时只滚动该页，保留左侧说明与顶部书签。
+const KEY_COLUMN_WIDTH := ROW_WIDTH
+const BOOK_ROW_HEIGHT := 64.0
 const TICK_INTERVAL := 0.045
 
 const BUS_NAMES := {
@@ -104,6 +104,12 @@ var _closing := false  ## 退场动画进行中：防连按 Esc 起两条 tween
 var _tab_buttons: Array[Button] = []
 var _pages: Array[Control] = []
 var _tab := TAB_AUDIO
+var _book_column: Control
+var _book_tabs: HBoxContainer
+var _page_host: Control
+var _book_footer: HBoxContainer
+var _page_caption: Label
+var _page_note: Label
 ## 瞬时消息（改键结果等）写进外壳的底部提示带，盖过该页的常驻说明几秒。
 var _hint: Label
 var _notice_text := ""
@@ -157,14 +163,17 @@ func _build() -> void:
 	})
 	_root = _shell["root"] as Control
 	_hint = _shell["hint"] as Label
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	(_shell["back"] as Label).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# 设置页点空白处不关闭：误触会丢掉正在拖的滑条 / 改键，只走 Esc 与"返回"。
 	var body := _shell["body"] as Control
 
-	var column := VBoxContainer.new()
+	var column := Control.new()
 	column.name = "Column"
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.add_theme_constant_override("separation", 6)
 	body.add_child(column)
+	_book_column = column
 
 	var tabs := HBoxContainer.new()
 	tabs.name = "Tabs"
@@ -172,6 +181,7 @@ func _build() -> void:
 	tabs.add_theme_constant_override("separation", 12)
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(tabs)
+	_book_tabs = tabs
 	var group := ButtonGroup.new()
 	for i in TAB_TITLES.size():
 		var tab := Button.new()
@@ -181,7 +191,8 @@ func _build() -> void:
 		tab.toggle_mode = true
 		tab.button_group = group
 		tab.focus_mode = Control.FOCUS_ALL
-		tab.custom_minimum_size = Vector2(156.0, UiKit.TOUCH_MIN)
+		tab.custom_minimum_size = Vector2(112.0, 80.0)
+		tab.add_theme_font_size_override("font_size", 24)
 		tab.add_theme_stylebox_override("normal", ObjectKit.ribbon_style_box(i, false))
 		tab.add_theme_stylebox_override("pressed", ObjectKit.ribbon_style_box(i, true))
 		tab.add_theme_stylebox_override("hover", ObjectKit.ribbon_style_box(i, true))
@@ -210,6 +221,7 @@ func _build() -> void:
 	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(host)
+	_page_host = host
 	_pages.append(_build_audio_page(host))
 	_pages.append(_build_display_page(host))
 	_pages.append(_build_keys_page(host))
@@ -221,17 +233,65 @@ func _build() -> void:
 	footer.alignment = BoxContainer.ALIGNMENT_END
 	footer.add_theme_constant_override("separation", 16)
 	column.add_child(footer)
+	_book_footer = footer
 	_reset_keys = _footer_button("恢复默认键位", &"ResetKeys")
 	_reset_keys.pressed.connect(_on_reset_keys)
 	footer.add_child(_reset_keys)
 	_back = _footer_button("返 回", &"Back")
 	_back.pressed.connect(close)
 	footer.add_child(_back)
+	_build_left_folio(column)
+	body.resized.connect(_layout_book)
+	(_shell["card"] as Control).resized.connect(_layout_book)
 
 	_building = false
 	_wire_focus()
 	_sync_all()
 	_show_page(TAB_AUDIO)
+	_layout_book.call_deferred()
+
+
+func _build_left_folio(parent: Control) -> void:
+	var folio := VBoxContainer.new()
+	folio.name = "LeftFolio"
+	folio.add_theme_constant_override("separation", 22)
+	parent.add_child(folio)
+	_page_caption = UiKit.label("", &"HeadLabel")
+	_page_caption.add_theme_font_size_override("font_size", 30)
+	folio.add_child(_page_caption)
+	_page_note = UiKit.label("", &"BodyLabel")
+	_page_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_page_note.add_theme_font_size_override("font_size", 24)
+	folio.add_child(_page_note)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(0, 2)
+	rule.color = Color("#8E7450", 0.4)
+	folio.add_child(rule)
+	var instruction := UiKit.label("书签换页\n\n墨线记数，铜珠调音。\n盖章落定，即刻生效。", &"BodyLabel")
+	instruction.add_theme_font_size_override("font_size", 20)
+	instruction.add_theme_color_override("font_color", Color("#796448"))
+	folio.add_child(instruction)
+
+
+## Keep the original node paths while placing the actual tabs on the top edge
+## and every editable entry on the right-hand folio.
+func _layout_book() -> void:
+	if _book_column == null or _page_host == null:
+		return
+	var card := _shell["card"] as Control
+	var origin := _book_column.get_global_transform().affine_inverse() * card.global_position
+	var right := roundf(card.size.x * 0.5 + 28.0)
+	var width := roundf(card.size.x * 0.5 - 68.0)
+	_hint.custom_minimum_size.x = roundf(card.size.x * 0.5 - 108.0)
+	_book_tabs.position = (origin + Vector2(60.0, -36.0)).round()
+	_book_tabs.size = Vector2(card.size.x - 120.0, 84.0)
+	_page_host.position = (origin + Vector2(right, 92.0)).round()
+	_page_host.size = Vector2(width, card.size.y - 188.0)
+	_book_footer.position = (origin + Vector2(right, card.size.y - 88.0)).round()
+	_book_footer.size = Vector2(width, 52.0)
+	var folio := _book_column.get_node("LeftFolio") as Control
+	folio.position = (origin + Vector2(58.0, 150.0)).round()
+	folio.size = Vector2(card.size.x * 0.5 - 112.0, card.size.y - 240.0)
 
 
 ## 页面第一行 ↑ 回到"自己的"标签，标签 ↓ 进自己页的第一行——不靠几何距离猜，
@@ -242,9 +302,6 @@ func _wire_focus() -> void:
 		if first.is_empty():
 			continue
 		var top_row: Array[Control] = [first[0]]
-		# 键位页的第一行是左右两个按钮。
-		if i == TAB_KEYS and first.size() > 1:
-			top_row.append(first[1])
 		for control in top_row:
 			control.focus_neighbor_top = control.get_path_to(_tab_buttons[i])
 		_tab_buttons[i].focus_neighbor_bottom = _tab_buttons[i].get_path_to(first[0])
@@ -284,7 +341,7 @@ func _footer_button(text: String, node_name: StringName) -> Button:
 	button.text = text
 	button.theme_type_variation = &"PlateButton"
 	button.focus_mode = Control.FOCUS_ALL
-	button.custom_minimum_size = Vector2(230.0, UiKit.TOUCH_MIN)
+	button.custom_minimum_size = Vector2(144.0, UiKit.TOUCH_MIN)
 	button.mouse_entered.connect(button.grab_focus)
 	return button
 
@@ -300,7 +357,7 @@ func _page(host: Control, node_name: String) -> VBoxContainer:
 	page.name = node_name
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page.alignment = BoxContainer.ALIGNMENT_CENTER
+	page.alignment = BoxContainer.ALIGNMENT_BEGIN
 	page.add_theme_constant_override("separation", 6)
 	scroll.add_child(page)
 	return page
@@ -330,9 +387,9 @@ func _build_display_page(host: Control) -> Control:
 
 func _display_choice(id: StringName, title: String) -> Control:
 	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(ROW_WIDTH, UiKit.TOUCH_MIN)
+	row.custom_minimum_size = Vector2(ROW_WIDTH, BOOK_ROW_HEIGHT)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	row.add_child(_name_label(title, 230.0))
+	row.add_child(_name_label(title, 132.0))
 	var choice := OptionButton.new()
 	choice.name = String(id)
 	choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -386,22 +443,15 @@ func _build_keys_page(host: Control) -> Control:
 	var page := _page(host, "KeysPage")
 	var grid := GridContainer.new()
 	grid.name = "KeyGrid"
-	grid.columns = 2
+	grid.columns = 1
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", 24)
 	grid.add_theme_constant_override("v_separation", 4)
 	page.add_child(grid)
-	# 左列、右列，先按列填：Godot 的 GridContainer 逐行放，所以交错排。
+	# Keep the bindings on one right-hand page; focus follows the scroll viewport.
 	var actions: Array[StringName] = Settings.REBINDABLE
-	var left_count := int(ceil(actions.size() / 2.0))
-	for i in left_count:
-		grid.add_child(_key_row(actions[i]))
-		if i + left_count < actions.size():
-			grid.add_child(_key_row(actions[i + left_count]))
-		else:
-			var spacer := Control.new()
-			spacer.custom_minimum_size = Vector2(KEY_COLUMN_WIDTH, 0.0)
-			grid.add_child(spacer)
+	for action in actions:
+		grid.add_child(_key_row(action))
 	return page
 
 
@@ -421,9 +471,9 @@ func _row_content(row: Control) -> HBoxContainer:
 	var content := HBoxContainer.new()
 	content.name = "Content"
 	content.set_anchors_preset(Control.PRESET_FULL_RECT)
-	content.offset_left = 20.0
-	content.offset_right = -20.0
-	content.add_theme_constant_override("separation", 14)
+	content.offset_left = 12.0
+	content.offset_right = -12.0
+	content.add_theme_constant_override("separation", 10)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(content)
 	return content
@@ -434,6 +484,8 @@ func _name_label(text: String, width: float) -> Label:
 	label.name = "Name"
 	label.custom_minimum_size = Vector2(width, 0.0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 20)
 	label.add_theme_color_override("font_color", Color("#221A15"))
 	return label
 
@@ -445,9 +497,9 @@ func _row_accent(row: Control, id: StringName) -> void:
 	accent.color = Color(0.42, 0.26, 0.16, 0.7)
 	accent.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	accent.offset_left = 6.0
-	accent.offset_right = 9.0
-	accent.offset_top = 12.0
-	accent.offset_bottom = -12.0
+	accent.offset_right = 10.0
+	accent.offset_top = 28.0
+	accent.offset_bottom = -32.0
 	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(accent)
 	_row_accents[id] = accent
@@ -479,7 +531,7 @@ func _fit_cell(id: StringName) -> void:
 	if font == null:
 		return
 	var w := font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	cell.custom_minimum_size.x = maxf(88.0, ceilf(w) + 16.0)
+	cell.custom_minimum_size.x = maxf(72.0, ceilf(w) + 16.0)
 
 
 ## 滑条轨道下的刻度：每 10% 一道细刻，1/4 处一道主刻（仪表感，也为拖动手感给参照）。
@@ -487,10 +539,9 @@ func _slider_ticks(row: Control) -> void:
 	var ticks := Control.new()
 	ticks.name = "Ticks"
 	ticks.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 轨道区间由行布局常量推出：Content 左右各让 20，名字列 170 + 间距 14，
-	# 读数舱 88 + 间距 14；垂直方向压在轨道的中线上。
-	var x0 := 20.0 + 230.0 + 150.0 + 28.0
-	var x1 := ROW_WIDTH - 20.0 - 88.0 - 14.0
+	# Ticks occupy the same right-folio ink track as the brass grabber.
+	var x0 := 12.0 + 104.0 + 10.0
+	var x1 := ROW_WIDTH - 12.0 - 88.0 - 10.0
 	ticks.position = Vector2(x0, 0.0)
 	ticks.size = Vector2(x1 - x0, UiKit.TOUCH_MIN)
 	row.add_child(ticks)
@@ -509,19 +560,14 @@ func _slider_ticks(row: Control) -> void:
 func _slider_row(id: StringName, title: String) -> Control:
 	var row := Control.new()
 	row.name = "Row_%s" % String(id)
-	row.custom_minimum_size = Vector2(ROW_WIDTH, UiKit.TOUCH_MIN)
+	row.custom_minimum_size = Vector2(ROW_WIDTH, BOOK_ROW_HEIGHT)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var bg := _row_bg()
 	row.add_child(bg)
 	_row_bgs[id] = bg
 	_row_accent(row, id)
 	var content := _row_content(row)
-	content.add_child(_name_label(title, 230.0))
-	var gutter := Control.new()
-	gutter.name = "GutterSpace"
-	gutter.custom_minimum_size.x = 150.0
-	gutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(gutter)
+	content.add_child(_name_label(title, 104.0))
 	var slider := HSlider.new()
 	slider.name = "Slider"
 	slider.min_value = 0.0
@@ -530,7 +576,7 @@ func _slider_row(id: StringName, title: String) -> Control:
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.size_flags_vertical = Control.SIZE_FILL
 	slider.focus_mode = Control.FOCUS_ALL
-	slider.custom_minimum_size = Vector2(240.0, UiKit.TOUCH_MIN)
+	slider.custom_minimum_size = Vector2(128.0, UiKit.TOUCH_MIN)
 	# 账本墨线轨道与抛光黄铜珠滑块
 	slider.add_theme_stylebox_override("slider", ObjectKit.ink_track_style_box())
 	slider.add_theme_stylebox_override("grabber_area", ObjectKit.ink_fill_style_box(false))
@@ -562,12 +608,12 @@ func _button_row(id: StringName, title: String, width: float) -> Button:
 	var button := Button.new()
 	button.theme_type_variation = &"SettingsButton"
 	button.focus_mode = Control.FOCUS_ALL
-	button.custom_minimum_size = Vector2(width, UiKit.TOUCH_MIN)
+	button.custom_minimum_size = Vector2(width, BOOK_ROW_HEIGHT)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.mouse_entered.connect(button.grab_focus)
 	_row_accent(button, id)
 	var content := _row_content(button)
-	content.add_child(_name_label(title, 190.0 if width > 600.0 else 170.0))
+	content.add_child(_name_label(title, 132.0))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -740,15 +786,19 @@ func _show_page(index: int) -> void:
 		_pages[i].get_parent().visible = is_active
 		_tab_buttons[i].set_pressed_no_signal(false)
 		_tab_buttons[i].add_theme_stylebox_override("normal", ObjectKit.ribbon_style_box(i, is_active))
-		_tab_buttons[i].custom_minimum_size.y = 52.0 if is_active else 44.0
+		_tab_buttons[i].custom_minimum_size.y = 84.0 if is_active else 72.0
 		_set_tab_ember(i, is_active)
 	_tab_buttons[_tab].set_pressed_no_signal(true)
+	if _page_caption != null:
+		_page_caption.text = TAB_TITLES[_tab].replace(" ", "")
+		_page_note.text = ["余烬作声，锻炉有息。\n在右页记下合适的音量。", "灯火、震颤与画幅。\n把眼前炉厅调成习惯的样子。", "每一个动作，都刻在手边。\n在右页选一行，重新印下按键。", "旅途艰险，仍可量力而行。\n按自己的节奏调整旅程。"][ _tab ]
 	var dressing: Node = _shell.get("dressing")
 	if dressing != null and dressing.has_method("set_active_tab"):
 		dressing.call("set_active_tab", _tab)
 	_reset_keys.visible = _tab == TAB_KEYS
 	_wire_page_tail()
 	_apply_hint()
+	_layout_book.call_deferred()
 
 
 ## 底部提示带：有瞬时消息时盖着消息，平时写当前页的那句说明。

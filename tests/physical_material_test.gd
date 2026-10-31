@@ -25,11 +25,26 @@ func test_setting_ink_and_controls_stay_on_their_respective_pages() -> void:
 	var slider := settings.slider_for(&"Master")
 	var name_label := slider.get_parent().get_node("Name") as Label
 	var spine := card.global_position.x + card.size.x * 0.5
-	ok(name_label.get_global_rect().end.x < spine - 12.0)
+	ok(name_label.get_global_rect().position.x > spine + 12.0,
+			"setting names and values share the right folio")
 	ok(slider.get_global_rect().position.x > spine + 12.0)
 	ok(name_label.get_theme_color("font_color").get_luminance() < 0.22)
 	ok(settings.get_node("ModalRoot/SceneCopy") is BackBufferCopy)
 	ok(settings.get_node("ModalRoot/SceneBlur").material is ShaderMaterial)
+	var tabs := settings.get_node("ModalRoot/Card/Content/Body/Column/Tabs") as HBoxContainer
+	for i in 4:
+		var tab := tabs.get_child(i) as Button
+		ok(tab.get_global_rect().position.y < card.global_position.y,
+				"the clickable cloth bookmark emerges above the book")
+		ok(tab.get_global_rect().end.y > card.global_position.y,
+				"the cloth bookmark remains tucked into the page")
+		tab.pressed.emit()
+		eq(settings.current_tab(), i, "the cloth itself changes the active folio")
+	settings.show_tab(SettingsScreen.TAB_KEYS)
+	await flush(2)
+	var page := settings.get_node("ModalRoot/Card/Content/Body/Column/Pages") as Control
+	ok(page.get_global_rect().position.x > spine + 12.0,
+			"all four tabs keep their editable entries on the right page")
 	settings.close()
 	settings.queue_free()
 	await flush(1)

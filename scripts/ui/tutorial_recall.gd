@@ -49,7 +49,7 @@ func _build() -> void:
 	_shell = Modal.build(self, {
 		"object": ObjectKit.Kind.JOURNAL,
 		"title": "教 程 回 看",
-		"size": Vector2(880.0, 580.0),
+		"size": Vector2(880.0, 520.0),
 		"hint": "↑↓ 选择",
 		"back": "Esc / 回车 返回",
 		"veil": VEIL,
@@ -193,7 +193,14 @@ func _on_focus_changed(id: StringName) -> void:
 	_show_lesson(index)
 	var items := _menu.items()
 	if index >= 0 and index < items.size():
-		_scroll.ensure_control_visible.call_deferred(items[index] as Control)
+		var target := items[index] as Control
+		var scroll := _scroll
+		# open()/refresh() can replace the directory before this deferred scroll
+		# runs. An obsolete lesson row no longer belongs to the live page.
+		var reveal := func() -> void:
+			if is_instance_valid(scroll) and is_instance_valid(target) and scroll.is_ancestor_of(target):
+				scroll.ensure_control_visible(target)
+		reveal.call_deferred()
 
 
 func _render_keys(text: String) -> void:

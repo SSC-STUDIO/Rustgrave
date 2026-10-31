@@ -81,7 +81,7 @@ func test_settings_is_a_modal_card_with_plate_tabs() -> void:
 		ok(sb is StyleBoxTexture, "标签页底是布料书签样式盒")
 		if sb is StyleBoxTexture:
 			eq((sb as StyleBoxTexture).texture.get_size(),
-					Vector2(156.0, 52.0), "标签页底就是书签布条")
+					Vector2(112.0, 84.0), "标签页底就是探出书沿的燕尾布条")
 
 	screen.queue_free()
 	await get_tree().process_frame

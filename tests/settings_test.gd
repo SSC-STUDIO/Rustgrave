@@ -209,12 +209,13 @@ func test_settings_screen_slider_flushes_to_the_same_config_file() -> void:
 	await get_tree().process_frame
 
 
-## 键位页的两列网格必须装进 900px 花边卡的内容宽（832），不能在中文键名和
-## 「恢复默认键位」同时在场时向两侧挤出卡片。
+## Bindings live on the right folio. The scroll viewport stays on paper and
+## every row can be brought fully into that viewport without crossing the spine.
 func test_settings_key_grid_fits_inside_the_card() -> void:
 	var screen := SettingsScreen.new()
 	add_child(screen)
 	await get_tree().process_frame
+	screen.open()
 	screen.show_tab(SettingsScreen.TAB_KEYS)
 	await get_tree().process_frame
 	var card := screen.get_node_or_null("ModalRoot/Card") as Control
@@ -228,13 +229,17 @@ func test_settings_key_grid_fits_inside_the_card() -> void:
 				"key grid fits the card content width (%.0f <= %.0f)"
 				% [grid.get_combined_minimum_size().x, body_width])
 		var grid_rect := grid.get_global_rect()
-		ok(card_rect.encloses(grid_rect),
-				"key grid stays inside the ornate card (%s in %s)" % [grid_rect, card_rect])
+		var scroll := grid.get_parent().get_parent() as ScrollContainer
+		ok(card_rect.encloses(scroll.get_global_rect()), "binding viewport stays on paper")
+		ok(scroll.clip_contents, "long binding list is clipped by the right folio")
+		ok(scroll.global_position.x > card_rect.get_center().x, "bindings use the right page")
 		for action in Settings.REBINDABLE:
 			var button := screen.key_button_for(action)
 			if button != null:
-				ok(card_rect.encloses(button.get_global_rect()),
-						"%s row stays inside the card" % String(action))
+				scroll.ensure_control_visible(button)
+				await get_tree().process_frame
+				ok(scroll.get_global_rect().encloses(button.get_global_rect()),
+						"%s row can be read and edited completely on the right page" % String(action))
 	screen.queue_free()
 	await get_tree().process_frame
 
