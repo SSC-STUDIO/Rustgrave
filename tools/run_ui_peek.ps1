@@ -2,7 +2,8 @@ param(
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe',
     [string]$Sizes = '960x540,1280x720,1920x1080',
     [string]$Only = 'title,menus',
-    [string]$OutDir = 'screenshots/peek/ui-upgrade/menus-final'
+    [string]$OutDir = 'screenshots/peek/ui-upgrade/menus-final',
+    [string]$TextScale = ''
 )
 
 # Real render-target screenshots with disposable saves/settings for every size.
@@ -27,6 +28,7 @@ try {
             '--position', '-12000,-12000', '--resolution', $size,
             '--rendering-method', 'gl_compatibility', 'res://scenes/tools/UiPeek.tscn',
             '--', ('--out=res://' + $relativeOutput), ('--size=' + $size), ('--only=' + $Only))
+        if ($TextScale) { $arguments += @('--text-scale=' + $TextScale) }
         $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WindowStyle Hidden `
             -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $started = [DateTime]::UtcNow

@@ -150,6 +150,14 @@ class MenuShade:
 			draw_set_transform(center, 0.0, Vector2(1.0, ry / rx))
 			draw_circle(Vector2.ZERO, rx * t, fill)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		# 菜单自己的空气透视：上方更冷更远，下方靠近炉面更暖。不另加硬板。
+		var bands := 8
+		var band_h := size.y / float(bands)
+		for i in bands:
+			var u := float(i) / float(bands - 1)
+			var col := Color(0.45, 0.55, 0.68, 0.07 * (1.0 - u))
+			col = col.lerp(Color(0.55, 0.22, 0.08, 0.05 * u), u)
+			draw_rect(Rect2(0.0, floorf(band_h * float(i)), size.x, ceilf(band_h)), col)
 
 ## 覆盖存档的"按住火漆"进度圈：12 段余烬沿蜡封外圈逐段点亮。
 ## 按下开始填、松手提前取消就清空；填满才真的压蜡。
@@ -743,7 +751,9 @@ func _build_journey() -> void:
 
 	var header := UiKit.label("旅 程", &"TinyStrongLabel")
 	header.name = "JourneyHeader"
-	header.modulate = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 0.72)
+	# 余烬色乘在锈字上再乘 0.72 时，亮态标题实测只有约 3.8:1。不透明度拉满后亮态能过 4.5:1；
+	# 没停在「继续」上时仍由 JourneyInk 的 JOURNEY_DIM 把整列压淡。
+	header.modulate = Color(UiKit.EMBER.r, UiKit.EMBER.g, UiKit.EMBER.b, 1.0)
 	header.position = Vector2(0.0, 0.0)
 	header.size = Vector2(72.0, 16.0)
 	_journey_ink.add_child(header)
@@ -2238,18 +2248,20 @@ func _build_confirm() -> void:
 	_confirm_seal_button.tooltip_text = SEAL_HOLD_LABEL
 	_confirm_seal_button.focus_mode = Control.FOCUS_ALL
 	_confirm_seal_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_confirm_seal_button.size = Vector2(48.0, 48.0)
+	# 信笺主题的按钮样式有 64+28 的内容边距。进树时会把点按区撑到 92px 宽，
+	# 比 36px 蜡封大一圈。空样式盖掉主题后，再把尺寸锁回 48，否则宽度不会缩回去。
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		_confirm_seal_button.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 	var focus_ring := StyleBoxFlat.new()
 	focus_ring.bg_color = Color.TRANSPARENT
 	focus_ring.border_color = UiKit.EMBER
 	focus_ring.set_border_width_all(2)
+	focus_ring.set_content_margin_all(0.0)
 	focus_ring.set_corner_radius_all(12)
 	_confirm_seal_button.add_theme_stylebox_override("focus", focus_ring)
+	_lock_confirm_seal_button_size()
 	root.add_child(_confirm_seal_button)
-	print("SEAL-TITLE build size=", _confirm_seal_button.size, " roottype=", root.get_class(),
-			" in_tree=", _confirm_seal_button.is_inside_tree())
+	_lock_confirm_seal_button_size()
 	# 按住 0.45s 才生效：按下开始填圈，松手（没满）取消；键盘改走 _on_confirm_chosen 两步确认。
 	_confirm_seal_button.button_down.connect(_begin_seal_hold)
 	_confirm_seal_button.button_up.connect(_end_seal_hold)
@@ -2279,6 +2291,13 @@ func _ink_letter_label(label: Label, color: Color = LETTER_INK) -> void:
 	label.add_theme_constant_override("outline_size", 0)
 
 
+func _lock_confirm_seal_button_size() -> void:
+	if _confirm_seal_button == null:
+		return
+	_confirm_seal_button.custom_minimum_size = Vector2(48.0, 48.0)
+	_confirm_seal_button.size = Vector2(48.0, 48.0)
+
+
 func _place_confirm_seal_button() -> void:
 	if _confirm_seal_button == null:
 		return
@@ -2286,6 +2305,7 @@ func _place_confirm_seal_button() -> void:
 	if seal == null:
 		return
 	var center: Vector2 = seal.call("seal_center")
+	_lock_confirm_seal_button_size()
 	_confirm_seal_button.position = (center - _confirm_seal_button.size * 0.5).round()
 	if _confirm_seal_hint != null:
 		_confirm_seal_hint.position = Vector2(
@@ -2306,9 +2326,7 @@ func open_confirm() -> void:
 	_confirm_seal_button.disabled = false
 	_confirm_menu.select(0, false)
 	(_confirm_shell["play_intro"] as Callable).call()
-	print("SEAL-TITLE open-before-place size=", _confirm_seal_button.size)
 	_place_confirm_seal_button()
-	print("SEAL-TITLE open-after-place size=", _confirm_seal_button.size)
 	_sync_aux_focus()
 
 

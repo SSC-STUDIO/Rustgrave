@@ -110,3 +110,60 @@
 - 4K 世界渲染密度上限为 4（QHD 缓冲放大），本轮不动。
 - 3440×1440 在 INTEGER 模式下有 440px 黑边；可用设置里的 EXPAND 模式，本轮不默认化。
 - 单存档、无语言切换；`true_break` 标题变体的入口/存档语义沿用现有结局流程。
+
+---
+
+## 7. 验收记录（2026-10-31 执行层收尾）
+
+§4 映射在开跑前已经落在代码和测试里。本轮补的是证据，以及跑测/实拍里露出的两处小问题。没有改 7 行菜单、活景构图，也没有加入口。
+
+### 7.1 跑测中修掉的两处
+
+- 火漆点按区被信笺主题的按钮最小宽度撑到 92×48。空样式盖掉主题后，尺寸锁回 48×48，并按蜡封中心重新摆放（`title_screen.gd` 的 `_lock_confirm_seal_button_size`）。
+- 「旅 程」标题用余烬色去乘锈字，再乘 0.72 不透明度。亮态（焦点在「继续」）实拍只有约 3.8:1。子节点不透明度改为 1；没停在「继续」上时仍由 `JOURNEY_DIM`（0.62）把整列压淡。
+
+`tools/title_peek.gd` 的幕次存档从已删除的 `level02/04/08/10` 改到现行 `stage02/04/05/07`，结局回退场景改为 `stage08_true`，否则 `true_break` 矩阵无法加载。`tools/ui_peek.gd` 增加 `--text-scale`，用来拍 135% 设置页。
+
+### 7.2 自动化
+
+| 门禁 | 结果 |
+|---|---|
+| `title_` | 133/133，0 engine errors（≥130） |
+| `comfort` | 7/7，0 engine errors |
+| `display` | 13/13，0 engine errors |
+| TitleMetrics 1280×720 / 1920×1080 / 2560×1080 | `0 problem(s)` |
+
+日志：`screenshots/acceptance/title-polish-2026-10-31/tests-title/`、`tests-comfort/`、`tests-display/`、`metrics/title-metrics.log`。
+
+`letter_gesture` 不在本轮过滤器里。顺手跑了一次：4 例里 2 例失败，都不是 48px 锁尺寸引入的（蜡封中心仍落在按钮内）。`test_clicking_the_wax_itself_confirms_without_replacing_progress` 仍按“点一下就确认”写，和已采用的按住 0.45s 相反。`test_reopening_during_a_fold_cancels_its_late_close` 在信笺还开着时再调 `open_confirm()`，而 `open_confirm` 看到 `confirm_open()` 会直接返回。这两处保持原行为，不在本轮改。
+
+本轮没有做实体手柄/触屏走查。手柄 Y、触屏点按档案、退场 grace、火漆短按/长按由现有用例覆盖。
+
+### 7.3 截图
+
+- 矩阵 100 张：`screenshots/acceptance/title-polish-2026-10-31/`  
+  `cold` / `act2` / `keep` / `true_break` × `960×540` / `1280×720` / `1920×1080` / `2560×1080` / `3440×1440` × `idle` + 四档 `focus`。`true_break` 的 1920 idle 记录为 14/14 灯、变体 `true_break`。
+- 确认信：`screenshots/peek/title-polish-2026-10-31/1280x720/title_confirm_1280x720.png`
+- 135% 设置：`screenshots/peek/title-polish-2026-10-31-scale135/1280x720/title_settings_1280x720.png`
+
+人工看过：1920 cold（冷炉、无档写「尚无存档」）、1920 keep（坐炉边、14/14、「守炉」）、1280 确认信（深墨正文、火漆、按住说明）、135% 设置（账簿正文未撑破纸页）。135% 下标题菜单仍是横排，没有叠成竖条。
+
+### 7.4 对比度（Pillow，WCAG 相对亮度）
+
+亮态以 act2 / keep 的「继续」焦点为准。暗态是冷启动，整列乘 `JOURNEY_DIM`。
+
+| 抽样 | 对比度 | 判定 |
+|---|---|---|
+| 页脚署名（1920 / 1280） | 12.2:1 | 过 |
+| 旅程章名，亮态（1920 act2 / keep，1280 act2） | 5.0:1 | 过 |
+| 「旅 程」标题，亮态（修后 1920 act2） | 6.6:1 | 过 |
+| 确认信正文 / 火漆说明 / 页脚提示 | 10.9 / 10.8 / 9.3:1 | 过 |
+| 135% 设置左页正文 | 10.4:1 | 过 |
+| 旅程章名，冷启动暗态 | 1.4:1 | 按设计压淡，不过 4.5 |
+| 「旅 程」标题，冷启动暗态 | 3.2:1 | 同上 |
+
+暗态不过 4.5 是 `JOURNEY_DIM = 0.62` 的结果；测试锁着这个数，焦点移到「继续」才亮。本轮不把暗态抬到和亮态一样。
+
+### 7.5 仍保留的限制
+
+1080p 的 UI 仍是 1280×720 画布的 1.5× 放大。单存档，无语言切换，无常显版本号。3440×1440 的 INTEGER 黑边未改默认。实体手柄手感未在本轮复测。

@@ -36,6 +36,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	_draw_aerial()
 	_draw_warm_bounce()
 
 	# 两条雾带对着飘，整像素，所以墙后面是在动的空气而不是一块平涂。
@@ -56,6 +57,14 @@ func _draw() -> void:
 		var p := WINDOWS[i]
 		draw_rect(Rect2(p, Vector2(3.0, 4.0)), Color(1.0, 0.48, 0.18, hot * 0.4))
 		draw_rect(Rect2(p + Vector2(1.0, 1.0), Vector2(1.0, 2.0)), Color(1.0, 0.92, 0.7, hot))
+
+
+## 拱顶空气透视：越往上越冷、越薄，把远厅推远；桥面以下不盖，暖色留在近处。
+func _draw_aerial() -> void:
+	for i in 6:
+		var y := float(i) * 18.0
+		var u := 1.0 - float(i) / 5.0
+		draw_rect(Rect2(-80.0, y, 800.0, 18.0), Color(0.55, 0.64, 0.76, 0.045 * u * u))
 
 
 func _draw_warm_bounce() -> void:

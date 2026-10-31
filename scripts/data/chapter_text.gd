@@ -486,7 +486,7 @@ const EVENTS := {
 
 
 static func has(id: String) -> bool:
-	return CHAPTERS.has(id)
+	return CHAPTERS.has(id) or LEGACY_CHAPTERS.has(id)
 
 
 static func _entry(id: String) -> Dictionary:

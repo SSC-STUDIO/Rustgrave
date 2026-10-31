@@ -10,7 +10,7 @@ extends Node
 ## --sigils=demo   seed a handful of demo ember sigils (visits + deaths) into the
 ##                 peek's disposable sigil store, so the title's sigil ring /
 ##                 personal epitaphs / dossier row render (CI screenshots do this)
-## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff     (default: all)
+## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff | true_break     (default: all but true_break)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
 ## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
 ##             'dossier' pins the journey dossier card open, 'recap' opens the recap page)

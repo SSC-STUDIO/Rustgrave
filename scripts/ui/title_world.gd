@@ -119,9 +119,15 @@ const POINTER_EASE := 3.2
 const FAR_WALL_SHADER := """shader_type canvas_item;
 void fragment() {
 	vec4 wall = texture(TEXTURE, UV);
-	float air = 1.0 - smoothstep(0.035, 0.15, dot(wall.rgb, vec3(0.2126, 0.7152, 0.0722)));
-	float upper = 1.0 - smoothstep(0.40, 0.70, UV.y);
-	COLOR.a *= 1.0 - air * upper * 0.80;
+	float luma = dot(wall.rgb, vec3(0.2126, 0.7152, 0.0722));
+	float air = 1.0 - smoothstep(0.035, 0.16, luma);
+	// Upper hall is farther: lose contrast, shift cold, and open the dark air.
+	float upper = 1.0 - smoothstep(0.28, 0.82, UV.y);
+	float depth = upper * mix(0.35, 1.0, air);
+	vec3 cold = vec3(0.42, 0.52, 0.66);
+	vec3 lifted = mix(vec3(luma), wall.rgb, 1.0 - depth * 0.65);
+	vec3 faded = mix(lifted, cold * (0.28 + luma * 0.55), depth * 0.78);
+	COLOR = vec4(faded, wall.a * (1.0 - air * upper * 0.92));
 }
 """
 static var _far_wall_shader: Shader

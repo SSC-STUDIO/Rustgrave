@@ -790,7 +790,7 @@ func test_menu_shade_exists_and_stays_left_of_midline() -> void:
 	await get_tree().process_frame
 
 
-## T2: 锁定铁签悬挂在锁定项下方，不与其他任何菜单行矩形相交，且避开右侧场景告示牌。
+## T2: 锁定说明贴在试炼题字右侧、同一行内，不与其他菜单行相交，也不越过画面中线。
 func test_lock_tag_exists_and_does_not_intersect_other_rows() -> void:
 	var saved_flags := SaveData.flags.duplicate()
 	var saved_ending := SaveData.ending
@@ -809,13 +809,18 @@ func test_lock_tag_exists_and_does_not_intersect_other_rows() -> void:
 		ok(tag.visible, "未解锁时 LockTag 可见")
 		var tag_rect := title.design_rect(tag)
 		var items := _items(title)
+		var trial: MenuItem = items[2]
+		var trial_rect := title.design_rect(trial)
+		ok(tag_rect.position.y >= trial_rect.position.y - 1.0, "锁定说明与试炼行同一行")
+		ok(tag_rect.end.y <= trial_rect.end.y + 1.0, "锁定说明不落到下一行")
+		ok(tag_rect.position.x > trial_rect.position.x + 80.0, "锁定说明在题字右侧")
+		ok(tag_rect.end.x < 640.0, "锁定说明停在画面中线左侧 (%.0f)" % tag_rect.end.x)
 		for item in items:
 			if item.id == &"trial":
 				continue
 			var item_rect: Rect2 = title.design_rect(item)
 			ok(not tag_rect.intersects(item_rect),
 					"LockTag 不与菜单行 %s 重叠 (tag=%s, row=%s)" % [item.id, tag_rect, item_rect])
-		ok(tag_rect.end.x < 240.0, "锁定铁签避开场景右侧告示牌 (%.0f < 240)" % tag_rect.end.x)
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -1283,11 +1288,6 @@ func test_confirm_letter_ink_and_seal_inset() -> void:
 	var hint := root.find_child("SealHint", true, false) as Label
 	ok(hint != null, "蜡封上方有可见操作说明")
 	if seal_button != null and hint != null:
-		print("SEAL-DEBUG size=%s pos=%s min=%s sb_min=%s font=%d textlen=%d same=%s" % [seal_button.size,
-				seal_button.position, seal_button.get_combined_minimum_size(),
-				seal_button.get_theme_stylebox("normal").get_minimum_size(),
-				seal_button.get_theme_font_size("font_size"), seal_button.text.length(),
-				title._confirm_seal_button == seal_button])
 		almost(seal_button.size.x, 48.0, 0.5, "蜡封按钮 48px")
 		almost(seal_button.size.y, 48.0, 0.5, "蜡封按钮 48px 高")
 		eq(hint.text, TitleScreen.SEAL_HOLD_LABEL, "说明文案是「按住火漆 · 确认覆盖」")

@@ -8,6 +8,7 @@ extends Node
 ##
 ##   tools/ui_peek.ps1                      (writes screenshots/ui_peek/*.png)
 ##   ... -- --out=res://screenshots/x --size=1920x1080 --level=level01 --only=title,hud,menus
+##   --text-scale=1.35 applies Settings text_scale before any screen is built.
 ##
 ## --only takes a comma list of groups: title, hud, menus, cine (default: all).
 
@@ -18,6 +19,7 @@ var _out := "res://screenshots/ui_peek"
 var _size := Vector2i(1920, 1080)
 var _level := "level01"
 var _only: PackedStringArray = []
+var _text_scale := -1.0
 var _shots := 0
 
 
@@ -37,6 +39,8 @@ func _ready() -> void:
 			_level = arg.trim_prefix("--level=")
 		elif arg.begins_with("--only="):
 			_only = arg.trim_prefix("--only=").split(",")
+		elif arg.begins_with("--text-scale="):
+			_text_scale = float(arg.trim_prefix("--text-scale="))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
@@ -47,6 +51,8 @@ func _ready() -> void:
 	# Disposable settings too: the capture must not read or write the player's file.
 	Settings.save_path = _out + "/peek_settings.cfg"
 	Settings.load_settings()
+	if _text_scale > 0.0:
+		Settings.set_value(&"text_scale", _text_scale, false)
 	if _wants("title"):
 		await _title()
 	if _wants("hud") or _wants("menus") or _wants("cine"):

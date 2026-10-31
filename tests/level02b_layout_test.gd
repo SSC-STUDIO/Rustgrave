@@ -44,7 +44,7 @@ func test_metadata_and_text_come_from_chapter_text() -> void:
 	var layout: ChapterLayout = LAYOUT.new()
 	eq(layout.level_id(), CHAPTER_ID)
 	eq(layout.title(), ChapterText.title_of(CHAPTER_ID))
-	eq(layout.title(), "锈墓・叁 — 运渣水渠")
+	eq(layout.title(), "锈墓・旧·叁 — 运渣水渠")
 	eq(layout.wake_line(), ChapterText.wake_of(CHAPTER_ID))
 	eq(layout.theme(), "undercroft")
 	ok(layout.indoors(), "运渣水渠是室内关")

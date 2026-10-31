@@ -47,7 +47,7 @@ try {
     $env:RUSTGRAVE_NO_UPDATE_CHECK = $previousUpdateCheck
     $env:RUSTGRAVE_ALLOW_SMALL_WINDOW = $previousAllowSmall
 }
-if (-not $process.WaitForExit(300000)) {
+if (-not $process.WaitForExit(600000)) {
     Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $process.Id) | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
     if (-not $process.HasExited) { $process.Kill() }
     throw 'title_peek timed out'

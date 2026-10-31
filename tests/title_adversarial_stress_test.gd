@@ -70,7 +70,7 @@ func _items(title: TitleScreen) -> Array[MenuItem]:
 	return out
 
 
-## 场景 1：LockTag 在各种分辨率与视口配置下均不与任何其他菜单行相交，且避开右侧场景告示牌
+## 场景 1：LockTag 在各种分辨率下贴在试炼行右侧，不与其他菜单行相交，也不越过中线
 func test_lock_tag_non_intersection_across_resolutions() -> void:
 	var title: TitleScreen = await _open_title()
 	var tag := title.find_child("LockTag", true, false) as Control
@@ -92,8 +92,16 @@ func test_lock_tag_non_intersection_across_resolutions() -> void:
 		await get_tree().process_frame
 
 		var tag_design_rect: Rect2 = title.design_rect(tag)
-		ok(tag_design_rect.end.x < SCENE_SIGNS_X,
-				"LockTag 右端严格避开场景告示牌 @%s (tag_end_x=%.1f < %.1f)" % [win, tag_design_rect.end.x, SCENE_SIGNS_X])
+		var trial_row: MenuItem = items[2]
+		var trial_rect: Rect2 = title.design_rect(trial_row)
+		ok(tag_design_rect.position.y >= trial_rect.position.y - 1.0,
+				"LockTag 与试炼行同一行 @%s" % win)
+		ok(tag_design_rect.end.y <= trial_rect.end.y + 1.0,
+				"LockTag 不落到下一行 @%s" % win)
+		ok(tag_design_rect.position.x > trial_rect.position.x + 80.0,
+				"LockTag 在题字右侧 @%s (x=%.1f)" % [win, tag_design_rect.position.x])
+		ok(tag_design_rect.end.x < KEYART_CENTER,
+				"LockTag 右端停在中线左侧 @%s (tag_end_x=%.1f)" % [win, tag_design_rect.end.x])
 
 		for item in items:
 			if item.id == &"trial":
@@ -101,19 +109,6 @@ func test_lock_tag_non_intersection_across_resolutions() -> void:
 			var item_rect: Rect2 = title.design_rect(item)
 			ok(not tag_design_rect.intersects(item_rect),
 					"LockTag 不与菜单行 %s 重叠 @%s (tag=%s, row=%s)" % [item.id, win, tag_design_rect, item_rect])
-
-		# 特别针对 Row 1 ("continue" / "开启新征程") 与 Row 3 ("arena" / "余烬竞技场") 进行严格间隙验证
-		var row1: MenuItem = items[1]
-		var row3: MenuItem = items[3]
-		var r1_rect: Rect2 = title.design_rect(row1)
-		var r3_rect: Rect2 = title.design_rect(row3)
-
-		ok(tag_design_rect.position.y > r1_rect.end.y + 10.0,
-				"LockTag 顶部与 Row 1 底部留有安全间距 @%s (tag_top=%.1f > r1_bot=%.1f + 10)" %
-				[win, tag_design_rect.position.y, r1_rect.end.y])
-		ok(tag_design_rect.end.y <= r3_rect.position.y - 1.0,
-				"LockTag 底部不接触 Row 3 顶部 @%s (tag_bot=%.1f <= r3_top=%.1f - 1)" %
-				[win, tag_design_rect.end.y, r3_rect.position.y])
 
 	title.queue_free()
 	await get_tree().process_frame

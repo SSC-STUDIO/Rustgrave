@@ -115,7 +115,7 @@ var _panel: Panel
 var _plate: TextureRect
 var _label: Label
 var _note: Label
-## 小注是行内右侧（不撑高行），还是悬挂铁签（试炼未解锁）。
+## 小注是行内右侧（不撑高行）。试炼未解锁时贴在题字右边，不再挂铁签。
 var _note_inline := false
 var _lock_tag: LockTag
 var _cursor: TextureRect
@@ -134,34 +134,13 @@ var _cursor_base_y := 0.0
 var _cursor_tween: Tween
 var _shift_tween: Tween
 
-## 悬挂在锁定菜单项下方的铁签（T2）：一根 ~6px 小链 + 12px 小字。
+## 锁定说明的定位盒：贴在题字右侧、与题字同一行。不画铁签，厅景从字缝里透出来。
 class LockTag:
 	extends Control
-
-	var _chain_x := 18.0
-	var _tag_h := 12.0
-	var _chain_len := 6.0
 
 	func _init() -> void:
 		name = "LockTag"
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	func _draw() -> void:
-		# 6px 小链
-		var cx := _chain_x
-		draw_line(Vector2(cx, 0.0), Vector2(cx, _chain_len), Color(0.45, 0.40, 0.38, 0.85), 1.0)
-		draw_rect(Rect2(cx - 1.0, 1.0, 3.0, 2.0), Color(0.55, 0.48, 0.42, 0.9))
-		draw_rect(Rect2(cx - 1.0, 4.0, 3.0, 2.0), Color(0.38, 0.32, 0.30, 0.9))
-		# 12px 铁签底板
-		var tag_rect := Rect2(0.0, _chain_len, size.x, _tag_h)
-		draw_rect(tag_rect, Color(0.09, 0.075, 0.11, 0.88))
-		# 铁签边框与阴影
-		draw_rect(Rect2(0.0, _chain_len, size.x, 1.0), Color(0.32, 0.26, 0.22, 0.85))
-		draw_rect(Rect2(0.0, _chain_len + _tag_h - 1.0, size.x, 1.0), Color(0.20, 0.16, 0.15, 0.85))
-		draw_rect(Rect2(0.0, _chain_len, 1.0, _tag_h), Color(0.30, 0.24, 0.20, 0.85))
-		draw_rect(Rect2(size.x - 1.0, _chain_len, 1.0, _tag_h), Color(0.20, 0.16, 0.15, 0.85))
-		# 链扣铆钉
-		draw_rect(Rect2(cx - 1.0, _chain_len + 1.0, 2.0, 2.0), Color(0.68, 0.58, 0.42, 0.95))
 
 
 func _init(text: String = "", item_kind: Kind = Kind.DEFAULT) -> void:
@@ -343,8 +322,9 @@ func set_lamp_light(amount: float) -> void:
 		_paint_lamp()
 
 
-## 条右端的小字（例如试炼未解锁时的"第七章后解锁"）；空串 = 不显示。
-## inline=true：灯标行右侧的 10px 行内注（章节/进度），行高保持 52，不挂铁签。
+## 条上的小字。空串 = 不显示。
+## inline=true：贴在行右缘的 10px 行内注（章节/进度）。
+## 灯标行的锁定说明（试炼未解锁）贴在题字右侧、同一基线，比题字小一号、更淡。
 func set_note(value: String, inline: bool = false) -> void:
 	if _note == null:
 		return
@@ -372,26 +352,21 @@ func set_note(value: String, inline: bool = false) -> void:
 	if lamp:
 		if has_text and _lock_tag == null:
 			_lock_tag = LockTag.new()
-			_lock_tag.position = Vector2(LAMP_LABEL_X + 6.0, 31.0)
-			_lock_tag.size = Vector2(88.0, 18.0)
 			add_child(_lock_tag)
 			_note.reparent(_lock_tag)
-			_note.position = Vector2(0.0, 6.0)
-			_note.size = Vector2(88.0, 12.0)
-			_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_note.position = Vector2.ZERO
+			_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 			_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			_note.add_theme_font_size_override("font_size", 10)
-			_note.add_theme_color_override("font_color", Color(0.72, 0.68, 0.62, 0.9))
+			_note.add_theme_font_size_override("font_size", 14)
+			_note.add_theme_color_override("font_color", Color(0.58, 0.52, 0.46, 0.88))
 			_note.add_theme_constant_override("outline_size", 1)
-			_note.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.92))
+			_note.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.06, 0.85))
 		if _lock_tag != null:
 			_lock_tag.visible = has_text
-		if has_text and _label != null:
-			_label.position.y = 2.0
-			_label.size.y = 26.0
-		elif _label != null:
+		if _label != null:
 			_label.position.y = 0.0
 			_label.size.y = HEIGHT
+		_place_lock_beside_title(0.0)
 	elif has_text:
 		_note.add_theme_font_size_override("font_size", 10)
 		_note.modulate = Color(0.70, 0.65, 0.60, 0.85)
@@ -403,7 +378,7 @@ func _apply_land() -> void:
 	var ox := -land * LAND_SHIFT
 	_label.position.x = (LAMP_LABEL_X if lamp else STRIP_LABEL_X) + ox
 	if _lock_tag != null:
-		_lock_tag.position.x = LAMP_LABEL_X + 6.0 + ox
+		_place_lock_beside_title(ox)
 	elif _note != null:
 		if _note_inline:
 			_note.position.x = _inline_note_x() + ox
@@ -610,19 +585,52 @@ func _refresh_lamp() -> void:
 	_paint_lamp()
 
 
+func _row_depth() -> float:
+	var host := get_parent()
+	if not (host is MenuList):
+		return 0.5
+	var span := maxf((host as Control).size.y - size.y, 1.0)
+	return clampf(position.y / span, 0.0, 1.0)
+
+
+## 锁定说明贴在题字右侧，和题字同一行。ox 是开屏落位的左移。
+func _place_lock_beside_title(ox: float) -> void:
+	if _lock_tag == null or _note == null or not _lock_tag.visible:
+		return
+	var text_w := underline_span()
+	if text_w < 8.0:
+		text_w = 96.0
+	var base_x := (LAMP_LABEL_X if lamp else STRIP_LABEL_X) + text_w + 12.0
+	var row_w: float = STRIP_WIDTH.get(kind, 344.0)
+	var note_w := maxf(row_w - base_x - 4.0, 72.0)
+	# 比行身矮一截，和题字同一条中线，缩放取整时也不会贴到下一行。
+	var note_h := 22.0
+	_lock_tag.position = Vector2(base_x + ox, floorf((HEIGHT - note_h) * 0.5))
+	_lock_tag.size = Vector2(note_w, note_h)
+	_note.position = Vector2.ZERO
+	_note.size = _lock_tag.size
+
+
 func _paint_lamp() -> void:
 	if _label == null or not lamp:
 		return
 	if disabled:
 		# 禁用行：冷灰 + 可调的透明度；描边仍由主题给的高对比深色独立画。
-		_label.add_theme_color_override("font_color",
-				Color(0.68, 0.64, 0.60, clampf(disabled_alpha, 0.0, 1.0)))
+		# 靠上的禁用行再偏一点冷，跟上厅里的空气透视。
+		var gray := Color(0.68, 0.64, 0.60, 1.0)
+		gray = gray.lerp(Color(0.60, 0.66, 0.74), (1.0 - _row_depth()) * 0.35)
+		gray.a = clampf(disabled_alpha, 0.0, 1.0)
+		_label.add_theme_color_override("font_color", gray)
 		return
 	var warmth := lamp_light
 	if selected:
 		var breath := 0.5 + 0.5 * sin(TAU * _time / BREATH_PERIOD)
 		warmth = maxf(warmth, lerpf(0.88, 1.0, breath))
 	var cold_col := Color(0.65, 0.60, 0.54)
+	# 空气透视：越靠上的行越远、越冷；越靠下越靠近炉面、越暖。选中行仍由吊灯烤暖。
+	var depth := _row_depth()
+	cold_col = cold_col.lerp(Color(0.58, 0.64, 0.72), (1.0 - depth) * 0.45)
+	cold_col = cold_col.lerp(Color(0.72, 0.58, 0.46), depth * 0.28)
 	var warm_bake := Color(0.90, 0.65, 0.36)
 	var col: Color
 	if warmth < 0.55:
