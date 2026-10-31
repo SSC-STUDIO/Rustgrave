@@ -7,8 +7,22 @@ const SaveScript := preload("res://scripts/autoload/save_data.gd")
 const TEST_SAVE := "user://rustgrave_new_game_handoff_test.cfg"
 
 class RefusingSave extends "res://scripts/autoload/save_data.gd":
-	func _write_cfg(_cfg: ConfigFile) -> bool:
+	var attempted_profiles: Array[Dictionary] = []
+	func _write_cfg(cfg: ConfigFile) -> bool:
+		attempted_profiles.append({
+			"skin_id": String(cfg.get_value("profile", "skin_id", "")),
+			"skin_rune": String(cfg.get_value("profile", "skin_rune", "")),
+		})
 		return false
+
+class RecordingSave extends "res://scripts/autoload/save_data.gd":
+	var written_profiles: Array[Dictionary] = []
+	func _write_cfg(cfg: ConfigFile) -> bool:
+		written_profiles.append({
+			"skin_id": String(cfg.get_value("profile", "skin_id", "")),
+			"skin_rune": String(cfg.get_value("profile", "skin_rune", "")),
+		})
+		return super._write_cfg(cfg)
 
 class RefusingTitle extends "res://scripts/ui/title_screen.gd":
 	func _initialize_new_game(_origin_id: StringName, _loadout: Dictionary) -> bool:
@@ -68,10 +82,19 @@ func _legacy_cfg() -> ConfigFile:
 func test_all_identities_start_at_authored_spawn_and_keep_loadout() -> void:
 	eq(SaveScript.NEW_GAME_SPAWN, Level01Static.DEFAULT_SPAWN,
 			"initializer agrees with the authored level foot point")
+	var recording := RecordingSave.new()
+	recording.save_path = TEST_SAVE
 	for origin in OriginCatalog.get_all_origins():
+		var skin := SkinCatalog.default_for_origin(origin.id)
+		var rune := &"rune_ember_grip"
 		var loadout := {"weapon": origin.default_weapon, "armor": origin.default_armor,
-				"trinket": &"bone_amulet", "bag": [&"broken_sword"]}
-		ok(SaveData.init_new_game(origin.id, loadout), "new identity was saved")
+				"trinket": &"bone_amulet", "bag": [&"broken_sword"], "skin": skin, "rune": rune}
+		var writes_before := recording.written_profiles.size()
+		ok(recording.init_new_game(origin.id, loadout), "new identity was saved")
+		eq(recording.written_profiles.size(), writes_before + 1,
+				"identity, gear and appearance are committed by one write")
+		eq(recording.written_profiles.back(), {"skin_id": String(skin), "skin_rune": String(rune)},
+				"the first write already contains the selected appearance")
 		var cfg := _cfg()
 		eq(Vector2(cfg.get_value("player", "pos_x"), cfg.get_value("player", "pos_y")),
 				Level01Static.DEFAULT_SPAWN, "fresh save never starts at world zero")
@@ -81,7 +104,15 @@ func test_all_identities_start_at_authored_spawn_and_keep_loadout() -> void:
 		eq(String(cfg.get_value("equipment", "armor")), String(origin.default_armor))
 		eq(String(cfg.get_value("equipment", "trinket")), "bone_amulet")
 		eq(cfg.get_value("equipment", "bag"), ["broken_sword"])
+		eq(String(cfg.get_value("profile", "skin_id")), String(skin))
+		eq(String(cfg.get_value("profile", "skin_rune")), String(rune))
+		eq(recording.skin_id, String(skin), "successful write updates the live skin")
+		eq(recording.skin_rune, String(rune), "successful write updates the live rune")
+		ok(SaveData.load_game(), "the committed identity can be restored")
+		eq(SaveData.skin_id, String(skin))
+		eq(SaveData.skin_rune, String(rune))
 		ok(Opening.should_play(), "a saved selection still receives its opening")
+	recording.free()
 
 func test_real_first_level_restores_safe_spawn_and_skip_survives_continue() -> void:
 	var origin := OriginCatalog.rust_automaton()
@@ -174,12 +205,15 @@ func test_legacy_repair_never_rewinds_progress_or_an_explicit_continue() -> void
 		ok(not SaveData.opening_pending, "do not replay opening for an ambiguous old save")
 
 func test_failed_initializer_preserves_previous_disk_session_and_clock() -> void:
-	ok(SaveData.init_new_game(&"ember_vanguard"))
+	ok(SaveData.init_new_game(&"ember_vanguard", {
+		"skin": &"skin_ash_runner", "rune": &"rune_toxin_filter"}))
 	var before_bytes := FileAccess.get_file_as_bytes(TEST_SAVE)
 	var refusing := RefusingSave.new()
 	add_child(refusing)
 	refusing.save_path = TEST_SAVE
 	refusing.data = SaveData.data.duplicate(true)
+	refusing.skin_id = SaveData.skin_id
+	refusing.skin_rune = SaveData.skin_rune
 	refusing.flags = PackedStringArray(["wake", "boss_dead"])
 	refusing.consumed = PackedStringArray(["Props/Remnant"])
 	refusing.lit_nests = PackedStringArray(["Props/EmberNest"])
@@ -191,9 +225,14 @@ func test_failed_initializer_preserves_previous_disk_session_and_clock() -> void
 	WorldClock.set_weather(WorldClock.Weather.RAIN, true)
 	var before_data: Dictionary = refusing.data.duplicate(true)
 	var before_clock := WorldClock.snapshot()
-	ok(not refusing.init_new_game(&"rust_automaton"), "failure is reported to the caller")
+	ok(not refusing.init_new_game(&"rust_automaton", {
+		"skin": &"skin_cemetery_hero", "rune": &"rune_unbroken"}), "failure is reported to the caller")
+	eq(refusing.attempted_profiles, [{"skin_id": "skin_cemetery_hero", "skin_rune": "rune_unbroken"}],
+			"the failed atomic write included the replacement appearance")
 	eq(FileAccess.get_file_as_bytes(TEST_SAVE), before_bytes, "old save remains byte for byte")
 	eq(refusing.data, before_data, "old character and equipment remain live")
+	eq(refusing.skin_id, "skin_ash_runner", "failed write keeps the previous live skin")
+	eq(refusing.skin_rune, "rune_toxin_filter", "failed write keeps the previous live rune")
 	eq(refusing.flags, PackedStringArray(["wake", "boss_dead"]))
 	eq(refusing.consumed, PackedStringArray(["Props/Remnant"]))
 	eq(refusing.lit_nests, PackedStringArray(["Props/EmberNest"]))
@@ -329,7 +368,9 @@ func test_real_level_reload_heals_checkpoint_but_preserves_wounded_continue() ->
 			cfg.set_value("player", "pos_y", spawn.y)
 			cfg.set_value("player", "hp", 1)
 			cfg.set_value("player", "toxin", 50.0)
-			cfg.set_value("story", "flags", ["wake", "opening_seen", "level03_wake"])
+			# This fixture tests arrival replay, so its existing toxin is already familiar.
+			# Otherwise the first nonzero toxin tick starts the separate toxin tutorial.
+			cfg.set_value("story", "flags", ["wake", "opening_seen", "level03_wake", "toxin"])
 			cfg.set_value("story", "opening_pending", false)
 			eq(cfg.save(TEST_SAVE), OK)
 			SaveData.pending_spawn = spawn + Vector2(12, 0)
