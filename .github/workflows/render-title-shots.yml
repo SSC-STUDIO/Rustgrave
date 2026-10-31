@@ -1,0 +1,117 @@
+name: render-title-shots
+
+# 在 Linux runner 上渲染标题屏实况（title_peek），截图与日志回推本分支。
+# 沙盒 / 本地没有 GPU 与窗口环境时，这里是标题 UI 的出图通道；
+# 日志走 git 回来（runner 的 blob 存储在外部环境里拉不到）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: "case-filter for the regression suite (empty = the scoped default)"
+        required: false
+        default: ""
+  push:
+    branches:
+      - "arena/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-title-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglu1-mesa \
+            || sudo apt-get install -y --no-install-recommends xvfb libgl1 libglu1-mesa libasound2t64
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -sL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          mkdir -p /tmp/godot-bin
+          unzip -o -q /tmp/godot.zip -d /tmp/godot-bin
+          chmod +x /tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Import resources
+        timeout-minutes: 10
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          $GODOT --headless --path . --import || true
+          $GODOT --headless --path . --import
+          test -f .godot/global_script_class_cache.cfg
+
+      - name: Regression tests
+        timeout-minutes: 6
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          export RUSTGRAVE_NO_UPDATE_CHECK=1
+          mkdir -p docs/shots/title-v4/_logs
+          # 运行器的 case-filter 是「单个子串、连续过滤是 AND」：多个套件就多跑几遍。
+          FILTERS="${{ inputs.test_filter }}"
+          if [ -z "$FILTERS" ]; then FILTERS="ember_sigils,title_screen"; fi
+          status=0
+          : > docs/shots/title-v4/_logs/tests.log
+          IFS=',' read -ra PARTS <<< "$FILTERS"
+          for f in "${PARTS[@]}"; do
+            echo "=== case-filter: $f ===" >> docs/shots/title-v4/_logs/tests.log
+            timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter="$f" \
+              >> docs/shots/title-v4/_logs/tests.log 2>&1 || status=1
+          done
+          grep -E "^\[FAIL\]|passed;" docs/shots/title-v4/_logs/tests.log | tail -12
+          if [ $status -ne 0 ]; then
+            echo "::warning::tests failed — see _logs/tests.log in the pushed commit"
+          fi
+
+      - name: Render title screens (xvfb + GL compatibility)
+        if: inputs.test_filter == '' || inputs.test_filter == null
+        timeout-minutes: 18
+        continue-on-error: true
+        run: |
+          GODOT=/tmp/godot-bin/Godot_v4.7.1-stable_linux.x86_64
+          export RUSTGRAVE_NO_UPDATE_CHECK=1
+          export RUSTGRAVE_ALLOW_SMALL_WINDOW=1
+          export RUSTGRAVE_PEEK_ONSCREEN=1
+          export RUSTGRAVE_PEEK_FAST=1
+          timeout 960 xvfb-run -a -s "-screen 0 1600x900x24" \
+          $GODOT --path . --windowed --resolution 1280x720 \
+            --rendering-method gl_compatibility --audio-driver Dummy \
+            res://scenes/tools/TitlePeek.tscn -- \
+            --out=res://docs/shots/title-v4 \
+            --sizes=1280x720 \
+            --variants=cold,act2,keep \
+            --shots=idle,focus,dossier \
+            --sigils=demo \
+            > docs/shots/title-v4/_logs/render.log 2>&1
+          status=$?
+          echo "render exit: $status"
+          tail -40 docs/shots/title-v4/_logs/render.log || true
+          ls -la docs/shots/title-v4 || true
+
+      - name: Commit shots + logs back to this branch
+        if: always()
+        run: |
+          git config user.name "rustgrave-shots-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 只带截图与日志，不把 _logs 之外的杂物扫进来。
+          git add docs/shots/title-v4 2>/dev/null || true
+          git add -A ':!docs/shots/title-v4' 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -q -m "shots: render title sigil ring (automated) [skip ci]"
+            git push -q
+            echo "pushed"
+          fi

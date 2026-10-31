@@ -1391,7 +1391,8 @@ func test_title_blocks_do_not_overlap_at_three_text_scales() -> void:
 		var contents := title._dossier_contents as Control
 		if contents != null and dossier != null:
 			var sep: int = contents.get_theme_constant("separation")
-			eq(sep, 8 if text_scale >= 1.3 else 12, "档案卡行距 @%.2f" % text_scale)
+			# 印记行加入后 135% 收到 6（v3.1）：内容最小高才停得进 440 的卡身。
+			eq(sep, 6 if text_scale >= 1.3 else 12, "档案卡行距 @%.2f" % text_scale)
 			var min_h: float = contents.get_combined_minimum_size().y
 			var body_h := TitleScreen.CARD_RECT.size.y - 44.0
 			print("DOSSIER-DEBUG scale=%.2f min=%.1f body=%.1f size=%.1f sep=%d" % [text_scale, min_h, body_h, dossier.size.y, sep])

@@ -1,0 +1,9 @@
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:372)
+OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 21.1.8, 256 bits)
+
+SCRIPT ERROR: Parse Error: Cannot get index "level10" from "{ "stage01": "res://scenes/levels/Stage01_Graveyard.tscn", "branch01": "res://scenes/levels/Branch01_CorpsePit.tscn", "stage02": "res://scenes/levels/Stage02_Conduit.tscn", "branch02": "res://scenes/levels/Branch02_DiscardPit.tscn", "stage03": "res://scenes/levels/Stage03_Cathedral.tscn", "branch03": "res://scenes/levels/Branch03_Archive.tscn", "stage04": "res://scenes/levels/Stage04_Workshop.tscn", "stage04b": "res://scenes/levels/Stage04b_RainGraveyard.tscn", "stage05": "res://scenes/levels/Stage05_BellFoundry.tscn", "branch04": "res://scenes/levels/Branch04_BellSummit.tscn", "stage06": "res://scenes/levels/Stage06_Ramparts.tscn", "branch05": "res://scenes/levels/Branch05_CliffStable.tscn", "stage07": "res://scenes/levels/Stage07_ForgeGate.tscn", "stage08_true": "res://scenes/levels/Stage08_TrueCore.tscn" }".
+          at: GDScript::reload (res://tools/title_peek.gd:152)
+ERROR: Failed to load script "res://tools/title_peek.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript_resource_format.cpp:46)
