@@ -11,7 +11,7 @@ func _ready() -> void:
 	get_tree().create_timer(180.0, true, false, true).timeout.connect(func() -> void:
 		push_error("frame cost probe watchdog timeout")
 		get_tree().quit(3))
-	var level_id := "level08"
+	var level_id := "stage08_true"
 	var variant := "cold"
 	var out_dir := OUT
 	var win_size := Vector2i(1920, 1080)
@@ -55,27 +55,41 @@ func _ready() -> void:
 	var camera_position := Vector2.ZERO
 	var player_feet := Vector2.ZERO
 	var title_state: Dictionary = {}
+	var title: TitleScreen = null
+	var title_extra: Dictionary = {}
 	if level_id == "title":
 		var flags: Array = []
 		for id in GameContext.LEVEL_ORDER:
 			flags.append(String(StoryFlow.DONE_FLAGS[id]))
-		TitleWorld.forced_state = {}
+		TitleState.forced_state = {}
 		if variant != "cold":
 			var fixture := ConfigFile.new()
 			fixture.set_value("meta", "version", 3)
-			fixture.set_value("meta", "scene", GameContext.LEVELS["level10"])
+			fixture.set_value("meta", "scene", GameContext.LEVELS[GameContext.LEVEL_ORDER.back()])
 			fixture.set_value("meta", "ending", variant)
 			fixture.set_value("story", "flags", flags)
 			fixture.set_value("player", "origin", "ember_vanguard")
 			fixture.set_value("profile", "ember_rank", 4)
 			fixture.set_value("profile", "skin_id", "skin_fantasy_knight")
 			fixture.save(SaveData.save_path)
-		title_state = TitleWorld.state_from_save()
-		var title := preload("res://scenes/ui/TitleScreen.tscn").instantiate() as TitleScreen
+		title_state = TitleState.state_from_save()
+		title = preload("res://scenes/ui/TitleScreen.tscn").instantiate() as TitleScreen
 		title.live_scene_enabled = not keyart
 		add_child(title)
 		await get_tree().process_frame
 		title._skip_intro()
+		var stage = title.get("_stage")
+		var world: TitleWorld3D = title.world()
+		if stage != null:
+			title_extra["internal_size"] = str(stage.internal_size)
+			title_extra["render_scale"] = int(stage.render_scale)
+			title_extra["stage_draws"] = stage.viewport.get_render_info(
+					Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)
+		if world != null:
+			title_extra["lights"] = world.light_count()
+			title_extra["shadow_lights"] = world.shadow_lights().size()
+			title_extra["lit_lanterns"] = world.lit_lanterns()
+			title_extra["shot"] = String(world.current_shot())
 	else:
 		GameContext.pending_world_path = GameContext.LEVELS[level_id]
 		add_child(preload("res://scenes/ui/GamePresentation.tscn").instantiate())
@@ -144,7 +158,7 @@ func _ready() -> void:
 		"engine_fps_monitor_mean": _mean(fps), "draw_calls_mean": _mean(draws),
 		"object_node_monitor": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 		"camera_position": [camera_position.x, camera_position.y], "player_feet": [player_feet.x, player_feet.y],
-		"title_state": title_state,
+		"title_state": title_state, "title_render": title_extra,
 		"class_histogram": histogram, "callback_intervals_ms": intervals}
 	var file := FileAccess.open(stem + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "\t"))

@@ -1,5 +1,10 @@
 # 标题活景与 v3 版式设计（`TitleWorld` + `TitleScreen`）
 
+> **已被取代（2026-10-31）**：标题屏的世界已换成实时 3D 锻造大厅（`TitleWorld3D` + 640×360
+> 像素舞台 + Forward+ 光影），见 [docs/title-3d.md](title-3d.md)。本文只作为旧 2D 活景的
+> 历史设计参考（版式、存档变体语义、菜单反应仍被 3D 版沿用）；`TitleWorld` 及其 20 个
+> 2D 道具脚本不再被标题运行时实例化，等待清理。
+>
 > 对应任务：v3 改造 P2（标题活景 + 版式与动效重做 + `ID_ARENA` 修复）。
 > 旧版"铁架异形板 + 独立档案石板 + 静态 keyart"说明见 [`docs/title-and-loadout-ui.md`](./title-and-loadout-ui.md)（其中 §0–§1.5 已标注**已被 v3 取代**）。
 

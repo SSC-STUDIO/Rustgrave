@@ -1,10 +1,11 @@
 class_name TitleScreen
 extends Control
-## 标题屏（v3）：一幅实时点光的像素场景（TitleWorld，640x360 SubViewport）+ 轻量版式。
+## 标题屏（v3.2）：一幅实时 3D 锻造大厅（TitleWorld3D，640x360 像素舞台 + 2× 超采样）+ 轻量版式。
 ##
-## 场景：余烬骑士背着巨剑站在铁桥上，天窗落下光柱，巨齿轮缓缓转动，几盏吊灯随存档
-## 进度点亮（见 TitleWorld：无存档 / 进行中按幕调色 / 三种结局各一幅）。场景经由原有的
-## `Keyart` TextureRect 显示（同一套像素平滑着色器，和游戏里的世界图一致）。
+## 场景：余烬骑士背着巨剑站在铁桥上，天窗落下体积光柱，巨齿轮缓缓咬合转动，几盏吊灯随存档
+## 进度点亮（见 TitleState：无存档 / 进行中按幕调色 / 三种结局各一幅）。3D 画面由
+## `pixel_stage` 渲染进 640x360 的输出纹素网格后整数放大，挂在名为 `Keyart` 的世界层宿主下
+## （开屏淡入仍推它的 modulate.a，工具与测试沿用同一个节点名）。
 ##
 ## 版式（1280x720 设计空间）：字标居中偏上，"锻入"式显现（白热 → 锈色扫过 + 火星），
 ## 副题随后淡入；菜单是左下一列压暗的"铁条"（行动 / 模式 / 系统 / 离开四组，每行
@@ -13,7 +14,7 @@ extends Control
 ## 悬停或按 Tab 展开完整档案；底部是慢速打字机轮换的墓志，署名收成页脚一行，
 ## 页脚右侧随菜单焦点写一句当前行的说明（MENU_HINTS）。
 ##
-## 菜单每一行聚焦时，炉厅里还有各自的反应（TitleWorld.react_to：炉火一涌 / 锻锤敲一下 /
+## 菜单每一行聚焦时，炉厅里还有各自的反应（TitleWorld3D.react_to：炉火一涌 / 锻锤敲一下 /
 ## 火盆加亮 / 光柱云影放缓 / 破旗一掀 / 魂光升起），见 docs/title-live-scene.md §6。
 ## 有结局时「继续」行写作「回看余烬」，打开 ember_recap.gd 的总结页（继续 / 重温序章与结局 /
 ## 再入某章）；旅程列里的「回看余烬」按钮随时打开同一页。
@@ -27,16 +28,17 @@ extends Control
 ## 轮换墓志与档案卡也会带上这些私事。删档擦不掉，炉厅记得（docs/title-sigils.md）。
 ##
 ## 菜单由 MenuList 负责键鼠导航，操作说明复用 ControlsPanel（与暂停菜单同一份）。
-## USE_LIVE_SCENE=false 时退回旧的静态 keyart（同一个 Keyart 节点）。
+## USE_LIVE_SCENE=false 只留作诊断/对照：退回旧的静态 keyart（同一个 `Keyart` 节点）。
 
 const KEYART_PATH := "res://assets/kenney_clean/backgrounds/title_keyart.png"
-## The title shows a live, lit pixel scene (TitleWorld) instead of the static key art.
-## Flip to false to fall back to the old keyart in the same `Keyart` TextureRect.
+const WORLD3D_SCENE := "res://scenes/title3d/Title3D.tscn"
+const TITLE_STATE_PATH := "res://scripts/title3d/title_state.gd"
+## The title shows a live, lit 3D forge hall (TitleWorld3D) rendered at 640x360 output
+## texels. Flip to false for the static key art fallback (diagnostics / A-B only).
 const USE_LIVE_SCENE := true
-const WORLD_SCENE := "res://scenes/ui/TitleWorld.tscn"
 ## 印记环：字标外一圈「炉厅记得你来过」的铁与余烬（EmberSigils 记录驱动）。
 const SigilRingScript := preload("res://scripts/ui/title_sigil_ring.gd")
-const SMOOTH_SHADER := preload("res://assets/shaders/pixel_smooth.gdshader")
+const PIXEL_STAGE := preload("res://scripts/moba/view/pixel_stage.gd")
 const FORGE_SHADER := preload("res://assets/shaders/title_forge.gdshader")
 const LEVEL_PATH := "res://scenes/levels/Stage01_Graveyard.tscn"
 const Transitions := preload("res://scripts/ui/ui_transition.gd")
@@ -303,10 +305,12 @@ var quit_skip_grace := 0.25
 var _started := false
 var _time := 0.0
 var _look: Dictionary = {}
-var _world_viewport: SubViewport
-var _world: TitleWorld
-var _smooth_material: ShaderMaterial
-var _keyart: TextureRect
+var _world_layer: CanvasLayer
+## The pixel stage (`pixel_stage.gd`) and the 3D forge hall are loaded dynamically so
+## this scene still boots if the 3D title is being brought up piece by piece.
+var _stage
+var _world: TitleWorld3D
+var _keyart: CanvasItem
 var _sigil_ring: TitleSigilRing
 var _masthead: Control
 var _masthead_column: VBoxContainer
@@ -402,7 +406,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	DisplayServer.window_set_title("Rustgrave")
 	_build_window_backdrop()
-	_look = TitleWorld.state_from_save()
+	_look = _state_from_save()
 	# 标题屏自己的主题：Music 的契约要求在这里显式声明（_poll_world 的轮询只是兜底）。
 	# set_state(&"calm") 清掉上一局残留的 danger / boss / death 闭锁。
 	Music.set_state(&"calm")
@@ -448,21 +452,53 @@ func _build_window_backdrop() -> void:
 	layer.add_child(black)
 
 
+## Save look + disk peek live in the renderer-agnostic TitleState module (the 3D
+## title reuses the old variant rules). Loaded dynamically so the title screen still
+## boots while the 3D title is being brought up.
+static func _title_state_script() -> GDScript:
+	if not ResourceLoader.exists(TITLE_STATE_PATH):
+		return null
+	return load(TITLE_STATE_PATH) as GDScript
+
+
+func _state_from_save() -> Dictionary:
+	var script := _title_state_script()
+	if script != null and script.has_method("state_from_save"):
+		return script.call("state_from_save")
+	return {
+		"variant": &"cold",
+		"grade_id": &"cold",
+		"lit": 0,
+		"has_save": false,
+		"knight_pose": &"stand",
+		"planted_sword": false,
+	}
+
+
+func _peek_save() -> Dictionary:
+	var script := _title_state_script()
+	if script != null and script.has_method("peek_save"):
+		return script.call("peek_save")
+	return {"has_save": false, "flags": PackedStringArray()}
+
+
 func _build_backdrop() -> void:
-	_keyart = TextureRect.new()
-	_keyart.name = "Keyart"
-	_keyart.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_keyart.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_keyart.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_keyart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_keyart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_keyart)
 	if live_scene_enabled:
-		_build_live_world()
+		_build_live_world_3d()
 		# 一层软暗角：顶和底轻轻收住，中间留给骑士。不再用左右硬遮罩和四角框。
 		add_child(_soft_vignette())
 		return
-	_keyart.texture = UiKit.tex(KEYART_PATH)
+	# 旧的静态 keyart 回退（诊断 / A-B 对照用；3D 标题验收后随 2D 活景一起删）。
+	var art := TextureRect.new()
+	art.name = "Keyart"
+	art.set_anchors_preset(Control.PRESET_FULL_RECT)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(art)
+	_keyart = art
+	art.texture = UiKit.tex(KEYART_PATH)
 	add_child(_soft_vignette())
 	_knight_light = KnightLightScript.new()
 	add_child(_knight_light)
@@ -470,38 +506,49 @@ func _build_backdrop() -> void:
 			EMBERS_RISING, EMBERS_FALLING))
 
 
-## The live scene: a 640x360 SubViewport (same recipe as GamePresentation's world) holding
-## a TitleWorld, shown through the existing `Keyart` TextureRect + pixel-smoothing shader.
-func _build_live_world() -> void:
-	_world_viewport = SubViewport.new()
-	_world_viewport.name = "WorldViewport"
-	PresentationMetrics.configure_world(_world_viewport, PresentationMetrics.for_window(get_tree().root))
-	_world_viewport.world_2d = World2D.new()
-	_world_viewport.disable_3d = true
-	_world_viewport.snap_2d_transforms_to_pixel = true
-	_world_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_world_viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
-	add_child(_world_viewport)
-	var packed := load(WORLD_SCENE) as PackedScene
-	_world = packed.instantiate() as TitleWorld
-	_world.state = _look
-	_world_viewport.add_child(_world)
-	_keyart.texture = _world_viewport.get_texture()
-	_smooth_material = ShaderMaterial.new()
-	_smooth_material.shader = SMOOTH_SHADER
-	_smooth_material.set_shader_parameter("smoothing",
-			bool(Settings.value(&"pixel_smoothing", GamePresentation.pixel_smoothing)))
-	_keyart.material = _smooth_material
-	get_tree().root.size_changed.connect(_update_smooth_scale)
-	_update_smooth_scale()
-
-
-func _update_smooth_scale() -> void:
-	if _smooth_material == null:
+## The live title: a 640x360 pixel stage (2x supersampled 3D, integer upscale) on a
+## canvas layer under the UI, hosted by a full-rect `Keyart` control so the boot fade
+## keeps tweening the node name the tools and tests already know.
+func _build_live_world_3d() -> void:
+	_world_layer = CanvasLayer.new()
+	_world_layer.name = "WorldLayer"
+	_world_layer.layer = -1
+	add_child(_world_layer)
+	var host := Control.new()
+	host.name = "Keyart"
+	host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_world_layer.add_child(host)
+	_keyart = host
+	_stage = PIXEL_STAGE.new()
+	_stage.name = "WorldStage"
+	_stage.fill_screen = false
+	_stage.base_height = 360
+	_stage.set_render_scale(clampi(int(Settings.value(&"title_render_scale", 2)), 1, 3))
+	host.add_child(_stage)
+	_apply_title_post()
+	var packed := load(WORLD3D_SCENE) as PackedScene
+	if packed == null:
 		return
-	var metrics := PresentationMetrics.for_window(get_tree().root)
-	PresentationMetrics.configure_world(_world_viewport, metrics)
-	_smooth_material.set_shader_parameter("scale_hint", 1)
+	_world = packed.instantiate() as TitleWorld3D
+	if _world == null:
+		return
+	_world.state = _look
+	_world.stage = _stage
+	_stage.world.add_child(_world)
+
+
+## Title-only post-process defaults: a soft vignette and a little dither/grain so the
+## low-resolution lighting gradients do not band. The arena never touches these.
+func _apply_title_post() -> void:
+	if _stage == null or not _stage.has_method("set_post_params"):
+		return
+	_stage.set_post_params({
+		"vignette_strength": 0.34,
+		"grain_strength": 0.06,
+		"dither_strength": 0.18,
+		"tint": Color(1.0, 0.97, 0.94),
+	})
 
 
 ## ---------------------------------------------------------------- 印记环 -----
@@ -1010,7 +1057,7 @@ func _add_dossier_row(parent: VBoxContainer, key: String, title: String) -> void
 func _refresh_dossier() -> void:
 	if _dossier_values.is_empty():
 		return
-	var peek := TitleWorld.peek_save()
+	var peek := _peek_save()
 	# the same look the live scene was built from (forced states in tools / tests included)
 	var has_save := bool(_look.get("has_save", peek.get("has_save", false)))
 	var rank := clampi(int(_look.get("rank", peek.get("rank", 1))), 1, 10)
@@ -1334,6 +1381,8 @@ func _refresh_text_layout() -> void:
 func _on_title_setting_changed(key: StringName) -> void:
 	if key == &"text_scale":
 		_refresh_text_layout()
+	elif key == &"title_render_scale" and _stage != null:
+		_stage.set_render_scale(clampi(int(Settings.value(&"title_render_scale", 2)), 1, 3))
 
 
 ## UI 层的火星池（聚焦迸火星、字标锻入的火星）：复用 TitleSparks 的火星部分，放大两倍，
@@ -1967,7 +2016,7 @@ func _trial_ready() -> bool:
 		return true
 	if not SaveData.data.is_empty():
 		return false
-	var flags: PackedStringArray = TitleWorld.peek_save().get("flags", PackedStringArray())
+	var flags: PackedStringArray = _peek_save().get("flags", PackedStringArray())
 	return flags.has(TrialCatalogScript.UNLOCK_FLAG) \
 			or flags.has(TrialCatalogScript.chapter_flag(TrialCatalogScript.UNLOCK_CHAPTER)) \
 			or flags.has("game_complete")
@@ -1976,7 +2025,7 @@ func _trial_ready() -> bool:
 ## 总结页要的数据。旗标取「内存 + 磁盘合并」的那份（标题刚启动时 SaveData.flags 还没读档，
 ## 直接读它会把已通关的章全算成 0）。
 func _recap_info() -> Dictionary:
-	var peek := TitleWorld.peek_save()
+	var peek := _peek_save()
 	return {
 		"ending": SaveData.peek_ending(),
 		"flags": peek.get("flags", PackedStringArray()),
@@ -2561,13 +2610,14 @@ func _start(continue_game: bool) -> void:
 
 func _notification(what: int) -> void:
 	# 活景只在标题可见时渲染：被盖住 / 隐藏时不再烧 GPU。
-	if what == NOTIFICATION_VISIBILITY_CHANGED and _world_viewport != null:
-		_world_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS \
+	if what == NOTIFICATION_VISIBILITY_CHANGED and _stage != null:
+		var stage_viewport: SubViewport = _stage.viewport
+		stage_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS \
 				if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 
 
 ## 暴露给测试 / 工具的只读句柄。
-func world() -> TitleWorld:
+func world() -> TitleWorld3D:
 	return _world
 
 
@@ -2580,9 +2630,6 @@ func _exit_tree() -> void:
 		Settings.changed.disconnect(_on_title_setting_changed)
 	if UpdateService.checked.is_connected(_on_update_checked):
 		UpdateService.checked.disconnect(_on_update_checked)
-	var tree := get_tree()
-	if tree != null and tree.root.size_changed.is_connected(_update_smooth_scale):
-		tree.root.size_changed.disconnect(_update_smooth_scale)
 	if Sfx.has_method(&"set_title_bed"):
 		Sfx.call(&"set_title_bed", false)
 	WorldClock.release_menu()

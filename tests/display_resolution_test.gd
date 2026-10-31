@@ -101,10 +101,13 @@ func test_title_screen_anchors() -> void:
 	var presentation: Transform2D = PresentationMetrics.for_window(get_tree().root)["ui_transform"]
 	ok(title.position.is_equal_approx(presentation.origin), "TitleScreen shares the physical content origin")
 	ok(title.scale.is_equal_approx(presentation.get_scale()), "TitleScreen compensates for per-axis root scaling")
-	var keyart := title.get_node_or_null("Keyart") as TextureRect
+	var keyart := title.find_child("Keyart", true, false) as CanvasItem
 	ok(keyart != null, "Keyart exists")
-	eq(int(keyart.stretch_mode), int(TextureRect.STRETCH_KEEP_ASPECT_COVERED),
-			"Keyart keeps aspect covered across any ratio")
+	ok(keyart is Control, "Keyart is the live 3D world host")
+	var host := keyart as Control
+	if host != null:
+		ok(host.anchor_right == 1.0 and host.anchor_bottom == 1.0,
+				"live world host fills the content rect at any ratio")
 
 	title.queue_free()
 	await get_tree().process_frame

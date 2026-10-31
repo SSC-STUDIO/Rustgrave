@@ -22,11 +22,11 @@ const BLOCKS := ["Masthead", "Subtitle", "Menu", "JourneyColumn", "Epitaph", "Cr
 
 func setup() -> void:
 	Director._set_lock(false)
-	TitleWorld.forced_state = {}
+	TitleState.forced_state = {}
 
 
 func teardown() -> void:
-	TitleWorld.forced_state = {}
+	TitleState.forced_state = {}
 	ArenaRun.use_default_file()
 
 
@@ -228,8 +228,9 @@ func test_menu_focus_nudges_the_live_scene() -> void:
 	menu.select(0, false)
 	menu.select(3, false)
 	await get_tree().process_frame
-	ok(world._push_kick > 0.0, "聚焦时镜头有一小下推力 (%.2f)" % world._push_kick)
-	ok(world._flare > 0.0, "聚焦时场景光有一次闪亮")
+	ok(world._nudge > 0.0, "聚焦时相机有一小下推力 (%.2f)" % world._nudge)
+	# Index 3 是竞技场行：3D 世界里火盆加亮，写进可观察的反应状态。
+	ok(world.reaction_state().has("brazier_boost"), "聚焦时炉厅有对应反应（火盆加亮）")
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -294,7 +295,7 @@ func test_quit_plays_an_exit_sequence_and_can_be_skipped() -> void:
 ## 退场：吊灯一盏盏熄灭，活景自己暗下去（只剩巨剑剪影），而不是被一块黑幕盖掉。
 func test_quit_puts_the_lanterns_out_one_by_one() -> void:
 	# 中期存档：第三幕，四盏吊灯亮着
-	TitleWorld.forced_state = TitleWorld.build_state({"has_save": true,
+	TitleState.forced_state = TitleState.build_state({"has_save": true,
 			"scene": GameContext.LEVELS["stage05"], "flags": PackedStringArray(), "ending": "",
 			"skin": "", "origin": "", "rank": 3})
 	var title: TitleScreen = await _open_title()
@@ -898,17 +899,20 @@ func test_footer_shade_and_complete_credits() -> void:
 	await get_tree().process_frame
 
 
-## 光源预算：UI 层不增加任何 PointLight2D，TitleWorld 光源不超过预算 8。
+## 光源预算：UI 层不增加任何 2D 点光，3D 标题的光源不超过 3D 预算 14 盏 / 6 盏投影。
 func test_ui_light_budget_has_zero_point_lights() -> void:
 	var title: TitleScreen = await _open_title()
+	var world: TitleWorld3D = title.world()
 	var ui_lights: Array[Node] = []
-	var world := title.find_child("TitleWorld", true, false)
 	for light in title.find_children("*", "PointLight2D", true, false):
 		if world == null or not world.is_ancestor_of(light):
 			ui_lights.append(light)
 	eq(ui_lights.size(), 0, "TitleScreen UI 层中不新增任何 PointLight2D 节点 (当前 %d)" % ui_lights.size())
-	if world != null and world.has_method(&"light_count"):
-		ok(world.light_count() <= TitleWorld.MAX_LIGHTS, "TitleWorld 光源不超过预算 8 (当前 %d)" % world.light_count())
+	if world != null:
+		ok(world.light_count() <= TitleState.MAX_LIGHTS,
+				"3D 标题光源不超过预算 14 (当前 %d)" % world.light_count())
+		ok(world.shadow_lights().size() <= TitleState.MAX_SHADOWS,
+				"3D 标题投影灯不超过预算 6 (当前 %d)" % world.shadow_lights().size())
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -916,7 +920,7 @@ func test_ui_light_budget_has_zero_point_lights() -> void:
 ## R3: 标题屏开屏时间线顺延与推镜完成同步，总长 <= 3.0s
 func test_title_screen_intro_timing_and_skip_integration() -> void:
 	var title: TitleScreen = await _open_title()
-	ok(TitleScreen.LOGO_AT >= TitleWorld.DOLLY_TIME - 0.1,
+	ok(TitleScreen.LOGO_AT >= 1.5,
 			"字标锻入时间 (%.2f) 与推镜落位 (1.6s) 同步" % TitleScreen.LOGO_AT)
 	ok(TitleScreen.MENU_AT > TitleScreen.LOGO_AT,
 			"菜单在字标锻入后落位 (MENU_AT=%.2f > LOGO_AT=%.2f)" % [TitleScreen.MENU_AT, TitleScreen.LOGO_AT])
@@ -931,9 +935,11 @@ func test_title_screen_intro_timing_and_skip_integration() -> void:
 	if world != null:
 		# 测试 title.skip_intro() 会同步联动 world.skip_intro()
 		title.skip_intro()
-		eq(world._dolly, Vector2.ZERO, "标题跳过开屏联动活景 _dolly 归零")
-		for layer in world.parallax_layers():
-			eq(layer.position, layer.position.round(), "标题跳过后视差层全部对齐整像素")
+		ok(world._intro_t < 0.0, "标题跳过开屏联动 3D 世界结束推镜")
+		eq(world.current_shot(), &"idle", "跳过后镜头回到待机镜头")
+		title.queue_free()
+		await get_tree().process_frame
+		return
 	title.queue_free()
 	await get_tree().process_frame
 
@@ -955,7 +961,7 @@ func test_any_pressed_input_skips_intro_without_starting_a_run() -> void:
 		ok(not title.intro_playing(), "按下键盘、鼠标或手柄会立即跳过")
 		ok(not title._started, "跳过本身不启动游戏")
 		if title.world() != null:
-			eq(title.world()._dolly, Vector2.ZERO, "输入跳过同步清除推镜")
+			eq(title.world().current_shot(), &"idle", "输入跳过同步结束推镜镜头")
 		title.queue_free()
 		await get_tree().process_frame
 

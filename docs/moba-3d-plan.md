@@ -1,5 +1,10 @@
 # 3D 像素风 MOBA 模式计划（仿王者荣耀）
 
+> **渲染器说明（2026-10-31）**：整个工程已从 GL Compatibility 切到 **Forward+**（开始界面 3D 化
+> 的同一决定，见 [docs/title-3d.md](title-3d.md) 与 `reports/renderer-switch-forward-plus.md`）。
+> 下文「Compatibility 渲染器的光照约束」一节是 P0 验证时的**历史记录**：其中点光/环境光/
+> sRGB 的变通是为 Compatibility 打的补丁，在 Forward+ 下不再需要（但现有 shader 仍可运行）。
+>
 > 2026-10-31 本地采用决定：用户要求撤下 2.5D 竞技场，使用本分支的 3D 版本。当前 P0 已作为标题／回看页的唯一竞技场入口接入；以下 P1–P9 是后续开发计划，不代表已经交付。当前功能与返回／存档边界见 [竞技场说明](arena-mode.md)。
 
 ## 目标

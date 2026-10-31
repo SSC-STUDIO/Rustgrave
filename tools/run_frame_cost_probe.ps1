@@ -1,12 +1,15 @@
 param(
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe',
-    [string]$Level = 'title',
+    [string]$Level = 'stage08_true',
     [string]$Variant = 'cold',
     [string]$Win = '1920x1080',
     [string]$OutDir = 'screenshots/acceptance/overhaul-v3/title-perf/probes',
     [double]$SampleSeconds = 4,
     [switch]$Active,
-    [switch]$Keyart
+    [switch]$Keyart,
+    # '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    # pre-switch baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
@@ -17,10 +20,11 @@ $stdoutFile = Join-Path $outputDir ($tag + '_stdout.log')
 $stderrFile = Join-Path $outputDir ($tag + '_stderr.log')
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $Win,
-    '--rendering-method', 'gl_compatibility', 'res://scenes/tools/FrameCostProbe.tscn', '--',
+    'res://scenes/tools/FrameCostProbe.tscn', '--',
     ('--level=' + $Level), ('--variant=' + $Variant), ('--out=' + $resOut), ('--win=' + $Win), ('--sample=' + $SampleSeconds))
 if ($Active) { $arguments += '--active' }
 if ($Keyart) { $arguments += '--keyart' }
+if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
 $previousAppData = $env:APPDATA
 $previousUpdateCheck = $env:RUSTGRAVE_NO_UPDATE_CHECK
 try {

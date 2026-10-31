@@ -1,8 +1,9 @@
 extends Node
-## TITLE PEEK: window-mode captures of the live title screen (TitleScreen + TitleWorld).
+## TITLE PEEK: window-mode captures of the live title screen (TitleScreen + TitleWorld3D,
+## the 3D forge hall on the 640x360 pixel stage).
 ## Visual review aid, not an acceptance gate. Fixtures only: it writes its own disposable
 ## save/settings under --out and forces each look by writing a real save file there, so
-## the same peek path the game uses (TitleWorld.peek_save) is what gets rendered.
+## the same peek path the game uses (TitleState.peek_save) is what gets rendered.
 ##
 ##   tools/run_title_peek.ps1 -Variants cold,act2,give -Sizes 1280x720,1920x1080
 ##   ... -- --out=res://screenshots/x --sizes=1280x720 --variants=cold,give --bare
@@ -12,8 +13,10 @@ extends Node
 ##                 personal epitaphs / dossier row render (CI screenshots do this)
 ## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff | true_break     (default: all but true_break)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
-## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
-##             'dossier' pins the journey dossier card open, 'recap' opens the recap page)
+## --shots     boot,idle,focus,dossier,recap,attract,confirm,quit,all  (default: idle,focus;
+##             'boot' adds the intro frames, 'attract' the slow orbit shot, 'confirm' the
+##             push-in, 'quit' the dousing sequence, 'dossier' pins the journey card open,
+##             'recap' opens the recap page)
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
@@ -68,7 +71,7 @@ func _ready() -> void:
 	if OS.get_environment("RUSTGRAVE_PEEK_FAST") == "1":
 		_fast = true
 	if _shots.has("all"):
-		_shots = ["boot", "idle", "focus"]
+		_shots = ["boot", "idle", "focus", "attract", "confirm", "quit"]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	var win := get_tree().root
 	win.mode = Window.MODE_WINDOWED
@@ -103,20 +106,29 @@ func _shot(variant: String, tag: String, size: Vector2i) -> void:
 			return
 	await RenderingServer.frame_post_draw
 	var image := get_tree().root.get_texture().get_image()
-	var mode := "keyart" if _keyart else "live"
+	var mode := "keyart" if _keyart else "3d"
 	var path := "%s/%s_%s_%s_%dx%d.png" % [_out, mode, variant, tag, size.x, size.y]
 	var err := image.save_png(path)
 	var world := _current.world()
+	var stage = _current.get("_stage")
 	var record := {"mode": mode, "variant": variant, "tag": tag,
+		"renderer": RenderingServer.get_current_rendering_method(),
 		"actual_width": image.get_width(), "actual_height": image.get_height(),
 		"window": str(get_tree().root.size), "png": path,
-		"has_live_viewport": _current.get_node_or_null("WorldViewport") != null}
+		"has_live_viewport": stage != null, "has_live_stage": stage != null}
+	if stage != null:
+		record["internal_size"] = str(stage.internal_size)
+		record["render_scale"] = int(stage.render_scale)
+		record["draw_calls"] = stage.viewport.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)
+		record["shadow_draws"] = stage.viewport.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)
 	if world != null:
 		record["fixtures"] = world.lantern_count()
 		record["lit_fixtures"] = world.lit_lanterns()
 		record["point_lights"] = world.light_count()
-		record["occluders"] = world.find_children("*", "LightOccluder2D", true, false).size()
-		record["knight_pose"] = world.knight_sprite().current() if world.knight_sprite() != null else "absent"
+		record["shadow_lights"] = world.shadow_lights().size()
+		record["knight_pose"] = String(world.knight_pose())
+		record["shot"] = String(world.current_shot())
+		record["variant_state"] = String(world.variant())
 	var file := FileAccess.open(path.trim_suffix(".png") + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(record, "\t"))
 	_count += 1
@@ -203,15 +215,9 @@ func _variant(variant: String, size: Vector2i) -> void:
 	if _shadow_pair and title.world() != null:
 		Engine.time_scale = 0.0
 		await _shot(variant, "shadows_on", size)
-		var changed: Array[PointLight2D] = []
-		for node in title.world().find_children("*", "PointLight2D", true, false):
-			var light := node as PointLight2D
-			if light.shadow_enabled:
-				changed.append(light)
-				light.shadow_enabled = false
+		title.world().set_shadows_enabled(false)
 		await _shot(variant, "shadows_off", size)
-		for light in changed:
-			light.shadow_enabled = true
+		title.world().set_shadows_enabled(true)
 		Engine.time_scale = 1.0
 	if _shots.has("focus"):
 		var menu := title.get_node("Menu") as MenuList
@@ -231,6 +237,19 @@ func _variant(variant: String, size: Vector2i) -> void:
 		await get_tree().create_timer(0.6).timeout
 		await _shot(variant, "recap", size)
 		title.recap_page().dismiss()
+	if _shots.has("attract") and title.world() != null:
+		title.world().play_shot(&"attract")
+		await get_tree().create_timer(2.5).timeout
+		await _shot(variant, "attract", size)
+	if _shots.has("confirm"):
+		title._confirm_effect()
+		await get_tree().create_timer(0.25).timeout
+		await _shot(variant, "confirm", size)
+	if _shots.has("quit"):
+		title.quit_on_finish = false
+		title._quit_sequence()
+		await get_tree().create_timer(0.5).timeout
+		await _shot(variant, "quit", size)
 	title.queue_free()
 	await _frames(3)
 
@@ -247,10 +266,11 @@ func _hide_ui(title: Control) -> void:
 			(child as CanvasItem).visible = false
 
 
-## 软件渲染减负：关掉所有点光阴影（llvmpipe 上阴影贴图是大头），画面布局不变。
+## 软件渲染减负：关掉所有 3D 投影灯（llvmpipe 上阴影贴图是大头），画面布局不变。
 func _llvmpipe_relief(title: TitleScreen) -> void:
-	for node in title.find_children("*", "PointLight2D", true, false):
-		(node as PointLight2D).shadow_enabled = false
+	var world := title.world()
+	if world != null:
+		world.set_shadows_enabled(false)
 
 
 ## 演示印记：几次点燃 + 两次殁，落在隔离仓库（peek_sigils.cfg），生产记录不动。

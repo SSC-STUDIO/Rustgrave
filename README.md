@@ -81,6 +81,8 @@ godot --path "C:\Users\Administrator\OneDrive\Documents\My-Program\Rustgrave"
 - 平滑镜头 + 按移动方向的水平 look-ahead；打击停顿/震屏等打击感反馈
 - 像素 UI：`assets/ui/theme_rust.tres` 统一字体/配色/9-slice 面板，字体为 Fusion Pixel（中英全覆盖）
 - 标题屏菜单（开始/继续/操作说明/退出，键鼠导航 + 余烬粒子）、暂停菜单、操作说明面板、死亡覆盖层
+- 开始界面是实时 3D 锻造大厅（程序化几何 + Forward+ 体积光/SSAO/辉光，像素化输出 640×360，2× 超采样），
+  随存档切换 5 种变体（冷炉 / 旅程四幕 / 还火 / 守炉 / 熄火），见 [docs/title-3d.md](docs/title-3d.md)
 - 移动端触控板（自动检测手机/触摸屏；与键鼠共用 InputMap；Android 导出预设）
 - HUD：心槽血量、分段毒素槽、剑核/袋中、交互提示、播报横幅、低血量血雾
 - Kenney CC0 音效集（挥砍/受击/弹反/拾取/UI，见 `scripts/autoload/sfx.gd`）
@@ -135,7 +137,7 @@ Rustgrave/
 - **字体**：Fusion Pixel Font（TakWolf，OFL 1.1，正文全字号）、Jacquard 24（Tyler Finck，OFL 1.1，仅离线烘 RUSTGRAVE 标题牌）
 - **UI 套件**：本项目用 PIL 程序化绘制（`tools/gen_ui_kit.py`），不是 AI 生图
 - **游戏图标**：同上程序化绘制（`tools/gen_icon.py`），16x16 栅格起稿后整数倍放大
-- **标题屏 keyart**：本项目 AI 生成（唯一保留的 AI 图；游戏内角色/环境均为像素素材）
+- **标题屏**：3D 锻造大厅，无外部模型（Godot 内程序化生成 + 2× 超采样像素化，见 `docs/title-3d.md`）；旧的 2D 活景素材仅保留在仓库历史里，不再被标题运行时使用
 
 ## 调色（基础色板）
 
