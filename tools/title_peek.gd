@@ -7,6 +7,9 @@ extends Node
 ##   tools/run_title_peek.ps1 -Variants cold,act2,give -Sizes 1280x720,1920x1080
 ##   ... -- --out=res://screenshots/x --sizes=1280x720 --variants=cold,give --bare
 ##
+## --sigils=demo   seed a handful of demo ember sigils (visits + deaths) into the
+##                 peek's disposable sigil store, so the title's sigil ring /
+##                 personal epitaphs / dossier row render (CI screenshots do this)
 ## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff     (default: all)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
 ## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
@@ -31,6 +34,7 @@ var _skin := ""
 var _count := 0
 var _keyart := false
 var _shadow_pair := false
+var _sigils_demo := false
 ## CI / 低速软件渲染模式（RUSTGRAVE_PEEK_FAST=1）：每尺寸只 settle 一次且不因
 ## settle 失败退场，并关掉点光阴影（llvmpipe 上阴影是大头）。截图内容不变。
 var _fast := false
@@ -63,6 +67,8 @@ func _ready() -> void:
 			_keyart = true
 		elif arg == "--shadow-pair":
 			_shadow_pair = true
+		elif arg.begins_with("--sigils="):
+			_sigils_demo = arg.trim_prefix("--sigils=") == "demo"
 	if OS.get_environment("RUSTGRAVE_PEEK_FAST") == "1":
 		_fast = true
 	if _shots.has("all"):
@@ -77,6 +83,8 @@ func _ready() -> void:
 	win.position = park
 	SaveData.save_path = _out + "/peek_save.cfg"
 	Settings.save_path = _out + "/peek_settings.cfg"
+	if _sigils_demo:
+		_seed_demo_sigils()
 	Settings.load_settings()
 	Engine.max_fps = 60
 	for size in _sizes:
@@ -249,3 +257,18 @@ func _hide_ui(title: Control) -> void:
 func _llvmpipe_relief(title: TitleScreen) -> void:
 	for node in title.find_children("*", "PointLight2D", true, false):
 		(node as PointLight2D).shadow_enabled = false
+
+
+## 演示印记：几次点燃 + 两次殁，落在隔离仓库（peek_sigils.cfg），生产记录不动。
+## 章节跨一~四幕，日龄拉开，让环上的冷却梯度看得出来。
+func _seed_demo_sigils() -> void:
+	EmberSigils.store_path = _out + "/peek_sigils.cfg"
+	EmberSigils.clear()
+	var today := EmberSigils.today()
+	var visits := [["stage01", 46, "new"], ["branch01", 38, "continue"], ["stage02", 30, "continue"],
+		["stage03", 21, "continue"], ["branch03", 13, "continue"], ["stage04", 8, "continue"],
+		["stage05", 5, "continue"], ["branch04", 2, "continue"], ["stage07", 0, "continue"]]
+	for v in visits:
+		EmberSigils.append_raw(today - int(v[1]), String(v[2]), String(v[0]))
+	EmberSigils.append_raw(today - 33, "death", "stage02")
+	EmberSigils.append_raw(today - 6, "death", "stage05")

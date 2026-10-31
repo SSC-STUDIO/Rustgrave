@@ -75,7 +75,8 @@ jobs:
             --out=res://docs/shots/title-v4 \
             --sizes=1280x720 \
             --variants=cold,act2,keep \
-            --shots=idle,focus \
+            --shots=idle,focus,dossier \
+            --sigils=demo \
             > docs/shots/title-v4/_logs/render.log 2>&1
           status=$?
           echo "render exit: $status"
