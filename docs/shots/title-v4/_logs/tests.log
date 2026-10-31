@@ -1,5 +1,142 @@
+=== case-filter: ember_sigils ===
 Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
 
-[FAIL] no tests discovered
+[PASS] ember_sigils_test_test_ago_text_is_human (5 asserts)
+[PASS] ember_sigils_test_test_chapter_label_lookup (3 asserts)
+[PASS] ember_sigils_test_test_production_recording_is_gated_off_in_automation (2 asserts)
+[PASS] ember_sigils_test_test_ring_holds_records_and_reveals (6 asserts)
+[PASS] ember_sigils_test_test_store_roundtrip_caps_and_kinds (11 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] ember_sigils_test_test_title_stays_quiet_without_any_sigils (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] ember_sigils_test_test_title_wires_ring_epitaph_ghosts_and_dossier (9 asserts)
 ================================================
-FAILED — 0/0 passed; 0 engine errors
+OK — 7/7 passed; 0 engine errors
+=== case-filter: title_screen ===
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_any_pressed_input_skips_intro_without_starting_a_run (12 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_arena_entry_default_wiring_starts_a_real_run (4 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_arena_entry_dispatches_to_the_arena_run (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_blocks_do_not_overlap_and_stay_inside_at_three_window_shapes (84 asserts)
+[PASS] title_screen_test_test_chapter_entry_spawns_come_from_the_levels (45 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE open-before-place size=(92.0, 48.0)
+SEAL-TITLE open-after-place size=(92.0, 48.0)
+SEAL-DEBUG size=(92.0, 48.0) pos=(594.0, 494.0) min=(0.0, 0.0) sb_min=(0.0, 0.0) font=24 textlen=0 same=true
+[FAIL] title_screen_test_test_confirm_letter_ink_and_seal_inset (26 asserts)
+     - 蜡封按钮 48px
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_continue_focus_brightens_the_journey_note (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_continue_load_failure_keeps_the_menu_and_the_file (7 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_continue_row_note_and_hint_are_honest (23 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_continue_row_with_an_ending_opens_the_recap_page (12 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_dossier_has_placeholders_without_a_save (9 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_dossier_input_parity_gamepad_and_touch (11 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_dossier_shows_profile_summary_with_a_save (10 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_epitaph_clears_recap_button (2 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_epitaph_first_line_is_complete_after_the_intro (9 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE open-before-place size=(92.0, 48.0)
+SEAL-TITLE open-after-place size=(92.0, 48.0)
+[PASS] title_screen_test_test_footer_hint_returns_after_closing_a_modal (5 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_footer_labels_fit_at_every_supported_text_scale (18 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_footer_shade_and_complete_credits (18 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_gauge_lights_the_cleared_chapters (4 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_hover_and_keyboard_share_one_selection (13 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_journey_note_is_a_short_horizontal_rail (10 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_journey_note_rows_do_not_overlap_at_any_text_scale (45 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_journey_shade_tokens_and_static_layer (15 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_lamp_cursor_dimensions_and_halo (9 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_lamp_cursor_follows_the_selected_row (5 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_lock_tag_exists_and_does_not_intersect_other_rows (9 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_menu_focus_nudges_the_live_scene (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_menu_groups_are_separated (4 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_menu_is_a_left_rail_with_three_tiers (35 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_menu_rows_use_hand_cursor_and_lamp_underline (12 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_menu_shade_exists_and_stays_left_of_midline (6 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE open-before-place size=(92.0, 48.0)
+SEAL-TITLE open-after-place size=(92.0, 48.0)
+[PASS] title_screen_test_test_modals_arbitrate_and_restore_aux_focus (18 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_no_overlap_between_dossier_and_epitaph (5 asserts)
+[PASS] title_screen_test_test_plate_shapes_differ_and_states_recolour (12 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_quit_aligns_with_epitaph (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_quit_ignores_release_and_grants_a_grace_window (6 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_quit_plays_an_exit_sequence_and_can_be_skipped (4 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_quit_puts_the_lanterns_out_one_by_one (5 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_rail_stays_clear_of_the_keyart_center (11 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE open-before-place size=(92.0, 48.0)
+SEAL-TITLE open-after-place size=(92.0, 48.0)
+[PASS] title_screen_test_test_seal_hold_cancels_early_and_completes (7 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_select_walks_the_menu_and_skips_disabled_rows (3 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_tab_pins_and_unpins_the_full_dossier (4 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+DOSSIER-DEBUG scale=0.85 min=358.0 body=380.0 size=380.0 sep=10
+DOSSIER-DEBUG scale=1.00 min=380.0 body=380.0 size=380.0 sep=10
+DOSSIER-DEBUG scale=1.35 min=406.0 body=380.0 size=406.0 sep=8
+[FAIL] title_screen_test_test_title_blocks_do_not_overlap_at_three_text_scales (95 asserts)
+     - 档案卡行距 @0.85
+     - 档案卡行距 @1.00
+     - 1.35 档案内容最小高 406 <= 卡身 380
+     - 1.35 档案卡身没被内容撑大 (406)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_title_screen_intro_timing_and_skip_integration (44 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_trial_entry_is_gated_by_unlock_flag (9 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_ui_light_budget_has_zero_point_lights (2 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_update_notice_is_right_aligned_in_the_footer (5 asserts)
+SEAL-TITLE build size=(92.0, 48.0) roottype=Control in_tree=true
+[PASS] title_screen_test_test_without_an_ending_continue_stays_a_load_and_the_button_opens_the_page (7 asserts)
+================================================
+FAILED — 46/48 passed; 0 engine errors
