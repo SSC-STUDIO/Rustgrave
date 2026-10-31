@@ -292,6 +292,13 @@ func _build_lighting() -> void:
 
 
 func _build_geometry() -> void:
+	var blender_set := _script("res://scripts/title3d/title_blender_set.gd")
+	if blender_set != null and blender_set.has_method("build"):
+		if bool(blender_set.call("build", _geometry)):
+			# The Blender hero set already contains the hall shell, bridge, pit,
+			# catwalk, gear tower and machine housing; skip the kit builders and the
+			# procedural dressing so nothing z-fights.
+			return
 	var built := false
 	for entry in [
 		["hall_builder", "Hall"],

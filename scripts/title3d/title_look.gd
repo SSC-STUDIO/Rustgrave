@@ -267,9 +267,9 @@ static func apply_post(world: Node, look: Dictionary) -> void:
 ## touch above the deck. Intro/confirm/quit samples go through the same transform,
 ## so the whole title keeps one consistent camera language.
 const CAMERA_YAW_DEG := 0.0
-const CAMERA_DISTANCE_SCALE := 1.05
+const CAMERA_DISTANCE_SCALE := 1.28
 const CAMERA_RISE := 0.0
-const CAMERA_TARGET_RISE := -1.6
+const CAMERA_TARGET_RISE := -0.6
 const CAMERA_FOV_SCALE := 1.0
 ## The kit's window glass has its own material; the module's gain still blooms the
 ## centre window out to near-white, so the look pass pins it to a calmer value.

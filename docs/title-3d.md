@@ -1,3 +1,5 @@
+﻿> **状态：未采用的实验分支（2026-10-31 回退）**。标题屏已改回原来的 2D 层叠活景（TitleWorld，见 [title-live-scene.md](title-live-scene.md)）。本文的 3D 方案、Blender 管线与截图仅作技术记录保留，运行时不再加载；scripts/title3d/、scenes/title3d/、ssets/title3d/ 均为未接入的遗留实验代码。enderer 仍为 Forward+（2D 画面已 A/B 验证无变化）。
+
 # 3D 标题屏：锻造大厅（Forward+ / 像素化渲染）
 
 > 取代 [title-live-scene.md](title-live-scene.md) 的 2D 层叠活景。渲染器从 GL Compatibility

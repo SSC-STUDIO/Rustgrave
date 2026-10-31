@@ -80,6 +80,15 @@ func _dump() -> void:
 	var shown := 0
 	for mesh in meshes:
 		var mi := mesh as MeshInstance3D
+		if String(mi.get_path()).find("BlenderHall") >= 0:
+			print("PROBE blender ", mi.name, " aabb=", mi.get_aabb(), " xform=", mi.global_transform)
+			shown += 1
+			if shown >= 14:
+				break
+	print("PROBE blender_meshes=", meshes.filter(func(m): return String(m.get_path()).find("BlenderHall") >= 0).size())
+	shown = 0
+	for mesh in meshes:
+		var mi := mesh as MeshInstance3D
 		if shown < 8:
 			print("PROBE mesh ", mi.get_path(), " visible=", mi.is_visible_in_tree(),
 					" pos=", mi.global_position, " aabb=", mi.get_aabb(), " mat=", mi.material_override)
