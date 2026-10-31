@@ -60,7 +60,7 @@ jobs:
           export RUSTGRAVE_NO_UPDATE_CHECK=1
           mkdir -p docs/shots/title-v4/_logs
           FILTER="${{ inputs.test_filter }}"
-          if [ -z "$FILTER" ]; then FILTER="ember_sigils"; fi
+          if [ -z "$FILTER" ]; then FILTER="ember_sigils,title_screen"; fi
           timeout 900 $GODOT --headless --path . res://tests/run_tests.tscn -- --case-filter="$FILTER" \
             > docs/shots/title-v4/_logs/tests.log 2>&1 \
             || echo "::warning::tests failed — see _logs/tests.log in the pushed commit"
