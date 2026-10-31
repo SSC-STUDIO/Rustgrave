@@ -1,4 +1,4 @@
-class_name TitleWorld3D
+﻿class_name TitleWorld3D
 extends Node3D
 ## The title screen's live 3D forge hall (replaces the retired 2D TitleWorld).
 ##
@@ -92,6 +92,7 @@ func _ready() -> void:
 	_build_geometry()
 	_build_camera()
 	_build_props()
+	_build_hero_fill()
 	_build_shots()
 	_built = true
 	_apply_grade()
@@ -632,3 +633,21 @@ static func _script(path: String) -> GDScript:
 		return null
 	var res := load(path)
 	return res as GDScript
+
+
+## One extra warm fill light on the hero, on top of the 12-light rig (budget is 14).
+## The reference frame makes the knight the brightest readable silhouette; the
+## module lights alone leave him as a dark cut-out between the braziers.
+func _build_hero_fill() -> void:
+	var fill := OmniLight3D.new()
+	fill.name = "HeroFill"
+	fill.light_color = Color(1.0, 0.82, 0.62)
+	fill.light_energy = 0.75
+	fill.omni_range = 5.0
+	fill.shadow_enabled = false
+	fill.position = Vector3(0.0, 2.3, 2.6)
+	add_child(fill)
+	if _props.has("knight_actor"):
+		var knight: Node3D = _props["knight_actor"]
+		if is_instance_valid(knight):
+			knight.scale = Vector3.ONE * 1.15

@@ -1,4 +1,4 @@
-extends RefCounted
+﻿extends RefCounted
 ## Extra set dressing that thickens the 3D title hall without touching the frozen
 ## kit builders: foreground framing masses, a far arcade behind the bridge, roof
 ## bracing, wall pipes/ducts, hanging chains and deck clutter.
@@ -191,3 +191,77 @@ static func _deck_clutter(host: Node3D, kit: GDScript) -> void:
 					kit.xform(Vector3(9.9 * side + 1.6 * float(i) * side, 0.55, 2.6)),
 					IRON_DARK))
 	_mesh(kit, parts, host, "DressDeckClutter")
+
+
+## Elements the 2D reference (screenshots/acceptance/overhaul-v3/title-perf) has that
+## the bare generated hall lacks: an overhead catwalk band with many dangling chains
+## and small lamps, the big diagonal pipe in the upper left, extra gear silhouettes,
+## hazard-striped bands and foreground cables. Straight-on framing needs these to
+## read as the same place.
+static func _reference_set(host: Node3D, kit: GDScript) -> void:
+	var parts: Array = []
+	# --- overhead catwalk across the hall, in front of the far machinery ---------
+	var cat_y := 8.4
+	var cat_z := -5.4
+	parts.append(kit.part_box(Vector3(30.0, 0.5, 2.6), kit.xform(Vector3(0.0, cat_y, cat_z)), IRON_DARK))
+	parts.append(kit.part_box(Vector3(30.0, 0.16, 0.16), kit.xform(Vector3(0.0, cat_y + 1.15, cat_z + 1.2)), IRON))
+	parts.append(kit.part_box(Vector3(30.0, 0.16, 0.16), kit.xform(Vector3(0.0, cat_y + 0.62, cat_z + 1.2)), IRON_LIGHT))
+	for i in 16:
+		var x := -14.4 + 1.92 * float(i)
+		parts.append(kit.part_box(Vector3(0.12, 1.2, 0.12), kit.xform(Vector3(x, cat_y + 0.6, cat_z + 1.2)), IRON_LIGHT))
+		# support strut under the deck
+		parts.append(kit.part_box(Vector3(0.18, 1.4, 0.18),
+				kit.xform(Vector3(x, cat_y - 0.85, cat_z), Vector3(20.0, 0.0, 0.0)), IRON))
+		# dangling chain + small lamp every second bay
+		if i % 2 == 0:
+			var drop := 1.4 + 0.5 * float(i % 3)
+			parts.append(kit.part_box(Vector3(0.06, drop, 0.06), kit.xform(Vector3(x, cat_y - drop * 0.5, cat_z + 1.4)), IRON))
+			parts.append(kit.part_box(Vector3(0.3, 0.42, 0.3), kit.xform(Vector3(x, cat_y - drop - 0.2, cat_z + 1.4)),
+					Color(1.0, 0.72, 0.35), 1.0))
+	# --- the big diagonal pipe in the upper left (reference landmark) -----------
+	var pipe_from := Vector3(-15.0, 7.4, -2.6)
+	var pipe_to := Vector3(-5.6, 12.4, -3.4)
+	var pipe_mid := (pipe_from + pipe_to) * 0.5
+	var pipe_dir := (pipe_to - pipe_from).normalized()
+	var pipe_len := pipe_from.distance_to(pipe_to)
+	var pipe_basis := Basis.looking_at(pipe_dir, Vector3.UP)
+	var pipe_xform := Transform3D(pipe_basis, pipe_mid)
+	parts.append(kit.part_cyl(1.05, pipe_len, 10, pipe_xform, IRON))
+	parts.append(kit.part_cyl(1.15, 0.5, 10, Transform3D(pipe_basis, pipe_from), RUST))
+	parts.append(kit.part_cyl(1.15, 0.5, 10, Transform3D(pipe_basis, pipe_to), RUST))
+	# --- extra gear silhouettes behind the kit gear pair ------------------------
+	var shapes: GDScript = null
+	if ResourceLoader.exists("res://scripts/title3d/kit/shapes.gd"):
+		shapes = load("res://scripts/title3d/kit/shapes.gd") as GDScript
+	if shapes != null:
+		for i in 2:
+			var radius := 1.5 + 0.5 * float(i)
+			var gear_mesh: ArrayMesh = shapes.call("gear", radius, 12 + 4 * i, 0.4, radius * 0.28, IRON_DARK)
+			var gear_part: Dictionary = kit.part_mesh(gear_mesh,
+					kit.xform(Vector3(-15.4 + 2.4 * float(i), 9.2 + 1.4 * float(i), -6.4),
+							Vector3(0.0, 0.0, 12.0 * float(i + 1))), 0.0)
+			parts.append(gear_part)
+	# --- hazard stripes on the two bridge ends ----------------------------------
+	for side: float in [-1.0, 1.0]:
+		for k in 6:
+			var stripe_color := Color(0.72, 0.55, 0.12) if k % 2 == 0 else Color(0.10, 0.09, 0.10)
+			parts.append(kit.part_box(Vector3(0.36, 0.5, 0.9),
+					kit.xform(Vector3(5.4 * side + 0.36 * float(k) * side, 0.3, 3.4)), stripe_color))
+	# --- central back wall cluster: pipes/chimney/arch behind the knight, so the
+	# straight-on hero shot does not look at an empty wall between the two banks.
+	for i in 3:
+		var px := -2.6 + 2.6 * float(i)
+		parts.append(kit.part_cyl(0.62, 11.0, 8, kit.xform(Vector3(px, 5.5, -13.5)), IRON_DARK))
+		parts.append(kit.part_box(Vector3(1.5, 0.6, 1.5), kit.xform(Vector3(px, 2.2, -13.5)), RUST))
+		parts.append(kit.part_box(Vector3(0.9, 0.35, 0.9), kit.xform(Vector3(px, 8.6, -13.5)), IRON_LIGHT))
+	parts.append(kit.part_box(Vector3(7.6, 0.5, 0.8), kit.xform(Vector3(0.0, 9.1, -13.5)), IRON))
+	parts.append(kit.part_box(Vector3(7.6, 0.5, 0.8), kit.xform(Vector3(0.0, 6.4, -13.5)), IRON_DARK))
+	# arch cut-out suggestion over the bridge axis
+	parts.append(kit.part_box(Vector3(5.2, 0.6, 0.7), kit.xform(Vector3(0.0, 4.6, -14.2)), STONE_DARK))
+	parts.append(kit.part_box(Vector3(1.0, 3.6, 0.7), kit.xform(Vector3(-2.2, 6.6, -14.2)), STONE_DARK))
+	parts.append(kit.part_box(Vector3(1.0, 3.6, 0.7), kit.xform(Vector3(2.2, 6.6, -14.2)), STONE_DARK))
+	# --- foreground cables slung under the bridge ------------------------------
+	for i in 5:
+		var x := -6.0 + 3.0 * float(i)
+		parts.append(kit.part_box(Vector3(0.08, 2.6, 0.08), kit.xform(Vector3(x, -1.6, 3.3)), IRON_DARK))
+	_mesh(kit, parts, host, "DressReference")

@@ -1,4 +1,4 @@
-extends RefCounted
+﻿extends RefCounted
 ## Final look pass for the 3D title, on top of the modules' own grade.
 ##
 ## The kit / lighting / props modules own their data, but a few values still read
@@ -28,7 +28,7 @@ const KIT_PATH := "res://scripts/title3d/kit/title_kit.gd"
 ## air directly under the skylight. band_count 0 = smooth gradient (no hard
 ## stepped edges), wide radial falloff hides the quad/cross seam.
 const BEAM_ENERGY := 0.10
-const BEAM_OPACITY := 0.65
+const BEAM_OPACITY := 0.40
 const BEAM_RADIAL_SOFTNESS := 3.8
 const BEAM_END_SOFTNESS := 1.25
 const BEAM_CORE_POWER := 0.75
@@ -54,7 +54,7 @@ const LOOKS := {
 		"vol_energy": 2.6, "beam": 1.0,
 		"vol_emission": Color(0.02, 0.026, 0.038), "vol_emission_energy": 0.40,
 		"glow": 1.15, "glow_threshold": 1.05,
-		"tint": Color(0.94, 0.97, 1.0), "vignette": 0.32, "saturation": 1.10,
+		"tint": Color(0.94, 0.97, 1.0), "vignette": 0.30, "saturation": 1.12,
 	},
 	&"snuff": {
 		"exposure": 2.4,
@@ -74,17 +74,17 @@ const LOOKS := {
 		"vol_energy": 2.3, "beam": 1.0,
 		"vol_emission": Color(0.024, 0.028, 0.036), "vol_emission_energy": 0.38,
 		"glow": 1.10, "glow_threshold": 1.05,
-		"tint": Color(0.95, 0.98, 1.0), "vignette": 0.32, "saturation": 1.10,
+		"tint": Color(0.95, 0.98, 1.0), "vignette": 0.30, "saturation": 1.12,
 	},
 	&"act2": {
-		"exposure": 1.33,
-		"ambient": Color(0.56, 0.57, 0.64), "ambient_energy": 0.27,
-		"fog_density": 1.5, "fog_light": Color(0.38, 0.40, 0.46),
+		"exposure": 1.55,
+		"ambient": Color(0.50, 0.55, 0.66), "ambient_energy": 0.52,
+		"fog_density": 1.0, "fog_light": Color(0.36, 0.42, 0.54),
 		"fog_energy": 0.44, "fog_aerial": 0.40,
 		"vol_energy": 2.0, "beam": 1.0,
 		"vol_emission": Color(0.030, 0.032, 0.040), "vol_emission_energy": 0.40,
 		"glow": 1.05, "glow_threshold": 1.10,
-		"tint": Color(0.98, 0.99, 1.0), "vignette": 0.32, "saturation": 1.10,
+		"tint": Color(0.98, 0.99, 1.0), "vignette": 0.30, "saturation": 1.12,
 	},
 	&"act3": {
 		"exposure": 1.15,
@@ -134,7 +134,7 @@ const LOOKS := {
 		"vol_energy": 2.0, "beam": 1.0,
 		"vol_emission": Color(0.024, 0.042, 0.055), "vol_emission_energy": 0.44,
 		"glow": 1.05, "glow_threshold": 1.05,
-		"tint": Color(0.95, 0.99, 1.0), "vignette": 0.32, "saturation": 1.10,
+		"tint": Color(0.95, 0.99, 1.0), "vignette": 0.30, "saturation": 1.12,
 	},
 }
 
@@ -254,8 +254,8 @@ static func apply_post(world: Node, look: Dictionary) -> void:
 		return
 	stage.call("set_post_params", {
 		"vignette_strength": float(look.get("vignette", 0.30)),
-		"grain_strength": 0.05,
-		"dither_strength": 0.16,
+		"grain_strength": 0.075,
+		"dither_strength": 0.22,
 		"tint": look.get("tint", Color(0.98, 0.98, 1.0)),
 	})
 
@@ -266,10 +266,10 @@ static func apply_post(world: Node, look: Dictionary) -> void:
 ## camera around the look target, pull in slightly and rise a little, and aim at a
 ## touch above the deck. Intro/confirm/quit samples go through the same transform,
 ## so the whole title keeps one consistent camera language.
-const CAMERA_YAW_DEG := -10.0
-const CAMERA_DISTANCE_SCALE := 0.95
-const CAMERA_RISE := 1.8
-const CAMERA_TARGET_RISE := 0.5
+const CAMERA_YAW_DEG := 0.0
+const CAMERA_DISTANCE_SCALE := 1.05
+const CAMERA_RISE := 0.0
+const CAMERA_TARGET_RISE := -1.6
 const CAMERA_FOV_SCALE := 1.0
 ## The kit's window glass has its own material; the module's gain still blooms the
 ## centre window out to near-white, so the look pass pins it to a calmer value.
@@ -283,6 +283,7 @@ static func adjust_sample(sample: Dictionary) -> Dictionary:
 	var pos: Vector3 = sample.get("pos", Vector3.ZERO)
 	var target: Vector3 = sample.get("target", Vector3.ZERO)
 	var offset := pos - target
+	offset.y = 0.0
 	offset = offset.rotated(Vector3.UP, deg_to_rad(CAMERA_YAW_DEG))
 	offset *= CAMERA_DISTANCE_SCALE
 	offset.y += CAMERA_RISE
