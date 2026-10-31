@@ -61,10 +61,10 @@ const KENNEY_SPRITE_OFFSET := Vector2(0.0, -13.0)
 const WALK_BOB_AMPLITUDE := 1.5
 const WALK_BOB_FREQ := 7.0
 
-## Fantasy Knight 像素帧动画（assets/characters/player_fantasy_knight/，朝右）。
+## 余烬骑士像素帧动画（assets/characters/player_ember_knight/，朝右；tools/gen_ember_knight.py 程序化绘制）。
 ## 画布统一 120x80、脚底贴画布底边；身体中心在画布 x≈54.5 → 补偿 +6px。
 ## centered=true 时 (6, -40) 让脚底落在节点原点、身体对准碰撞体中线。
-const KNIGHT_CHAR := "player_fantasy_knight"
+const KNIGHT_CHAR := "player_ember_knight"
 const KNIGHT_POS := Vector2(6.0, -40.0)
 ## 三段连击对应的动作名。姿势按阶段钉帧，不把整段挥砍平均摊进很少的帧里。
 const KNIGHT_ATTACK_ANIMS := ["attack1", "attack2", "attack_combo"]

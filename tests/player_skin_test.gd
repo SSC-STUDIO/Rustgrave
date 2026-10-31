@@ -36,7 +36,7 @@ func test_default_look_is_the_fantasy_knight() -> void:
 	var player := await _spawn()
 	eq(player.skin_id(), SkinCatalog.DEFAULT_SKIN)
 	var state := player.skin_state()
-	eq(String(state["folder"]), "player_fantasy_knight")
+	eq(String(state["folder"]), "player_ember_knight")
 	eq(state["tint"], Color.WHITE)
 	eq(player.rune_id(), &"", "默认无刻印")
 	ok(player._anim != null)
