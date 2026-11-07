@@ -60,8 +60,6 @@ const ROCKS := [
 
 ## Lane-frame rectangles (x, z) the hero cannot enter.
 var blockers: Array[Rect2] = []
-## Crystal gems; each carries meta "base_y" for the idle bob.
-var crystals: Array[Node3D] = []
 
 var _ground: TOON_PART
 var _lava: TOON_PART
@@ -90,10 +88,9 @@ func _ready() -> void:
 		part.build()
 	_build_bushes()
 	_build_rocks()
-	_build_tower(0, -15.0, -4.2)
-	_build_tower(1, 15.0, 4.2)
-	_build_crystal(0, -29.0)
-	_build_crystal(1, 29.0)
+	# Towers and crystals are not terrain: MobaStructureView builds them at the
+	# simulation's lane positions and animates their health/destruction, so the
+	# map stays a static, merged-geometry backdrop.
 
 
 func is_walkable(world_pos: Vector3) -> bool:
@@ -244,69 +241,6 @@ func _build_rocks() -> void:
 		if not in_river:
 			_block(lx, lz, 0.75, 0.75)
 	part.build()
-
-
-func _build_tower(team: int, lane_x: float, lane_z: float) -> void:
-	var root := Node3D.new()
-	root.name = "Tower%d" % team
-	root.position = lane_to_world(lane_x, lane_z)
-	add_child(root)
-	var team_col := KIT.team_color(team)
-	var stone := _part(root, "Stone", KIT.textured_material("brick", 16.0))
-	stone.box(Vector3(2.8, 0.6, 2.8), Vector3(0.0, 0.3, 0.0), TOWER_DARK)
-	stone.box(Vector3(2.2, 0.5, 2.2), Vector3(0.0, 0.85, 0.0), TOWER_STONE)
-	stone.box(Vector3(1.3, 3.0, 1.3), Vector3(0.0, 2.6, 0.0), TOWER_STONE)
-	stone.build()
-	var trim := _part(root, "Trim", null)
-	trim.box(Vector3(1.44, 0.22, 1.44), Vector3(0.0, 2.9, 0.0), team_col)
-	trim.box(Vector3(2.0, 0.25, 2.0), Vector3(0.0, 4.0, 0.0), Palette.IRON)
-	for sx: float in SIDES:
-		for sz: float in SIDES:
-			trim.box(Vector3(0.36, 0.36, 0.36), Vector3(sx * 0.82, 4.3, sz * 0.82), Palette.IRON)
-	trim.cylinder(0.32, 0.46, 0.4, Vector3(0.0, 4.33, 0.0), Palette.RUST_DARK, 8)
-	# The banner faces the camera (+Z); a side-on banner would vanish edge-on.
-	trim.box(Vector3(0.08, 1.7, 0.08), Vector3(0.82, 5.0, 0.82), Palette.VOID)
-	trim.box(Vector3(0.55, 0.6, 0.04), Vector3(0.52, 5.5, 0.82), team_col)
-	trim.build()
-	var flame := _part(root, "Flame", KIT.flame_material())
-	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var fx := KIT.EMISSIVE | KIT.NO_OUTLINE
-	flame.box(Vector3(0.5, 0.3, 0.5), Vector3(0.0, 4.66, 0.0), Palette.TOXIC, Vector3(0.0, 45.0, 0.0), fx)
-	flame.box(Vector3(0.32, 0.42, 0.32), Vector3(0.0, 4.85, 0.0), Palette.EMBER, Vector3(0.0, 20.0, 0.0), fx)
-	flame.box(Vector3(0.14, 0.28, 0.14), Vector3(0.04, 5.14, 0.0), Palette.EMBER_ASH, Vector3(0.0, 60.0, 0.0), fx)
-	flame.build()
-	root.add_child(KIT.light_pool(3.2, Palette.EMBER, 0.16, 0.3))
-	var deck_glow := KIT.light_pool(0.95, Palette.EMBER, 0.3, 0.3)
-	deck_glow.position.y = 4.14
-	root.add_child(deck_glow)
-	# The footprint is a world-aligned square, i.e. a diamond in the lane frame.
-	_block(lane_x, lane_z, 1.7, 1.7)
-
-
-func _build_crystal(team: int, lane_x: float) -> void:
-	var root := Node3D.new()
-	root.name = "Crystal%d" % team
-	root.position = lane_to_world(lane_x, 0.0)
-	add_child(root)
-	var plinth := _part(root, "Plinth", KIT.textured_material("brick", 16.0))
-	plinth.box(Vector3(3.6, 0.5, 3.6), Vector3(0.0, 0.25, 0.0), TOWER_DARK)
-	plinth.box(Vector3(2.8, 0.5, 2.8), Vector3(0.0, 0.75, 0.0), TOWER_STONE)
-	plinth.box(Vector3(1.8, 0.4, 1.8), Vector3(0.0, 1.2, 0.0), TOWER_DARK)
-	plinth.build()
-	var claws := _part(root, "Claws", null)
-	claws.box(Vector3(1.9, 0.14, 1.9), Vector3(0.0, 1.45, 0.0), KIT.team_dark(team))
-	for sx: float in SIDES:
-		for sz: float in SIDES:
-			claws.box(Vector3(0.22, 1.5, 0.22), Vector3(sx * 0.8, 1.95, sz * 0.8), Palette.IRON, Vector3(-8.0 * sz, 0.0, 8.0 * sx))
-	claws.build()
-	var gem := _part(root, "Gem", null)
-	gem.position = Vector3(0.0, 2.85, 0.0)
-	gem.set_meta("base_y", 2.85)
-	gem.sphere(0.95, 2.6, Vector3.ZERO, KIT.team_light(team), 6, 3, Vector3.ZERO, KIT.HALF_EMISSIVE)
-	gem.build()
-	crystals.append(gem)
-	root.add_child(KIT.light_pool(4.6, KIT.team_color(team), 0.35))
-	_block(lane_x, 0.0, 2.2, 2.2)
 
 
 func _part(parent: Node3D, part_name: String, material: Material) -> TOON_PART:

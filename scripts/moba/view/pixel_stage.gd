@@ -23,6 +23,11 @@ var image: Sprite2D
 var base_height := 360
 ## true: cover the whole window (width follows the aspect ratio); false: 16:9 with black bars.
 var fill_screen := true
+## Super-sampling factor for the 3D pass: the viewport renders this many pixels per
+## output texel and the post shader box-filters it back down. 1 keeps the arena's
+## original 1:1 behaviour; the title screen renders at 2 to keep lighting gradients
+## smooth while the final image still lands on a chunky texel grid.
+var render_scale := 1
 var subpixel_enabled := true
 var pixel_scale := 1
 var internal_size := Vector2i(640, 360)
@@ -41,7 +46,7 @@ func _ready() -> void:
 	viewport.msaa_3d = Viewport.MSAA_DISABLED
 	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	viewport.size = internal_size + Vector2i(MARGIN, MARGIN) * 2
+	viewport.size = (internal_size + Vector2i(MARGIN, MARGIN) * 2) * render_scale
 	add_child(viewport)
 	world = Node3D.new()
 	world.name = "World"
@@ -79,11 +84,16 @@ func relayout() -> void:
 		internal_size = Vector2i(base_width, base_height)
 	var shown := Vector2(internal_size * pixel_scale)
 	_origin = ((phys - shown) * 0.5).floor()
-	var target := internal_size + Vector2i(MARGIN, MARGIN) * 2
+	var output_size := internal_size + Vector2i(MARGIN, MARGIN) * 2
+	var target := output_size * render_scale
 	if viewport.size != target:
 		viewport.size = target
-	image.scale = Vector2(pixel_scale, pixel_scale) / _root_scale
+	# The image shows render pixels, so one output texel spans `pixel_scale`
+	# physical pixels only after the post shader has filtered the extra samples.
+	image.scale = Vector2(pixel_scale, pixel_scale) / _root_scale / float(render_scale)
 	_post.set_shader_parameter("source_size", Vector2(target))
+	_post.set_shader_parameter("output_size", Vector2(output_size))
+	_post.set_shader_parameter("render_scale", render_scale)
 	_mask.rects = _letterbox_rects(phys, shown)
 	_mask.queue_redraw()
 	_place_image()
@@ -94,6 +104,24 @@ func cycle_base_height() -> void:
 	var i := HEIGHT_PRESETS.find(base_height)
 	base_height = HEIGHT_PRESETS[(i + 1) % HEIGHT_PRESETS.size()]
 	relayout()
+
+
+## 1 = render at the output texel grid (arena). 2-3 supersample the 3D pass and
+## box-filter it down in the post shader, which keeps lighting gradients smooth
+## without softening the texel edges.
+func set_render_scale(scale_factor: int) -> void:
+	render_scale = clampi(scale_factor, 1, 3)
+	if viewport != null:
+		relayout()
+
+
+## Extra post-process parameters used by the title screen (vignette, grain, heat
+## haze, tint). The arena never sets them, so they stay at their neutral defaults.
+func set_post_params(params: Dictionary) -> void:
+	if _post == null:
+		return
+	for key in params.keys():
+		_post.set_shader_parameter(key, params[key])
 
 
 func set_fill_screen(on: bool) -> void:

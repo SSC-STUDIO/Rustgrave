@@ -1,6 +1,6 @@
-# Rustgrave — Architecture Quick Map
+﻿# Rustgrave — Architecture Quick Map
 
-Target: **Godot 4.7** · GDScript only · zero external deps.
+Target: **Godot 4.7** · GDScript only · zero external deps · **Forward+ renderer** (switched from GL Compatibility 2026-10-31; 2D picture A/B-verified unchanged).
 
 显示边界：世界始终在 **640×360 SubViewport** 中以原生像素渲染，`GameCamera.zoom=1`；`GamePresentation` 将世界图像和 1280×720 设计单位的 UI 一起放入最大整数倍率内容矩形。`PresentationMetrics` 是内容矩形、倍率和坐标转换的唯一来源，非 16:9 窗口只增加黑边。
 

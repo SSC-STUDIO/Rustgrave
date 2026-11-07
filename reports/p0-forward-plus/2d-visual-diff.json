@@ -1,0 +1,51 @@
+{
+  "a": "C:\\Users\\Administrator\\OneDrive\\Documents\\My-Program\\Rustgrave\\screenshots\\acceptance\\title3d\\p0\\compat",
+  "b": "C:\\Users\\Administrator\\OneDrive\\Documents\\My-Program\\Rustgrave\\screenshots\\acceptance\\title3d\\p0\\forward",
+  "pairs": [
+    {
+      "name": "live_mid.png",
+      "a": "screenshots/acceptance/title3d/p0/compat\\live_mid.png",
+      "b": "screenshots/acceptance/title3d/p0/forward\\live_mid.png",
+      "size_a": [
+        1920,
+        1080
+      ],
+      "size_b": [
+        1920,
+        1080
+      ],
+      "status": "ok",
+      "mean_abs": 0.5664,
+      "p99_abs": 3.0,
+      "pct_gt8": 0.386,
+      "pct_gt24": 0.192,
+      "max_abs": 115,
+      "pass": true
+    },
+    {
+      "name": "live_start.png",
+      "a": "screenshots/acceptance/title3d/p0/compat\\live_start.png",
+      "b": "screenshots/acceptance/title3d/p0/forward\\live_start.png",
+      "size_a": [
+        1920,
+        1080
+      ],
+      "size_b": [
+        1920,
+        1080
+      ],
+      "status": "ok",
+      "mean_abs": 0.6198,
+      "p99_abs": 5.0,
+      "pct_gt8": 0.7641,
+      "pct_gt24": 0.2421,
+      "max_abs": 116,
+      "pass": true
+    }
+  ],
+  "failed": 0,
+  "total": 2,
+  "mean_threshold": 2.0,
+  "structural_threshold": 1.0,
+  "passed": true
+}

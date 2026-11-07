@@ -1,0 +1,10 @@
+WARNING: title: Blender hero set loaded (100 meshes)
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] build (res://scripts/title3d/title_blender_set.gd:46)
+       [1] _build_geometry (res://scripts/title3d/title_world3d.gd:297)
+       [2] _ready (res://scripts/title3d/title_world3d.gd:92)
+       [3] _build_live_world_3d (res://scripts/ui/title_screen.gd:538)
+       [4] _build_backdrop (res://scripts/ui/title_screen.gd:487)
+       [5] _ready (res://scripts/ui/title_screen.gd:419)
+       [6] _ready (res://tools/frame_cost_probe.gd:78)

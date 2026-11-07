@@ -3,7 +3,10 @@ param(
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe',
     [string]$OutDir = '',
     ## Godot user-args after --, e.g. -ExtraArgs '--sequence=all','--frames=10','--step=0.5'
-    [string[]]$ExtraArgs = @()
+    [string[]]$ExtraArgs = @(),
+    ## '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    ## pre-switch baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 # Windowed stills of the live title, storyboards, journal and ember recap.
 # Takes the shared Godot lock ($env:TEMP\rustgrave_godot.lock) and refreshes it so a
@@ -39,10 +42,10 @@ try {
     $arguments = @(
         '--path', ('"' + $workspace + '"'),
         '--windowed', '--position', '-12000,-12000', '--resolution', '1280x720',
-        '--rendering-method', 'gl_compatibility',
         'res://scenes/tools/StoryShots.tscn', '--',
         ('--out=' + $resOut)
     )
+    if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
     if ($ExtraArgs) { $arguments += @($ExtraArgs) }
     $process = Start-Process -FilePath $GodotExe -ArgumentList $arguments -WorkingDirectory $workspace `
         -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr

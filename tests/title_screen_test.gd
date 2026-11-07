@@ -392,7 +392,8 @@ func test_dossier_has_placeholders_without_a_save() -> void:
 	ArenaRun.use_default_file()
 
 
-## 右侧是一条短注：计数、章名、横着的 14 格、回看。没有竖排数字，也没有折叠芯片。
+## 右侧是一列：上半短注（计数、章名、横着的 14 格）+ 中段档案摘要 + 底部回看，
+## 与左下菜单块同顶同高，左右两侧视觉重量对等。
 func test_journey_note_is_a_short_horizontal_rail() -> void:
 	var title: TitleScreen = await _open_title()
 	var column := title.find_child("JourneyColumn", true, false) as Control
@@ -401,8 +402,10 @@ func test_journey_note_is_a_short_horizontal_rail() -> void:
 	var button := title.find_child("RecapButton", true, false) as Control
 	ok(column != null and gauge != null and chapter != null and button != null, "短注的四件都在")
 	if column != null:
-		almost(column.size.y, TitleScreen.JOURNEY_H, 0.5, "旅程列收成一条短注")
-		ok(column.size.y < 160.0, "不再是铺满右侧的长列")
+		almost(column.size.y, TitleScreen.JOURNEY_H, 0.5, "旅程列高度等于约定值")
+		almost(column.position.y, TitleScreen.RAIL_TOP, 0.5, "和左下菜单同顶")
+		ok(column.size.y >= 340.0, "右列拉成与菜单对等的块面（不是一条细注）")
+		ok(column.size.y < 420.0, "右列仍短于墓碑，不上到字标")
 	if gauge != null and chapter != null and button != null:
 		ok(gauge.horizontal, "刻度是横轨")
 		ok(gauge.position.y > chapter.position.y, "横轨在章名下面")
@@ -1245,7 +1248,7 @@ func test_journey_shade_tokens_and_static_layer() -> void:
 		almost(rect.size.x, TitleScreen.JOURNEY_W + 28.0, 0.5, "暗斑宽 +28")
 		almost(rect.size.y, TitleScreen.JOURNEY_H + 24.0, 0.5, "暗斑高 +24")
 		eq(shade.mouse_filter, Control.MOUSE_FILTER_IGNORE, "暗斑不吃鼠标")
-		almost(TitleScreen.JOURNEY_H, 96.0, 0.01, "短注高 96")
+		almost(TitleScreen.JOURNEY_H, 396.0, 0.01, "右列与菜单同顶、同块高度 396")
 		almost(TitleScreen.JOURNEY_DIM, 0.62, 0.001, "暗态 0.62")
 		almost(TitleScreen.JOURNEY_LIT, 1.0, 0.001, "亮态 1.0")
 		almost(TitleScreen.RecapStrip.HEIGHT, 30.0, 0.01, "回看条高 30")

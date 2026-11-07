@@ -13,7 +13,10 @@ param(
     # hide the UI and capture only the live scene
     [switch]$Bare,
     [switch]$Keyart,
-    [switch]$ShadowPair
+    [switch]$ShadowPair,
+    # '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    # pre-switch 2D baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 # Window-mode capture of the live title (see tools/title_peek.gd). Saves and settings
 # are isolated under $OutDir, and APPDATA is redirected, so a real player save is
@@ -28,12 +31,13 @@ $previousAllowSmall = $env:RUSTGRAVE_ALLOW_SMALL_WINDOW
 $resOut = 'res://' + ($OutDir.TrimEnd('/') -replace '\\', '/')
 $first = ($Sizes -split ',')[0]
 $arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', $first,
-    '--rendering-method', 'gl_compatibility', 'res://scenes/tools/TitlePeek.tscn', '--',
+    'res://scenes/tools/TitlePeek.tscn', '--',
     ('--out=' + $resOut), ('--sizes=' + $Sizes), ('--variants=' + $Variants), ('--shots=' + $Shots))
 if ($Skin) { $arguments += @('--skin=' + $Skin) }
 if ($Bare) { $arguments += @('--bare') }
 if ($Keyart) { $arguments += @('--keyart') }
 if ($ShadowPair) { $arguments += @('--shadow-pair') }
+if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
 $stdoutFile = Join-Path $outputDir 'stdout.log'
 $stderrFile = Join-Path $outputDir 'stderr.log'
 try {

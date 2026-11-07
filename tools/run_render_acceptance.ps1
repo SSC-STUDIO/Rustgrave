@@ -1,7 +1,10 @@
 param(
     [string]$GodotExe = 'C:\Program Files\Godot\Godot_v4.7.1-stable_win64_console.exe',
     [switch]$Quick,
-    [switch]$Supplement
+    [switch]$Supplement,
+    # '' = the project setting (forward_plus). 'gl_compatibility' reproduces the
+    # pre-switch baseline for A/B comparisons.
+    [string]$Renderer = ''
 )
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
@@ -11,7 +14,8 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $reportPath = Join-Path $outputDir 'report.json'
 if (Test-Path -LiteralPath $reportPath) { Remove-Item -LiteralPath $reportPath }
 $env:APPDATA = Join-Path $outputDir 'isolated-userdata'
-$arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', '1920x1080', '--rendering-method', 'gl_compatibility', 'res://scenes/tools/RenderAcceptance.tscn')
+$arguments = @('--path', ('"' + $workspace + '"'), '--windowed', '--position', '-12000,-12000', '--resolution', '1920x1080', 'res://scenes/tools/RenderAcceptance.tscn')
+if ($Renderer) { $arguments = @('--rendering-method', $Renderer) + $arguments }
 if ($Supplement) { $arguments += @('--', '--supplement') }
 elseif ($Quick) { $arguments += @('--', '--quick') }
 $stdoutFile = Join-Path $outputDir 'stdout.log'

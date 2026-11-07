@@ -18,7 +18,7 @@ config/name="Rustgrave"
 config/description="A 2D pixel-art Metroidvania of rust, weight, and ember."
 config/version="0.2.0"
 run/main_scene="res://scenes/ui/TitleScreen.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
 config/windows_native_icon="res://icon.ico"
 
@@ -157,6 +157,12 @@ map={
 [rendering]
 
 textures/canvas_textures/default_texture_filter=3
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="forward_plus"
 environment/defaults/default_clear_color=Color(0.06, 0.05, 0.09, 1)
+; 3D title lighting: the forge hall is judged at 640x360 output texels, so the
+; shadow maps and volumetric fog grid only need to look right at that scale.
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/positional_shadow/atlas_size=2048
+environment/volumetric_fog/volume_size=96
+environment/volumetric_fog/volume_depth=96

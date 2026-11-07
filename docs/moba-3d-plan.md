@@ -1,5 +1,10 @@
-# 3D 像素风 MOBA 模式计划（仿王者荣耀）
+﻿# 3D 像素风 MOBA 模式计划（仿王者荣耀）
 
+> **渲染器说明（2026-10-31）**：整个工程已从 GL Compatibility 切到 **Forward+**（开始界面 3D 化
+> 的同一决定，见 [docs/title-3d.md](title-3d.md) 与 `reports/renderer-switch-forward-plus.md`）。
+> 下文「Compatibility 渲染器的光照约束」一节是 P0 验证时的**历史记录**：其中点光/环境光/
+> sRGB 的变通是为 Compatibility 打的补丁，在 Forward+ 下不再需要（但现有 shader 仍可运行）。
+>
 > 2026-10-31 本地采用决定：用户要求撤下 2.5D 竞技场，使用本分支的 3D 版本。当前 P0 已作为标题／回看页的唯一竞技场入口接入；以下 P1–P9 是后续开发计划，不代表已经交付。当前功能与返回／存档边界见 [竞技场说明](arena-mode.md)。
 
 ## 目标
@@ -180,6 +185,12 @@ scenes/moba/         场景（P0 渲染验证、正式对局场景）
 | IP 风险 | 只借机制，内容全部原创 |
 
 ## 当前状态
+
+- **P1（确定性模拟核心）最小切片已完成（2026-10-31）**：`scripts/moba/sim/moba_sim.gd`（30Hz、整数毫米、种子 RNG、逐 tick `state_hash()`、命令 API），单路 1v1：塔/水晶/波次/小兵/玩家英雄/红方 AI 英雄/死亡复活/胜负冻结；测试 21 例。
+- **P3 的最小切片**：玩家移动与普攻、受击/死亡/复活、AI 英雄对线已可玩；技能/大招未做。
+- **表现层**：`scripts/moba/present/*`（sim 驱动单位/小兵对象池/塔水晶视图/HUD/受击特效），`RenderSpike` 重写为对局场景；66 例 moba 测试绿；实测 54.6s 可赢、挂机 62.1s 会输。
+- **P2 地图数据化 / P4 经济商店 / P5 5v5 AI / P6 UI 触屏 / P7 美术音频仍待做。**
+
 
 - P0 已在分支 `cursor/moba-3d-render-spike-4fbe` 上完成并通过云端验证（见上），
   等待在真机（桌面显卡、中端 Android）上确认画面与性能。
