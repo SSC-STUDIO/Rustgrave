@@ -12,8 +12,9 @@ extends Node
 ##                 personal epitaphs / dossier row render (CI screenshots do this)
 ## --variants  cold | act1..act4 | mid (= act2) | give | keep | snuff | true_break     (default: all but true_break)
 ## --sizes     window sizes, e.g. 1280x720,1920x1080,1600x900          (default: 1280x720)
-## --shots     boot,idle,focus,dossier,recap,all  (default: idle,focus; 'boot' adds the intro frames,
-##             'dossier' pins the journey dossier card open, 'recap' opens the recap page)
+## --shots     boot,idle,focus,dossier,epitaph,recap,all  (default: idle,focus; 'boot' adds the intro frames,
+##             'dossier' pins the journey dossier card open, 'epitaph' hovers + advances the epitaph
+##             mid-type so the reading brightness / ember pen tip show, 'recap' opens the recap page)
 ## --bare      hide the UI and show only the live scene (art review)
 
 const TITLE := preload("res://scenes/ui/TitleScreen.tscn")
@@ -226,6 +227,15 @@ func _variant(variant: String, size: Vector2i) -> void:
 		title._set_dossier_open(true)
 		await get_tree().create_timer(0.5).timeout
 		await _shot(variant, "dossier", size)
+	if _shots.has("epitaph"):
+		# 驻足读碑：先收起档案卡，悬停墓志并点一句，抓打字中段（笔尖亮着、字提到 READ 档）。
+		title.set("_dossier_pinned", false)
+		title._set_dossier_open(false)
+		title._on_epitaph_hover(true)
+		title._advance_epitaph()
+		await get_tree().create_timer(0.3).timeout
+		await _shot(variant, "epitaph", size)
+		title._on_epitaph_hover(false)
 	if _shots.has("recap"):
 		title.open_recap()
 		await get_tree().create_timer(0.6).timeout

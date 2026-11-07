@@ -128,6 +128,33 @@ class SubtitleFlanks:
 				draw_rect(Rect2(c.x - half, c.y + dy, 2.0 * half + 1.0, 1.0),
 						Color(1.0, 0.76, 0.29, 0.95))
 
+## 墓志打字机的笔尖余热：跟随已敲出的字宽停在行尾，一截 6px 的暗琥珀拖尾 +
+## 3px 热芯 + 1px 白火星。纯 _draw 整数像素，不是灯；敲完就凉下去。
+class EpitaphPen:
+	extends Control
+
+	var heat := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		modulate.a = 0.0
+
+	func set_heat(value: float) -> void:
+		var v := clampf(value, 0.0, 1.0)
+		if is_equal_approx(v, heat):
+			return
+		heat = v
+		modulate.a = heat
+		queue_redraw()
+
+	func _draw() -> void:
+		if heat <= 0.01:
+			return
+		draw_rect(Rect2(-7.0, 0.0, 6.0, 1.0), Color(1.0, 0.62, 0.22, 0.4))
+		draw_rect(Rect2(-1.0, -1.0, 3.0, 3.0), Color(1.0, 0.76, 0.29, 0.95))
+		draw_rect(Rect2(0.0, -2.0, 1.0, 1.0), Color(1.0, 0.98, 0.9, 0.9))
+
+
 ## 菜单可读性暗斑（T1）：位于刻字菜单后方的烟雾状径向暗斑，羽化边缘，
 ## 压暗 ~35% 的场景，不使用硬面板。
 class MenuShade:
@@ -243,6 +270,11 @@ const EPITAPH_HOLD := 5.5
 const EPITAPH_FADE := 0.7
 ## 墓志最亮也只到这里，字停在炉影里，不跟菜单抢。
 const EPITAPH_PEAK := 0.58
+## 驻足细读：鼠标停在墓志上时点亮到这一档、计时停住；点击立刻换下一句。
+const EPITAPH_READ := 0.92
+const EPITAPH_HINT := "墓志 · 悬停驻足 · 点击换一句"
+## 炉厅识客：开屏落位后页脚先道一声欢迎回来，几秒后让位给菜单提示。
+const WELCOME_HOLD := 5.0
 ## 离开锈墓：吊灯一盏盏熄灭 → 只剩巨剑剪影 → 留一句墓志才退出。任何按键/点击都能立刻跳到退出。
 const QUIT_ROW_STAGGER := 0.055
 const QUIT_RAIL_FADE := 0.30
@@ -390,6 +422,9 @@ var _ep_lines: PackedStringArray = []
 var _ep_index := 0
 var _ep_phase := 0            # 0 idle, 1 typing, 2 holding, 3 fading
 var _ep_t := 0.0
+var _epitaph_paused := false
+var _ep_pen: EpitaphPen
+var _welcome_hold := 0.0
 
 var _pointer_seen := false
 
@@ -1171,6 +1206,26 @@ func _build_inscription() -> void:
 	row.add_child(_epitaph)
 	_fit_epitaph()
 
+	# 笔尖余热跟着打字机走；透明按钮让整条墓志可以悬停驻足 / 点击换句。
+	_ep_pen = EpitaphPen.new()
+	_ep_pen.name = "EpitaphPen"
+	row.add_child(_ep_pen)
+	var tap := Button.new()
+	tap.name = "EpitaphTap"
+	tap.flat = true
+	tap.text = ""
+	tap.focus_mode = Control.FOCUS_NONE
+	tap.mouse_filter = Control.MOUSE_FILTER_STOP
+	tap.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# flat 只去掉 normal 底；主题的 hover/pressed/focus 仍是铁板，全部换成空样式盒。
+	for box in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
+		tap.add_theme_stylebox_override(box, StyleBoxEmpty.new())
+	tap.pressed.connect(_advance_epitaph)
+	tap.mouse_entered.connect(_on_epitaph_hover.bind(true))
+	tap.mouse_exited.connect(_on_epitaph_hover.bind(false))
+	row.add_child(tap)
+
 
 ## 页脚：署名靠左、导航提示靠右，一行小字，没有底板。
 func _build_chrome() -> void:
@@ -1495,6 +1550,25 @@ func _finish_intro() -> void:
 		_curtain = null
 	# 第一句墓志在开屏结束时已经"在"了：整句可见 + 进入停留，不再从 0 开始打字。
 	_hold_first_epitaph()
+	# 炉厅识客：老玩家回来，页脚先道一声欢迎（只播完开屏才说；跳过开屏不打扰）。
+	if not _quitting and not _started:
+		var welcome := _welcome_back_text()
+		if welcome != "":
+			_set_footer_hint(welcome)
+			_welcome_hold = WELCOME_HOLD
+
+
+##  welcome：印记里有过去的点燃才开口；按上次来访的天数说不同的人话。
+func _welcome_back_text() -> String:
+	if EmberSigils.visit_count() <= 0:
+		return ""
+	var last: Dictionary = EmberSigils.last_visit()
+	var days := EmberSigils.today() - int(last.get("d", 0))
+	if days <= 0:
+		return "欢迎回来 · 炉火还温着"
+	if days == 1:
+		return "欢迎回来 · 昨日余烬未冷"
+	return "欢迎回来 · 上次点燃在 %s" % EmberSigils.ago_text(days)
 
 
 ## 开屏落位后的墓志：第一句整句可见并停留，之后的轮换才走打字机。
@@ -1591,6 +1665,13 @@ func _process(delta: float) -> void:
 	_time += delta
 	_update_pointer()
 	_update_dossier_hover()
+	# 弹窗盖上来就放开墓志的驻足，别让它在幕后一直亮着。
+	if _epitaph_paused and _modal_open():
+		_on_epitaph_hover(false)
+	if _welcome_hold > 0.0:
+		_welcome_hold -= delta
+		if _welcome_hold <= 0.0 and _menu != null:
+			_refresh_footer_hint(_menu.selected_id())
 	_update_epitaph(delta)
 	_update_seal_hold(delta)
 	_sync_aux_focus()
@@ -1704,18 +1785,26 @@ func dossier_open() -> bool:
 
 
 ## 墓志：慢速打字机轮换，第一句永远是 EPITAPH。
+## 悬停 = 驻足：停留阶段计时冻结、字色提到 READ 档；正在淡出的句子被拉回停留。
 func _update_epitaph(delta: float) -> void:
 	if _epitaph == null or _ep_phase == 0 or _quitting:
+		return
+	if _ep_pen != null and _ep_phase != 1:
+		_ep_pen.set_heat(maxf(0.0, _ep_pen.heat - delta * 5.0))
+	if _epitaph_paused and _ep_phase == 2:
+		_epitaph.modulate.a = lerpf(_epitaph.modulate.a, EPITAPH_READ, clampf(delta * 6.0, 0.0, 1.0))
 		return
 	_ep_t += delta
 	var line: String = _ep_lines[_ep_index]
 	match _ep_phase:
 		1:
-			# 新句先轻轻亮起，再开始打字；换行不再硬切。
-			_epitaph.modulate.a = EPITAPH_PEAK * smoothstep(0.0, 1.0,
+			# 新句先轻轻亮起，再开始打字；换不再硬切。
+			var peak := EPITAPH_READ if _epitaph_paused else EPITAPH_PEAK
+			_epitaph.modulate.a = peak * smoothstep(0.0, 1.0,
 					clampf(_ep_t / 0.22, 0.0, 1.0))
 			var shown := int(_ep_t / EPITAPH_CHAR)
 			_epitaph.visible_characters = shown
+			_update_ep_pen(shown)
 			if shown >= line.length():
 				_epitaph.visible_characters = -1
 				_ep_phase = 2
@@ -1726,7 +1815,7 @@ func _update_epitaph(delta: float) -> void:
 				_ep_t = 0.0
 		3:
 			_epitaph.modulate.a = EPITAPH_PEAK * (1.0 - smoothstep(0.0, 1.0,
-				clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0)))
+					clampf(_ep_t / EPITAPH_FADE, 0.0, 1.0)))
 			if _ep_t >= EPITAPH_FADE:
 				_ep_index = (_ep_index + 1) % _ep_lines.size()
 				_epitaph.text = _ep_lines[_ep_index]
@@ -1735,6 +1824,56 @@ func _update_epitaph(delta: float) -> void:
 				_epitaph.modulate.a = EPITAPH_PEAK
 				_ep_phase = 1
 				_ep_t = 0.0
+
+
+## 鼠标进/出墓志条：驻足细读 / 恢复轮换。弹窗盖上来或已在退场时不收。
+func _on_epitaph_hover(over: bool) -> void:
+	if _quitting or _started or _modal_open():
+		over = false
+	_epitaph_paused = over
+	if over:
+		_welcome_hold = 0.0
+		if _ep_phase == 3:
+			# 淡出到一半被读者拉住：整句拉回来重新亮着。
+			_ep_phase = 2
+			_ep_t = 0.0
+			_epitaph.visible_characters = -1
+			_epitaph.modulate.a = EPITAPH_READ
+		_set_footer_hint(EPITAPH_HINT)
+	elif _menu != null:
+		_refresh_footer_hint(_menu.selected_id())
+
+
+## 点击墓志：立刻换下一句，从第一个字重新敲。
+func _advance_epitaph() -> void:
+	if _quitting or _started or _modal_open() or _epitaph == null or _ep_lines.is_empty():
+		return
+	_ep_index = (_ep_index + 1) % _ep_lines.size()
+	_epitaph.text = _ep_lines[_ep_index]
+	_fit_epitaph()
+	_epitaph.visible_characters = 0
+	_epitaph.modulate.a = EPITAPH_READ if _epitaph_paused else EPITAPH_PEAK
+	_ep_phase = 1
+	_ep_t = 0.0
+	UiKit.sfx(&"ui_tick")
+
+
+## 笔尖位置：量出已敲出的那截字宽，停在这截字的右端、行中线上。
+func _update_ep_pen(shown: int) -> void:
+	if _ep_pen == null or _epitaph == null:
+		return
+	var font := _epitaph.get_theme_font(&"font")
+	var font_size := _epitaph.get_theme_font_size(&"font_size")
+	var line: String = _ep_lines[_ep_index]
+	var w := 0.0
+	if font != null:
+		w = font.get_string_size(line.substr(0, clampi(shown, 0, line.length())),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	# 墓志右对齐：已敲出的字贴着右缘，写字头在可见串的左端，笔尖停在那里。
+	var head_x := _epitaph.position.x + _epitaph.size.x - w
+	_ep_pen.position = Vector2(head_x,
+			_epitaph.position.y + floorf(_epitaph.size.y * 0.5)).round()
+	_ep_pen.set_heat(1.0)
 
 
 ## 墓志标签按当前这一行的整句定宽，右端贴着墓志条，不超出条的右缘。
@@ -1828,6 +1967,8 @@ func _on_recap_attention(over: bool) -> void:
 
 
 func _refresh_footer_hint(id: StringName) -> void:
+	# 焦点一动，欢迎语就让位（它只是开屏后的一声招呼，不是常驻文案）。
+	_welcome_hold = 0.0
 	# 「继续旅程」这一行的说明要跟着存档说真话（结局 / 章节+进度 / 尚无存档），
 	# 其余行仍走静态 MENU_HINTS。
 	var text := continue_hint(_look) if id == ID_CONTINUE else hint_for(id, _continue_opens_recap)

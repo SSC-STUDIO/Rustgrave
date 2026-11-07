@@ -25,6 +25,14 @@ void fragment() {
 		vec3 c = tex.rgb;
 		c = mix(c, ember.rgb, step(0.25, heat) * 0.9);
 		c = mix(c, hot.rgb, step(0.74, heat));
+		// Ember-root breath: once the forge-in has settled, a faint posterised
+		// warmth crawls along the bottom of the glyphs, like coals under iron.
+		// No new light / uniform; gated on progress so the reveal stays clean.
+		float root = smoothstep(0.62, 0.98, UV.y);
+		float crawl = 0.5 + 0.5 * sin(TIME * 0.9 - UV.x * 9.0);
+		crawl = floor(crawl * 3.0) / 3.0;
+		float glow = root * crawl * 0.12 * smoothstep(0.99, 1.0, progress);
+		c = mix(c, ember.rgb, glow);
 		COLOR = vec4(c, tex.a);
 	}
 }

@@ -92,7 +92,7 @@ jobs:
             --out=res://docs/shots/title-v4 \
             --sizes=1280x720 \
             --variants=cold,act2,keep \
-            --shots=idle,focus,dossier \
+            --shots=idle,focus,dossier,epitaph \
             --sigils=demo \
             > docs/shots/title-v4/_logs/render.log 2>&1
           status=$?

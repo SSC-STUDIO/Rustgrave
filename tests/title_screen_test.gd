@@ -582,6 +582,100 @@ func test_epitaph_first_line_is_complete_after_the_intro() -> void:
 	await get_tree().process_frame
 
 
+## 驻足读碑：悬停 = 停留计时冻结 + 字色提到 READ 档；移开后照常轮换。
+func test_epitaph_hover_pauses_and_brightens() -> void:
+	var title: TitleScreen = await _open_title()
+	title.skip_intro()
+	var label := title.get_node("Inscription/EpitaphRow/Epitaph") as Label
+	var first := title.epitaph_line()
+	title._on_epitaph_hover(true)
+	ok(title._epitaph_paused, "悬停进入驻足")
+	eq(title.footer_hint_text(), TitleScreen.EPITAPH_HINT, "页脚换成读碑提示")
+	# 驻足期间就算过了整个停留期也不换句，且亮度提到 READ 档。
+	title._update_epitaph(TitleScreen.EPITAPH_HOLD + 1.0)
+	eq(title.epitaph_line(), first, "驻足时墓志不换句")
+	eq(title._ep_phase, 2, "驻足冻结在停留阶段")
+	almost(label.modulate.a, TitleScreen.EPITAPH_READ, 0.02, "驻足时字色提到 READ 档")
+	# 移开：恢复菜单提示，停留期走完就淡出换句。
+	title._on_epitaph_hover(false)
+	ok(not title._epitaph_paused, "移开解除驻足")
+	title._update_epitaph(TitleScreen.EPITAPH_HOLD + 0.01)
+	eq(title._ep_phase, 3, "解除驻足后停留期走完进入淡出")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 点击墓志立刻换下一句并从第一个字重新敲；透明按钮不抢键盘焦点。
+func test_epitaph_tap_advances_line() -> void:
+	var title: TitleScreen = await _open_title()
+	title.skip_intro()
+	var label := title.get_node("Inscription/EpitaphRow/Epitaph") as Label
+	var tap := title.find_child("EpitaphTap", true, false) as Button
+	ok(tap != null, "墓志透明按钮存在")
+	if tap != null:
+		eq(tap.focus_mode, Control.FOCUS_NONE, "读碑按钮不抢键盘焦点")
+		eq(tap.mouse_filter, Control.MOUSE_FILTER_STOP, "读碑按钮接收鼠标")
+	var first := title.epitaph_line()
+	title._advance_epitaph()
+	ok(title.epitaph_line() != first, "点击换到下一句")
+	eq(label.text, title.epitaph_line(), "标签跟着换句")
+	eq(label.visible_characters, 0, "新句从 0 开始敲")
+	eq(title._ep_phase, 1, "点击后进入打字阶段")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 笔尖余热：打字时亮着、跟在已敲出的字宽后面；敲完就凉下去。
+func test_epitaph_pen_heats_while_typing_and_cools() -> void:
+	var title: TitleScreen = await _open_title()
+	title.skip_intro()
+	title._advance_epitaph()
+	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 2.0 + 0.001)
+	var pen := title.find_child("EpitaphPen", true, false) as Control
+	ok(pen != null, "笔尖节点存在")
+	if pen != null:
+		ok(pen.modulate.a > 0.9, "打字中笔尖亮着")
+	# 整句敲完进入停留，笔尖开始冷却。
+	title._update_epitaph(TitleScreen.EPITAPH_CHAR * 60.0)
+	eq(title._ep_phase, 2, "整句敲完进入停留")
+	title._update_epitaph(0.5)
+	if pen != null:
+		ok(pen.modulate.a < 0.1, "停留后笔尖凉下去")
+	title.queue_free()
+	await get_tree().process_frame
+
+
+## 炉厅识客：有旧点燃记录时，播完开屏页脚先道欢迎；冷启动不招呼。
+func test_welcome_back_greeting_from_sigils() -> void:
+	var saved_path := EmberSigils.store_path
+	var saved_recording := EmberSigils.recording_enabled
+	var saved_visits := EmberSigils.visits.duplicate(true)
+	EmberSigils.store_path = "user://title_welcome_test.cfg"
+	EmberSigils.recording_enabled = false
+	EmberSigils.clear()
+	EmberSigils.append_raw(EmberSigils.today() - 3, "continue", "stage02")
+	var title: TitleScreen = await _open_title()
+	title.skip_intro()
+	title._finish_intro()
+	ok(title.footer_hint_text().contains("欢迎回来"), "老玩家回来页脚道欢迎：%s" % title.footer_hint_text())
+	ok(title.footer_hint_text().contains("3 天前"), "欢迎语写明上次点燃在 3 天前")
+	ok(title._welcome_hold > 0.0, "欢迎语有停留计时")
+	title.queue_free()
+	await get_tree().process_frame
+	# 冷启动（无印记）：不招呼。
+	EmberSigils.clear()
+	var cold: TitleScreen = await _open_title()
+	cold.skip_intro()
+	cold._finish_intro()
+	ok(not cold.footer_hint_text().contains("欢迎回来"), "冷启动不道欢迎")
+	cold.queue_free()
+	await get_tree().process_frame
+	EmberSigils.clear()
+	EmberSigils.visits.assign(saved_visits)
+	EmberSigils.store_path = saved_path
+	EmberSigils.recording_enabled = saved_recording
+
+
 # ------------------------------------------------------------ 回看余烬 ----
 
 const RECAP_SAVE := "user://title_recap_test.cfg"
