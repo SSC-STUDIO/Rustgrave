@@ -334,10 +334,12 @@ func _process(delta: float) -> void:
 				_hide_now()
 		return
 	if _frozen():
+		_stage.call("set_video_paused", true)
 		return
 	_age += delta
 	_phase_t += delta
 	_tick_hold(delta)
+	_stage.call("set_video_paused", false)
 	_stage.call("tick", delta)
 	match phase:
 		Phase.OPEN:
@@ -416,6 +418,7 @@ func _begin_shot(index: int) -> void:
 	_text.text = ""
 	_panel.visible = false
 	_who_panel.visible = false
+	_stage.call("set_board_context", current_id, index)
 	_stage.call("show_shot", _shot, Boards.shot_seconds(_shot))
 	_stage.call("set_black", 1.0)
 	_credits.visible = false
@@ -490,6 +493,8 @@ func _finish(completed: bool) -> void:
 
 func _hide_now() -> void:
 	_reveal_left = 0.0
+	if _stage != null:
+		_stage.call("stop_video")
 	visible = false
 	if _root != null:
 		_root.modulate.a = 1.0

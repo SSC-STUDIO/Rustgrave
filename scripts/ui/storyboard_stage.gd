@@ -14,6 +14,8 @@ const WORLD := Vector2(640.0, 360.0)
 const GROUND_Y := 286.0
 const DIR_TITLE := "res://assets/title/"
 const ART_DIR := "res://assets/story/"
+const PROLOGUE_VIDEO := "res://assets/story/prologue.ogv"
+const PROLOGUE_SHOT_OFFSETS: Array[float] = [0.0, 4.3, 8.6, 13.0, 17.4, 21.8]
 ## 关键插图认的扩展名，按顺序找第一个存在的（生成工具给的是 .jpg，手绘 / 导出可能是 .png）。
 const ART_EXTS: Array[String] = ["png", "jpg"]
 ## 数据层（storyboards.gd）能用的词汇：新增演员 / 布景 / 运镜 / 粒子要和这里一起改，
@@ -76,6 +78,9 @@ var _motes_back: Node2D
 var _motes_front: Node2D
 var _black: ColorRect
 var _vignette: Sprite2D
+var _video: VideoStreamPlayer
+var _board_id := ""
+var _shot_idx := 0
 var _layers: Array[Dictionary] = []
 var _animated: Array[Node2D] = []
 ## 骑士的待机帧动画：自己的 _process 在暂停时（播放器是 ALWAYS）照样会走，所以关掉它，
@@ -147,6 +152,51 @@ func _build_base() -> void:
 
 # ------------------------------------------------------------------ public ------
 
+func set_board_context(board_id: String, shot_index: int) -> void:
+	_board_id = board_id
+	_shot_idx = shot_index
+
+
+func set_video_paused(paused: bool) -> void:
+	if _video != null and is_instance_valid(_video):
+		_video.paused = paused
+
+
+func stop_video() -> void:
+	if _video != null and is_instance_valid(_video):
+		_video.stop()
+		_video.visible = false
+
+
+func _sync_prologue_video() -> bool:
+	if _board_id != "prologue" or DisplayServer.get_name() == "headless":
+		stop_video()
+		return false
+	if not ResourceLoader.exists(PROLOGUE_VIDEO):
+		stop_video()
+		return false
+	if _video == null or not is_instance_valid(_video):
+		_video = VideoStreamPlayer.new()
+		_video.name = "PrologueVideo"
+		_video.size = WORLD
+		_video.expand = true
+		_video.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_video.z_index = 2
+		add_child(_video)
+		move_child(_video, 1)
+	var stream := load(PROLOGUE_VIDEO) as VideoStream
+	if stream == null:
+		stop_video()
+		return false
+	if _video.stream != stream:
+		_video.stream = stream
+	_video.visible = true
+	if not _video.is_playing():
+		_video.play()
+	if _shot_idx >= 0 and _shot_idx < PROLOGUE_SHOT_OFFSETS.size():
+		_video.stream_position = PROLOGUE_SHOT_OFFSETS[_shot_idx]
+	return true
+
 ## 换一个镜头。expected_seconds 只用来算运镜进度（镜头真实时长由播放器决定）。
 func show_shot(shot: Dictionary, expected_seconds: float) -> void:
 	_build_base()
@@ -157,6 +207,7 @@ func show_shot(shot: Dictionary, expected_seconds: float) -> void:
 	var set_id := String(shot.get("set", "dark"))
 	var art_path := resolve_art(shot)
 	# 文件在却加载失败（损坏 / 导入到一半）也退回实时拼，不留一整块黑。
+	var video_used := _sync_prologue_video()
 	var art_used := art_path != "" and _build_art(art_path)
 	_using_art = art_used
 	if not art_used:
@@ -170,6 +221,7 @@ func show_shot(shot: Dictionary, expected_seconds: float) -> void:
 		_vignette.modulate.a = 1.0
 	_info = {
 		"set": set_id, "cam": _cam, "art": String(shot.get("art", "")), "art_used": art_used,
+		"video_used": video_used,
 		"art_path": art_path,
 		"layers": _layers.size(), "actors": _animated.size() + _count_extra_actors(),
 		"motes": _motes.size(),
